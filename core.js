@@ -252,3 +252,4 @@ function saveTripPrefs() {
     if (originMode !== 'gps') { const o = $('from').value.trim(); if (nameIndex.has(o.toLowerCase())) localStorage.setItem('nl-offline-origin', o); }
   } catch (_) {}
 }
+

@@ -143,3 +143,4 @@ function zoom(f) {
   const cx = (view.minx + view.maxx) / 2, cy = (view.miny + view.maxy) / 2, dx = (view.maxx - view.minx) * f / 2, dy = (view.maxy - view.miny) * f / 2;
   view = normalizeView({ minx: cx - dx, maxx: cx + dx, miny: cy - dy, maxy: cy + dy }); renderBase(); renderOverlay();
 }
+

@@ -1,6 +1,6 @@
-const VERSION = '0.12.0';
+const VERSION = '0.13.0';
 const CACHE = `nl-offline-${VERSION}`;
-const ASSETS = ['index.html', 'core.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const ASSETS = ['index.html', 'core.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'v013-routing.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 const scopeUrl = self.registration.scope;
 const urlFor = p => new URL(p, scopeUrl).href;
 

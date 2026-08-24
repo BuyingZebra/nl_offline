@@ -1,55 +1,17 @@
-NL Offline v0.12 — Road Test Checklist
-=======================================
+NL Offline v0.13 — Road Test
+============================
 
-BEFORE LEAVING
-[ ] Open the HTTPS GitHub Pages version while online.
-[ ] Confirm the app identifies itself as v0.12.
-[ ] Tap Recheck road setup.
-[ ] Confirm ROAD READY and a GPS accuracy value.
-[ ] Close and reopen the installed Home Screen PWA.
+Before leaving:
+[ ] Confirm v0.13 is displayed.
+[ ] Tap Recheck road setup and confirm ROAD READY.
+[ ] Clear the local road-test log.
 
-SIMULATION CHECK
-[ ] Load Carbonear -> St. John's.
-[ ] Confirm 108 km / 1h 11m official trip.
-[ ] Tap Follow.
-[ ] Move the simulation slider.
-[ ] Confirm the map follows the simulated position and remaining km decreases.
-[ ] Tap Route to return to the full-route overview.
+Carbonear → St. John's:
+[ ] Confirm Level 2 prefers the major Route 75 / TCH-style corridor.
+[ ] Confirm the Route Status note includes "fast-route model".
+[ ] Start Driving and use Follow.
+[ ] Watch for route jumps, false off-route warnings, or odd ETA changes.
 
-LIVE ROAD CHECK
-[ ] Set From to Current location.
-[ ] Choose destination and Show trip.
-[ ] Tap Start driving.
-[ ] Confirm GPS changes to GPS live.
-[ ] Confirm Follow centres on your position.
-[ ] Confirm travelled/remaining values update as you move.
-[ ] Note whether ETA settles after several kilometres.
-[ ] If you intentionally leave the route, note when OFF ROUTE appears.
-[ ] Return to route and confirm it recovers without rapid flicker.
-
-OFFLINE CHECK
-[ ] After ROAD READY, enable airplane mode or enter a no-service area.
-[ ] Reopen NL Offline.
-[ ] Confirm town search, Level 1 distance/time and Level 2 map still load.
-
-FERRY CHECK (can be simulated)
-[ ] Load Ramea -> Burgeo.
-[ ] Confirm total 24 km / 1h 24m.
-[ ] Confirm breakdown shows Road 2 + ferry 22 km and Road 4 min + ferry 1h 20m.
-[ ] Confirm Level 2 is marked Schematic rather than showing a false road route.
-
-REPORT
-Record any route where:
-- map path visibly leaves the real road,
-- official numbers look wrong,
-- GPS jumps forward,
-- Follow loses the vehicle,
-- labels flicker/overlap,
-- app fails after losing service,
-- or a ferry trip is represented incorrectly.
-
-
-V0.12 DIAGNOSTICS
-- Before the drive, tap Clear beside the local test-event count if you want a clean session.
-- After the drive, tap Export log. On iPhone it should open the Share sheet; otherwise a JSON file is downloaded.
-- The log is local-only and is intended to let us inspect GPS accuracy, route snapping, off-route detection and ETA behaviour after the test.
+After driving:
+[ ] Export the local road-test JSON.
+[ ] Keep screenshots of any visibly incorrect route section.

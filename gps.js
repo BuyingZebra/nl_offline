@@ -105,10 +105,31 @@ async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.12', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.13', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
   setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.level2Count || DATA.routeReady} mapped locally · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${Object.keys(ROUTING_ANCHOR_OVERRIDES).length} calibrated anchors.`); logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length });
   makeTrip();
 }
-boot();
+function loadV013Routing() {
+  return new Promise((resolve, reject) => {
+    if (window.__NL_V013_ROUTING_LOADED__) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = './v013-routing.js';
+    script.onload = () => {
+      window.__NL_V013_ROUTING_LOADED__ = true;
+      document.title = 'NL Offline MVP v0.13';
+      const sub = document.querySelector('.sub');
+      if (sub) sub.textContent = 'Newfoundland & Labrador road trips without a signal · v0.13';
+      const ready = document.querySelector('.readytitle');
+      if (ready) ready.textContent = 'Road-test readiness · v0.13';
+      resolve();
+    };
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+loadV013Routing().then(boot).catch(e => {
+  setStatus('Highway routing update did not load; using v0.12 routing fallback.', true);
+  boot();
+});

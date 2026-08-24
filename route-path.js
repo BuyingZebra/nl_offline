@@ -94,3 +94,4 @@ function snapGpsFix(lon, lat, now) {
   const at = progress * routePolylineKm;
   return snapRange(lon, lat, Math.max(0, at - backKm), Math.min(routePolylineKm, at + possibleForward));
 }
+
