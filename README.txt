@@ -1,4 +1,4 @@
-NL Offline v0.11
+NL Offline v0.12
 =================
 
 Purpose
@@ -10,7 +10,7 @@ LEVEL 1 — OFFICIAL TRIP DATA
 - 927 official place entries.
 - 859,329 origin/destination combinations.
 - Distance and time come from the Newfoundland & Labrador Road Distance Database (NL-RDDb) data pack used to build this app.
-- v0.11 preserves the official total while also carrying the original road and ferry components.
+- The app preserves the official total while also carrying the original road and ferry components.
 - 115,394 pairs contain a ferry distance and/or ferry time component.
 
 LEVEL 2 — OFFLINE MAP PATH
@@ -19,6 +19,7 @@ LEVEL 2 — OFFLINE MAP PATH
 - Named road-only trips forbid ferry-edge shortcuts.
 - Ferry routes use local ferry geometry only when it agrees reasonably with Level 1. Otherwise the app labels the Level 2 map as SCHEMATIC rather than presenting a misleading route.
 - Level 1 remains the authoritative distance/time source.
+- v0.12 applies a small set of conservative, validated routing-anchor corrections for Level 2 only.
 
 GPS
 ---
@@ -27,6 +28,8 @@ GPS
 - Live route progress is matched within a plausible window around prior progress to avoid loop/crossing jumps.
 - Route progress does not advance from poor-quality or off-route fixes.
 - Follow mode works for live GPS and the simulation slider.
+- v0.12 adds an adaptive ETA that gradually blends observed road pace with the official baseline.
+- Local road-test diagnostics can be explicitly exported as JSON; they are not uploaded automatically.
 
 OFFLINE / PWA
 -------------

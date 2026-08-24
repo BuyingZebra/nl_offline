@@ -1,9 +1,9 @@
-NL Offline v0.11 — Road Test Checklist
+NL Offline v0.12 — Road Test Checklist
 =======================================
 
 BEFORE LEAVING
 [ ] Open the HTTPS GitHub Pages version while online.
-[ ] Confirm the app identifies itself as v0.11.
+[ ] Confirm the app identifies itself as v0.12.
 [ ] Tap Recheck road setup.
 [ ] Confirm ROAD READY and a GPS accuracy value.
 [ ] Close and reopen the installed Home Screen PWA.
@@ -47,3 +47,9 @@ Record any route where:
 - labels flicker/overlap,
 - app fails after losing service,
 - or a ferry trip is represented incorrectly.
+
+
+V0.12 DIAGNOSTICS
+- Before the drive, tap Clear beside the local test-event count if you want a clean session.
+- After the drive, tap Export log. On iPhone it should open the Share sheet; otherwise a JSON file is downloaded.
+- The log is local-only and is intended to let us inspect GPS accuracy, route snapping, off-route detection and ETA behaviour after the test.

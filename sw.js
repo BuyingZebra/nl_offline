@@ -1,6 +1,6 @@
-const VERSION = '0.11.0';
+const VERSION = '0.12.0';
 const CACHE = `nl-offline-${VERSION}`;
-const ASSETS = ['index.html', 'app.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const ASSETS = ['index.html', 'core.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 const scopeUrl = self.registration.scope;
 const urlFor = p => new URL(p, scopeUrl).href;
 
@@ -61,13 +61,9 @@ self.addEventListener('fetch', event => {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE);
       const hit = await cache.match(urlFor('index.html'));
-      if (hit) {
-        // Refresh in the background, but never make launch depend on a network connection.
-        event.waitUntil(fetch(event.request, { cache: 'no-store' }).then(async response => {
-          if (response.ok) await cache.put(urlFor('index.html'), response.clone());
-        }).catch(() => {}));
-        return hit;
-      }
+      // A completed versioned cache is immutable. Never refresh index.html by itself,
+      // because that could pair a new HTML shell with old cached JS/data while offline.
+      if (hit) return hit;
       try {
         const response = await fetch(event.request);
         if (response.ok) await cache.put(urlFor('index.html'), response.clone());
