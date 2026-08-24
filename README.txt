@@ -1,0 +1,35 @@
+NL Offline Road Test v0.9
+
+ROAD-TEST BUILD
+
+What changed
+- True cache-first PWA shell for fast startup when cell service is weak or absent.
+- All app/data files are explicitly pre-cached and can be verified from inside the app.
+- "Prepare for road" verifies the complete offline package, requests persistent storage where supported, and tests a real GPS fix.
+- Live GPS refreshes a Current Location route immediately before driving begins.
+- GPS progress rejects implausible jumps and can blend device GPS speed into ETA.
+- Service-worker navigation fallback is now safe: missing JS/data never gets replaced by HTML.
+- Safe-area padding added for installed iPhone/iPad Home Screen use.
+- Last named origin/destination are remembered on the device.
+- GitHub Pages workflow, .nojekyll and static-host security headers are included.
+
+REQUIRED BEFORE TOMORROW'S ROAD TEST
+1. Put this folder on an HTTPS host. Phone GPS is not available to an HTTP LAN Live Server URL.
+2. Open the HTTPS page on the phone while you still have internet.
+3. Tap "Prepare for road" and wait for a ROAD READY message plus a GPS accuracy value.
+4. Add the HTTPS app to the Home Screen and launch the installed copy once before leaving.
+5. Choose Current location -> destination, Show trip, then Start driving.
+6. Keep NL Offline visible/on screen during the drive. Web/PWA GPS is foreground tracking; browsers may suspend it if the app is backgrounded.
+
+QUICK OFFLINE CHECK
+After step 4, disable cellular/Wi-Fi temporarily and relaunch the Home Screen app. The map and named-town routing should still load. Re-enable connectivity afterwards if desired; GPS itself does not require the route data to be online.
+
+DEPLOYMENT
+- GitHub Pages: commit this folder to a repository's main branch. The included .github/workflows/pages.yml is ready for Pages deployment after GitHub Pages is enabled for GitHub Actions in the repository settings.
+- Any ordinary HTTPS static host also works. Keep all files together at the same path.
+
+Data behavior
+- Named-town distance/time remains official NL-RDDb data.
+- Current-location distance/time is an estimate calibrated to NL-RDDb.
+- Ferry/remote legs are schematic.
+- This is a road-test prototype / situational map, not turn-by-turn navigation.

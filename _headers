@@ -1,0 +1,7 @@
+/*
+  Permissions-Policy: geolocation=(self)
+  X-Content-Type-Options: nosniff
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+/index.html
+  Cache-Control: no-cache
