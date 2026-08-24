@@ -65,13 +65,17 @@ function updateDrivingHud() {
 }
 function update() {
   if (!currentTripLoaded) { $('remaining').textContent = '—'; $('eta').textContent = '—'; return renderOverlay(); }
-  const travelledKm = officialDistanceAtProgress(progress), rem = Math.max(0, routeDist - travelledKm), rm = remainingMinutes();
+  const activeTravelledKm = officialDistanceAtProgress(progress), rem = Math.max(0, routeDist - activeTravelledKm), rm = remainingMinutes();
   $('remaining').textContent = `${Math.round(rem)} km`;
   $('eta').textContent = routeTime > 0 ? new Date(Date.now() + rm * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Now';
   $('etaCaption').textContent = etaConfidence() >= .18 ? 'live arrival' : 'arrival'; updateDrivingHud();
-  const pct = routeDist > 0 ? Math.min(100, travelledKm / routeDist * 100) : 100;
-  $('progressText').textContent = `${Math.round(pct)}% complete`; $('travelled').textContent = `${Math.round(travelledKm)} km`;
+  let shownTravelled = activeTravelledKm, pct = routeDist > 0 ? Math.min(100, activeTravelledKm / routeDist * 100) : 100;
+  if (gpsRunning && liveRerouteCount > 0) {
+    shownTravelled = Math.max(journeyCompletedKm, activeTravelledKm);
+    const totalNow = shownTravelled + rem; pct = totalNow > 0 ? Math.min(100, shownTravelled / totalNow * 100) : 100;
+    $('progressText').textContent = `${Math.round(pct)}% complete · rerouted`;
+  } else $('progressText').textContent = `${Math.round(pct)}% complete`;
+  $('travelled').textContent = `${Math.round(shownTravelled)} km`;
   $('fill').style.width = `${pct}%`; $('slider').value = Math.round(progress * 1000);
   if (followGPS) followViewAt(currentFollowPoint()); else renderOverlay();
 }
-

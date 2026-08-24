@@ -1,6 +1,6 @@
-const VERSION = '0.13.0';
+const VERSION = '0.15.0';
 const CACHE = `nl-offline-${VERSION}`;
-const ASSETS = ['index.html', 'core.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'v013-routing.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const ASSETS = ['index.html', 'core.js', 'routing.js', 'roadmeta-part-00.js', 'roadmeta-part-01.js', 'roadmeta-part-02.js', 'roadmeta-part-03.js', 'roadmeta-part-04.js', 'roadmeta-part-05.js', 'roadmeta-part-06.js', 'roadmeta-part-07.js', 'roadmeta-part-08.js', 'roadmeta-part-09.js', 'roadmeta-part-10.js', 'roadmeta-part-11.js', 'roadmeta-part-12.js', 'roadmeta-part-13.js', 'roadmeta-part-14.js', 'roadmeta.js', 'addressmeta-part-00.js', 'addressmeta-part-01.js', 'addressmeta-part-02.js', 'addressmeta-part-03.js', 'addressmeta-part-04.js', 'addressmeta-part-05.js', 'addressmeta-part-06.js', 'addressmeta-part-07.js', 'addressmeta-part-08.js', 'addressmeta-part-09.js', 'addressmeta-part-10.js', 'addressmeta-part-11.js', 'addressmeta-part-12.js', 'addressmeta-part-13.js', 'addressmeta-part-14.js', 'addressmeta-part-15.js', 'addressmeta-part-16.js', 'addressmeta-part-17.js', 'addressmeta-part-18.js', 'addressmeta-part-19.js', 'addressmeta-part-20.js', 'addressmeta-part-21.js', 'addressmeta-part-22.js', 'addressmeta-part-23.js', 'addressmeta-part-24.js', 'addressmeta-part-25.js', 'addressmeta-part-26.js', 'addressmeta-part-27.js', 'addressmeta-part-28.js', 'addressmeta-part-29.js', 'addressmeta-part-30.js', 'addressmeta-part-31.js', 'addressmeta-part-32.js', 'addressmeta-part-33.js', 'addressmeta-part-34.js', 'addressmeta-part-35.js', 'addressmeta-part-36.js', 'addressmeta-part-37.js', 'addressmeta-part-38.js', 'addressmeta.js', 'addresses.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'ATTRIBUTION.txt', 'icon-192.png', 'icon-512.png'];
 const scopeUrl = self.registration.scope;
 const urlFor = p => new URL(p, scopeUrl).href;
 
@@ -24,8 +24,6 @@ async function cacheStatus() {
   return { type: 'CACHE_STATUS', version: VERSION, ready: missing.length === 0, missing, total: ASSETS.length };
 }
 
-// A new worker activates only after every required road-test file has cached successfully.
-// If the connection fails, installation fails and the previous complete worker/cache stays active.
 self.addEventListener('install', event => {
   event.waitUntil(cacheAssets(true).then(() => self.skipWaiting()));
 });
@@ -61,8 +59,6 @@ self.addEventListener('fetch', event => {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE);
       const hit = await cache.match(urlFor('index.html'));
-      // A completed versioned cache is immutable. Never refresh index.html by itself,
-      // because that could pair a new HTML shell with old cached JS/data while offline.
       if (hit) return hit;
       try {
         const response = await fetch(event.request);

@@ -2,6 +2,7 @@ function addRoad(es, reverse = false) {
   if (es == null) throw new Error('network components do not connect');
   const seq = reverse ? es.slice().reverse() : es.slice(); let cur = null;
   for (const ei of seq) {
+    routeEdgeIds.push(ei);
     const e = DATA.edges[ei], raw = e[4] || 'road'; let c = e[3].map(p => [p[0], p[1]]); if (reverse) c.reverse();
     const type = raw === 'ferry' ? 'ferry' : raw === 'virtual' ? 'virtual' : 'road';
     if (cur && cur.type === type) {
@@ -20,7 +21,7 @@ function remotePoint(name) { const s = special[name]; return s ? [s.lon, s.lat] 
 function pointForCommunity(name, index) { return remotePoint(name) || (DATA.anchors[index] >= 0 ? DATA.nodes[DATA.anchors[index]] : null); }
 
 function composePath(originName, destName, a, b, allowFerry) {
-  routeSegments = [];
+  routeSegments = []; routeEdgeIds = [];
   const sa = special[originName], sb = special[destName], aa = routingAnchor(a), bb = routingAnchor(b);
   if (!sa && !sb) { addRoad(dijkstra(aa, bb, { allowFerry })); return; }
   if (sa && sb && ((originName === 'Francois' && destName === 'Grey River') || (originName === 'Grey River' && destName === 'Francois'))) {
@@ -33,11 +34,60 @@ function composePath(originName, destName, a, b, allowFerry) {
   if (sb) addVirtual(DATA.nodes[endNode], remotePoint(destName), sb.label, 'ferry');
 }
 function composeFromNode(startNode, destName, b, originPoint, allowFerry) {
-  routeSegments = []; const sb = special[destName], endNode = sb ? gatewayNode(sb.gateway) : routingAnchor(b);
+  routeSegments = []; routeEdgeIds = []; const sb = special[destName], endNode = sb ? gatewayNode(sb.gateway) : routingAnchor(b);
   if (endNode < 0) throw new Error('destination anchor unavailable');
   if (originPoint && kmBetween(originPoint, DATA.nodes[startNode]) > .03) addVirtual(originPoint, DATA.nodes[startNode], 'GPS to road', 'virtual');
   const road = dijkstra(startNode, endNode, { allowFerry }); if (road && road.length) addRoad(road);
   if (sb) addVirtual(DATA.nodes[endNode], remotePoint(destName), sb.label, 'ferry');
+}
+
+function composeNodeToNode(startNode, endNode, startPoint = null, endPoint = null, startLabel = 'Position to road', endLabel = 'Road to destination', allowFerry = false) {
+  routeSegments = []; routeEdgeIds = [];
+  if (startNode == null || endNode == null || startNode < 0 || endNode < 0) throw new Error('route endpoint unavailable');
+  if (startPoint && kmBetween(startPoint, DATA.nodes[startNode]) > .025) addVirtual(startPoint, DATA.nodes[startNode], startLabel, 'virtual');
+  const road = dijkstra(startNode, endNode, { allowFerry });
+  if (road == null) throw new Error('network components do not connect');
+  if (road.length) addRoad(road);
+  if (endPoint && kmBetween(DATA.nodes[endNode], endPoint) > .025) addVirtual(DATA.nodes[endNode], endPoint, endLabel, 'virtual');
+}
+
+// General endpoint composer used by v0.15 civic-address routing and live rerouting.
+// Endpoint shape: {kind:'town'|'address'|'gps', label, index?, node?, point?, address?}.
+// Regular road trips first refuse ferry edges; if the road graph is disconnected we
+// retry with the same guarded ferry model used by town-to-town routing.
+function composeEndpoints(originEp, destEp) {
+  routeSegments = []; routeEdgeIds = [];
+  if (!originEp || !destEp) throw new Error('route endpoint unavailable');
+  const oa = originEp.kind === 'town' && originEp.index >= 0 ? special[names[originEp.index]] : null;
+  const da = destEp.kind === 'town' && destEp.index >= 0 ? special[names[destEp.index]] : null;
+  let startNode = oa ? gatewayNode(oa.gateway) : originEp.node;
+  let endNode = da ? gatewayNode(da.gateway) : destEp.node;
+  if (startNode == null || endNode == null || startNode < 0 || endNode < 0) throw new Error('route endpoint unavailable');
+
+  if (oa) addVirtual(remotePoint(names[originEp.index]), DATA.nodes[startNode], oa.label, 'ferry');
+  else if (originEp.point && kmBetween(originEp.point, DATA.nodes[startNode]) > .025)
+    addVirtual(originEp.point, DATA.nodes[startNode], originEp.kind === 'address' ? 'Address to road' : 'Position to road', 'virtual');
+
+  let road = dijkstra(startNode, endNode, { allowFerry: !!(oa || da) });
+  if (road == null && !(oa || da)) road = dijkstra(startNode, endNode, { allowFerry: true });
+  if (road == null) throw new Error('network components do not connect');
+  if (road.length) addRoad(road);
+
+  if (da) addVirtual(DATA.nodes[endNode], remotePoint(names[destEp.index]), da.label, 'ferry');
+  else if (destEp.kind === 'address' && destEp.point && kmBetween(DATA.nodes[endNode], destEp.point) > .025)
+    addVirtual(DATA.nodes[endNode], destEp.point, 'Road to address', 'virtual');
+  return { usedFerry: routeSegments.some(s => s.type === 'ferry') };
+}
+window.composeEndpoints = composeEndpoints;
+function destinationRouteNode() {
+  if (currentDestAddress?.node != null) return currentDestAddress.node;
+  if (currentDestIndex >= 0 && !special[names[currentDestIndex]]) return routingAnchor(currentDestIndex);
+  return -1;
+}
+function destinationRoutePoint() {
+  if (currentDestAddress?.point) return currentDestAddress.point;
+  if (currentDestIndex >= 0) return pointForCommunity(names[currentDestIndex], currentDestIndex);
+  return null;
 }
 function graphKmToDestination(startNode, destName, b, allowFerry) {
   const sb = special[destName], endNode = sb ? gatewayNode(sb.gateway) : routingAnchor(b), es = dijkstra(startNode, endNode, { allowFerry });
@@ -94,4 +144,3 @@ function snapGpsFix(lon, lat, now) {
   const at = progress * routePolylineKm;
   return snapRange(lon, lat, Math.max(0, at - backKm), Math.min(routePolylineKm, at + possibleForward));
 }
-

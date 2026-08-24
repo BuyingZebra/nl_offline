@@ -181,17 +181,24 @@ function nearestCommunity(lon, lat) {
   return { index: bi, distanceKm: Math.sqrt(bd) };
 }
 
-let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeCum = [], routePolylineKm = 0;
+let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeEdgeIds = [], routeCum = [], routePolylineKm = 0;
 let routeRoadGeomKm = 0, routeFerryGeomKm = 0, routeLabelCandidates = [];
 let routeRoadDistance = 0, routeRoadTime = 0, routeFerryDistance = 0, routeFerryTime = 0, routeDist = 0, routeTime = 0;
 let routeProgressReliable = true, currentTripLoaded = false, currentTripHasFerry = false;
 let progress = 0, gpsWatch = null, gpsPosition = null, followGPS = false, followRadiusKm = 18, drag = null;
 let originMode = 'town', originGPS = null, currentDestIndex = -1, currentOriginIndex = -1;
+let currentOriginAddress = null, currentDestAddress = null, currentDestination = null;
+let loadedOriginLabel = '', loadedDestLabel = '';
+let liveRerouteCount = 0, rerouteInFlight = false, offRouteSince = 0, lastRerouteAt = 0;
+let routeDataSource = 'official';
+let offRouteBadFixes = 0, offRouteGoodFixes = 0, lifecycleHiddenAt = 0;
+let journeyCompletedKm = 0, journeyLastGpsPoint = null, journeyLastGpsAt = 0;
+let gpsRecoveryInFlight = false, lastGpsRecoveryAt = 0;
 let rafPan = 0, gpsLastFixAt = 0, gpsStaleTimer = null, wakeLock = null, gpsPermission = 'unknown', gpsRunning = false;
 let offlinePackageReady = false, lastGpsAppliedAt = 0, deferredInstall = null, offRouteState = false;
 let latestSpeedKmh = null, latestAccuracyM = null;
 let etaModel = { movingKm: 0, speedKmh: null, lastOfficialDistance: null, lastTs: null, startedAt: null, startOfficialMinutes: 0, scheduleRatio: null, samples: 0 };
-const ROAD_LOG_KEY = 'nl-offline-roadtest-v012';
+const ROAD_LOG_KEY = 'nl-offline-roadtest-v015';
 let roadLog = [];
 let lastLoggedFixAt = 0;
 
@@ -208,9 +215,16 @@ function saveRoadLog() {
 }
 function currentTripSnapshot() {
   return {
-    origin: originMode === 'gps' ? 'Current location' : $('from').value.trim(), destination: $('to').value.trim(),
-    officialKm: routeDist || 0, officialMin: routeTime || 0, mapKm: +routePolylineKm.toFixed(2), progress: +progress.toFixed(5),
-    ferry: !!currentTripHasFerry, level2Reliable: !!routeProgressReliable,
+    origin: loadedOriginLabel || (originMode === 'gps' ? 'Current location' : $('from').value.trim()),
+    destination: loadedDestLabel || $('to').value.trim(),
+    tripSource: routeDataSource,
+    officialKm: routeDataSource === 'official' ? (routeDist || 0) : null,
+    officialMin: routeDataSource === 'official' ? (routeTime || 0) : null,
+    routeKm: +(routeDist || 0).toFixed(2), routeMin: +(routeTime || 0).toFixed(1),
+    mapKm: +routePolylineKm.toFixed(2), progress: +progress.toFixed(5),
+    ferry: !!currentTripHasFerry, level2Reliable: !!routeProgressReliable, reroutes: liveRerouteCount,
+    originType: originMode === 'gps' ? 'gps' : currentOriginAddress ? 'address' : 'town',
+    destinationType: currentDestAddress ? 'address' : 'town',
     correctedOriginAnchor: usesCorrectedAnchor(currentOriginIndex), correctedDestinationAnchor: usesCorrectedAnchor(currentDestIndex)
   };
 }
@@ -224,7 +238,7 @@ function updateRoadLogUI() {
 }
 async function exportRoadLog() {
   const payload = {
-    app: 'NL Offline', version: '0.12.0', exportedAt: new Date().toISOString(),
+    app: 'NL Offline', version: '0.15.0', exportedAt: new Date().toISOString(),
     userAgent: navigator.userAgent, standalone: standaloneMode(), secure: window.isSecureContext,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
     trip: currentTripSnapshot(), events: roadLog
@@ -242,14 +256,13 @@ function clearRoadLog() { roadLog = []; saveRoadLog(); updateRoadLogUI(); setSta
 function restoreTripPrefs() {
   try {
     const d = localStorage.getItem('nl-offline-destination'), o = localStorage.getItem('nl-offline-origin');
-    if (d && nameIndex.has(d.toLowerCase())) $('to').value = d;
-    if (o && nameIndex.has(o.toLowerCase())) $('from').value = o;
+    if (d && (nameIndex.has(d.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(d)))) $('to').value = d;
+    if (o && (nameIndex.has(o.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(o)))) $('from').value = o;
   } catch (_) {}
 }
 function saveTripPrefs() {
   try {
-    const d = $('to').value.trim(); if (nameIndex.has(d.toLowerCase())) localStorage.setItem('nl-offline-destination', d);
-    if (originMode !== 'gps') { const o = $('from').value.trim(); if (nameIndex.has(o.toLowerCase())) localStorage.setItem('nl-offline-origin', o); }
+    const d = $('to').value.trim(); if (d && (nameIndex.has(d.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(d)))) localStorage.setItem('nl-offline-destination', d);
+    if (originMode !== 'gps') { const o = $('from').value.trim(); if (o && (nameIndex.has(o.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(o)))) localStorage.setItem('nl-offline-origin', o); }
   } catch (_) {}
 }
-

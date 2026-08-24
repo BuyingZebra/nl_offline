@@ -66,14 +66,24 @@ async function requestWake() { if (!('wakeLock' in navigator) || document.visibi
 function releaseWake() { if (wakeLock) { try { wakeLock.release(); } catch (_) {} wakeLock = null; } }
 function startStaleTimer() {
   if (gpsStaleTimer) clearInterval(gpsStaleTimer);
-  gpsStaleTimer = setInterval(() => { if (!gpsRunning) return; if ((gpsLastFixAt ? Date.now() - gpsLastFixAt : Infinity) > 30000) { $('gpsPill').textContent = 'GPS waiting'; $('gpsPill').className = 'gpspill warn'; $('gpsDetail').textContent = 'GPS signal paused or stale. Keep the app visible and give the phone a clear view of the sky.'; } }, 5000);
+  gpsStaleTimer = setInterval(() => { if (!gpsRunning) return; const age = gpsLastFixAt ? Date.now() - gpsLastFixAt : Infinity; if (age > 30000) { $('gpsPill').textContent = 'GPS waiting'; $('gpsPill').className = 'gpspill warn'; $('gpsDetail').textContent = 'GPS signal paused or stale. NL Offline will reacquire it when iOS allows location updates again.'; if (document.visibilityState === 'visible' && age > 45000 && typeof recoverGpsTracking === 'function' && Date.now() - lastGpsRecoveryAt > 30000) recoverGpsTracking('stale'); } }, 5000);
 }
 function stopStaleTimer() { if (gpsStaleTimer) clearInterval(gpsStaleTimer); gpsStaleTimer = null; }
 function updateOffRoute(distanceKm, accuracyM) {
   const accKm = Math.max(0, accuracyM || 0) / 1000;
-  const enter = Math.min(.60, Math.max(.18, accKm * 2.4));
-  const exit = Math.min(.40, Math.max(.11, accKm * 1.5));
-  if (!offRouteState && distanceKm > enter) offRouteState = true;
-  else if (offRouteState && distanceKm < exit) offRouteState = false;
-  return { off: offRouteState, enter, exit };
+  const reliable = (accuracyM || 0) <= 150;
+  const enter = Math.min(.75, Math.max(.22, accKm * 3.0));
+  const exit = Math.min(.45, Math.max(.12, accKm * 1.8));
+  let entered = false, exited = false;
+  if (!reliable) return { off: offRouteState, enter, exit, entered, exited, reliable: false };
+  if (!offRouteState) {
+    if (distanceKm > enter) { offRouteBadFixes += 1; if (offRouteBadFixes === 1) offRouteSince = Date.now(); } else { offRouteBadFixes = 0; offRouteSince = 0; }
+    offRouteGoodFixes = 0;
+    if (offRouteBadFixes >= 3) { offRouteState = true; offRouteSince = Date.now(); entered = true; offRouteGoodFixes = 0; }
+  } else {
+    offRouteBadFixes = distanceKm > enter ? Math.min(99, offRouteBadFixes + 1) : offRouteBadFixes;
+    offRouteGoodFixes = distanceKm < exit ? offRouteGoodFixes + 1 : 0;
+    if (offRouteGoodFixes >= 2) { offRouteState = false; offRouteSince = 0; offRouteBadFixes = 0; offRouteGoodFixes = 0; exited = true; }
+  }
+  return { off: offRouteState, enter, exit, entered, exited, reliable: true, badFixes: offRouteBadFixes, goodFixes: offRouteGoodFixes };
 }
