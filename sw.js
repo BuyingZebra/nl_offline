@@ -1,4 +1,4 @@
-const VERSION='0.9.0';
+const VERSION='0.10.0';
 const CACHE=`nl-offline-${VERSION}`;
 const ASSETS=['index.html','app.js','data.js','manifest.webmanifest','icon-192.png','icon-512.png'];
 const scopeUrl=self.registration.scope;
@@ -45,8 +45,11 @@ self.addEventListener('fetch',event=>{
     event.respondWith((async()=>{
       const cache=await caches.open(CACHE);
       const hit=await cache.match(urlFor('index.html'));
-      if(hit)return hit;
-      try{return await fetch(event.request)}catch(e){return new Response('NL Offline has not finished preparing its offline package. Reconnect once and press Prepare for road.',{status:503,headers:{'Content-Type':'text/plain'}})}
+      if(hit){
+        event.waitUntil(fetch(event.request,{cache:'no-store'}).then(async response=>{if(response.ok)await cache.put(urlFor('index.html'),response.clone())}).catch(()=>{}));
+        return hit;
+      }
+      try{const response=await fetch(event.request);if(response.ok)await cache.put(urlFor('index.html'),response.clone());return response}catch(e){return new Response('NL Offline has not finished preparing its offline package. Reconnect once and press Prepare for road.',{status:503,headers:{'Content-Type':'text/plain'}})}
     })());
     return;
   }

@@ -1,0 +1,24 @@
+NL Offline v0.10 — map behaviour + Level 1/2 refinement
+
+- Follow now works during slider simulation, not just live GPS.
+- Follow mode switches to a local driving-scale map and keeps the simulated/live position in view.
+- Route button exits Follow and restores a route overview.
+- Manual map dragging pauses Follow instead of fighting the user.
+- Community labels are now route-aware, stable, lower-density, and collision checked.
+- Labels avoid the trip HUD, map controls, and legend zones.
+- Map projection/view bounds are aspect-corrected to reduce unused/letterboxed canvas space.
+- Map uses an immersive taller viewport while Following and a more compact overview otherwise.
+- Added ResizeObserver handling for Home Screen/PWA layout changes.
+- Tightened mobile trip HUD spacing so ETA does not run underneath map controls.
+- Level 1 remains authoritative: official distance/time come from NL-RDDb.
+- Level 2 now exposes mapped-path geometry distance in the Route Status note for road-test comparison.
+- Service worker bumped to v0.10 and now refreshes the cached page in the background while remaining cache-first for road use.
+
+Validation examples:
+Carbonear -> St. John's: official 108 km; mapped geometry ~105 km.
+Carbonear -> Bonavista: official 278 km; mapped geometry ~265 km.
+Carbonear -> Gander: official 302 km; mapped geometry ~299 km.
+St. John's -> Twillingate: official 443 km; mapped geometry ~442 km.
+Corner Brook -> St. Anthony: official 468 km; mapped geometry ~468 km.
+
+The official Level 1 values remain the displayed trip truth; Level 2 geometry is used for the highlighted path and progress fraction.
