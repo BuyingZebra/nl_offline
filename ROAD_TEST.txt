@@ -1,8 +1,16 @@
+<<<<<<< HEAD
 NL Offline v0.13 — Road Test
 ============================
 
 Before leaving:
 [ ] Confirm v0.13 is displayed.
+=======
+NL Offline v0.14 — Road Test
+============================
+
+Before leaving:
+[ ] Confirm v0.14 is displayed.
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
 [ ] Tap Recheck road setup and confirm ROAD READY.
 [ ] Clear the local road-test log.
 
@@ -15,3 +23,8 @@ Carbonear → St. John's:
 After driving:
 [ ] Export the local road-test JSON.
 [ ] Keep screenshots of any visibly incorrect route section.
+<<<<<<< HEAD
+=======
+
+Highway acceptance check: Carbonear -> St. John's should show Via Route 75 -> Route 1 / TCH -> Route 2 and should not take the old premature CBS-side minor-road diversion.
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)

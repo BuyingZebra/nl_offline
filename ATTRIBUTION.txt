@@ -1,0 +1,10 @@
+NL Offline data attribution
+===========================
+
+Level 1 town-to-town distance/time:
+Newfoundland & Labrador Road Distance Database (NL-RDDb), Government of Newfoundland and Labrador / Government of Canada source package used by this project.
+
+Level 2 road/ferry network and v0.14 road metadata:
+National Road Network (NRN) - Newfoundland and Labrador, GeoBase Series, Government of Canada / Statistics Canada. Open Government Licence - Canada.
+
+v0.14 uses NRN functional road class, route number, route name and lane count to select fastest-reasonable town-to-town paths. It does not copy Google Maps, Apple Maps, HERE or Garmin route geometry.

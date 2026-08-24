@@ -24,24 +24,53 @@ function visible(bb) { return !(bb[2] < view.minx || bb[0] > view.maxx || bb[3] 
 function renderBase() {
   bctx.clearRect(0, 0, base.clientWidth, base.clientHeight); bctx.lineJoin = 'round'; bctx.lineCap = 'round';
   const ids = visibleEdgeIds();
+<<<<<<< HEAD
   for (const type of ['road', 'virtual', 'ferry']) {
+=======
+  // Draw minor roads first and major highways last. v0.14 can do this cheaply because
+  // every compact edge now carries its original NRN functional class metadata.
+  const roadPasses = [
+    { min: 0, max: 1, width: .46, alpha: .34, color: '#29404d' },
+    { min: 2, max: 3, width: .72, alpha: .55, color: '#31515f' },
+    { min: 4, max: 5, width: 1.28, alpha: .82, color: '#466b7a' },
+  ];
+  for (const pass of roadPasses) {
+    bctx.beginPath();
+    for (const ei of ids) {
+      const e = DATA.edges[ei], raw = e[4] || 'road'; if (raw !== 'road' || !visible(edgeBounds[ei])) continue;
+      const tier = typeof roadTier === 'function' ? roadTier(ei) : 1; if (tier < pass.min || tier > pass.max) continue;
+      for (let i = 0; i < e[3].length; i++) { const q = project(e[3][i][0], e[3][i][1]); i ? bctx.lineTo(q[0], q[1]) : bctx.moveTo(q[0], q[1]); }
+    }
+    bctx.strokeStyle = pass.color; bctx.globalAlpha = pass.alpha; bctx.lineWidth = pass.width; bctx.stroke();
+  }
+  for (const type of ['virtual', 'ferry']) {
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
     bctx.beginPath();
     for (const ei of ids) {
       const e = DATA.edges[ei], raw = e[4] || 'road'; if (raw !== type || !visible(edgeBounds[ei])) continue;
       for (let i = 0; i < e[3].length; i++) { const q = project(e[3][i][0], e[3][i][1]); i ? bctx.lineTo(q[0], q[1]) : bctx.moveTo(q[0], q[1]); }
     }
+<<<<<<< HEAD
     bctx.strokeStyle = type === 'ferry' ? '#496b7d' : type === 'virtual' ? '#355566' : '#29404d';
     bctx.globalAlpha = type === 'ferry' ? .82 : type === 'virtual' ? .55 : .66;
     bctx.lineWidth = type === 'ferry' ? 1.25 : type === 'virtual' ? .9 : .72;
     if (type !== 'road') bctx.setLineDash(type === 'ferry' ? [4, 4] : [2, 4]);
     bctx.stroke(); bctx.setLineDash([]);
+=======
+    bctx.strokeStyle = type === 'ferry' ? '#496b7d' : '#355566'; bctx.globalAlpha = type === 'ferry' ? .82 : .55; bctx.lineWidth = type === 'ferry' ? 1.25 : .9;
+    bctx.setLineDash(type === 'ferry' ? [4, 4] : [2, 4]); bctx.stroke(); bctx.setLineDash([]);
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   }
   bctx.globalAlpha = 1; renderCommunityLabels();
 }
 function boxesOverlap(a, b, pad = 4) { return !(a.r + pad < b.l || a.l - pad > b.r || a.b + pad < b.t || a.t - pad > b.b); }
 function rebuildRouteLabels() {
   routeLabelCandidates = []; if (routeCoords.length < 2 || routePolylineKm <= 0) return;
+<<<<<<< HEAD
   const start = $('from').value.trim().toLowerCase(), dest = $('to').value.trim().toLowerCase(), all = [];
+=======
+  const start = currentOriginIndex >= 0 ? names[currentOriginIndex].toLowerCase() : $('from').value.trim().toLowerCase(), dest = currentDestIndex >= 0 ? names[currentDestIndex].toLowerCase() : $('to').value.trim().toLowerCase(), all = [];
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   for (let i = 0; i < N; i++) {
     const a = DATA.anchors[i]; if (a == null || a < 0) continue; const p = DATA.nodes[a];
     if (!p || names[i].toLowerCase() === start || names[i].toLowerCase() === dest) continue;
@@ -100,8 +129,14 @@ function marker(p, label, kind) {
 function renderOverlay() {
   octx.clearRect(0, 0, overlay.clientWidth, overlay.clientHeight); for (const s of routeSegments) drawSegment(octx, s);
   if (routeCoords.length) {
+<<<<<<< HEAD
     const startLabel = originMode === 'gps' ? 'Current location' : $('from').value.trim();
     marker(routeCoords[0], startLabel, 'start'); marker(routeCoords.at(-1), $('to').value.trim(), 'dest');
+=======
+    const startLabel = originMode === 'gps' ? 'Current location' : (currentOriginIndex >= 0 ? names[currentOriginIndex] : $('from').value.trim());
+    const destLabel = currentDestIndex >= 0 ? names[currentDestIndex] : $('destination').textContent;
+    marker(routeCoords[0], startLabel, 'start'); marker(routeCoords.at(-1), destLabel, 'dest');
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
     const p = gpsPosition ? [gpsPosition.lon, gpsPosition.lat] : pointAt(progress); marker(p, '', 'gps');
   }
 }

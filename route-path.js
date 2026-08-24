@@ -2,6 +2,10 @@ function addRoad(es, reverse = false) {
   if (es == null) throw new Error('network components do not connect');
   const seq = reverse ? es.slice().reverse() : es.slice(); let cur = null;
   for (const ei of seq) {
+<<<<<<< HEAD
+=======
+    routeEdgeIds.push(ei);
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
     const e = DATA.edges[ei], raw = e[4] || 'road'; let c = e[3].map(p => [p[0], p[1]]); if (reverse) c.reverse();
     const type = raw === 'ferry' ? 'ferry' : raw === 'virtual' ? 'virtual' : 'road';
     if (cur && cur.type === type) {
@@ -20,7 +24,11 @@ function remotePoint(name) { const s = special[name]; return s ? [s.lon, s.lat] 
 function pointForCommunity(name, index) { return remotePoint(name) || (DATA.anchors[index] >= 0 ? DATA.nodes[DATA.anchors[index]] : null); }
 
 function composePath(originName, destName, a, b, allowFerry) {
+<<<<<<< HEAD
   routeSegments = [];
+=======
+  routeSegments = []; routeEdgeIds = [];
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   const sa = special[originName], sb = special[destName], aa = routingAnchor(a), bb = routingAnchor(b);
   if (!sa && !sb) { addRoad(dijkstra(aa, bb, { allowFerry })); return; }
   if (sa && sb && ((originName === 'Francois' && destName === 'Grey River') || (originName === 'Grey River' && destName === 'Francois'))) {
@@ -33,7 +41,11 @@ function composePath(originName, destName, a, b, allowFerry) {
   if (sb) addVirtual(DATA.nodes[endNode], remotePoint(destName), sb.label, 'ferry');
 }
 function composeFromNode(startNode, destName, b, originPoint, allowFerry) {
+<<<<<<< HEAD
   routeSegments = []; const sb = special[destName], endNode = sb ? gatewayNode(sb.gateway) : routingAnchor(b);
+=======
+  routeSegments = []; routeEdgeIds = []; const sb = special[destName], endNode = sb ? gatewayNode(sb.gateway) : routingAnchor(b);
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   if (endNode < 0) throw new Error('destination anchor unavailable');
   if (originPoint && kmBetween(originPoint, DATA.nodes[startNode]) > .03) addVirtual(originPoint, DATA.nodes[startNode], 'GPS to road', 'virtual');
   const road = dijkstra(startNode, endNode, { allowFerry }); if (road && road.length) addRoad(road);

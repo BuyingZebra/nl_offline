@@ -18,6 +18,10 @@ function setRouteTotals(info) {
 }
 function busy(on) { $('go').disabled = on; $('go').textContent = on ? 'Calculating…' : 'Show trip'; }
 function updateRouteQuality(virtual = false) {
+<<<<<<< HEAD
+=======
+  if ($('viaRoute')) $('viaRoute').textContent = (!virtual && routeEdgeIds.length && typeof describeRouteEdges === 'function') ? describeRouteEdges(routeEdgeIds) : '';
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   const errPct = routeDist > 0 ? Math.abs(routePolylineKm - routeDist) / routeDist * 100 : 0;
   if (!routeProgressReliable) { $('routeStatus').textContent = 'Schematic'; $('routeNote').textContent = 'Level 1 reliable · Level 2 ferry map approximate'; return; }
   if (virtual || currentTripHasFerry) $('routeStatus').textContent = 'Mixed'; else $('routeStatus').textContent = errPct <= 5 ? 'On road' : 'Map approx';
@@ -32,7 +36,11 @@ function setProgressReliability(ok) {
 }
 function ferryFallback(originName, destName, a, b) {
   const p1 = pointForCommunity(originName, a), p2 = pointForCommunity(destName, b); if (!p1 || !p2) return false;
+<<<<<<< HEAD
   routeSegments = [{ type: 'ferry', coords: [p1, p2], label: 'Schematic ferry connection' }]; routeCoords = flattenSegments(); metrics();
+=======
+  routeEdgeIds = []; routeSegments = [{ type: 'ferry', coords: [p1, p2], label: 'Schematic ferry connection' }]; routeCoords = flattenSegments(); metrics();
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   setProgressReliability(false); fit(routeCoords); updateRouteQuality(true); return true;
 }
 function finishPath(virtual, statusText, originName, destName, a, b) {
@@ -46,7 +54,11 @@ function finishPath(virtual, statusText, originName, destName, a, b) {
   progress = 0; offRouteState = false; resetEta(); currentTripLoaded = true; update(); logRoadEvent('trip_loaded', currentTripSnapshot(), true);
 }
 function buildAlias(av, bv, a, b, info) {
+<<<<<<< HEAD
   setRouteTotals(info); setTownLabels(info); currentTripLoaded = true; routeSegments = [];
+=======
+  setRouteTotals(info); setTownLabels(info); currentTripLoaded = true; routeSegments = []; routeEdgeIds = [];
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   const p1 = pointForCommunity(av, a), p2 = pointForCommunity(bv, b); routeCoords = p1 && p2 ? [p1, p2] : p1 ? [p1] : [];
   routeCoordKinds = routeCoords.length > 1 ? ['road'] : []; metrics(); setFollow(false); if (routeCoords.length) fit(routeCoords);
   $('destination').textContent = bv; $('distance').textContent = '0 km'; $('time').textContent = '0 min'; $('routeStatus').textContent = 'Same place'; $('routeNote').textContent = 'Official aliases / co-located communities';
@@ -68,7 +80,11 @@ function makeTrip() {
 }
 function buildTown(av, bv, a, b, info) {
   $('destination').textContent = bv; $('distance').textContent = `${routeDist} km`; $('time').textContent = fmtMin(routeTime);
+<<<<<<< HEAD
   routeSegments = []; routeCoords = []; currentTripLoaded = true; progress = 0; resetEta(); update(); busy(true); setStatus('Calculating path locally…');
+=======
+  routeSegments = []; routeEdgeIds = []; routeCoords = []; currentTripLoaded = true; progress = 0; resetEta(); update(); busy(true); setStatus('Calculating path locally…');
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   setTimeout(() => {
     try {
       composePath(av, bv, a, b, info.hasFerry);

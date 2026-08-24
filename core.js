@@ -181,7 +181,11 @@ function nearestCommunity(lon, lat) {
   return { index: bi, distanceKm: Math.sqrt(bd) };
 }
 
+<<<<<<< HEAD
 let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeCum = [], routePolylineKm = 0;
+=======
+let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeEdgeIds = [], routeCum = [], routePolylineKm = 0;
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
 let routeRoadGeomKm = 0, routeFerryGeomKm = 0, routeLabelCandidates = [];
 let routeRoadDistance = 0, routeRoadTime = 0, routeFerryDistance = 0, routeFerryTime = 0, routeDist = 0, routeTime = 0;
 let routeProgressReliable = true, currentTripLoaded = false, currentTripHasFerry = false;
@@ -224,7 +228,11 @@ function updateRoadLogUI() {
 }
 async function exportRoadLog() {
   const payload = {
+<<<<<<< HEAD
     app: 'NL Offline', version: '0.12.0', exportedAt: new Date().toISOString(),
+=======
+    app: 'NL Offline', version: '0.14.0', exportedAt: new Date().toISOString(),
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
     userAgent: navigator.userAgent, standalone: standaloneMode(), secure: window.isSecureContext,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
     trip: currentTripSnapshot(), events: roadLog

@@ -1,0 +1,31 @@
+NL Offline v0.14
+=================
+
+ROUTING REBUILD
+- Uses the National Road Network metadata already present in the original NL source: functional road class, route number and lane count.
+- Replaces v0.13 geometric highway guessing with metadata-driven fastest-reasonable A* routing.
+- Adds highway continuity penalties so a route does not leave a freeway/expressway for a minor road unless the time saving is meaningful.
+- Route 1/TCH, Route 2/Pitts Memorial/CBS Bypass and Route 75/Veteran's Memorial are recognized directly from NRN route numbers.
+- Major numbered highways are preferred over collectors/local streets according to road class.
+- Ferry routing still uses the proven v0.12 safeguards.
+
+ANCHOR / GUIDANCE
+- Corrects the St. John's routing anchor from a north-city road point to a central Route 2 access point that independently reproduces the expected Route 75 -> TCH -> Route 2 approach.
+- Adds a compact 'Via …' corridor summary to the drive HUD.
+- Keeps the actual loaded route label separate from text merely typed into the destination field.
+
+DATA
+- New roadmeta.js is generated from the same official/open NRN NL 7.0 GeoPackage used to create Level 2.
+- All 43,002 road edges were matched back to their source NRN segment metadata with zero unmatched road edges.
+- No Google/HERE/Apple proprietary routing geometry is copied or stored.
+
+MAP / STATE
+- Base map now visually distinguishes local roads, collectors/arterials and freeways/expressways using NRN hierarchy.
+- Start/destination map labels are bound to the loaded trip rather than unsaved text typed into the planner fields.
+
+VALIDATION
+- Carbonear -> St. John's: Level 2 geometry ~108.1 km vs official 108 km; corridor = Route 75 -> Route 1/TCH -> Route 2/Pitts Memorial.
+- Carbonear -> Bonavista: ~267.6 km map path; major corridor summary is generated directly from NRN route metadata.
+- St. John's -> Gander: Route 2 -> Route 1/TCH.
+- Corner Brook -> St. Anthony: Route 1/TCH -> Route 430/Viking Trail.
+- 120 deterministic non-ferry sample routes (>40 km): median absolute Level-2 distance error 0.39%; 90.0% within 2%; 98.3% within 5%. This is a routing-geometry check, not a promise of live traffic accuracy.

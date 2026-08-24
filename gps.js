@@ -105,6 +105,7 @@ async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
+<<<<<<< HEAD
       const reg = await navigator.serviceWorker.register('./sw.js?v=0.13', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
@@ -133,3 +134,12 @@ loadV013Routing().then(boot).catch(e => {
   setStatus('Highway routing update did not load; using v0.12 routing fallback.', true);
   boot();
 });
+=======
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.14', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+    } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
+  } else updateRoadReadiness();
+  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.level2Count || DATA.routeReady} mapped locally · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${(Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0))} calibrated anchors.`); logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback' });
+  makeTrip();
+}
+boot();
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)

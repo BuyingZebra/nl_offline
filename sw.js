@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 const VERSION = '0.13.0';
 const CACHE = `nl-offline-${VERSION}`;
 const ASSETS = ['index.html', 'core.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'v013-routing.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+=======
+const VERSION = '0.14.0';
+const CACHE = `nl-offline-${VERSION}`;
+const ASSETS = ['index.html', 'core.js', 'routing.js', 'roadmeta.js', 'map.js', 'route-path.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'data.js', 'ferry.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+>>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
 const scopeUrl = self.registration.scope;
 const urlFor = p => new URL(p, scopeUrl).href;
 
