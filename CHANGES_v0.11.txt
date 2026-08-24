@@ -1,0 +1,36 @@
+NL Offline v0.11 — Reliability Build
+
+LEVEL 1
+- Preserves the official NL-RDDb total distance and total time for all 927 official place entries.
+- Adds the original ferry distance and ferry time components for 115,394 origin/destination pairs.
+- Ferry trips now show the road/ferry breakdown without double-counting the total.
+- Handles official co-located/alias entries with 0 km / 0 min cleanly.
+
+LEVEL 2
+- Road-only trips are no longer permitted to shortcut across ferry edges.
+- Ferry trips may use ferry geometry, but ferry edges are penalized in pathfinding to avoid unrealistic shortcuts.
+- Ferry routes whose local map geometry differs by more than 10% from the official trip fall back to a clearly marked schematic Level 2 view. Level 1 remains authoritative.
+- Added two conservative anchor corrections for Heart's Content and Cape St. Mary's based on route validation.
+- Route Status now reports mapped-distance agreement against the official total.
+
+GPS / FOLLOW
+- GPS matching only searches the entire route on the first fix; subsequent fixes are constrained to a physically plausible progress window.
+- Prevents nearby loops/crossings farther along a route from stealing a GPS fix.
+- Tighter off-route detection with hysteresis to reduce flicker.
+- Low-accuracy GPS is marked uncertain instead of advancing route progress.
+- Follow works with both live GPS and the simulation slider.
+- Manual map movement pauses Follow; Route returns to the overview.
+- Current-location trips now handle the case where the nearest official community is the destination itself.
+
+MAP / PERFORMANCE
+- Added a spatial grid index so redraws query nearby road edges instead of scanning all ~43,000 edges.
+- Route-relevant label selection, collision checks, and reduced label density.
+- Adaptive overview height and a true full-screen-style Follow driving viewport on phones.
+- Aspect-corrected map projection and resize handling.
+
+PWA / OFFLINE
+- Service worker bumped to 0.11.0.
+- A new service worker cannot take over unless every required offline asset has cached successfully.
+- The previous complete offline cache is retained if an update fails.
+- Old caches are deleted only after the new cache is verified complete.
+- Removed the obsolete custom GitHub Pages workflow; this project deploys directly from main/(root).

@@ -1,19 +1,49 @@
-- Last named origin/destination are remembered on the device.
-- GitHub Pages workflow, .nojekyll and static-host security headers are included.
+NL Offline v0.11 — Road Test Checklist
+=======================================
 
-REQUIRED BEFORE TOMORROW'S ROAD TEST
-1. Put this folder on an HTTPS host. Phone GPS is not available to an HTTP LAN Live Server URL.
-2. Open the HTTPS page on the phone while you still have internet.
-3. Tap "Prepare for road" and wait for a ROAD READY message plus a GPS accuracy value.
-4. Add the HTTPS app to the Home Screen and launch the installed copy once before leaving.
-5. Choose Current location -> destination, Show trip, then Start driving.
-6. Keep NL Offline visible/on screen during the drive. Web/PWA GPS is foreground tracking; browsers may suspend it if the app is backgrounded.
+BEFORE LEAVING
+[ ] Open the HTTPS GitHub Pages version while online.
+[ ] Confirm the app identifies itself as v0.11.
+[ ] Tap Recheck road setup.
+[ ] Confirm ROAD READY and a GPS accuracy value.
+[ ] Close and reopen the installed Home Screen PWA.
 
-QUICK OFFLINE CHECK
-After step 4, disable cellular/Wi-Fi temporarily and relaunch the Home Screen app. The map and named-town routing should still load. Re-enable connectivity afterwards if desired; GPS itself does not require the route data to be online.
+SIMULATION CHECK
+[ ] Load Carbonear -> St. John's.
+[ ] Confirm 108 km / 1h 11m official trip.
+[ ] Tap Follow.
+[ ] Move the simulation slider.
+[ ] Confirm the map follows the simulated position and remaining km decreases.
+[ ] Tap Route to return to the full-route overview.
 
-DEPLOYMENT
-- GitHub Pages: commit this folder to a repository's main branch. The included .github/workflows/pages.yml is ready for Pages deployment after GitHub Pages is enabled for GitHub Actions in the repository settings.
-- Any ordinary HTTPS static host also works. Keep all files together at the same path.
+LIVE ROAD CHECK
+[ ] Set From to Current location.
+[ ] Choose destination and Show trip.
+[ ] Tap Start driving.
+[ ] Confirm GPS changes to GPS live.
+[ ] Confirm Follow centres on your position.
+[ ] Confirm travelled/remaining values update as you move.
+[ ] Note whether ETA settles after several kilometres.
+[ ] If you intentionally leave the route, note when OFF ROUTE appears.
+[ ] Return to route and confirm it recovers without rapid flicker.
 
-Data behavior
+OFFLINE CHECK
+[ ] After ROAD READY, enable airplane mode or enter a no-service area.
+[ ] Reopen NL Offline.
+[ ] Confirm town search, Level 1 distance/time and Level 2 map still load.
+
+FERRY CHECK (can be simulated)
+[ ] Load Ramea -> Burgeo.
+[ ] Confirm total 24 km / 1h 24m.
+[ ] Confirm breakdown shows Road 2 + ferry 22 km and Road 4 min + ferry 1h 20m.
+[ ] Confirm Level 2 is marked Schematic rather than showing a false road route.
+
+REPORT
+Record any route where:
+- map path visibly leaves the real road,
+- official numbers look wrong,
+- GPS jumps forward,
+- Follow loses the vehicle,
+- labels flicker/overlap,
+- app fails after losing service,
+- or a ferry trip is represented incorrectly.

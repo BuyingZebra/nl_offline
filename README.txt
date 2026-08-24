@@ -1,35 +1,52 @@
-NL Offline Road Test v0.10
+NL Offline v0.11
+=================
 
-ROAD-TEST BUILD
+Purpose
+-------
+NL Offline is an offline-first Newfoundland & Labrador situational navigation PWA. It is intentionally not a turn-by-turn navigation replacement.
 
-What changed
-- True cache-first PWA shell for fast startup when cell service is weak or absent.
-- All app/data files are explicitly pre-cached and can be verified from inside the app.
-- "Prepare for road" verifies the complete offline package, requests persistent storage where supported, and tests a real GPS fix.
-- Live GPS refreshes a Current Location route immediately before driving begins.
-- GPS progress rejects implausible jumps and can blend device GPS speed into ETA.
-- Service-worker navigation fallback is now safe: missing JS/data never gets replaced by HTML.
-- Safe-area padding added for installed iPhone/iPad Home Screen use.
-- Last named origin/destination are remembered on the device.
-- GitHub Pages workflow, .nojekyll and static-host security headers are included.
+LEVEL 1 — OFFICIAL TRIP DATA
+----------------------------
+- 927 official place entries.
+- 859,329 origin/destination combinations.
+- Distance and time come from the Newfoundland & Labrador Road Distance Database (NL-RDDb) data pack used to build this app.
+- v0.11 preserves the official total while also carrying the original road and ferry components.
+- 115,394 pairs contain a ferry distance and/or ferry time component.
 
-REQUIRED BEFORE TOMORROW'S ROAD TEST
-1. Put this folder on an HTTPS host. Phone GPS is not available to an HTTP LAN Live Server URL.
-2. Open the HTTPS page on the phone while you still have internet.
-3. Tap "Prepare for road" and wait for a ROAD READY message plus a GPS accuracy value.
-4. Add the HTTPS app to the Home Screen and launch the installed copy once before leaving.
-5. Choose Current location -> destination, Show trip, then Start driving.
-6. Keep NL Offline visible/on screen during the drive. Web/PWA GPS is foreground tracking; browsers may suspend it if the app is backgrounded.
+LEVEL 2 — OFFLINE MAP PATH
+--------------------------
+- Local road graph: approximately 37,870 nodes and 43,043 edges.
+- Named road-only trips forbid ferry-edge shortcuts.
+- Ferry routes use local ferry geometry only when it agrees reasonably with Level 1. Otherwise the app labels the Level 2 map as SCHEMATIC rather than presenting a misleading route.
+- Level 1 remains the authoritative distance/time source.
 
-QUICK OFFLINE CHECK
-After step 4, disable cellular/Wi-Fi temporarily and relaunch the Home Screen app. The map and named-town routing should still load. Re-enable connectivity afterwards if desired; GPS itself does not require the route data to be online.
+GPS
+---
+- Requires HTTPS for browser/PWA geolocation.
+- Current Location snaps to the offline road network.
+- Live route progress is matched within a plausible window around prior progress to avoid loop/crossing jumps.
+- Route progress does not advance from poor-quality or off-route fixes.
+- Follow mode works for live GPS and the simulation slider.
 
-DEPLOYMENT
-- GitHub Pages: commit this folder to a repository's main branch. The included .github/workflows/pages.yml is ready for Pages deployment after GitHub Pages is enabled for GitHub Actions in the repository settings.
-- Any ordinary HTTPS static host also works. Keep all files together at the same path.
+OFFLINE / PWA
+-------------
+Before a road test:
+1. Open the HTTPS app while online.
+2. Tap Recheck road setup / Prepare for road.
+3. Confirm ROAD READY.
+4. Add/open the app from the Home Screen.
+5. Open it once before leaving service.
 
-Data behavior
-- Named-town distance/time remains official NL-RDDb data.
-- Current-location distance/time is an estimate calibrated to NL-RDDb.
-- Ferry/remote legs are schematic.
-- This is a road-test prototype / situational map, not turn-by-turn navigation.
+The service worker only replaces the prior version after the complete new offline package has cached successfully.
+
+GitHub Pages
+------------
+This repository is deployed from:
+- Branch: main
+- Folder: /(root)
+
+The old custom Pages workflow is intentionally not required.
+
+Important limitation
+--------------------
+NL Offline is situational navigation. Road/ferry data can be incomplete, outdated, schematic, or unsuitable for safety-critical navigation. Do not rely on it as the only source for emergency, marine, winter-road, ferry-schedule, or turn-by-turn decisions.
