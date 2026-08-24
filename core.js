@@ -185,7 +185,7 @@ let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeEdgeIds = [
 let routeRoadGeomKm = 0, routeFerryGeomKm = 0, routeLabelCandidates = [];
 let routeRoadDistance = 0, routeRoadTime = 0, routeFerryDistance = 0, routeFerryTime = 0, routeDist = 0, routeTime = 0;
 let routeProgressReliable = true, currentTripLoaded = false, currentTripHasFerry = false;
-let progress = 0, gpsWatch = null, gpsPosition = null, followGPS = false, followRadiusKm = 18, drag = null;
+let progress = 0, gpsWatch = null, gpsPosition = null, followGPS = false, mapImmersive = false, followRadiusKm = 18, drag = null;
 let originMode = 'town', originGPS = null, currentDestIndex = -1, currentOriginIndex = -1;
 let currentOriginAddress = null, currentDestAddress = null, currentDestination = null;
 let loadedOriginLabel = '', loadedDestLabel = '';
@@ -195,10 +195,12 @@ let offRouteBadFixes = 0, offRouteGoodFixes = 0, lifecycleHiddenAt = 0;
 let journeyCompletedKm = 0, journeyLastGpsPoint = null, journeyLastGpsAt = 0;
 let gpsRecoveryInFlight = false, lastGpsRecoveryAt = 0;
 let rafPan = 0, gpsLastFixAt = 0, gpsStaleTimer = null, wakeLock = null, gpsPermission = 'unknown', gpsRunning = false;
+const mapPointers = new Map();
+let pinchGesture = null;
 let offlinePackageReady = false, lastGpsAppliedAt = 0, deferredInstall = null, offRouteState = false;
 let latestSpeedKmh = null, latestAccuracyM = null;
 let etaModel = { movingKm: 0, speedKmh: null, lastOfficialDistance: null, lastTs: null, startedAt: null, startOfficialMinutes: 0, scheduleRatio: null, samples: 0 };
-const ROAD_LOG_KEY = 'nl-offline-roadtest-v015';
+const ROAD_LOG_KEY = 'nl-offline-roadtest-v016';
 let roadLog = [];
 let lastLoggedFixAt = 0;
 
@@ -238,7 +240,7 @@ function updateRoadLogUI() {
 }
 async function exportRoadLog() {
   const payload = {
-    app: 'NL Offline', version: '0.15.0', exportedAt: new Date().toISOString(),
+    app: 'NL Offline', version: '0.16.0', exportedAt: new Date().toISOString(),
     userAgent: navigator.userAgent, standalone: standaloneMode(), secure: window.isSecureContext,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
     trip: currentTripSnapshot(), events: roadLog
@@ -266,4 +268,3 @@ function saveTripPrefs() {
     if (originMode !== 'gps') { const o = $('from').value.trim(); if (o && (nameIndex.has(o.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(o)))) localStorage.setItem('nl-offline-origin', o); }
   } catch (_) {}
 }
-

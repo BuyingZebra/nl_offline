@@ -139,23 +139,73 @@ $('swap').addEventListener('click', () => { if (originMode === 'gps') { originMo
 $('slider').addEventListener('input', () => { gpsPosition = null; progress = +$('slider').value / 1000; latestSpeedKmh = null; latestAccuracyM = null; resetEta(); update(); if (followGPS) { $('gpsDetail').textContent = 'Simulation follow active · drag the slider to preview the moving map.'; $('routeStatus').textContent = 'Simulating'; } });
 $('gpsStart').addEventListener('click', startGPS);
 $('gpsStop').addEventListener('click', () => stopGPS(true));
-$('follow').addEventListener('click', () => { setFollow(!followGPS, !followGPS); if (followGPS && !gpsRunning) $('gpsDetail').textContent = 'Simulation follow active · drag the slider to preview the moving map.'; });
-$('fitRoute').addEventListener('click', () => { setFollow(false); fit(routeCoords); updateRouteQuality(routeSegments.some(s => s.type !== 'road')); $('gpsDetail').textContent = gpsRunning ? 'Live GPS active.' : routeProgressReliable ? 'Slider simulates driving. Tap Follow to preview the moving map.' : 'Level 2 is schematic for this ferry trip.'; });
+$('follow').addEventListener('click', () => {
+  if (followGPS) {
+    setFollow(false, false, { preserveView: true, keepImmersive: true });
+    $('gpsDetail').textContent = gpsRunning ? 'Recentring paused · live GPS continues.' : 'Free map view · tap Recenter to resume simulation follow.';
+  } else {
+    setFollow(true, true);
+    if (!gpsRunning) $('gpsDetail').textContent = 'Simulation follow active · drag the slider to preview the moving map.';
+  }
+});
+$('fitRoute').addEventListener('click', () => {
+  setFollow(false, false, { preserveView: true, keepImmersive: gpsRunning }); fit(routeCoords);
+  updateRouteQuality(routeSegments.some(s => s.type !== 'road'));
+  $('gpsDetail').textContent = gpsRunning ? 'Full route shown · live GPS continues · tap Recenter when ready.' : routeProgressReliable ? 'Full route shown. Tap Follow to preview the moving map.' : 'Level 2 is schematic for this ferry trip.';
+});
 $('zoomIn').addEventListener('click', () => zoom(.65));
 $('zoomOut').addEventListener('click', () => zoom(1.55));
 
 const mw = $('mapwrap');
+function localPointer(e) { const r = mw.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function beginPinchGesture() {
+  if (mapPointers.size < 2) { pinchGesture = null; return; }
+  const entries = [...mapPointers.entries()].slice(0, 2), a = entries[0][1], b = entries[1][1];
+  pinchGesture = {
+    ids: [entries[0][0], entries[1][0]], view: { ...view },
+    mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+  };
+  drag = null;
+}
 mw.addEventListener('pointerdown', e => {
-  if (followGPS) { setFollow(false); $('gpsDetail').textContent = 'Follow paused because you moved the map.'; }
-  drag = { x: e.clientX, y: e.clientY, v: { ...view } }; mw.setPointerCapture(e.pointerId);
+  if (e.target.closest?.('button')) return;
+  e.preventDefault(); pauseMapFollowForGesture();
+  const p = localPointer(e); mapPointers.set(e.pointerId, p);
+  try { mw.setPointerCapture(e.pointerId); } catch (_) {}
+  if (mapPointers.size >= 2) beginPinchGesture();
+  else drag = { pointerId: e.pointerId, x: p.x, y: p.y, v: { ...view } };
 });
 mw.addEventListener('pointermove', e => {
-  if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y, w = mw.clientWidth, h = mw.clientHeight;
+  if (!mapPointers.has(e.pointerId)) return;
+  e.preventDefault(); const p = localPointer(e); mapPointers.set(e.pointerId, p);
+  if (mapPointers.size >= 2) {
+    if (!pinchGesture || !pinchGesture.ids.every(id => mapPointers.has(id))) beginPinchGesture();
+    if (!pinchGesture) return;
+    const a = mapPointers.get(pinchGesture.ids[0]), b = mapPointers.get(pinchGesture.ids[1]);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+    view = viewForGesture(pinchGesture.view, pinchGesture.mid, mid, pinchGesture.distance / distance); queueMapRender(); return;
+  }
+  if (!drag || drag.pointerId !== e.pointerId) return;
+  const dx = p.x - drag.x, dy = p.y - drag.y, w = mw.clientWidth, h = mw.clientHeight;
   const lon = (drag.v.maxx - drag.v.minx) * dx / Math.max(w, 1), lat = (drag.v.maxy - drag.v.miny) * dy / Math.max(h, 1);
-  view = { minx: drag.v.minx - lon, maxx: drag.v.maxx - lon, miny: drag.v.miny + lat, maxy: drag.v.maxy + lat };
-  if (!rafPan) rafPan = requestAnimationFrame(() => { rafPan = 0; renderBase(); renderOverlay(); });
+  view = { minx: drag.v.minx - lon, maxx: drag.v.maxx - lon, miny: drag.v.miny + lat, maxy: drag.v.maxy + lat }; queueMapRender();
 });
-mw.addEventListener('pointerup', () => drag = null); mw.addEventListener('pointercancel', () => drag = null);
+function endMapPointer(e) {
+  mapPointers.delete(e.pointerId); pinchGesture = null;
+  if (mapPointers.size === 1) {
+    const [id, p] = mapPointers.entries().next().value; drag = { pointerId: id, x: p.x, y: p.y, v: { ...view } };
+  } else drag = null;
+}
+mw.addEventListener('pointerup', endMapPointer); mw.addEventListener('pointercancel', endMapPointer);
+mw.addEventListener('wheel', e => {
+  if (e.target.closest?.('button')) return;
+  e.preventDefault(); pauseMapFollowForGesture(); const p = localPointer(e); zoomAt(e.deltaY < 0 ? .78 : 1.28, p.x, p.y);
+}, { passive: false });
+mw.addEventListener('dblclick', e => {
+  if (e.target.closest?.('button')) return;
+  e.preventDefault(); pauseMapFollowForGesture(); const p = localPointer(e); zoomAt(.55, p.x, p.y);
+});
 
 if ('ResizeObserver' in window) new ResizeObserver(() => size()).observe(mw);
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; updateRoadReadiness(); });
@@ -178,7 +228,7 @@ async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.15', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.16', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
   const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address ranges unavailable';

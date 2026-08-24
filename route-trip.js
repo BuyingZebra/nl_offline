@@ -174,7 +174,7 @@ function rerouteFromGpsPosition(lon, lat, reason = 'off-route') {
         liveRerouteCount += 1; routeDataSource = 'nrn-reroute'; currentOriginIndex = -1; currentOriginAddress = null; originMode = 'gps'; originGPS = { lon, lat, accuracy: gpsPosition?.accuracy || 0, capturedAt: Date.now() }; loadedOriginLabel = 'Current location'; currentTripLoaded = true; progress = 0; lastGpsAppliedAt = 0;
         offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; setProgressReliability(!routeSegments.some(s => s.type === 'ferry' && !s.edgeCount));
         setEstimatedLabels('Live NRN reroute'); $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime); updateRouteQuality(routeSegments.some(s => s.type !== 'road'));
-        resetEta(); startEtaTracking(Date.now()); update(); if (followGPS) followViewAt([lon, lat]); else fit(routeCoords);
+        resetEta(); startEtaTracking(Date.now()); update(); if (followGPS) followViewAt([lon, lat]); else { renderBase(); renderOverlay(); }
         $('routeStatus').textContent = 'Rerouted'; $('gpsDetail').textContent = `Route recalculated locally · ${routeDist.toFixed(1)} km remaining.`; $('gpsDetail').classList.remove('offroute');
         setStatus(`Route recalculated locally · ${routeDist.toFixed(1)} km remaining.`); lastRerouteAt = Date.now();
         logRoadEvent('route_recalculated', { reason, nearestRoadKm: +nn.distanceKm.toFixed(3), routeKm: +routeDist.toFixed(2), routeMin: +routeTime.toFixed(1), reroutes: liveRerouteCount, via: typeof describeRouteEdges === 'function' ? describeRouteEdges(routeEdgeIds) : '' }, true); ok = true;
