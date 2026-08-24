@@ -24,9 +24,6 @@ function visible(bb) { return !(bb[2] < view.minx || bb[0] > view.maxx || bb[3] 
 function renderBase() {
   bctx.clearRect(0, 0, base.clientWidth, base.clientHeight); bctx.lineJoin = 'round'; bctx.lineCap = 'round';
   const ids = visibleEdgeIds();
-<<<<<<< HEAD
-  for (const type of ['road', 'virtual', 'ferry']) {
-=======
   // Draw minor roads first and major highways last. v0.14 can do this cheaply because
   // every compact edge now carries its original NRN functional class metadata.
   const roadPasses = [
@@ -44,33 +41,40 @@ function renderBase() {
     bctx.strokeStyle = pass.color; bctx.globalAlpha = pass.alpha; bctx.lineWidth = pass.width; bctx.stroke();
   }
   for (const type of ['virtual', 'ferry']) {
->>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
     bctx.beginPath();
     for (const ei of ids) {
       const e = DATA.edges[ei], raw = e[4] || 'road'; if (raw !== type || !visible(edgeBounds[ei])) continue;
       for (let i = 0; i < e[3].length; i++) { const q = project(e[3][i][0], e[3][i][1]); i ? bctx.lineTo(q[0], q[1]) : bctx.moveTo(q[0], q[1]); }
     }
-<<<<<<< HEAD
-    bctx.strokeStyle = type === 'ferry' ? '#496b7d' : type === 'virtual' ? '#355566' : '#29404d';
-    bctx.globalAlpha = type === 'ferry' ? .82 : type === 'virtual' ? .55 : .66;
-    bctx.lineWidth = type === 'ferry' ? 1.25 : type === 'virtual' ? .9 : .72;
-    if (type !== 'road') bctx.setLineDash(type === 'ferry' ? [4, 4] : [2, 4]);
-    bctx.stroke(); bctx.setLineDash([]);
-=======
     bctx.strokeStyle = type === 'ferry' ? '#496b7d' : '#355566'; bctx.globalAlpha = type === 'ferry' ? .82 : .55; bctx.lineWidth = type === 'ferry' ? 1.25 : .9;
     bctx.setLineDash(type === 'ferry' ? [4, 4] : [2, 4]); bctx.stroke(); bctx.setLineDash([]);
->>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
   }
-  bctx.globalAlpha = 1; renderCommunityLabels();
+  bctx.globalAlpha = 1; renderRoadRouteLabels(ids); renderCommunityLabels();
 }
 function boxesOverlap(a, b, pad = 4) { return !(a.r + pad < b.l || a.l - pad > b.r || a.b + pad < b.t || a.t - pad > b.b); }
+function renderRoadRouteLabels(ids) {
+  if (typeof routeNumber !== 'function' || typeof roadTier !== 'function') return;
+  const span = view.maxx - view.minx; if (span > 4.5) return;
+  const placed = [], seenRoutes = new Map(); let shown = 0;
+  for (const ei of ids) {
+    if (shown >= (followGPS ? 7 : 10)) break;
+    const r = routeNumber(ei); if (!r) continue;
+    const tier = roadTier(ei); if (tier < 4 && !(r === '1' || r === '2' || r === '75')) continue;
+    const e = DATA.edges[ei], c = e?.[3]; if (!c?.length) continue;
+    const p = c[Math.floor(c.length / 2)], q = project(p[0], p[1]);
+    if (q[0] < 24 || q[0] > base.clientWidth - 24 || q[1] < 100 || q[1] > base.clientHeight - 28) continue;
+    const last = seenRoutes.get(r); if (last && Math.hypot(q[0] - last[0], q[1] - last[1]) < 135) continue;
+    const text = r === '1' ? '1' : r; bctx.font = '700 9.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+    const tw = bctx.measureText(text).width, w = Math.max(20, tw + 10), h = 17, box = { l: q[0] - w / 2, t: q[1] - h / 2, r: q[0] + w / 2, b: q[1] + h / 2 };
+    if (placed.some(b => boxesOverlap(box, b, 7))) continue; placed.push(box); seenRoutes.set(r, q);
+    bctx.fillStyle = 'rgba(8,25,35,.92)'; bctx.strokeStyle = '#7897a7'; bctx.lineWidth = 1;
+    bctx.beginPath(); if (bctx.roundRect) bctx.roundRect(box.l, box.t, w, h, 5); else bctx.rect(box.l, box.t, w, h); bctx.fill(); bctx.stroke();
+    bctx.fillStyle = '#d8e4ea'; bctx.textAlign = 'center'; bctx.textBaseline = 'middle'; bctx.fillText(text, q[0], q[1] + .5); bctx.textAlign = 'start'; bctx.textBaseline = 'alphabetic'; shown++;
+  }
+}
 function rebuildRouteLabels() {
   routeLabelCandidates = []; if (routeCoords.length < 2 || routePolylineKm <= 0) return;
-<<<<<<< HEAD
-  const start = $('from').value.trim().toLowerCase(), dest = $('to').value.trim().toLowerCase(), all = [];
-=======
-  const start = currentOriginIndex >= 0 ? names[currentOriginIndex].toLowerCase() : $('from').value.trim().toLowerCase(), dest = currentDestIndex >= 0 ? names[currentDestIndex].toLowerCase() : $('to').value.trim().toLowerCase(), all = [];
->>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
+  const start = (loadedOriginLabel || (currentOriginIndex >= 0 ? names[currentOriginIndex] : $('from').value.trim())).toLowerCase(), dest = (loadedDestLabel || (currentDestIndex >= 0 ? names[currentDestIndex] : $('to').value.trim())).toLowerCase(), all = [];
   for (let i = 0; i < N; i++) {
     const a = DATA.anchors[i]; if (a == null || a < 0) continue; const p = DATA.nodes[a];
     if (!p || names[i].toLowerCase() === start || names[i].toLowerCase() === dest) continue;
@@ -129,14 +133,9 @@ function marker(p, label, kind) {
 function renderOverlay() {
   octx.clearRect(0, 0, overlay.clientWidth, overlay.clientHeight); for (const s of routeSegments) drawSegment(octx, s);
   if (routeCoords.length) {
-<<<<<<< HEAD
-    const startLabel = originMode === 'gps' ? 'Current location' : $('from').value.trim();
-    marker(routeCoords[0], startLabel, 'start'); marker(routeCoords.at(-1), $('to').value.trim(), 'dest');
-=======
-    const startLabel = originMode === 'gps' ? 'Current location' : (currentOriginIndex >= 0 ? names[currentOriginIndex] : $('from').value.trim());
-    const destLabel = currentDestIndex >= 0 ? names[currentDestIndex] : $('destination').textContent;
+    const startLabel = loadedOriginLabel || (originMode === 'gps' ? 'Current location' : (currentOriginIndex >= 0 ? names[currentOriginIndex] : $('from').value.trim()));
+    const destLabel = loadedDestLabel || (currentDestIndex >= 0 ? names[currentDestIndex] : $('destination').textContent);
     marker(routeCoords[0], startLabel, 'start'); marker(routeCoords.at(-1), destLabel, 'dest');
->>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)
     const p = gpsPosition ? [gpsPosition.lon, gpsPosition.lat] : pointAt(progress); marker(p, '', 'gps');
   }
 }

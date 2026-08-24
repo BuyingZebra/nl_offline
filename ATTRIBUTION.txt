@@ -1,10 +1,12 @@
-NL Offline data attribution
-===========================
+NL Offline — Data Attribution
+=============================
 
 Level 1 town-to-town distance/time:
-Newfoundland & Labrador Road Distance Database (NL-RDDb), Government of Newfoundland and Labrador / Government of Canada source package used by this project.
+Newfoundland & Labrador Road Distance Database (NL-RDDb), Government of Newfoundland and Labrador, used under the Newfoundland and Labrador Open Government Licence.
 
-Level 2 road/ferry network and v0.14 road metadata:
-National Road Network (NRN) - Newfoundland and Labrador, GeoBase Series, Government of Canada / Statistics Canada. Open Government Licence - Canada.
+Level 2 road/ferry network, routing metadata and civic address ranges:
+National Road Network (NRN), Newfoundland and Labrador, Government of Canada / Natural Resources Canada and contributing jurisdictions, used under the Open Government Licence – Canada.
 
-v0.14 uses NRN functional road class, route number, route name and lane count to select fastest-reasonable town-to-town paths. It does not copy Google Maps, Apple Maps, HERE or Garmin route geometry.
+v0.15 uses NRN road geometry, functional road class, route number/name, lane count and civic address ranges. Civic address points are interpolated from road-side number ranges and are approximate.
+
+NL Offline does not copy Google Maps, Apple Maps, HERE or Garmin proprietary map/route geometry.

@@ -1,12 +1,50 @@
-function applyGpsFix(p) {
+let lastResumeRecoveryAt = 0;
+
+function trackJourneyDistance(pos, now) {
+  if (!gpsRunning || !pos || (pos.accuracy || 0) > 120) return;
+  const point = [pos.lon, pos.lat];
+  if (journeyLastGpsPoint && journeyLastGpsAt) {
+    const dt = Math.max(.2, (now - journeyLastGpsAt) / 1000), d = kmBetween(journeyLastGpsPoint, point);
+    const maxKm = dt / 3600 * 180 + .12;
+    if (d >= 0 && d <= maxKm) journeyCompletedKm += d;
+  }
+  journeyLastGpsPoint = point; journeyLastGpsAt = now;
+}
+function canAutoReroute() {
+  return gpsRunning && !!currentDestination && routeProgressReliable && !currentTripHasFerry && !rerouteInFlight;
+}
+function maybeAutoReroute(s, p, state) {
+  if (!state.off || !canAutoReroute() || (p.coords.accuracy || 0) > 150) return false;
+  const now = Date.now(); if (now - lastRerouteAt < 25000) return false;
+  const sustained = offRouteSince && now - offRouteSince >= 8000;
+  const severe = s.distanceKm >= .80 && offRouteBadFixes >= 3;
+  if (!sustained && !severe) return false;
+  lastRerouteAt = now;
+  const reason = sustained ? 'sustained_off_route' : 'far_off_route';
+  logRoadEvent('reroute_requested', { reason, snapKm: +s.distanceKm.toFixed(3), accuracyM: Math.round(p.coords.accuracy || 0), lat: +p.coords.latitude.toFixed(6), lon: +p.coords.longitude.toFixed(6) }, true);
+  rerouteFromGpsPosition(p.coords.longitude, p.coords.latitude, reason).then(ok => {
+    if (!ok) lastRerouteAt = Date.now() - 15000;
+  });
+  return true;
+}
+
+function applyGpsFix(p, options = {}) {
   const now = p.timestamp || Date.now(); gpsLastFixAt = Date.now();
   gpsPosition = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0 };
   latestAccuracyM = gpsPosition.accuracy;
   if (p.coords.speed != null && isFinite(p.coords.speed) && p.coords.speed >= 0) latestSpeedKmh = p.coords.speed * 3.6;
+  trackJourneyDistance(gpsPosition, now);
   const s = snapGpsFix(gpsPosition.lon, gpsPosition.lat, now), acc = Math.round(gpsPosition.accuracy || 0);
   $('gpsPill').textContent = 'GPS live'; $('gpsPill').className = 'gpspill live';
   if (!s) { $('gpsDetail').textContent = `GPS fix ±${acc}m · waiting for route match`; renderOverlay(); return; }
   const state = updateOffRoute(s.distanceKm, gpsPosition.accuracy), reliableFix = (gpsPosition.accuracy || 0) <= 150;
+  if (state.entered) logRoadEvent('off_route_entered', { snapKm: +s.distanceKm.toFixed(3), accuracyM: acc, progress: +progress.toFixed(5) }, true);
+  if (state.exited) logRoadEvent('off_route_cleared', { snapKm: +s.distanceKm.toFixed(3), accuracyM: acc, progress: +progress.toFixed(5) }, true);
+
+  if (!options.skipAutoReroute && maybeAutoReroute(s, p, state)) {
+    $('routeStatus').textContent = 'Recalculating'; $('gpsDetail').textContent = `OFF ROUTE · ${s.distanceKm.toFixed(2)} km from path · recalculating locally…`; $('gpsDetail').classList.add('offroute'); renderOverlay(); return;
+  }
+
   if (routeProgressReliable && reliableFix && !state.off) {
     let next = Math.max(progress, Math.min(1, s.fraction));
     if (lastGpsAppliedAt && next > progress && routePolylineKm > 0) {
@@ -15,18 +53,51 @@ function applyGpsFix(p) {
     }
     trackPace(next, now, p.coords.speed); progress = next; lastGpsAppliedAt = now; update();
   } else renderOverlay();
-  $('routeStatus').textContent = state.off ? 'Off route' : reliableFix ? (currentTripHasFerry ? 'Mixed' : 'On route') : 'GPS uncertain';
-  $('gpsDetail').textContent = state.off ? `OFF ROUTE · ${s.distanceKm.toFixed(2)} km from path · GPS ±${acc}m` : reliableFix ? `On route · GPS ±${acc}m${etaModel.speedKmh ? ` · pace ${Math.round(etaModel.speedKmh)} km/h` : ''}` : `GPS ±${acc}m · waiting for a more accurate fix`;
+  $('routeStatus').textContent = state.off ? 'Off route' : reliableFix ? (currentTripHasFerry ? 'Mixed' : liveRerouteCount ? 'Rerouted' : 'On route') : 'GPS uncertain';
+  $('gpsDetail').textContent = state.off ? `OFF ROUTE · ${s.distanceKm.toFixed(2)} km from path · GPS ±${acc}m${offRouteBadFixes < 3 ? ' · confirming…' : ''}` : reliableFix ? `On route · GPS ±${acc}m${etaModel.speedKmh ? ` · pace ${Math.round(etaModel.speedKmh)} km/h` : ''}` : `GPS ±${acc}m · waiting for a more accurate fix`;
   $('gpsDetail').classList.toggle('offroute', state.off); updateDrivingHud();
   if (Date.now() - lastLoggedFixAt >= 4000) {
-    lastLoggedFixAt = Date.now(); logRoadEvent('gps_fix', { lat: +gpsPosition.lat.toFixed(6), lon: +gpsPosition.lon.toFixed(6), accuracyM: acc, speedKmh: latestSpeedKmh == null ? null : +latestSpeedKmh.toFixed(1), snapKm: +s.distanceKm.toFixed(3), progress: +progress.toFixed(5), offRoute: state.off, etaMin: +remainingMinutes().toFixed(1) });
+    lastLoggedFixAt = Date.now(); logRoadEvent('gps_fix', { lat: +gpsPosition.lat.toFixed(6), lon: +gpsPosition.lon.toFixed(6), accuracyM: acc, speedKmh: latestSpeedKmh == null ? null : +latestSpeedKmh.toFixed(1), snapKm: +s.distanceKm.toFixed(3), progress: +progress.toFixed(5), offRoute: state.off, offRouteBadFixes, etaMin: +remainingMinutes().toFixed(1), reroutes: liveRerouteCount, journeyKm: +journeyCompletedKm.toFixed(2) });
   }
 }
+
+function beginGpsWatch(restart = false) {
+  if (!navigator.geolocation || !gpsRunning) return;
+  if (restart && gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch (_) {} gpsWatch = null; }
+  if (gpsWatch != null) return;
+  gpsWatch = navigator.geolocation.watchPosition(p => applyGpsFix(p), e => {
+    if (e?.code === 1) { setStatus(geoErrorText(e), true); stopGPS(false); refreshGpsPermission(); return; }
+    $('gpsPill').textContent = 'GPS waiting'; $('gpsPill').className = 'gpspill warn'; $('gpsDetail').textContent = `${geoErrorText(e)} The tracker will keep trying while the app is open.`;
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+}
+
+async function recoverGpsTracking(source = 'resume') {
+  if (!gpsRunning || gpsRecoveryInFlight || Date.now() - lastResumeRecoveryAt < 2500) return;
+  gpsRecoveryInFlight = true; lastResumeRecoveryAt = Date.now(); lastGpsRecoveryAt = Date.now();
+  const gapMs = gpsLastFixAt ? Date.now() - gpsLastFixAt : 0;
+  try {
+    requestWake(); if (gapMs > 15000) beginGpsWatch(true);
+    $('gpsDetail').textContent = 'Reacquiring GPS after app resume…';
+    const p = await obtainFix(); if (!gpsRunning) return;
+    const global = snapGlobal(p.coords.longitude, p.coords.latitude), acc = p.coords.accuracy || 0;
+    logRoadEvent('gps_resume_fix', { source, gapSec: +(gapMs / 1000).toFixed(1), accuracyM: Math.round(acc), snapKm: global ? +global.distanceKm.toFixed(3) : null }, true);
+    if (gapMs > 30000) lastGpsAppliedAt = 0;
+    if (gapMs > 30000 && acc <= 150 && global && global.distanceKm > Math.max(.45, acc / 1000 * 4) && canAutoReroute() && Date.now() - lastRerouteAt > 15000) {
+      lastRerouteAt = Date.now();
+      const ok = await rerouteFromGpsPosition(p.coords.longitude, p.coords.latitude, 'resume_recovery');
+      if (ok) { gpsPosition = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: acc }; renderOverlay(); return; }
+    }
+    applyGpsFix(p);
+  } catch (e) { logRoadEvent('gps_resume_failed', { source, gapSec: +(gapMs / 1000).toFixed(1), error: geoErrorText(e) }, true); }
+  finally { gpsRecoveryInFlight = false; }
+}
+window.recoverGpsTracking = recoverGpsTracking;
+
 async function captureLocation() {
   await refreshGpsPermission(); const blocked = gpsBlockReason(); if (blocked) { setStatus(blocked, true); updateGpsEnvironment(); return; }
   $('useLocation').disabled = true; $('useLocation').textContent = 'Locating…'; setStatus('Requesting a GPS fix…');
   try {
-    const p = await obtainFix(); originGPS = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0, capturedAt: Date.now() }; originMode = 'gps'; currentOriginIndex = -1; $('from').value = 'Current location';
+    const p = await obtainFix(); originGPS = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0, capturedAt: Date.now() }; originMode = 'gps'; currentOriginIndex = -1; currentOriginAddress = null; $('from').value = 'Current location';
     const nc = nearestCommunity(originGPS.lon, originGPS.lat); $('locationHint').textContent = nc.index >= 0 ? `near ${names[nc.index]} · GPS ±${Math.round(originGPS.accuracy)}m` : `GPS ±${Math.round(originGPS.accuracy)}m`;
     $('useLocation').textContent = '◎ Refresh location'; makeTrip();
   } catch (e) { setStatus(geoErrorText(e), true); $('useLocation').textContent = '◎ Use current location'; }
@@ -38,26 +109,23 @@ async function startGPS() {
   $('gpsStart').disabled = true; $('gpsDetail').textContent = 'Getting a fresh start position…'; let first = null;
   try {
     first = await obtainFix();
-    if (originMode === 'gps' && currentDestIndex >= 0) {
-      originGPS = { lon: first.coords.longitude, lat: first.coords.latitude, accuracy: first.coords.accuracy || 0, capturedAt: Date.now() }; $('from').value = 'Current location';
+    if (originMode === 'gps' && currentDestination) {
+      originGPS = { lon: first.coords.longitude, lat: first.coords.latitude, accuracy: first.coords.accuracy || 0, capturedAt: Date.now() }; $('from').value = 'Current location'; loadedOriginLabel = 'Current location';
       const nc = nearestCommunity(originGPS.lon, originGPS.lat); $('locationHint').textContent = nc.index >= 0 ? `near ${names[nc.index]} · GPS ±${Math.round(originGPS.accuracy)}m` : `GPS ±${Math.round(originGPS.accuracy)}m`;
-      const ok = await buildGps(names[currentDestIndex], currentDestIndex); if (!ok || !routeProgressReliable) throw new Error('route refresh failed');
+      const ok = await buildGpsEndpoint(currentDestination); if (!ok || !routeProgressReliable) throw new Error('route refresh failed');
     }
   } catch (e) { setStatus(geoErrorText(e) || 'Could not refresh GPS start position.', true); $('gpsStart').disabled = !routeProgressReliable; return; }
-  gpsRunning = true; setFollow(true, true); lastGpsAppliedAt = 0; offRouteState = false;
-  $('gpsStart').disabled = true; $('gpsStop').disabled = false; $('slider').disabled = true; $('gpsDetail').textContent = 'Live GPS active · keep NL Offline open while driving.';
+  gpsRunning = true; setFollow(true, true); lastGpsAppliedAt = 0; offRouteState = false; offRouteSince = 0; offRouteBadFixes = 0; offRouteGoodFixes = 0;
+  journeyCompletedKm = 0; journeyLastGpsPoint = null; journeyLastGpsAt = 0;
+  $('gpsStart').disabled = true; $('gpsStop').disabled = false; $('slider').disabled = true; $('gpsDetail').textContent = 'Live GPS active · automatic route recovery armed.';
   $('gpsPill').textContent = 'GPS starting'; $('gpsPill').className = 'gpspill'; resetEta(); startEtaTracking(Date.now()); latestSpeedKmh = null; latestAccuracyM = null; gpsLastFixAt = 0; startStaleTimer(); requestWake(); logRoadEvent('drive_started', currentTripSnapshot(), true);
   if (first && gpsRunning) applyGpsFix(first); if (!gpsRunning) return;
-  gpsWatch = navigator.geolocation.watchPosition(p => applyGpsFix(p), e => {
-    if (e?.code === 1) { setStatus(geoErrorText(e), true); stopGPS(false); refreshGpsPermission(); return; }
-    $('gpsPill').textContent = 'GPS waiting'; $('gpsPill').className = 'gpspill warn'; $('gpsDetail').textContent = `${geoErrorText(e)} The tracker will keep trying while the app is open.`;
-  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
-  setStatus('Live trip running · map, route, distance and ETA are operating locally.');
+  beginGpsWatch(false); setStatus('Live trip running · route, distance, ETA and rerouting operate locally.');
 }
 function stopGPS(clear = true) {
   const wasRunning = gpsRunning || gpsWatch != null; gpsRunning = false; lastGpsAppliedAt = 0; if (gpsWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null;
-  stopStaleTimer(); releaseWake(); if (wasRunning) logRoadEvent('drive_stopped', currentTripSnapshot(), true); latestSpeedKmh = null; latestAccuracyM = null; updateDrivingHud(); setFollow(false); $('gpsStart').disabled = !routeProgressReliable || !currentTripLoaded || routeCoords.length < 2; $('gpsStop').disabled = true; $('slider').disabled = false;
-  if (clear) { gpsPosition = null; offRouteState = false; $('gpsDetail').textContent = 'Slider simulates driving. Tap Follow to preview the moving map; live GPS requires HTTPS.'; $('gpsDetail').classList.remove('offroute'); renderOverlay(); }
+  stopStaleTimer(); releaseWake(); if (wasRunning) logRoadEvent('drive_stopped', { ...currentTripSnapshot(), journeyKm: +journeyCompletedKm.toFixed(2) }, true); latestSpeedKmh = null; latestAccuracyM = null; updateDrivingHud(); setFollow(false); $('gpsStart').disabled = !routeProgressReliable || !currentTripLoaded || routeCoords.length < 2; $('gpsStop').disabled = true; $('slider').disabled = false;
+  if (clear) { gpsPosition = null; offRouteState = false; offRouteSince = 0; offRouteBadFixes = 0; offRouteGoodFixes = 0; $('gpsDetail').textContent = 'Slider simulates driving. Tap Follow to preview the moving map; live GPS requires HTTPS.'; $('gpsDetail').classList.remove('offroute'); renderOverlay(); }
   updateGpsEnvironment();
 }
 
@@ -66,7 +134,7 @@ $('exportLog')?.addEventListener('click', exportRoadLog);
 $('clearLog')?.addEventListener('click', clearRoadLog);
 $('go').addEventListener('click', makeTrip);
 $('useLocation').addEventListener('click', captureLocation);
-$('from').addEventListener('input', () => { if ($('from').value.trim().toLowerCase() !== 'current location') { originMode = 'town'; originGPS = null; $('locationHint').textContent = ''; } });
+$('from').addEventListener('input', () => { if ($('from').value.trim().toLowerCase() !== 'current location') { originMode = 'town'; originGPS = null; currentOriginAddress = null; $('locationHint').textContent = ''; } });
 $('swap').addEventListener('click', () => { if (originMode === 'gps') { originMode = 'town'; originGPS = null; $('locationHint').textContent = ''; } const x = $('from').value; $('from').value = $('to').value; $('to').value = x; makeTrip(); });
 $('slider').addEventListener('input', () => { gpsPosition = null; progress = +$('slider').value / 1000; latestSpeedKmh = null; latestAccuracyM = null; resetEta(); update(); if (followGPS) { $('gpsDetail').textContent = 'Simulation follow active · drag the slider to preview the moving map.'; $('routeStatus').textContent = 'Simulating'; } });
 $('gpsStart').addEventListener('click', startGPS);
@@ -96,50 +164,26 @@ window.addEventListener('resize', size);
 window.addEventListener('online', () => { updateGpsEnvironment(); verifyOfflinePackage(false); });
 window.addEventListener('offline', updateGpsEnvironment);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { if (gpsRunning) { requestWake(); obtainFix().then(p => { if (gpsRunning) applyGpsFix(p); }).catch(() => {}); } updateGpsEnvironment(); }
-  else { saveRoadLog(); if (gpsRunning) $('gpsDetail').textContent = 'App is in the background. Live GPS may pause until NL Offline is visible again.'; }
+  if (document.visibilityState === 'visible') {
+    const hiddenSec = lifecycleHiddenAt ? (Date.now() - lifecycleHiddenAt) / 1000 : 0; logRoadEvent('visibility_visible', { hiddenSec: +hiddenSec.toFixed(1), gpsRunning }, true); lifecycleHiddenAt = 0;
+    if (gpsRunning) recoverGpsTracking('visibilitychange'); updateGpsEnvironment();
+  } else {
+    lifecycleHiddenAt = Date.now(); logRoadEvent('visibility_hidden', { gpsRunning }, true); saveRoadLog(); if (gpsRunning) $('gpsDetail').textContent = 'App is in the background. iOS may pause live GPS; NL Offline will reacquire and recover the route when visible again.';
+  }
 });
-window.addEventListener('pageshow', () => { updateGpsEnvironment(); if (gpsRunning) obtainFix().then(p => { if (gpsRunning) applyGpsFix(p); }).catch(() => {}); });
+window.addEventListener('pagehide', () => { logRoadEvent('pagehide', { gpsRunning }, true); saveRoadLog(); });
+window.addEventListener('pageshow', e => { logRoadEvent('pageshow', { gpsRunning, persisted: !!e.persisted }, true); updateGpsEnvironment(); if (gpsRunning) recoverGpsTracking('pageshow'); });
 
 async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-<<<<<<< HEAD
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.13', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.15', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
-  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.level2Count || DATA.routeReady} mapped locally · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${Object.keys(ROUTING_ANCHOR_OVERRIDES).length} calibrated anchors.`); logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length });
-  makeTrip();
-}
-function loadV013Routing() {
-  return new Promise((resolve, reject) => {
-    if (window.__NL_V013_ROUTING_LOADED__) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = './v013-routing.js';
-    script.onload = () => {
-      window.__NL_V013_ROUTING_LOADED__ = true;
-      document.title = 'NL Offline MVP v0.13';
-      const sub = document.querySelector('.sub');
-      if (sub) sub.textContent = 'Newfoundland & Labrador road trips without a signal · v0.13';
-      const ready = document.querySelector('.readytitle');
-      if (ready) ready.textContent = 'Road-test readiness · v0.13';
-      resolve();
-    };
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
-loadV013Routing().then(boot).catch(e => {
-  setStatus('Highway routing update did not load; using v0.12 routing fallback.', true);
-  boot();
-});
-=======
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.14', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
-    } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
-  } else updateRoadReadiness();
-  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.level2Count || DATA.routeReady} mapped locally · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${(Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0))} calibrated anchors.`); logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback' });
+  const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address ranges unavailable';
+  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.level2Count || DATA.routeReady} mapped locally · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${addr}.`);
+  logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback', addressRanges: window.NL_ADDRESS_META?.recordCount || 0 });
   makeTrip();
 }
 boot();
->>>>>>> d2e1bc5 (NL Offline v0.14 NRN routing rebuild)

@@ -1,4 +1,4 @@
-// NL Offline v0.14 — metadata-driven fastest-reasonable routing.
+// NL Offline v0.15 — metadata-driven fastest-reasonable routing.
 // Uses the original National Road Network (NRN) road class / route number / lane metadata.
 // Level 1 NL-RDDb distance and time remain authoritative display values.
 
@@ -18,7 +18,7 @@ const ROAD_ROUTES = ROAD_META.routes || [];
 const ROAD_ROUTE_NAMES = ROAD_META.routeNames || {};
 
 const ROUTING_PROFILE = Object.freeze({
-  version: 'NRN fastest-reasonable v2',
+  version: 'NRN fastest-reasonable v3 + civic ranges',
   maxKmh: 105,
   primaryRoutes: ['1', '2', '75'],
   speedKmh: {
@@ -74,6 +74,20 @@ function transitionPenalty(prevTier, nextTier) {
   if (prevTier - nextTier >= 2) return .18;
   return 0;
 }
+
+function estimateRouteMinutes(edgeIds) {
+  let mins = 0, prevTier = 0;
+  for (const ei of edgeIds || []) {
+    const e = DATA.edges[ei]; if (!e) continue;
+    const type = e[4] || 'road';
+    if (type === 'ferry') { mins += (e[2] || 0) / 25 * 60; prevTier = 0; continue; }
+    const tier = roadTier(ei);
+    mins += (e[2] || 0) / Math.max(20, edgeSpeedKmh(ei)) * 60 + transitionPenalty(prevTier, tier);
+    prevTier = tier;
+  }
+  return mins;
+}
+window.estimateRouteMinutes = estimateRouteMinutes;
 
 const distanceRouterV014 = dijkstra;
 function straightMinutes(u, t) {
