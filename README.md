@@ -1,12 +1,14 @@
 # NL Offline
 
-NL Offline is a static, installable map for Newfoundland and Labrador that keeps its map, community, civic-address-range and routing data on the device. The v0.18 MVP is intentionally focused on dependable town-to-town and civic-address routing where cellular service is unavailable.
+NL Offline is a static, installable map for Newfoundland and Labrador that keeps its map, community, exact civic-address and routing data on the device. The v0.19 MVP is intentionally focused on dependable town-to-town, street and civic-address routing where cellular service is unavailable.
 
-## What v0.18 does
+## What v0.19 does
 
 - Browses the packaged NL road network without a connection.
 - Routes between 927 official community entries: 922 road-mapped and 5 remote/special entries.
-- Resolves supported civic addresses from 28,077 NRN road-side ranges across 130 address places.
+- Resolves 181,766 exact NL civic addresses covering 8,323 named streets and 459 localities from the Statistics Canada National Address Register (June 2026).
+- Accepts a full civic address or an unambiguous street-only destination, with punctuation-tolerant partial suggestions.
+- Retains 28,077 NRN road-side ranges as a fallback when an exact address point is unavailable.
 - Connects an address through the best end of its road segment, retains the partial street geometry and routes directly between two addresses on the same segment.
 - Uses official NL-RDDb town-to-town distance/time totals and a local NRN fastest-reasonable path model.
 - Supports touch drag, two-finger pinch, wheel/double-click zoom, keyboard pan/zoom and a persistent free-map view.
@@ -59,7 +61,9 @@ Service-worker and phone-GPS behaviour require HTTPS (localhost is treated as se
 - `index.html`, `core.js`, `map.js`, `route-*.js`, `guidance.js`, `gps.js`: application, route guidance and navigation UI.
 - `data.js`, `ferry.js`: compact community matrices and road/ferry network.
 - `roadmeta*.js`, `routing.js`: NRN road classes, route names and local route-cost model.
-- `addressmeta*.js`, `addresses.js`: compact civic-range index, resolver and street labels.
+- `addresspoints.js`: generated compact NL National Address Register index.
+- `addressmeta*.js`, `addresses.js`: fallback civic ranges, exact resolver, suggestions and street labels.
+- `tools/build-nar-address-index.mjs`: reproducible compiler for the federal NL address/location CSV files.
 - `sw.js`, `pwa.js`, `manifest.webmanifest`: install/offline lifecycle.
 - `build-info.json`: release scope and dataset counts.
 - `tests/`: route-direction, connectivity, address and package regressions.
@@ -67,7 +71,7 @@ Service-worker and phone-GPS behaviour require HTTPS (localhost is treated as se
 ## Known MVP limits
 
 - Maneuver prompts are geometry-derived road-level guidance, not spoken directions, lane guidance or a legal-turn model. Road signs and actual conditions take priority.
-- Civic-address locations are interpolated from road-side number ranges; they are not surveyed entrances or guaranteed building points.
+- National Address Register locations are authoritative georeferenced civic points, but the app snaps them to the closest compatible packaged road for navigation; verify the actual driveway/entrance and signs.
 - The app does not yet model truck height, weight, axle, hazardous-goods, seasonal-road or turning restrictions. Drivers must independently verify vehicle suitability.
 - Ferry schedules, disruptions, live traffic, closures, weather and 511 reports are not included in this core offline release.
 - Dashed ferry/remote geometry can explain an official trip but is not considered safe continuous geometry for driving mode.

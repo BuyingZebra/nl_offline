@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.19.0 — 2026-08-25
+
+Exact offline civic-address data release.
+
+### Address coverage
+
+- Added the June 2026 Newfoundland and Labrador subset of the Statistics Canada National Address Register.
+- Compiled 181,766 exact civic addresses across 8,323 streets and 459 localities into a 3.86 MB browser index.
+- Deduplicated apartment/unit rows sharing a civic entrance without storing occupant or business identities.
+- Snapped 181,752 address points to the offline road graph; only 14 records require a nearest-node fallback.
+- Kept NRN civic ranges as a secondary fallback instead of presenting all addresses as interpolated estimates.
+
+### Search and routing
+
+- Added exact civic-number and suffix lookup with punctuation and common street-type normalization.
+- Added partial, street-only and locality-aware offline suggestions.
+- Allows an unambiguous street destination when no civic number is supplied.
+- Added National Address Register street labels to previously unnamed routed edges.
+
+### Validation and provenance
+
+- Added D'Iberville Street, Carbonear regressions for full-address, partial-search, street-only and route attachment.
+- Added exact dataset counts and service-worker integrity checks.
+- Added the Statistics Canada Open Licence acknowledgement and a reproducible address-index compiler.
+
 ## 0.18.0 — 2026-08-25
 
 Offline navigation-intelligence release.

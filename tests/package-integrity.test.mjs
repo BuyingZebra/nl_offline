@@ -11,11 +11,11 @@ test('release versions agree', () => {
   const build = JSON.parse(read('build-info.json'));
   const manifest = JSON.parse(read('manifest.webmanifest'));
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(build.version, '0.18.0');
+  assert.equal(build.version, '0.19.0');
   assert.equal(pkg.version, build.version);
-  assert.match(manifest.name, /v0\.18$/);
-  assert.match(read('sw.js'), /const VERSION = '0\.18\.0'/);
-  assert.match(read('index.html'), /NL Offline MVP v0\.18/);
+  assert.match(manifest.name, /v0\.19$/);
+  assert.match(read('sw.js'), /const VERSION = '0\.19\.0'/);
+  assert.match(read('index.html'), /NL Offline MVP v0\.19/);
 });
 
 test('HTML runtime files exist and are cached by the service worker', () => {
@@ -34,9 +34,9 @@ test('HTML runtime files exist and are cached by the service worker', () => {
   assert.equal(scripts.filter(file => file.startsWith('addressmeta-part-')).length, 34);
 });
 
-test('release contains no stale v0.17 runtime references', () => {
+test('release contains no stale v0.18 runtime references', () => {
   const files = ['index.html', 'core.js', 'addresses.js', 'routing.js', 'map.js', 'route-path.js', 'guidance.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'sw.js', 'manifest.webmanifest'];
-  const stale = files.filter(file => /v0\.17|0\.17\.0/.test(read(file)));
+  const stale = files.filter(file => /v0\.18|0\.18\.0|v018/.test(read(file)));
   assert.deepEqual(stale, []);
 });
 
@@ -53,4 +53,14 @@ test('declared dataset counts match the packaged data', () => {
   assert.equal(data.edges.filter(edge => (edge[4] || 'road') === 'road').length, build.data.roadEdges);
   assert.equal(data.edges.filter(edge => edge[4] === 'ferry').length, build.data.ferryEdges);
   assert.equal(data.edges.filter(edge => edge[4] === 'virtual').length, build.data.schematicDataEdges);
+
+  const addressSandbox = { window: {} }; addressSandbox.window = addressSandbox;
+  vm.createContext(addressSandbox); vm.runInContext(read('addresspoints.js'), addressSandbox);
+  const points = addressSandbox.NL_ADDRESS_POINTS;
+  assert.equal(points.recordCount, build.data.exactCivicAddresses);
+  assert.equal(points.streetCount, build.data.exactAddressStreets);
+  assert.equal(points.placeCount, build.data.exactAddressLocalities);
+  assert.equal(points.quality.snappedToRoad, build.data.exactAddressRoadSnaps);
+  assert.equal(points.quality.fallbackPoints, build.data.exactAddressFallbackPoints);
+  assert.ok(fs.statSync(path.join(root, 'addresspoints.js')).size < 4_000_000, 'exact address package unexpectedly large');
 });

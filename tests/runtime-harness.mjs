@@ -16,7 +16,7 @@ function domElement(context2d, noop) {
   };
 }
 
-export function createRuntime({ addresses = false } = {}) {
+export function createRuntime({ addresses = false, addressPoints = addresses } = {}) {
   const noop = () => {};
   const context2d = new Proxy({ measureText: text => ({ width: String(text).length * 6 }) }, {
     get: (target, property) => property in target ? target[property] : noop,
@@ -44,7 +44,7 @@ export function createRuntime({ addresses = false } = {}) {
   run('roadmeta.js');
   if (addresses) {
     for (let i = 0; i < 34; i++) run(`addressmeta-part-${String(i).padStart(2, '0')}.js`);
-    run('addressmeta.js');
+    run('addressmeta.js'); if (addressPoints) run('addresspoints.js');
   }
   run('core.js');
   if (addresses) run('addresses.js');

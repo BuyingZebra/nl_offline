@@ -259,12 +259,12 @@ async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); await refreshStoragePersistence(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.18', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.19', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
-  const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address ranges unavailable';
+  const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address data unavailable';
   setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.routeReady} road-mapped + ${Object.keys(DATA.specialRoutes || {}).length} remote/special · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${addr}.`);
-  logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback', addressRanges: window.NL_ADDRESS_META?.recordCount || 0 });
+  logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback', exactAddresses: window.NL_ADDRESS_POINTS?.recordCount || 0, addressRanges: window.NL_ADDRESS_META?.recordCount || 0 });
   makeTrip();
 }
 boot();

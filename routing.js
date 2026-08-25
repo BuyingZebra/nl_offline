@@ -1,4 +1,4 @@
-// NL Offline v0.18 — metadata-driven fastest-reasonable routing.
+// NL Offline v0.19 — metadata-driven fastest-reasonable routing.
 // Uses the original National Road Network (NRN) road class / route number / lane metadata.
 // Level 1 NL-RDDb distance and time remain authoritative display values.
 

@@ -10,7 +10,8 @@ function setEstimatedLabels(source = 'NRN road network') {
   $('timeLabel').textContent = currentTripHasFerry ? 'Estimated total time' : 'Estimated time';
   $('distanceNote').textContent = source;
   $('timeNote').textContent = currentTripHasFerry ? 'NRN road classes + ferry geometry' : 'NRN road-class model';
-  $('tripModeHint').textContent = currentOriginAddress || currentDestAddress ? 'Offline civic-address estimate' : originMode === 'gps' || liveRerouteCount ? 'Current position → destination' : 'Offline road-network estimate';
+  const hasExactAddress = [currentOriginAddress, currentDestAddress].some(address => address && !address.approximate);
+  $('tripModeHint').textContent = currentOriginAddress || currentDestAddress ? (hasExactAddress ? 'Offline exact-address route' : 'Offline civic-range estimate') : originMode === 'gps' || liveRerouteCount ? 'Current position → destination' : 'Offline road-network estimate';
 }
 function setRouteTotals(info) {
   routeRoadDistance = info.roadDistance; routeRoadTime = info.roadTime; routeFerryDistance = info.ferryDistance; routeFerryTime = info.ferryTime;
@@ -73,7 +74,8 @@ function finishPath(virtual, statusText, originName, destName, a, b) {
 function finishEstimatedPath(statusText) {
   routeCoords = flattenSegments(); if (routeCoords.length < 2) throw new Error('empty path'); metrics(); setEstimatedRouteTotalsFromPath();
   const schematic = routeHasSchematicSegments();
-  setProgressReliability(!schematic); setEstimatedLabels(currentOriginAddress || currentDestAddress ? 'NRN civic address range + road network' : 'NRN road network');
+  const hasExactAddress = [currentOriginAddress, currentDestAddress].some(address => address && !address.approximate);
+  setProgressReliability(!schematic); setEstimatedLabels(currentOriginAddress || currentDestAddress ? (hasExactAddress ? 'NAR exact address + NRN roads' : 'NRN civic range fallback + roads') : 'NRN road network');
   $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime);
   setFollow(false); fit(routeCoords); updateRouteQuality(schematic || currentTripHasFerry);
   progress = 0; offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; lastGpsAppliedAt = 0; resetEta(); currentTripLoaded = true; update();
@@ -96,7 +98,8 @@ function endpointFromText(text) {
   return null;
 }
 function setEndpointState(originEp, destEp) {
-  routeDataSource = (originEp?.kind === 'address' || destEp?.kind === 'address') ? 'nrn-address' : originEp?.kind === 'gps' ? 'gps-nrn' : 'official';
+  const endpointAddresses = [originEp?.address, destEp?.address].filter(Boolean);
+  routeDataSource = endpointAddresses.length ? (endpointAddresses.some(address => !address.approximate) ? 'nar-address' : 'nrn-address-fallback') : originEp?.kind === 'gps' ? 'gps-nrn' : 'official';
   currentOriginIndex = originEp?.kind === 'town' ? originEp.index : -1;
   currentDestIndex = destEp?.kind === 'town' ? destEp.index : -1;
   currentOriginAddress = originEp?.kind === 'address' ? originEp.address : null;
@@ -121,7 +124,7 @@ function buildEstimatedEndpoints(originEp, destEp, statusPrefix = 'Offline route
 function makeTrip() {
   stopGPS(false); saveTripPrefs(); liveRerouteCount = 0; journeyCompletedKm = 0; journeyLastGpsPoint = null; journeyLastGpsAt = 0;
   const destEp = endpointFromText($('to').value);
-  if (!destEp) { setStatus('Choose a Newfoundland & Labrador town, or enter an address like “123 Water Street, Carbonear”.', true); return; }
+  if (!destEp) { setStatus('Choose an NL town, street, or civic address such as “9 D’Iberville Street, Carbonear”.', true); return; }
   if (originMode === 'gps') {
     if (!originGPS) { setStatus('Current location has not been captured yet.', true); return; }
     const nn = nearestNode(originGPS.lon, originGPS.lat); if (nn.node < 0 || nn.distanceKm > 8) { setStatus('Current location is too far from the packaged NL road network.', true); return; }

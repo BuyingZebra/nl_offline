@@ -1,4 +1,4 @@
-// NL Offline v0.18 — local maneuver generation from packaged NRN route geometry.
+// NL Offline v0.19 — local maneuver generation from packaged NRN route geometry.
 // Instructions are intentionally road-level guidance; no lane, legal-turn or truck-restriction claims are made.
 
 function bearingDegrees(a, b) {

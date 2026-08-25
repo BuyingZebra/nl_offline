@@ -244,7 +244,7 @@ let pinchGesture = null;
 let offlinePackageReady = false, storagePersistent = null, lastGpsAppliedAt = 0, deferredInstall = null, offRouteState = false;
 let latestSpeedKmh = null, latestAccuracyM = null, latestHeadingDeg = null;
 let etaModel = { movingKm: 0, speedKmh: null, lastOfficialDistance: null, lastTs: null, startedAt: null, startOfficialMinutes: 0, scheduleRatio: null, samples: 0 };
-const ROAD_LOG_KEY = 'nl-offline-roadtest-v018';
+const ROAD_LOG_KEY = 'nl-offline-roadtest-v019';
 let roadLog = [];
 let lastLoggedFixAt = 0;
 
@@ -285,7 +285,7 @@ function updateRoadLogUI() {
 }
 async function exportRoadLog() {
   const payload = {
-    app: 'NL Offline', version: '0.18.0', exportedAt: new Date().toISOString(),
+    app: 'NL Offline', version: '0.19.0', exportedAt: new Date().toISOString(),
     userAgent: navigator.userAgent, standalone: standaloneMode(), secure: window.isSecureContext,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
     trip: currentTripSnapshot(), events: roadLog
