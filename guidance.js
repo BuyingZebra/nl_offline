@@ -1,4 +1,4 @@
-// NL Offline v0.21 — local maneuver generation from shared full-detail NRN route geometry.
+// NL Offline v0.22 — local maneuver generation from shared full-detail NRN route geometry.
 // Instructions are intentionally road-level guidance; no lane, legal-turn or truck-restriction claims are made.
 
 function bearingDegrees(a, b) {
@@ -37,7 +37,7 @@ function guidanceRoadLabel(edgeId) {
 function guidanceRoadKey(edgeId) {
   const edge = DATA.edges[edgeId], type = edge?.[4] || 'road'; if (type !== 'road') return type;
   const route = typeof routeNumber === 'function' ? routeNumber(edgeId) : ''; if (route) return `route:${route}`;
-  const street = typeof streetNameForEdge === 'function' ? streetNameForEdge(edgeId) : ''; if (street && street !== 'None') return `street:${typeof normalizeAddressText === 'function' ? normalizeAddressText(street) : street.toLowerCase()}`;
+  const street = typeof streetNameForEdge === 'function' ? streetNameForEdge(edgeId) : ''; if (street && street !== 'None') return `street:${typeof normalizeRoadText === 'function' ? normalizeRoadText(street) : street.toLowerCase()}`;
   return '';
 }
 function guidanceIcon(type, side = '') {

@@ -1,8 +1,8 @@
 {
   "name": "nl-offline",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "private": true,
-  "description": "Offline Newfoundland and Labrador map and local routing PWA",
+  "description": "Offline Newfoundland and Labrador town and road navigation PWA",
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",

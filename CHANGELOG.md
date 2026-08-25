@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.22.0 — 2026-08-25
+
+- Narrowed the public MVP to town and named-road navigation while the provincial civic-address/road conflation pipeline is rebuilt.
+- Added town-to-town, road-to-road, town-to-road, road-to-town and current-location-to-road routes.
+- Replaced exact civic-address runtime files with a compact 11,893-entry road/place index covering 8,323 road names and 459 localities.
+- Removed all civic numbers and address coordinates from the shipped package, reducing the release by approximately 4 MB.
+- Added multi-source road routing that evaluates all connected endpoints of both selected roads in one graph search.
+- Added clear civic-number rejection and road-name fallback suggestions.
+- Replaced address regressions with road/place resolution, D'Iberville road-to-road and mixed-endpoint routing tests.
+- Versioned the complete offline cache as v0.22 so installed PWAs update atomically.
+
 ## 0.21.0 — 2026-08-25
 
 - Increased land/ocean luminance and hue separation with a deep-blue ocean and lighter spruce-toned land.

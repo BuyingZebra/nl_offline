@@ -1,4 +1,4 @@
-// NL Offline v0.21 — metadata-driven fastest-reasonable routing on shared full-detail geometry.
+// NL Offline v0.22 — metadata-driven fastest-reasonable routing on shared full-detail geometry.
 // Uses the original National Road Network (NRN) road class / route number / lane metadata.
 // Level 1 NL-RDDb distance and time remain authoritative display values.
 
@@ -18,7 +18,7 @@ const ROAD_ROUTES = ROAD_META.routes || [];
 const ROAD_ROUTE_NAMES = ROAD_META.routeNames || {};
 
 const ROUTING_PROFILE = Object.freeze({
-  version: 'NRN fastest-reasonable v4 + dual-end civic access',
+  version: 'NRN fastest-reasonable v5 + multi-road endpoints',
   maxKmh: 105,
   primaryRoutes: ['1', '2', '75'],
   speedKmh: {
@@ -135,6 +135,66 @@ dijkstra = function(s, t, options = {}) {
   }
   return edges.reverse();
 };
+
+// Finds the best graph path between two roads without choosing an arbitrary
+// representative civic point. Every connected endpoint of each named road is
+// considered in one bounded graph search.
+function routeBetweenNodeSets(sourceNodes, targetNodes, options = {}) {
+  const sources = [...new Set(sourceNodes || [])].filter(node => node >= 0 && DATA.nodes[node]);
+  const targets = new Set((targetNodes || []).filter(node => node >= 0 && DATA.nodes[node]));
+  if (!sources.length || !targets.size) return null;
+  for (const source of sources) if (targets.has(source)) return { edges: [], startNode: source, endNode: source, estimatedMinutes: 0 };
+
+  const LEVELS = 6, stateCount = adj.length * LEVELS, allowFerry = !!options.allowFerry;
+  const dist = new Float64Array(stateCount); dist.fill(Infinity);
+  const prevState = new Int32Array(stateCount); prevState.fill(-1);
+  const prevEdge = new Int32Array(stateCount); prevEdge.fill(-1);
+  const rootNode = new Int32Array(stateCount); rootNode.fill(-1);
+  const sid = (node, tier) => node * LEVELS + tier;
+  const heap = new Heap();
+  for (const source of sources) {
+    const state = sid(source, 0);
+    if (dist[state] === 0) continue;
+    dist[state] = 0; rootNode[state] = source; heap.push([0, state]);
+  }
+
+  let goal = -1;
+  while (heap.size) {
+    const [cost, state] = heap.pop();
+    if (cost !== dist[state]) continue;
+    const node = Math.floor(state / LEVELS), previousTier = state % LEVELS;
+    if (targets.has(node)) { goal = state; break; }
+    for (const [next, km, edgeId, type] of adj[node]) {
+      if (type === 'virtual') continue;
+      if (type === 'ferry' && !allowFerry) continue;
+      const nextTier = type === 'ferry' ? 0 : roadTier(edgeId);
+      const minutes = type === 'ferry'
+        ? km / 25 * 60 * 8
+        : km / Math.max(20, edgeSpeedKmh(edgeId)) * 60 + transitionPenalty(previousTier, nextTier);
+      const nextState = sid(next, nextTier), nextCost = cost + minutes;
+      if (nextCost + 1e-10 >= dist[nextState]) continue;
+      dist[nextState] = nextCost;
+      prevState[nextState] = state;
+      prevEdge[nextState] = edgeId;
+      rootNode[nextState] = rootNode[state];
+      heap.push([nextCost, nextState]);
+    }
+  }
+  if (goal < 0) return null;
+  const edges = [];
+  let state = goal;
+  while (prevState[state] >= 0) {
+    edges.push(prevEdge[state]);
+    state = prevState[state];
+  }
+  return {
+    edges: edges.reverse(),
+    startNode: rootNode[goal],
+    endNode: Math.floor(goal / LEVELS),
+    estimatedMinutes: dist[goal],
+  };
+}
+window.routeBetweenNodeSets = routeBetweenNodeSets;
 
 // v0.14 urban anchor correction: the former St. John's anchor landed ~4 km north of
 // the central city and biased the route away from the Route 2/Pitts Memorial approach.

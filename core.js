@@ -231,7 +231,7 @@ let routeRoadDistance = 0, routeRoadTime = 0, routeFerryDistance = 0, routeFerry
 let routeProgressReliable = true, currentTripLoaded = false, currentTripHasFerry = false;
 let progress = 0, gpsWatch = null, gpsPosition = null, followGPS = false, mapImmersive = false, followRadiusKm = 18, drag = null;
 let originMode = 'town', originGPS = null, currentDestIndex = -1, currentOriginIndex = -1;
-let currentOriginAddress = null, currentDestAddress = null, currentDestination = null;
+let currentOriginRoad = null, currentDestRoad = null, currentDestination = null;
 let loadedOriginLabel = '', loadedDestLabel = '';
 let liveRerouteCount = 0, rerouteInFlight = false, offRouteSince = 0, lastRerouteAt = 0;
 let routeDataSource = 'official';
@@ -244,7 +244,7 @@ let pinchGesture = null;
 let offlinePackageReady = false, storagePersistent = null, lastGpsAppliedAt = 0, deferredInstall = null, offRouteState = false;
 let latestSpeedKmh = null, latestAccuracyM = null, latestHeadingDeg = null;
 let etaModel = { movingKm: 0, speedKmh: null, lastOfficialDistance: null, lastTs: null, startedAt: null, startOfficialMinutes: 0, scheduleRatio: null, samples: 0 };
-const ROAD_LOG_KEY = 'nl-offline-roadtest-v021';
+const ROAD_LOG_KEY = 'nl-offline-roadtest-v022';
 let roadLog = [];
 let lastLoggedFixAt = 0;
 
@@ -270,8 +270,8 @@ function currentTripSnapshot() {
     mapKm: +routePolylineKm.toFixed(2), progress: +progress.toFixed(5),
     ferry: !!currentTripHasFerry, schematic: typeof routeHasSchematicSegments === 'function' ? routeHasSchematicSegments() : !routeProgressReliable,
     level2Reliable: !!routeProgressReliable, reroutes: liveRerouteCount,
-    originType: originMode === 'gps' ? 'gps' : currentOriginAddress ? 'address' : 'town',
-    destinationType: currentDestAddress ? 'address' : 'town',
+    originType: originMode === 'gps' ? 'gps' : currentOriginRoad ? 'road' : 'town',
+    destinationType: currentDestRoad ? 'road' : 'town',
     correctedOriginAnchor: usesCorrectedAnchor(currentOriginIndex), correctedDestinationAnchor: usesCorrectedAnchor(currentDestIndex)
   };
 }
@@ -285,7 +285,7 @@ function updateRoadLogUI() {
 }
 async function exportRoadLog() {
   const payload = {
-    app: 'NL Offline', version: '0.21.0', exportedAt: new Date().toISOString(),
+    app: 'NL Offline', version: '0.22.0', exportedAt: new Date().toISOString(),
     userAgent: navigator.userAgent, standalone: standaloneMode(), secure: window.isSecureContext,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
     trip: currentTripSnapshot(), events: roadLog
@@ -303,13 +303,13 @@ function clearRoadLog() { roadLog = []; saveRoadLog(); updateRoadLogUI(); setSta
 function restoreTripPrefs() {
   try {
     const d = localStorage.getItem('nl-offline-destination'), o = localStorage.getItem('nl-offline-origin');
-    if (d && (nameIndex.has(d.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(d)))) $('to').value = d;
-    if (o && (nameIndex.has(o.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(o)))) $('from').value = o;
+    if (d && (townIndexFromText(d) != null || (typeof resolveRoad === 'function' && resolveRoad(d)))) $('to').value = d;
+    if (o && (townIndexFromText(o) != null || (typeof resolveRoad === 'function' && resolveRoad(o)))) $('from').value = o;
   } catch (_) {}
 }
 function saveTripPrefs() {
   try {
-    const d = $('to').value.trim(); if (d && (nameIndex.has(d.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(d)))) localStorage.setItem('nl-offline-destination', d);
-    if (originMode !== 'gps') { const o = $('from').value.trim(); if (o && (nameIndex.has(o.toLowerCase()) || (typeof resolveAddress === 'function' && resolveAddress(o)))) localStorage.setItem('nl-offline-origin', o); }
+    const d = $('to').value.trim(); if (d && (townIndexFromText(d) != null || (typeof resolveRoad === 'function' && resolveRoad(d)))) localStorage.setItem('nl-offline-destination', d);
+    if (originMode !== 'gps') { const o = $('from').value.trim(); if (o && (townIndexFromText(o) != null || (typeof resolveRoad === 'function' && resolveRoad(o)))) localStorage.setItem('nl-offline-origin', o); }
   } catch (_) {}
 }

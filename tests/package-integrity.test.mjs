@@ -11,11 +11,11 @@ test('release versions agree', () => {
   const build = JSON.parse(read('build-info.json'));
   const manifest = JSON.parse(read('manifest.webmanifest'));
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(build.version, '0.21.0');
+  assert.equal(build.version, '0.22.0');
   assert.equal(pkg.version, build.version);
-  assert.match(manifest.name, /v0\.21$/);
-  assert.match(read('sw.js'), /const VERSION = '0\.21\.0'/);
-  assert.match(read('index.html'), /NL Offline MVP v0\.21/);
+  assert.match(manifest.name, /v0\.22$/);
+  assert.match(read('sw.js'), /const VERSION = '0\.22\.0'/);
+  assert.match(read('index.html'), /NL Offline MVP v0\.22/);
 });
 
 test('HTML runtime files exist and are cached by the service worker', () => {
@@ -31,12 +31,14 @@ test('HTML runtime files exist and are cached by the service worker', () => {
   }
   for (const file of assets) assert.ok(fs.existsSync(path.join(root, file)), `${file} is cached but missing`);
   assert.equal(scripts.filter(file => file.startsWith('roadmeta-part-')).length, 13);
-  assert.equal(scripts.filter(file => file.startsWith('addressmeta-part-')).length, 34);
+  assert.equal(scripts.filter(file => file.startsWith('addressmeta-part-')).length, 0);
+  assert.ok(scripts.includes('roadindex.js'));
+  assert.ok(scripts.includes('roads.js'));
 });
 
-test('release contains no stale v0.20 runtime references', () => {
-  const files = ['index.html', 'core.js', 'addresses.js', 'routing.js', 'map.js', 'route-path.js', 'guidance.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'sw.js', 'manifest.webmanifest'];
-  const stale = files.filter(file => /v0\.20|0\.20\.0|v020/.test(read(file)));
+test('release contains no stale v0.21 runtime references', () => {
+  const files = ['index.html', 'core.js', 'roads.js', 'routing.js', 'map.js', 'route-path.js', 'guidance.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'sw.js', 'manifest.webmanifest'];
+  const stale = files.filter(file => /v0\.21|0\.21\.0|v021/.test(read(file)));
   assert.deepEqual(stale, []);
 });
 
@@ -68,13 +70,17 @@ test('declared dataset counts match the packaged data', () => {
   assert.equal(basemap.quality.landVectorPoints, build.data.vectorLandPoints);
   assert.equal(basemap.quality.waterVectorPoints, build.data.vectorWaterPoints);
 
-  const addressSandbox = { window: {} }; addressSandbox.window = addressSandbox;
-  vm.createContext(addressSandbox); vm.runInContext(read('addresspoints.js'), addressSandbox);
-  const points = addressSandbox.NL_ADDRESS_POINTS;
-  assert.equal(points.recordCount, build.data.exactCivicAddresses);
-  assert.equal(points.streetCount, build.data.exactAddressStreets);
-  assert.equal(points.placeCount, build.data.exactAddressLocalities);
-  assert.equal(points.quality.snappedToRoad, build.data.exactAddressRoadSnaps);
-  assert.equal(points.quality.fallbackPoints, build.data.exactAddressFallbackPoints);
-  assert.ok(fs.statSync(path.join(root, 'addresspoints.js')).size < 4_000_000, 'exact address package unexpectedly large');
+  const roadSandbox = { window: {} }; roadSandbox.window = roadSandbox;
+  vm.createContext(roadSandbox); vm.runInContext(read('roadindex.js'), roadSandbox);
+  const roads = roadSandbox.NL_ROAD_INDEX;
+  assert.equal(roads.pairs.length, build.data.roadPlaceEntries);
+  assert.equal(roads.streets.length, build.data.roadNameCount);
+  assert.equal(roads.places.length, build.data.roadLocalities);
+  assert.equal(roads.quality.pairEdgeLinks, build.data.roadPairEdgeLinks);
+  assert.equal(roads.quality.namedRoadEdges, build.data.namedRoadEdges);
+  assert.equal(build.data.civicAddressesIncluded, 0);
+  assert.equal(build.data.civicNumberNavigationEnabled, false);
+  assert.ok(!('recordsB64' in roads), 'civic-number records leaked into the road/place index');
+  assert.ok(fs.statSync(path.join(root, 'roadindex.js')).size < 1_000_000, 'road/place index unexpectedly large');
+  assert.equal(fs.existsSync(path.join(root, 'addresspoints.js')), false, 'exact civic-address package should not ship in v0.22');
 });

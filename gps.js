@@ -105,7 +105,7 @@ async function captureLocation() {
   await refreshGpsPermission(); const blocked = gpsBlockReason(); if (blocked) { setStatus(blocked, true); updateGpsEnvironment(); return; }
   $('useLocation').disabled = true; $('useLocation').textContent = 'Locating…'; setStatus('Requesting a GPS fix…');
   try {
-    const p = await obtainFix(); originGPS = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0, capturedAt: Date.now() }; originMode = 'gps'; currentOriginIndex = -1; currentOriginAddress = null; $('from').value = 'Current location';
+    const p = await obtainFix(); originGPS = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0, capturedAt: Date.now() }; originMode = 'gps'; currentOriginIndex = -1; currentOriginRoad = null; $('from').value = 'Current location';
     const nc = nearestCommunity(originGPS.lon, originGPS.lat); $('locationHint').textContent = nc.index >= 0 ? `near ${names[nc.index]} · GPS ±${Math.round(originGPS.accuracy)}m` : `GPS ±${Math.round(originGPS.accuracy)}m`;
     $('useLocation').textContent = '◎ Refresh location'; makeTrip();
   } catch (e) { setStatus(geoErrorText(e), true); $('useLocation').textContent = '◎ Use current location'; }
@@ -148,7 +148,7 @@ function refreshLocationSuggestions(input) {
   clearTimeout(locationSuggestionTimer);
   locationSuggestionTimer = setTimeout(() => {
     const value = input.value.trim(), suggestions = [...townSuggestions(value, 9)];
-    if (typeof addressSuggestions === 'function') suggestions.push(...addressSuggestions(value, 9));
+    if (typeof roadSuggestions === 'function') suggestions.push(...roadSuggestions(value, 9));
     updateLocationOptions([...new Set(suggestions)].slice(0, 14));
   }, 70);
 }
@@ -157,7 +157,7 @@ for (const input of [$('from'), $('to')]) {
   input.addEventListener('input', () => refreshLocationSuggestions(input));
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); makeTrip(); } });
 }
-$('from').addEventListener('input', () => { if (townNorm($('from').value) !== 'current location') { originMode = 'town'; originGPS = null; currentOriginAddress = null; $('locationHint').textContent = ''; } });
+$('from').addEventListener('input', () => { if (townNorm($('from').value) !== 'current location') { originMode = 'town'; originGPS = null; currentOriginRoad = null; $('locationHint').textContent = ''; } });
 $('swap').addEventListener('click', () => { if (originMode === 'gps') { originMode = 'town'; originGPS = null; $('locationHint').textContent = ''; } const x = $('from').value; $('from').value = $('to').value; $('to').value = x; makeTrip(); });
 $('slider').addEventListener('input', () => { gpsPosition = null; progress = +$('slider').value / 1000; latestSpeedKmh = null; latestAccuracyM = null; resetEta(); update(); if (followGPS) { $('gpsDetail').textContent = 'Simulation follow active · drag the slider to preview the moving map.'; $('routeStatus').textContent = 'Simulating'; } });
 $('gpsStart').addEventListener('click', startGPS);
@@ -259,12 +259,12 @@ async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); await refreshStoragePersistence(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.21', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.22', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
-  const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address data unavailable';
-  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.routeReady} road-mapped + ${Object.keys(DATA.specialRoutes || {}).length} remote/special · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${addr}.`);
-  logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback', exactAddresses: window.NL_ADDRESS_POINTS?.recordCount || 0, addressRanges: window.NL_ADDRESS_META?.recordCount || 0 });
+  const roads = typeof roadCoverageText === 'function' ? roadCoverageText() : 'road/place index unavailable';
+  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.routeReady} road-mapped + ${Object.keys(DATA.specialRoutes || {}).length} remote/special · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${roads}.`);
+  logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback', roadPlacePairs: window.NL_ROAD_INDEX?.quality?.roadPlacePairs || 0, civicNumbersEnabled: false });
   makeTrip();
 }
 boot();

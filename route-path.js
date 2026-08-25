@@ -122,97 +122,64 @@ function polylineBetweenPoints(coords, startPoint, endPoint) {
   if (out.length < 2) out.push([endPoint[0], endPoint[1]]);
   return out;
 }
-function endpointCandidates(endpoint, role) {
+function endpointNodeSet(endpoint, specialRoute = null) {
   if (!endpoint) return [];
-  const address = endpoint.kind === 'address' ? endpoint.address : null;
-  if (address?.edgeId != null && address.edgeId !== 65535 && DATA.edges[address.edgeId]) {
-    const edge = DATA.edges[address.edgeId], oriented = orientedEdgeCoords(edge, edge[0], edge[1]), split = splitPolylineAtPoint(oriented, address.point);
-    if (split) {
-      const speed = typeof edgeSpeedKmh === 'function' ? Math.max(20, edgeSpeedKmh(address.edgeId)) : 35;
-      const make = (node, coords) => {
-        const km = polylineKm(coords);
-        return { node, coords, accessKm: km, accessMinutes: km / speed * 60, sourceEdgeId: address.edgeId, label: role === 'origin' ? 'Address to road' : 'Road to address' };
-      };
-      return role === 'origin'
-        ? [make(edge[0], [...split.before].reverse()), make(edge[1], split.after)]
-        : [make(edge[0], split.before), make(edge[1], [...split.after].reverse())];
-    }
+  if (specialRoute) {
+    const node = gatewayNode(specialRoute.gateway);
+    return node >= 0 ? [node] : [];
   }
-  const node = endpoint.node;
-  if (node == null || node < 0 || !DATA.nodes[node]) return [];
-  let coords = [];
-  if (endpoint.kind === 'gps' && endpoint.point && kmBetween(endpoint.point, DATA.nodes[node]) > .025)
-    coords = role === 'origin' ? [endpoint.point, DATA.nodes[node]] : [DATA.nodes[node], endpoint.point];
-  else if (address?.point && kmBetween(address.point, DATA.nodes[node]) > .025)
-    coords = role === 'origin' ? [address.point, DATA.nodes[node]] : [DATA.nodes[node], address.point];
-  const km = coords.length ? polylineKm(coords) : 0;
-  return [{ node, coords, accessKm: km, accessMinutes: km / 25 * 60, sourceEdgeId: address?.edgeId ?? null, label: endpoint.kind === 'address' ? (role === 'origin' ? 'Address to road' : 'Road to address') : 'Position to road' }];
-}
-function bestEndpointPath(originCandidates, destinationCandidates, allowFerry) {
-  let best = null;
-  for (const origin of originCandidates) for (const destination of destinationCandidates) {
-    const edges = dijkstra(origin.node, destination.node, { allowFerry }); if (edges == null) continue;
-    const networkMinutes = typeof estimateRouteMinutes === 'function' ? estimateRouteMinutes(edges) : edgeKm(edges) / 55 * 60;
-    const score = origin.accessMinutes + networkMinutes + destination.accessMinutes;
-    if (!best || score < best.score) best = { origin, destination, edges, score };
-  }
-  return best;
+  if (endpoint.kind === 'road') return [...new Set(endpoint.road?.nodeIds || endpoint.nodeIds || [])];
+  return endpoint.node != null && endpoint.node >= 0 ? [endpoint.node] : [];
 }
 
-// General endpoint composer used by civic-address routing and live rerouting.
-// Endpoint shape: {kind:'town'|'address'|'gps', label, index?, node?, point?, address?}.
-// Regular road trips first refuse ferry edges; if the road graph is disconnected we
-// retry with the same guarded ferry model used by town-to-town routing.
+// General endpoint composer used by road/place routing and live GPS rerouting.
+// Endpoint shape: {kind:'town'|'road'|'gps', label, index?, node?, point?, road?}.
+// A named road contributes all of its connected graph endpoints; the router chooses
+// the best pair in one graph search instead of selecting an arbitrary address point.
 function composeEndpoints(originEp, destEp) {
   routeSegments = []; routeEdgeIds = []; routeEdgeTraversals = [];
   if (!originEp || !destEp) throw new Error('route endpoint unavailable');
   const oa = originEp.kind === 'town' && originEp.index >= 0 ? special[names[originEp.index]] : null;
   const da = destEp.kind === 'town' && destEp.index >= 0 ? special[names[destEp.index]] : null;
-  let startNode = oa ? gatewayNode(oa.gateway) : originEp.node;
-  let endNode = da ? gatewayNode(da.gateway) : destEp.node;
-  if (startNode == null || endNode == null || startNode < 0 || endNode < 0) throw new Error('route endpoint unavailable');
+  const sourceNodes = endpointNodeSet(originEp, oa), targetNodes = endpointNodeSet(destEp, da);
+  if (!sourceNodes.length || !targetNodes.length) throw new Error('route endpoint unavailable');
 
-  const originAddress = originEp.kind === 'address' ? originEp.address : null, destinationAddress = destEp.kind === 'address' ? destEp.address : null;
-  if (!oa && !da && originAddress?.edgeId !== 65535 && originAddress?.edgeId === destinationAddress?.edgeId && DATA.edges[originAddress.edgeId]) {
-    const edge = DATA.edges[originAddress.edgeId], coords = orientedEdgeCoords(edge, edge[0], edge[1]);
-    const direct = polylineBetweenPoints(coords, originAddress.point, destinationAddress.point), km = polylineKm(direct);
-    addAccessCoords(direct, streetNameForEdge(originAddress.edgeId) || 'Address road segment', { sourceEdgeId: originAddress.edgeId, accessMinutes: km / Math.max(20, edgeSpeedKmh(originAddress.edgeId)) * 60 });
-    return { usedFerry: false, addressEndpointOptimized: true, originNode: null, destinationNode: null, estimatedMinutes: km / Math.max(20, edgeSpeedKmh(originAddress.edgeId)) * 60 };
-  }
-
-  if (!oa && !da && (originEp.kind === 'address' || destEp.kind === 'address')) {
-    const origins = endpointCandidates(originEp, 'origin'), destinations = endpointCandidates(destEp, 'destination');
-    let selected = bestEndpointPath(origins, destinations, false);
-    if (!selected) selected = bestEndpointPath(origins, destinations, true);
-    if (!selected) throw new Error('network components do not connect');
-    addAccessCoords(selected.origin.coords, selected.origin.label, selected.origin);
-    if (selected.edges.length) addRoad(selected.edges, selected.origin.node);
-    addAccessCoords(selected.destination.coords, selected.destination.label, selected.destination);
-    return { usedFerry: selected.edges.some(edgeId => DATA.edges[edgeId]?.[4] === 'ferry'), addressEndpointOptimized: true, originNode: selected.origin.node, destinationNode: selected.destination.node, estimatedMinutes: selected.score };
-  }
+  let selected = routeBetweenNodeSets(sourceNodes, targetNodes, { allowFerry: !!(oa || da) });
+  if (!selected && !(oa || da)) selected = routeBetweenNodeSets(sourceNodes, targetNodes, { allowFerry: true });
+  if (!selected) throw new Error('network components do not connect');
+  const startNode = selected.startNode, endNode = selected.endNode;
+  originEp.node = startNode; originEp.point = originEp.kind === 'gps' ? originEp.point : DATA.nodes[startNode];
+  destEp.node = endNode; destEp.point = DATA.nodes[endNode];
 
   if (oa) addVirtual(remotePoint(names[originEp.index]), DATA.nodes[startNode], oa.label, 'ferry', { schematic: true });
-  else if (originEp.point && kmBetween(originEp.point, DATA.nodes[startNode]) > .025)
-    addVirtual(originEp.point, DATA.nodes[startNode], originEp.kind === 'address' ? 'Address to road' : 'Position to road', 'access', { schematic: false });
+  else if (originEp.kind === 'gps' && originEp.point && kmBetween(originEp.point, DATA.nodes[startNode]) > .025)
+    addVirtual(originEp.point, DATA.nodes[startNode], 'Position to road', 'access', { schematic: false });
 
-  let road = dijkstra(startNode, endNode, { allowFerry: !!(oa || da) });
-  if (road == null && !(oa || da)) road = dijkstra(startNode, endNode, { allowFerry: true });
-  if (road == null) throw new Error('network components do not connect');
-  if (road.length) addRoad(road, startNode);
+  if (selected.edges.length) addRoad(selected.edges, startNode);
+  else {
+    const point = DATA.nodes[startNode];
+    routeSegments.push({ type: 'road', coords: [[point[0], point[1]], [point[0], point[1]]], label: 'Roads meet here', schematic: false, edgeCount: 0 });
+  }
 
   if (da) addVirtual(DATA.nodes[endNode], remotePoint(names[destEp.index]), da.label, 'ferry', { schematic: true });
-  else if (destEp.kind === 'address' && destEp.point && kmBetween(DATA.nodes[endNode], destEp.point) > .025)
-    addVirtual(DATA.nodes[endNode], destEp.point, 'Road to address', 'access', { schematic: false });
-  return { usedFerry: routeSegments.some(s => s.type === 'ferry') };
+  return {
+    usedFerry: routeSegments.some(segment => segment.type === 'ferry'),
+    roadEndpointOptimized: originEp.kind === 'road' || destEp.kind === 'road',
+    originNode: startNode,
+    destinationNode: endNode,
+    estimatedMinutes: selected.estimatedMinutes,
+  };
 }
 window.composeEndpoints = composeEndpoints;
 function destinationRouteNode() {
-  if (currentDestAddress?.node != null) return currentDestAddress.node;
+  if (currentDestRoad?.node != null) return currentDestRoad.node;
+  if (currentDestination?.node != null) return currentDestination.node;
   if (currentDestIndex >= 0 && !special[names[currentDestIndex]]) return routingAnchor(currentDestIndex);
   return -1;
 }
 function destinationRoutePoint() {
-  if (currentDestAddress?.point) return currentDestAddress.point;
+  if (currentDestRoad?.point) return currentDestRoad.point;
+  if (currentDestination?.point) return currentDestination.point;
   if (currentDestIndex >= 0) return pointForCommunity(names[currentDestIndex], currentDestIndex);
   return null;
 }

@@ -1,18 +1,19 @@
 # NL Offline
 
-NL Offline is a static, installable vector map for Newfoundland and Labrador that keeps its map, community, exact civic-address and routing data on the device. The v0.21 MVP is intentionally focused on dependable town-to-town, street and civic-address routing where cellular service is unavailable.
+NL Offline is a static, installable vector navigation map for Newfoundland and Labrador that keeps its map, community, named-road and routing data on the device. The v0.22 MVP deliberately focuses on dependable town and road navigation where cellular service is unavailable. Civic-number navigation is paused until the address and road-geometry sources can be professionally conflated and validated.
 
-## What v0.21 does
+## What v0.22 does
 
 - Browses a packaged NL vector basemap with land, major water bodies and roads without a connection.
 - Uses a higher-contrast coastal night palette so ocean, land, water bodies, road classes and labels remain distinguishable on a phone.
-- Uses the same full-detail NRN LineStrings for road display, address snapping, routing and maneuver guidance.
+- Uses the same full-detail NRN LineStrings for road display, routing and maneuver guidance.
 - Expands routed-road geometry from 112,313 to 319,387 points while keeping every stable graph edge identifier.
 - Routes between 927 official community entries: 922 road-mapped and 5 remote/special entries.
-- Resolves 181,766 exact NL civic addresses covering 8,323 named streets and 459 localities from the Statistics Canada National Address Register (June 2026).
-- Accepts a full civic address or an unambiguous street-only destination, with punctuation-tolerant partial suggestions.
-- Retains 28,077 NRN road-side ranges as a fallback when an exact address point is unavailable.
-- Connects an address through the best end of its road segment, retains the partial street geometry and routes directly between two addresses on the same segment.
+- Searches 11,893 offline road/place entries covering 8,323 road names and 459 localities.
+- Supports town-to-town, road-to-road, town-to-road, road-to-town and current-location-to-road navigation.
+- Considers every connected endpoint associated with a selected road in one graph search instead of choosing an arbitrary house-number point.
+- Rejects civic-number routing clearly while still suggesting the corresponding road name when possible.
+- Ships no civic numbers or address coordinates; the road/place index is approximately 703 KB.
 - Uses official NL-RDDb town-to-town distance/time totals and a local NRN fastest-reasonable path model.
 - Supports touch drag, two-finger pinch, wheel/double-click zoom, keyboard pan/zoom and a persistent free-map view.
 - Shows major route shields, local street names at detailed zoom, heading-aware GPS progress, local rerouting and an adaptive ETA.
@@ -65,19 +66,19 @@ Service-worker and phone-GPS behaviour require HTTPS (localhost is treated as se
 - `data.js`, `ferry.js`: compact community matrices and shared high-detail road/ferry network.
 - `basemap.js`: generated CanVec land and major-water vector layer.
 - `roadmeta*.js`, `routing.js`: NRN road classes, route names and local route-cost model.
-- `addresspoints.js`: generated compact NL National Address Register index.
-- `addressmeta*.js`, `addresses.js`: fallback civic ranges, exact resolver, suggestions and street labels.
+- `roadindex.js`, `roads.js`: compact named-road/locality index, resolver, suggestions and street labels.
 - `tools/build-nrn-road-geometry.py`: reproducible full-geometry NRN road compiler that preserves stable graph identifiers.
 - `tools/build-canvec-basemap.py`: reproducible compact CanVec land/water vector compiler.
-- `tools/build-nar-address-index.mjs`: reproducible compiler for the federal NL address/location CSV files and road snaps.
+- `tools/build-road-place-index.mjs`: derives the compact road/place index from a separately generated NAR source package while excluding civic numbers and coordinates.
 - `sw.js`, `pwa.js`, `manifest.webmanifest`: install/offline lifecycle.
 - `build-info.json`: release scope and dataset counts.
-- `tests/`: route-direction, connectivity, address and package regressions.
+- `tests/`: route-direction, connectivity, road/place and package regressions.
 
 ## Known MVP limits
 
 - Maneuver prompts are geometry-derived road-level guidance, not spoken directions, lane guidance or a legal-turn model. Road signs and actual conditions take priority.
-- National Address Register locations are authoritative georeferenced civic points, but the app snaps them to the closest compatible packaged road for navigation; verify the actual driveway/entrance and signs.
+- Civic-number navigation is intentionally disabled in v0.22. Enter a town or a road with its locality, such as `D'Iberville Street, Carbonear`.
+- The road/place index identifies named roads, but underlying NRN geometry can still contain missing, stale, fragmented or misnamed local segments. D'Iberville Street remains a known source-data case under investigation.
 - The app does not yet model truck height, weight, axle, hazardous-goods, seasonal-road or turning restrictions. Drivers must independently verify vehicle suitability.
 - Ferry schedules, disruptions, live traffic, closures, weather and 511 reports are not included in this core offline release.
 - Dashed ferry/remote geometry can explain an official trip but is not considered safe continuous geometry for driving mode.

@@ -1,8 +1,8 @@
 {
   "app": "NL Offline",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "releaseDate": "2026-08-25",
-  "scope": "Offline Newfoundland and Labrador town-to-town, street and exact civic-address road routing with local maneuver guidance",
+  "scope": "Offline Newfoundland and Labrador town-to-town, road-to-road and mixed town/road routing with local maneuver guidance",
   "data": {
     "officialCommunities": 927,
     "roadMappedCommunities": 922,
@@ -23,20 +23,15 @@
     "vectorWaterPoints": 139438,
     "ferryEdges": 32,
     "schematicDataEdges": 9,
-    "exactCivicAddresses": 181766,
-    "exactAddressStreets": 8323,
-    "exactAddressLocalities": 459,
-    "exactAddressRoadSnaps": 181752,
-    "exactAddressFallbackPoints": 14,
-    "narSourceRows": 215268,
-    "narGeoreferencedLocations": 181881,
+    "roadPlaceEntries": 11893,
+    "roadNameCount": 8323,
+    "roadLocalities": 459,
+    "roadPairEdgeLinks": 25285,
+    "namedRoadEdges": 20790,
+    "civicAddressesIncluded": 0,
+    "civicRecordsExcluded": 181766,
     "narReferenceDate": "June 2026",
-    "civicRangeSides": 28077,
-    "addressBearingSegments": 15425,
-    "namedStreets": 4912,
-    "addressPlaces": 130,
-    "mappedCivicRangeSides": 27751,
-    "fallbackCivicRangeSides": 326
+    "civicNumberNavigationEnabled": false
   },
-  "navigationClass": "Exact-address and road-level offline maneuver guidance on shared full-detail road/display geometry; no lane, spoken-instruction or truck-restriction model"
+  "navigationClass": "Town and named-road offline maneuver guidance on shared full-detail road/display geometry; civic-number, lane, spoken-instruction and truck-restriction models are intentionally out of scope"
 }

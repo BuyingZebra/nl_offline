@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRuntime, evaluate } from './runtime-harness.mjs';
 
-const runtime = createRuntime({ addresses: true });
+const runtime = createRuntime();
 
 test('100 representative non-ferry routes are forward and graph-contiguous', () => {
   const result = evaluate(runtime, `(() => {
@@ -83,79 +83,65 @@ test('Shalloway Cove and St. Brendan’s route directly in both directions', () 
   }
 });
 
-test('town normalization and civic-address suggestions remain usable offline', () => {
+test('town and road/place suggestions remain usable offline', () => {
   assert.equal(evaluate(runtime, `names[townIndexFromText('st brendans')]`), "St. Brendan's");
   assert.ok(Array.from(evaluate(runtime, `townSuggestions('carboneer', 5)`)).includes('Carbonear'));
-  const address = evaluate(runtime, `resolveAddress('123 Water Street, Carbonear')`);
-  assert.equal(address?.label, '123 Water Street, Carbonear');
-  assert.equal(address?.confidence, 'exact');
-  assert.equal(address?.approximate, false);
-  assert.ok(Array.from(evaluate(runtime, `addressSuggestions('123 water carbo', 5)`)).includes('123 Water Street, Carbonear'));
+  const road = evaluate(runtime, `resolveRoad("D'Iberville Street, Carbonear")`);
+  assert.equal(road?.label, "D'Iberville Street, Carbonear");
+  assert.equal(road?.confidence, 'road');
+  assert.ok(road?.nodeIds.length > 1);
+  assert.equal(evaluate(runtime, `resolveRoad("9 D'Iberville Street, Carbonear")`), null);
+  assert.ok(Array.from(evaluate(runtime, `roadSuggestions("D'Iberville car", 5)`)).includes("D'Iberville Street, Carbonear"));
+  assert.ok(Array.from(evaluate(runtime, `roadSuggestions("9 D'Iberville car", 5)`)).includes("D'Iberville Street, Carbonear"));
 });
 
-test("D'Iberville Street resolves, suggests and attaches to a routed road offline", () => {
+test("D'Iberville Street routes road-to-road without a civic-number point", () => {
   const result = evaluate(runtime, `(() => {
-    const exact = resolveAddress("9 D'Iberville Street, Carbonear");
-    const street = resolveAddress("D'Iberville Street, Carbonear"), withoutPlace = resolveAddress("9 D'Iberville Street");
-    const destination = resolveAddress('23 Water Street, Carbonear');
-    const originEndpoint = { kind: 'address', label: exact.label, index: -1, node: exact.node, point: exact.point, address: exact };
-    const destinationEndpoint = { kind: 'address', label: destination.label, index: -1, node: destination.node, point: destination.point, address: destination };
-    composeEndpoints(originEndpoint, destinationEndpoint); const coords = flattenSegments();
+    const originRoad = resolveRoad("D'Iberville Street, Carbonear"), destinationRoad = resolveRoad('Water Street, Carbonear');
+    const origin = { kind: 'road', label: originRoad.label, index: -1, node: originRoad.node, point: originRoad.point, nodeIds: originRoad.nodeIds, road: originRoad };
+    const destination = { kind: 'road', label: destinationRoad.label, index: -1, node: destinationRoad.node, point: destinationRoad.point, nodeIds: destinationRoad.nodeIds, road: destinationRoad };
+    const selected = composeEndpoints(origin, destination), coords = flattenSegments();
+    let node = selected.originNode, contiguous = true;
+    for (const traversal of routeEdgeTraversals) {
+      if (traversal.fromNode !== node) { contiguous = false; break; }
+      node = traversal.toNode;
+    }
     return {
-      exact, street, withoutPlace, suggestions: addressSuggestions("D'Iberville", 5), numberedSuggestions: addressSuggestions("9 D'Iberville car", 5),
-      startGap: kmBetween(coords[0], exact.point), endGap: kmBetween(coords.at(-1), destination.point), routeEdges: routeEdgeIds.length,
+      selected, routeEdges: routeEdgeIds.length, coords: coords.length, contiguous,
+      startOnRoad: originRoad.nodeIds.includes(selected.originNode),
+      endOnRoad: destinationRoad.nodeIds.includes(selected.destinationNode),
+      schematic: routeSegments.some(segment => segment.schematic),
     };
   })()`);
-  assert.equal(result.exact.label, "9 D'Iberville Street, Carbonear");
-  assert.equal(result.exact.confidence, 'exact');
-  assert.equal(result.exact.source, 'Statistics Canada National Address Register (June 2026)');
-  assert.equal(result.street.label, "D'Iberville Street, Carbonear");
-  assert.equal(result.street.confidence, 'street');
-  assert.equal(result.withoutPlace.label, "9 D'Iberville Street, Carbonear");
-  assert.ok(Array.from(result.suggestions).includes("D'Iberville Street, Carbonear"));
-  assert.ok(Array.from(result.numberedSuggestions).includes("9 D'Iberville Street, Carbonear"));
+  assert.equal(result.selected.roadEndpointOptimized, true);
+  assert.equal(result.selected.usedFerry, false);
   assert.ok(result.routeEdges > 0);
-  assert.ok(result.startGap < .002 && result.endGap < .002);
+  assert.ok(result.coords > 1);
+  assert.equal(result.contiguous, true);
+  assert.equal(result.startOnRoad, true);
+  assert.equal(result.endOnRoad, true);
+  assert.equal(result.schematic, false);
 });
 
-test('civic addresses evaluate both road exits and retain exact road geometry', () => {
+test('mixed town-to-road routing considers every connected road endpoint', () => {
   const result = evaluate(runtime, `(() => {
-    const originAddress = resolveAddress('123 Water Street, Carbonear'), destinationAddress = resolveAddress('50 West Street, Corner Brook');
-    const origin = { kind: 'address', label: originAddress.label, index: -1, node: originAddress.node, point: originAddress.point, address: originAddress };
-    const destination = { kind: 'address', label: destinationAddress.label, index: -1, node: destinationAddress.node, point: destinationAddress.point, address: destinationAddress };
-    const origins = endpointCandidates(origin, 'origin'), destinations = endpointCandidates(destination, 'destination');
-    const closestOrigin = origins.find(candidate => candidate.node === originAddress.node), closestDestination = destinations.find(candidate => candidate.node === destinationAddress.node);
-    const closestEdges = dijkstra(closestOrigin.node, closestDestination.node, { allowFerry: false });
-    const closestMinutes = closestOrigin.accessMinutes + estimateRouteMinutes(closestEdges) + closestDestination.accessMinutes;
+    const townIndex = names.indexOf('Bonavista'), road = resolveRoad("D'Iberville Street, Carbonear");
+    const origin = { kind: 'town', label: names[townIndex], index: townIndex, node: routingAnchor(townIndex), point: pointForCommunity(names[townIndex], townIndex) };
+    const destination = { kind: 'road', label: road.label, index: -1, node: road.node, point: road.point, nodeIds: road.nodeIds, road };
     const selected = composeEndpoints(origin, destination), coords = flattenSegments();
     return {
-      selected, closestMinutes, startGap: kmBetween(coords[0], originAddress.point), endGap: kmBetween(coords.at(-1), destinationAddress.point),
-      firstSource: routeSegments[0]?.sourceEdgeId, lastSource: routeSegments.at(-1)?.sourceEdgeId,
-      contiguous: routeSegments.every((segment, index) => !index || kmBetween(routeSegments[index - 1].coords.at(-1), segment.coords[0]) < .03),
+      selected, routeEdges: routeEdgeIds.length, coords: coords.length,
+      startsAtTown: selected.originNode === routingAnchor(townIndex),
+      endsOnRoad: road.nodeIds.includes(selected.destinationNode),
+      ferry: routeSegments.some(segment => segment.type === 'ferry'),
     };
   })()`);
-  assert.equal(result.selected.addressEndpointOptimized, true);
-  assert.ok(result.selected.estimatedMinutes <= result.closestMinutes + 1e-7);
-  assert.ok(result.startGap < .002 && result.endGap < .002);
-  assert.equal(result.firstSource, 24140);
-  assert.equal(result.lastSource, 15902);
-  assert.equal(result.contiguous, true);
-});
-
-test('two addresses on one road segment use the direct partial segment', () => {
-  const result = evaluate(runtime, `(() => {
-    const a = resolveAddress('23 Water Street, Carbonear'), b = resolveAddress('29 Water Street, Carbonear');
-    const origin = { kind: 'address', label: a.label, index: -1, node: a.node, point: a.point, address: a };
-    const destination = { kind: 'address', label: b.label, index: -1, node: b.node, point: b.point, address: b };
-    const selected = composeEndpoints(origin, destination), coords = flattenSegments();
-    return { selected, edges: routeEdgeIds.length, segments: routeSegments.length, km: polylineKm(coords), startGap: kmBetween(coords[0], a.point), endGap: kmBetween(coords.at(-1), b.point), label: routeSegments[0]?.label };
-  })()`);
-  assert.equal(result.selected.addressEndpointOptimized, true);
-  assert.equal(result.edges, 0);
-  assert.equal(result.segments, 1);
-  assert.ok(result.km > .005 && result.km < .1);
-  assert.ok(result.startGap < .002 && result.endGap < .002);
-  assert.equal(result.label, 'Water Street');
+  assert.equal(result.selected.roadEndpointOptimized, true);
+  assert.ok(result.routeEdges > 0);
+  assert.ok(result.coords > 1);
+  assert.equal(result.startsAtTown, true);
+  assert.equal(result.endsOnRoad, true);
+  assert.equal(result.ferry, false);
 });
 
 test('offline guidance produces ordered, bounded maneuvers for a long route', () => {

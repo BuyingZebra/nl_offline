@@ -4,17 +4,17 @@ NL Offline — Data Attribution
 Level 1 town-to-town distance/time:
 Newfoundland & Labrador Road Distance Database (NL-RDDb), Government of Newfoundland and Labrador, used under the Newfoundland and Labrador Open Government Licence.
 
-Level 2 road/ferry network, routing metadata and fallback civic address ranges:
+Level 2 road/ferry network and routing metadata:
 National Road Network (NRN), Newfoundland and Labrador, Government of Canada / Natural Resources Canada and contributing jurisdictions, used under the Open Government Licence – Canada.
 
 Offline vector land and major-water basemap:
 Adapted from Natural Resources Canada CanVec Series, including 1:1,000,000 administrative vectors and 1:250,000 hydrographic vectors, used under the Open Government Licence – Canada.
 
-Exact civic-address points:
-Adapted from Statistics Canada, National Address Register, June 2026. This does not constitute an endorsement by Statistics Canada of this product.
+Named-road/locality search index:
+Derived from Statistics Canada, National Address Register, June 2026. This does not constitute an endorsement by Statistics Canada of this product.
 
-The National Address Register is used under the Statistics Canada Open Licence Agreement. v0.21 packages only the Newfoundland and Labrador subset. Apartment/unit rows that share one civic entrance are deduplicated; exact source points are attached to the nearest compatible packaged road for offline routing.
+The National Address Register is used under the Statistics Canada Open Licence Agreement. v0.22 packages only derived Newfoundland and Labrador road names, localities and associated NRN road-edge identifiers. Civic numbers, unit records and address coordinates are intentionally excluded from this release.
 
-v0.21 retains the v0.20 rebuild of all 43,002 routed road shapes from the full NRN LineStrings and uses that same geometry for display, routing, address snapping and maneuver generation. NRN range interpolation remains available only as a fallback when an exact National Address Register point is unavailable. Local street labels and road-level maneuvers are derived from the packaged NRN and address-point attributes.
+v0.22 retains the v0.20 rebuild of all 43,002 routed road shapes from the full NRN LineStrings and uses that same geometry for display, routing and maneuver generation. Local street labels and road-level maneuvers are derived from the packaged NRN and road/place attributes.
 
 NL Offline does not copy Google Maps, Apple Maps, HERE or Garmin proprietary map/route geometry.

@@ -10,8 +10,11 @@ function setEstimatedLabels(source = 'NRN road network') {
   $('timeLabel').textContent = currentTripHasFerry ? 'Estimated total time' : 'Estimated time';
   $('distanceNote').textContent = source;
   $('timeNote').textContent = currentTripHasFerry ? 'NRN road classes + ferry geometry' : 'NRN road-class model';
-  const hasExactAddress = [currentOriginAddress, currentDestAddress].some(address => address && !address.approximate);
-  $('tripModeHint').textContent = currentOriginAddress || currentDestAddress ? (hasExactAddress ? 'Offline exact-address route' : 'Offline civic-range estimate') : originMode === 'gps' || liveRerouteCount ? 'Current position → destination' : 'Offline road-network estimate';
+  $('tripModeHint').textContent = currentOriginRoad && currentDestRoad
+    ? 'Offline road-to-road route'
+    : currentOriginRoad || currentDestRoad
+      ? 'Offline town/road route'
+      : originMode === 'gps' || liveRerouteCount ? 'Current position → destination' : 'Offline road-network estimate';
 }
 function setRouteTotals(info) {
   routeRoadDistance = info.roadDistance; routeRoadTime = info.roadTime; routeFerryDistance = info.ferryDistance; routeFerryTime = info.ferryTime;
@@ -37,7 +40,7 @@ function routeHasSchematicSegments() { return routeSegments.some(s => s.schemati
 function busy(on) { $('go').disabled = on; $('go').textContent = on ? 'Calculating…' : 'Show route'; }
 function updateRouteQuality(virtual = false) {
   if ($('viaRoute')) $('viaRoute').textContent = (!virtual && routeEdgeIds.length && typeof describeRouteEdges === 'function') ? describeRouteEdges(routeEdgeIds) : (routeEdgeIds.length && typeof describeRouteEdges === 'function' ? describeRouteEdges(routeEdgeIds) : '');
-  const estimated = !!(currentOriginAddress || currentDestAddress || originMode === 'gps' || liveRerouteCount);
+  const estimated = !!(currentOriginRoad || currentDestRoad || originMode === 'gps' || liveRerouteCount);
   if (!routeProgressReliable) { $('routeStatus').textContent = 'Schematic'; $('routeNote').textContent = estimated ? 'Offline estimate · schematic segment · driving mode disabled' : 'Official total · schematic map segment · driving mode disabled'; return; }
   if (estimated) {
     $('routeStatus').textContent = currentTripHasFerry ? 'Mixed' : 'On road';
@@ -74,8 +77,7 @@ function finishPath(virtual, statusText, originName, destName, a, b) {
 function finishEstimatedPath(statusText) {
   routeCoords = flattenSegments(); if (routeCoords.length < 2) throw new Error('empty path'); metrics(); setEstimatedRouteTotalsFromPath();
   const schematic = routeHasSchematicSegments();
-  const hasExactAddress = [currentOriginAddress, currentDestAddress].some(address => address && !address.approximate);
-  setProgressReliability(!schematic); setEstimatedLabels(currentOriginAddress || currentDestAddress ? (hasExactAddress ? 'NAR exact address + NRN roads' : 'NRN civic range fallback + roads') : 'NRN road network');
+  setProgressReliability(!schematic); setEstimatedLabels(currentOriginRoad || currentDestRoad ? 'Offline road/place index + NRN roads' : 'NRN road network');
   $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime);
   setFollow(false); fit(routeCoords); updateRouteQuality(schematic || currentTripHasFerry);
   progress = 0; offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; lastGpsAppliedAt = 0; resetEta(); currentTripLoaded = true; update();
@@ -92,18 +94,19 @@ function endpointFromText(text) {
   const raw = String(text || '').trim(); if (!raw) return null;
   const i = townIndexFromText(raw);
   if (i != null) return { kind: 'town', label: names[i], index: i, node: special[names[i]] ? -1 : routingAnchor(i), point: pointForCommunity(names[i], i) };
-  if (typeof resolveAddress === 'function') {
-    const a = resolveAddress(raw); if (a) return { kind: 'address', label: a.label, index: -1, node: a.node, point: a.point, address: a };
+  if (typeof resolveRoad === 'function') {
+    const road = resolveRoad(raw);
+    if (road) return { kind: 'road', label: road.label, index: -1, node: road.node, point: road.point, nodeIds: road.nodeIds, road };
   }
   return null;
 }
 function setEndpointState(originEp, destEp) {
-  const endpointAddresses = [originEp?.address, destEp?.address].filter(Boolean);
-  routeDataSource = endpointAddresses.length ? (endpointAddresses.some(address => !address.approximate) ? 'nar-address' : 'nrn-address-fallback') : originEp?.kind === 'gps' ? 'gps-nrn' : 'official';
+  const hasRoadEndpoint = originEp?.kind === 'road' || destEp?.kind === 'road';
+  routeDataSource = hasRoadEndpoint ? 'road-place-nrn' : originEp?.kind === 'gps' ? 'gps-nrn' : 'official';
   currentOriginIndex = originEp?.kind === 'town' ? originEp.index : -1;
   currentDestIndex = destEp?.kind === 'town' ? destEp.index : -1;
-  currentOriginAddress = originEp?.kind === 'address' ? originEp.address : null;
-  currentDestAddress = destEp?.kind === 'address' ? destEp.address : null;
+  currentOriginRoad = originEp?.kind === 'road' ? originEp : null;
+  currentDestRoad = destEp?.kind === 'road' ? destEp : null;
   currentDestination = destEp || null;
   loadedOriginLabel = originEp?.label || '';
   loadedDestLabel = destEp?.label || '';
@@ -124,7 +127,11 @@ function buildEstimatedEndpoints(originEp, destEp, statusPrefix = 'Offline route
 function makeTrip() {
   stopGPS(false); saveTripPrefs(); liveRerouteCount = 0; journeyCompletedKm = 0; journeyLastGpsPoint = null; journeyLastGpsAt = 0;
   const destEp = endpointFromText($('to').value);
-  if (!destEp) { setStatus('Choose an NL town, street, or civic address such as “9 D’Iberville Street, Carbonear”.', true); return; }
+  if (!destEp) {
+    const civic = /^\s*\d/.test($('to').value);
+    setStatus(civic ? 'Civic numbers are temporarily paused. Choose a town or a road such as “D’Iberville Street, Carbonear”.' : 'Choose an NL town or a road from the suggestions.', true);
+    return;
+  }
   if (originMode === 'gps') {
     if (!originGPS) { setStatus('Current location has not been captured yet.', true); return; }
     const nn = nearestNode(originGPS.lon, originGPS.lat); if (nn.node < 0 || nn.distanceKm > 8) { setStatus('Current location is too far from the packaged NL road network.', true); return; }
@@ -132,7 +139,11 @@ function makeTrip() {
     buildEstimatedEndpoints(originEp, destEp, 'Current-location route'); return;
   }
   const originEp = endpointFromText($('from').value);
-  if (!originEp) { setStatus('Choose an origin town, enter a civic address, or use current location.', true); return; }
+  if (!originEp) {
+    const civic = /^\s*\d/.test($('from').value);
+    setStatus(civic ? 'Civic numbers are temporarily paused. Choose the road name without a house number, or use current location.' : 'Choose an origin town or road, or use current location.', true);
+    return;
+  }
   if (originEp.kind === 'town' && destEp.kind === 'town') {
     const a = originEp.index, b = destEp.index, av = originEp.label, bv = destEp.label;
     setEndpointState(originEp, destEp);
@@ -140,7 +151,7 @@ function makeTrip() {
     const info = tripInfo(a, b); if (info.totalDistance === 0 && info.totalTime === 0) return buildAlias(av, bv, a, b, info);
     setRouteTotals(info); setTownLabels(info); buildTown(av, bv, a, b, info); return;
   }
-  buildEstimatedEndpoints(originEp, destEp, 'Address route');
+  buildEstimatedEndpoints(originEp, destEp, 'Road/place route');
 }
 function buildTown(av, bv, a, b, info) {
   $('destination').textContent = bv; $('distance').textContent = `${routeDist} km`; $('time').textContent = fmtMin(routeTime);
@@ -182,7 +193,7 @@ function rerouteFromGpsPosition(lon, lat, reason = 'off-route') {
         const originEp = { kind: 'gps', label: 'Recalculated position', index: -1, node: nn.node, point: [lon, lat] };
         composeEndpoints(originEp, currentDestination); routeCoords = flattenSegments(); if (routeCoords.length < 2) throw new Error('empty reroute'); metrics(); setEstimatedRouteTotalsFromPath();
         if (routeHasSchematicSegments()) throw new Error('reroute requires a schematic connection');
-        liveRerouteCount += 1; routeDataSource = 'nrn-reroute'; currentOriginIndex = -1; currentOriginAddress = null; originMode = 'gps'; originGPS = { lon, lat, accuracy: gpsPosition?.accuracy || 0, capturedAt: Date.now() }; loadedOriginLabel = 'Current location'; currentTripLoaded = true; progress = 0; lastGpsAppliedAt = 0;
+        liveRerouteCount += 1; routeDataSource = 'nrn-reroute'; currentOriginIndex = -1; currentOriginRoad = null; originMode = 'gps'; originGPS = { lon, lat, accuracy: gpsPosition?.accuracy || 0, capturedAt: Date.now() }; loadedOriginLabel = 'Current location'; currentTripLoaded = true; progress = 0; lastGpsAppliedAt = 0;
         offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; setProgressReliability(true);
         setEstimatedLabels('Live NRN reroute'); $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime); updateRouteQuality(currentTripHasFerry);
         resetEta(); startEtaTracking(Date.now()); update(); if (followGPS) followViewAt([lon, lat]); else { renderBase(); renderOverlay(); }
