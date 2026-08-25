@@ -49,7 +49,7 @@ function renderBase() {
     bctx.strokeStyle = type === 'ferry' ? '#496b7d' : '#355566'; bctx.globalAlpha = type === 'ferry' ? .82 : .55; bctx.lineWidth = type === 'ferry' ? 1.25 : .9;
     bctx.setLineDash(type === 'ferry' ? [4, 4] : [2, 4]); bctx.stroke(); bctx.setLineDash([]);
   }
-  bctx.globalAlpha = 1; renderRoadRouteLabels(ids); renderCommunityLabels();
+  bctx.globalAlpha = 1; renderRoadRouteLabels(ids); renderStreetLabels(ids); renderCommunityLabels();
 }
 function boxesOverlap(a, b, pad = 4) { return !(a.r + pad < b.l || a.l - pad > b.r || a.b + pad < b.t || a.t - pad > b.b); }
 function mapUiObstacles() {
@@ -80,6 +80,26 @@ function renderRoadRouteLabels(ids) {
     bctx.beginPath(); if (bctx.roundRect) bctx.roundRect(box.l, box.t, w, h, 5); else bctx.rect(box.l, box.t, w, h); bctx.fill(); bctx.stroke();
     bctx.fillStyle = '#d8e4ea'; bctx.textAlign = 'center'; bctx.textBaseline = 'middle'; bctx.fillText(text, q[0], q[1] + .5); bctx.textAlign = 'start'; bctx.textBaseline = 'alphabetic'; shown++;
   }
+}
+function renderStreetLabels(ids) {
+  if (typeof streetNameForEdge !== 'function') return;
+  const span = view.maxx - view.minx; if (span > .42) return;
+  const placed = [], uiBoxes = mapUiObstacles(), seen = new Map(), maxLabels = followGPS ? 8 : 13; let shown = 0;
+  bctx.font = '600 9.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+  for (const ei of ids) {
+    if (shown >= maxLabels) break;
+    const label = streetNameForEdge(ei); if (!label || label === 'None') continue;
+    const e = DATA.edges[ei], coords = e?.[3]; if (!coords?.length || !visible(edgeBounds[ei])) continue;
+    const p = coords[Math.floor(coords.length / 2)], q = project(p[0], p[1]);
+    if (q[0] < 25 || q[0] > base.clientWidth - 25 || q[1] < 22 || q[1] > base.clientHeight - 22) continue;
+    const prior = seen.get(label); if (prior && Math.hypot(q[0] - prior[0], q[1] - prior[1]) < 150) continue;
+    const text = label.length > 26 ? `${label.slice(0, 24)}…` : label, tw = bctx.measureText(text).width;
+    const box = { l: q[0] - tw / 2 - 4, t: q[1] - 9, r: q[0] + tw / 2 + 4, b: q[1] + 5 };
+    if (placed.some(b => boxesOverlap(box, b, 6)) || uiBoxes.some(b => boxesOverlap(box, b, 6))) continue;
+    placed.push(box); seen.set(label, q); bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
+    bctx.lineWidth = 3; bctx.strokeStyle = 'rgba(5,15,23,.94)'; bctx.fillStyle = '#aebfc8'; bctx.strokeText(text, q[0], q[1]); bctx.fillText(text, q[0], q[1]); shown++;
+  }
+  bctx.textAlign = 'start'; bctx.textBaseline = 'alphabetic';
 }
 function rebuildRouteLabels() {
   routeLabelCandidates = []; if (routeCoords.length < 2 || routePolylineKm <= 0) return;
@@ -118,8 +138,9 @@ function renderCommunityLabels() {
 function drawSegment(ctx, s) {
   const c = s.coords; if (!c || c.length < 2) return; ctx.beginPath();
   for (let i = 0; i < c.length; i++) { const q = project(c[i][0], c[i][1]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }
-  ctx.strokeStyle = s.type === 'road' ? '#61df97' : '#a4dfbd'; ctx.lineWidth = s.type === 'road' ? 4.4 : 3.2;
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; if (s.type !== 'road') ctx.setLineDash([10, 7]); ctx.stroke(); ctx.setLineDash([]);
+  const verifiedRoad = s.type === 'road' || s.type === 'access';
+  ctx.strokeStyle = verifiedRoad ? '#61df97' : '#a4dfbd'; ctx.lineWidth = verifiedRoad ? 4.4 : 3.2;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; if (!verifiedRoad) ctx.setLineDash([10, 7]); ctx.stroke(); ctx.setLineDash([]);
 }
 function marker(p, label, kind) {
   if (!p) return; const q = project(p[0], p[1]);
@@ -129,9 +150,16 @@ function marker(p, label, kind) {
     octx.beginPath(); octx.arc(q[0], q[1], r, 0, Math.PI * 2); octx.fillStyle = 'rgba(116,188,255,.13)'; octx.fill();
     octx.strokeStyle = 'rgba(116,188,255,.25)'; octx.lineWidth = 1; octx.stroke();
   }
-  octx.beginPath(); octx.arc(q[0], q[1], kind === 'gps' ? 7 : 6, 0, Math.PI * 2);
-  octx.fillStyle = kind === 'gps' ? '#74bcff' : kind === 'dest' ? '#61df97' : '#f6f8fa'; octx.fill();
-  octx.lineWidth = kind === 'gps' ? 3 : 2; octx.strokeStyle = '#061019'; octx.stroke();
+  const heading = kind === 'gps' && typeof currentDisplayHeading === 'function' ? currentDisplayHeading() : null;
+  if (kind === 'gps' && heading != null) {
+    octx.save(); octx.translate(q[0], q[1]); octx.rotate(heading * Math.PI / 180);
+    octx.beginPath(); octx.moveTo(0, -12); octx.lineTo(7.5, 8); octx.lineTo(0, 5); octx.lineTo(-7.5, 8); octx.closePath();
+    octx.fillStyle = '#74bcff'; octx.fill(); octx.lineWidth = 2.5; octx.strokeStyle = '#061019'; octx.stroke(); octx.restore();
+  } else {
+    octx.beginPath(); octx.arc(q[0], q[1], kind === 'gps' ? 7 : 6, 0, Math.PI * 2);
+    octx.fillStyle = kind === 'gps' ? '#74bcff' : kind === 'dest' ? '#61df97' : '#f6f8fa'; octx.fill();
+    octx.lineWidth = kind === 'gps' ? 3 : 2; octx.strokeStyle = '#061019'; octx.stroke();
+  }
   if (label) {
     octx.font = '650 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
     let text = label; while (text.length > 12 && octx.measureText(text).width > Math.min(180, overlay.clientWidth * .46)) text = `${text.slice(0, -2)}…`;
@@ -185,8 +213,20 @@ function updateMapModeUI() {
   const follow = $('follow');
   follow.textContent = followGPS ? 'Following' : mapImmersive ? 'Recenter' : 'Follow';
   follow.classList.toggle('active', followGPS);
+  follow.setAttribute('aria-pressed', followGPS ? 'true' : 'false');
   $('mapwrap').classList.toggle('following', mapImmersive);
   document.body.classList.toggle('map-following', mapImmersive);
+}
+function clampViewToNL(v) {
+  const marginX = 1.2, marginY = .8, minX = DATA.bounds[0] - marginX, maxX = DATA.bounds[2] + marginX, minY = DATA.bounds[1] - marginY, maxY = DATA.bounds[3] + marginY;
+  let width = v.maxx - v.minx, height = v.maxy - v.miny;
+  if (width > maxX - minX) { v.minx = minX; v.maxx = maxX; width = v.maxx - v.minx; }
+  if (height > maxY - minY) { v.miny = minY; v.maxy = maxY; height = v.maxy - v.miny; }
+  if (v.minx < minX) { v.maxx += minX - v.minx; v.minx = minX; }
+  if (v.maxx > maxX) { v.minx -= v.maxx - maxX; v.maxx = maxX; }
+  if (v.miny < minY) { v.maxy += minY - v.miny; v.miny = minY; }
+  if (v.maxy > maxY) { v.miny -= v.maxy - maxY; v.maxy = maxY; }
+  return v;
 }
 function setFollow(on, localZoom = false, options = {}) {
   const preserveView = !!options.preserveView, keepImmersive = !!options.keepImmersive;
@@ -220,7 +260,7 @@ function viewForGesture(baseView, startPoint, currentPoint, factor) {
   const anchor = unproject(startPoint.x, startPoint.y, baseView), current = unproject(currentPoint.x, currentPoint.y, next);
   const shiftX = anchor[0] - current[0], shiftY = anchor[1] - current[1];
   next = { minx: next.minx + shiftX, maxx: next.maxx + shiftX, miny: next.miny + shiftY, maxy: next.maxy + shiftY };
-  return next;
+  return clampViewToNL(next);
 }
 function queueMapRender() {
   if (!rafPan) rafPan = requestAnimationFrame(() => { rafPan = 0; renderBase(); renderOverlay(); });

@@ -32,6 +32,9 @@ function decodeFerryPacked(s, size) {
 const names = DATA.communities;
 const N = names.length;
 const nameIndex = new Map(names.map((n, i) => [n.toLowerCase(), i]));
+const townNorm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+const townNormNames = names.map(townNorm);
+const townNormIndex = new Map(townNormNames.map((n, i) => [n, i]));
 const DIST = decodeU16(DATA.distanceB64);
 const TIME = decodeU16(DATA.timeB64);
 const FERRY = decodeFerryPacked(DATA.ferryPackedB64, N * N);
@@ -49,7 +52,48 @@ function routingAnchor(index) {
 }
 function usesCorrectedAnchor(index) { return index >= 0 && ROUTING_ANCHOR_OVERRIDES[names[index]] != null; }
 
-$('towns').innerHTML = names.map(n => `<option value="${n.replaceAll('&', '&amp;').replaceAll('"', '&quot;')}"></option>`).join('');
+function townIndexFromText(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const direct = nameIndex.get(raw.toLowerCase());
+  if (direct != null) return direct;
+  const normalized = townNorm(raw);
+  const normalizedMatch = townNormIndex.get(normalized);
+  return normalizedMatch == null ? null : normalizedMatch;
+}
+function boundedEditDistance(a, b, limit = 2) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let rowMin = cur[0];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); rowMin = Math.min(rowMin, cur[j]);
+    }
+    if (rowMin > limit) return limit + 1; prev = cur;
+  }
+  return prev[b.length];
+}
+function townSuggestions(value, max = 10) {
+  const q = townNorm(value);
+  if (!q) return names.slice(0, max);
+  const ranked = [];
+  for (let i = 0; i < names.length; i++) {
+    const n = townNormNames[i]; let score = Infinity;
+    if (n === q) score = 0;
+    else if (n.startsWith(q)) score = 1 + (n.length - q.length) / 1000;
+    else if (n.split(' ').some(part => part.startsWith(q))) score = 2 + n.indexOf(q) / 1000;
+    else if (n.includes(q)) score = 3 + n.indexOf(q) / 1000;
+    else if (q.length >= 4) { const edit = boundedEditDistance(q, n, 2); if (edit <= 2) score = 4 + edit; }
+    if (isFinite(score)) ranked.push([score, names[i]]);
+  }
+  ranked.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
+  return ranked.slice(0, max).map(x => x[1]);
+}
+function updateLocationOptions(values = names) {
+  const list = $('towns'); list.replaceChildren();
+  for (const value of values) { const option = document.createElement('option'); option.value = value; list.appendChild(option); }
+}
+updateLocationOptions();
 
 function tripInfo(a, b) {
   const k = a * N + b;
@@ -181,8 +225,8 @@ function nearestCommunity(lon, lat) {
   return { index: bi, distanceKm: Math.sqrt(bd) };
 }
 
-let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeEdgeIds = [], routeCum = [], routePolylineKm = 0;
-let routeRoadGeomKm = 0, routeFerryGeomKm = 0, routeLabelCandidates = [];
+let routeSegments = [], routeCoords = [], routeCoordKinds = [], routeEdgeIds = [], routeEdgeTraversals = [], routeCum = [], routePolylineKm = 0;
+let routeRoadGeomKm = 0, routeFerryGeomKm = 0, routeLabelCandidates = [], routeManeuvers = [];
 let routeRoadDistance = 0, routeRoadTime = 0, routeFerryDistance = 0, routeFerryTime = 0, routeDist = 0, routeTime = 0;
 let routeProgressReliable = true, currentTripLoaded = false, currentTripHasFerry = false;
 let progress = 0, gpsWatch = null, gpsPosition = null, followGPS = false, mapImmersive = false, followRadiusKm = 18, drag = null;
@@ -197,10 +241,10 @@ let gpsRecoveryInFlight = false, lastGpsRecoveryAt = 0;
 let rafPan = 0, gpsLastFixAt = 0, gpsStaleTimer = null, wakeLock = null, gpsPermission = 'unknown', gpsRunning = false;
 const mapPointers = new Map();
 let pinchGesture = null;
-let offlinePackageReady = false, lastGpsAppliedAt = 0, deferredInstall = null, offRouteState = false;
-let latestSpeedKmh = null, latestAccuracyM = null;
+let offlinePackageReady = false, storagePersistent = null, lastGpsAppliedAt = 0, deferredInstall = null, offRouteState = false;
+let latestSpeedKmh = null, latestAccuracyM = null, latestHeadingDeg = null;
 let etaModel = { movingKm: 0, speedKmh: null, lastOfficialDistance: null, lastTs: null, startedAt: null, startOfficialMinutes: 0, scheduleRatio: null, samples: 0 };
-const ROAD_LOG_KEY = 'nl-offline-roadtest-v016';
+const ROAD_LOG_KEY = 'nl-offline-roadtest-v018';
 let roadLog = [];
 let lastLoggedFixAt = 0;
 
@@ -224,7 +268,8 @@ function currentTripSnapshot() {
     officialMin: routeDataSource === 'official' ? (routeTime || 0) : null,
     routeKm: +(routeDist || 0).toFixed(2), routeMin: +(routeTime || 0).toFixed(1),
     mapKm: +routePolylineKm.toFixed(2), progress: +progress.toFixed(5),
-    ferry: !!currentTripHasFerry, level2Reliable: !!routeProgressReliable, reroutes: liveRerouteCount,
+    ferry: !!currentTripHasFerry, schematic: typeof routeHasSchematicSegments === 'function' ? routeHasSchematicSegments() : !routeProgressReliable,
+    level2Reliable: !!routeProgressReliable, reroutes: liveRerouteCount,
     originType: originMode === 'gps' ? 'gps' : currentOriginAddress ? 'address' : 'town',
     destinationType: currentDestAddress ? 'address' : 'town',
     correctedOriginAnchor: usesCorrectedAnchor(currentOriginIndex), correctedDestinationAnchor: usesCorrectedAnchor(currentDestIndex)
@@ -240,7 +285,7 @@ function updateRoadLogUI() {
 }
 async function exportRoadLog() {
   const payload = {
-    app: 'NL Offline', version: '0.16.0', exportedAt: new Date().toISOString(),
+    app: 'NL Offline', version: '0.18.0', exportedAt: new Date().toISOString(),
     userAgent: navigator.userAgent, standalone: standaloneMode(), secure: window.isSecureContext,
     viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1 },
     trip: currentTripSnapshot(), events: roadLog

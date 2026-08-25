@@ -30,11 +30,19 @@ function maybeAutoReroute(s, p, state) {
 
 function applyGpsFix(p, options = {}) {
   const now = p.timestamp || Date.now(); gpsLastFixAt = Date.now();
-  gpsPosition = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0 };
+  const previousPosition = gpsPosition;
+  let heading = p.coords.heading != null && isFinite(p.coords.heading) && p.coords.heading >= 0 ? (p.coords.heading + 360) % 360 : null;
+  if (heading == null && previousPosition) {
+    const movedKm = kmBetween([previousPosition.lon, previousPosition.lat], [p.coords.longitude, p.coords.latitude]);
+    if (movedKm >= .012 && typeof bearingDegrees === 'function') heading = bearingDegrees([previousPosition.lon, previousPosition.lat], [p.coords.longitude, p.coords.latitude]);
+  }
+  if (heading != null) latestHeadingDeg = heading;
+  gpsPosition = { lon: p.coords.longitude, lat: p.coords.latitude, accuracy: p.coords.accuracy || 0, heading: latestHeadingDeg };
   latestAccuracyM = gpsPosition.accuracy;
   if (p.coords.speed != null && isFinite(p.coords.speed) && p.coords.speed >= 0) latestSpeedKmh = p.coords.speed * 3.6;
   trackJourneyDistance(gpsPosition, now);
-  const s = snapGpsFix(gpsPosition.lon, gpsPosition.lat, now), acc = Math.round(gpsPosition.accuracy || 0);
+  const matchHeading = latestSpeedKmh != null && latestSpeedKmh >= 7 ? latestHeadingDeg : null;
+  const s = snapGpsFix(gpsPosition.lon, gpsPosition.lat, now, matchHeading), acc = Math.round(gpsPosition.accuracy || 0);
   $('gpsPill').textContent = 'GPS live'; $('gpsPill').className = 'gpspill live';
   if (!s) { $('gpsDetail').textContent = `GPS fix ±${acc}m · waiting for route match`; renderOverlay(); return; }
   const state = updateOffRoute(s.distanceKm, gpsPosition.accuracy), reliableFix = (gpsPosition.accuracy || 0) <= 150;
@@ -57,7 +65,7 @@ function applyGpsFix(p, options = {}) {
   $('gpsDetail').textContent = state.off ? `OFF ROUTE · ${s.distanceKm.toFixed(2)} km from path · GPS ±${acc}m${offRouteBadFixes < 3 ? ' · confirming…' : ''}` : reliableFix ? `On route · GPS ±${acc}m${etaModel.speedKmh ? ` · pace ${Math.round(etaModel.speedKmh)} km/h` : ''}` : `GPS ±${acc}m · waiting for a more accurate fix`;
   $('gpsDetail').classList.toggle('offroute', state.off); updateDrivingHud();
   if (Date.now() - lastLoggedFixAt >= 4000) {
-    lastLoggedFixAt = Date.now(); logRoadEvent('gps_fix', { lat: +gpsPosition.lat.toFixed(6), lon: +gpsPosition.lon.toFixed(6), accuracyM: acc, speedKmh: latestSpeedKmh == null ? null : +latestSpeedKmh.toFixed(1), snapKm: +s.distanceKm.toFixed(3), progress: +progress.toFixed(5), offRoute: state.off, offRouteBadFixes, etaMin: +remainingMinutes().toFixed(1), reroutes: liveRerouteCount, journeyKm: +journeyCompletedKm.toFixed(2) });
+    lastLoggedFixAt = Date.now(); logRoadEvent('gps_fix', { lat: +gpsPosition.lat.toFixed(6), lon: +gpsPosition.lon.toFixed(6), accuracyM: acc, speedKmh: latestSpeedKmh == null ? null : +latestSpeedKmh.toFixed(1), headingDeg: latestHeadingDeg == null ? null : +latestHeadingDeg.toFixed(1), headingMatchDeg: s.headingDifference == null ? null : +s.headingDifference.toFixed(1), snapKm: +s.distanceKm.toFixed(3), progress: +progress.toFixed(5), offRoute: state.off, offRouteBadFixes, etaMin: +remainingMinutes().toFixed(1), reroutes: liveRerouteCount, journeyKm: +journeyCompletedKm.toFixed(2) });
   }
 }
 
@@ -124,17 +132,32 @@ async function startGPS() {
 }
 function stopGPS(clear = true) {
   const wasRunning = gpsRunning || gpsWatch != null; gpsRunning = false; lastGpsAppliedAt = 0; if (gpsWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null;
-  stopStaleTimer(); releaseWake(); if (wasRunning) logRoadEvent('drive_stopped', { ...currentTripSnapshot(), journeyKm: +journeyCompletedKm.toFixed(2) }, true); latestSpeedKmh = null; latestAccuracyM = null; updateDrivingHud(); setFollow(false); $('gpsStart').disabled = !routeProgressReliable || !currentTripLoaded || routeCoords.length < 2; $('gpsStop').disabled = true; $('slider').disabled = false;
+  stopStaleTimer(); releaseWake(); if (wasRunning) logRoadEvent('drive_stopped', { ...currentTripSnapshot(), journeyKm: +journeyCompletedKm.toFixed(2) }, true); latestSpeedKmh = null; latestAccuracyM = null; latestHeadingDeg = null; updateDrivingHud(); setFollow(false); $('gpsStart').disabled = !routeProgressReliable || !currentTripLoaded || routeCoords.length < 2; $('gpsStop').disabled = true; $('slider').disabled = false;
   if (clear) { gpsPosition = null; offRouteState = false; offRouteSince = 0; offRouteBadFixes = 0; offRouteGoodFixes = 0; $('gpsDetail').textContent = 'Slider simulates driving. Tap Follow to preview the moving map; live GPS requires HTTPS.'; $('gpsDetail').classList.remove('offroute'); renderOverlay(); }
   updateGpsEnvironment();
 }
 
 $('prepareRoad').addEventListener('click', prepareForRoad);
+$('applyUpdate')?.addEventListener('click', reloadForAppUpdate);
 $('exportLog')?.addEventListener('click', exportRoadLog);
 $('clearLog')?.addEventListener('click', clearRoadLog);
 $('go').addEventListener('click', makeTrip);
 $('useLocation').addEventListener('click', captureLocation);
-$('from').addEventListener('input', () => { if ($('from').value.trim().toLowerCase() !== 'current location') { originMode = 'town'; originGPS = null; currentOriginAddress = null; $('locationHint').textContent = ''; } });
+let locationSuggestionTimer = null;
+function refreshLocationSuggestions(input) {
+  clearTimeout(locationSuggestionTimer);
+  locationSuggestionTimer = setTimeout(() => {
+    const value = input.value.trim(), suggestions = [...townSuggestions(value, 9)];
+    if (typeof addressSuggestions === 'function') suggestions.push(...addressSuggestions(value, 9));
+    updateLocationOptions([...new Set(suggestions)].slice(0, 14));
+  }, 70);
+}
+for (const input of [$('from'), $('to')]) {
+  input.addEventListener('focus', () => refreshLocationSuggestions(input));
+  input.addEventListener('input', () => refreshLocationSuggestions(input));
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); makeTrip(); } });
+}
+$('from').addEventListener('input', () => { if (townNorm($('from').value) !== 'current location') { originMode = 'town'; originGPS = null; currentOriginAddress = null; $('locationHint').textContent = ''; } });
 $('swap').addEventListener('click', () => { if (originMode === 'gps') { originMode = 'town'; originGPS = null; $('locationHint').textContent = ''; } const x = $('from').value; $('from').value = $('to').value; $('to').value = x; makeTrip(); });
 $('slider').addEventListener('input', () => { gpsPosition = null; progress = +$('slider').value / 1000; latestSpeedKmh = null; latestAccuracyM = null; resetEta(); update(); if (followGPS) { $('gpsDetail').textContent = 'Simulation follow active · drag the slider to preview the moving map.'; $('routeStatus').textContent = 'Simulating'; } });
 $('gpsStart').addEventListener('click', startGPS);
@@ -150,7 +173,7 @@ $('follow').addEventListener('click', () => {
 });
 $('fitRoute').addEventListener('click', () => {
   setFollow(false, false, { preserveView: true, keepImmersive: gpsRunning }); fit(routeCoords);
-  updateRouteQuality(routeSegments.some(s => s.type !== 'road'));
+  updateRouteQuality(routeHasSchematicSegments() || currentTripHasFerry);
   $('gpsDetail').textContent = gpsRunning ? 'Full route shown · live GPS continues · tap Recenter when ready.' : routeProgressReliable ? 'Full route shown. Tap Follow to preview the moving map.' : 'Level 2 is schematic for this ferry trip.';
 });
 $('zoomIn').addEventListener('click', () => zoom(.65));
@@ -189,7 +212,7 @@ mw.addEventListener('pointermove', e => {
   if (!drag || drag.pointerId !== e.pointerId) return;
   const dx = p.x - drag.x, dy = p.y - drag.y, w = mw.clientWidth, h = mw.clientHeight;
   const lon = (drag.v.maxx - drag.v.minx) * dx / Math.max(w, 1), lat = (drag.v.maxy - drag.v.miny) * dy / Math.max(h, 1);
-  view = { minx: drag.v.minx - lon, maxx: drag.v.maxx - lon, miny: drag.v.miny + lat, maxy: drag.v.maxy + lat }; queueMapRender();
+  view = clampViewToNL({ minx: drag.v.minx - lon, maxx: drag.v.maxx - lon, miny: drag.v.miny + lat, maxy: drag.v.maxy + lat }); queueMapRender();
 });
 function endMapPointer(e) {
   mapPointers.delete(e.pointerId); pinchGesture = null;
@@ -205,6 +228,14 @@ mw.addEventListener('wheel', e => {
 mw.addEventListener('dblclick', e => {
   if (e.target.closest?.('button')) return;
   e.preventDefault(); pauseMapFollowForGesture(); const p = localPointer(e); zoomAt(.55, p.x, p.y);
+});
+mw.addEventListener('keydown', e => {
+  const spanX = view.maxx - view.minx, spanY = view.maxy - view.miny, stepX = spanX * .12, stepY = spanY * .12;
+  if (e.key === '+' || e.key === '=') { e.preventDefault(); pauseMapFollowForGesture(); zoomAt(.72); return; }
+  if (e.key === '-' || e.key === '_') { e.preventDefault(); pauseMapFollowForGesture(); zoomAt(1.38); return; }
+  let dx = 0, dy = 0;
+  if (e.key === 'ArrowLeft') dx = -stepX; else if (e.key === 'ArrowRight') dx = stepX; else if (e.key === 'ArrowUp') dy = stepY; else if (e.key === 'ArrowDown') dy = -stepY; else return;
+  e.preventDefault(); pauseMapFollowForGesture(); view = clampViewToNL({ minx: view.minx + dx, maxx: view.maxx + dx, miny: view.miny + dy, maxy: view.maxy + dy }); queueMapRender();
 });
 
 if ('ResizeObserver' in window) new ResizeObserver(() => size()).observe(mw);
@@ -225,14 +256,14 @@ window.addEventListener('pagehide', () => { logRoadEvent('pagehide', { gpsRunnin
 window.addEventListener('pageshow', e => { logRoadEvent('pageshow', { gpsRunning, persisted: !!e.persisted }, true); updateGpsEnvironment(); if (gpsRunning) recoverGpsTracking('pageshow'); });
 
 async function boot() {
-  restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); updateGpsEnvironment();
+  restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); await refreshStoragePersistence(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.16', { scope: './' }); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.18', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
   const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address ranges unavailable';
-  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.level2Count || DATA.routeReady} mapped locally · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${addr}.`);
+  setStatus(`Ready · ${DATA.level1Count} official places · ${DATA.routeReady} road-mapped + ${Object.keys(DATA.specialRoutes || {}).length} remote/special · ${DATA.ferryPairCount || 0} ferry-aware pairs · ${addr}.`);
   logRoadEvent('app_ready', { online: navigator.onLine, standalone: standaloneMode(), calibratedAnchors: Object.keys(ROUTING_ANCHOR_OVERRIDES).length + (window.NL_V014_ANCHOR_COUNT || 0), routeModel: window.NL_ROUTING_PROFILE?.version || 'fallback', addressRanges: window.NL_ADDRESS_META?.recordCount || 0 });
   makeTrip();
 }

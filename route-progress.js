@@ -59,16 +59,17 @@ function remainingMinutes() {
   return baselineRoad * (1 - confidence) + liveRoad * confidence + baselineFerry;
 }
 function updateDrivingHud() {
-  const speed = $('speedHud'), acc = $('accuracyHud'); if (!speed || !acc) return;
+  const speed = $('speedHud'), acc = $('accuracyHud'), heading = $('headingHud'); if (!speed || !acc) return;
   speed.textContent = latestSpeedKmh != null ? `${Math.round(latestSpeedKmh)} km/h` : gpsRunning ? '— km/h' : followGPS ? 'SIM' : '';
   acc.textContent = latestAccuracyM != null ? `GPS ±${Math.round(latestAccuracyM)}m` : gpsRunning ? 'GPS…' : '';
+  if (heading) heading.textContent = latestHeadingDeg != null && typeof cardinalDirection === 'function' ? cardinalDirection(latestHeadingDeg).toUpperCase() : '';
 }
 function update() {
   if (!currentTripLoaded) { $('remaining').textContent = '—'; $('eta').textContent = '—'; return renderOverlay(); }
   const activeTravelledKm = officialDistanceAtProgress(progress), rem = Math.max(0, routeDist - activeTravelledKm), rm = remainingMinutes();
   $('remaining').textContent = `${Math.round(rem)} km`;
   $('eta').textContent = routeTime > 0 ? new Date(Date.now() + rm * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Now';
-  $('etaCaption').textContent = etaConfidence() >= .18 ? 'live arrival' : 'arrival'; updateDrivingHud();
+  $('etaCaption').textContent = etaConfidence() >= .18 ? 'live arrival' : 'arrival'; updateDrivingHud(); if (typeof updateManeuverUI === 'function') updateManeuverUI();
   let shownTravelled = activeTravelledKm, pct = routeDist > 0 ? Math.min(100, activeTravelledKm / routeDist * 100) : 100;
   if (gpsRunning && liveRerouteCount > 0) {
     shownTravelled = Math.max(journeyCompletedKm, activeTravelledKm);
@@ -79,4 +80,3 @@ function update() {
   $('fill').style.width = `${pct}%`; $('slider').value = Math.round(progress * 1000);
   if (followGPS) followViewAt(currentFollowPoint()); else renderOverlay();
 }
-

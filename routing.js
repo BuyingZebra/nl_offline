@@ -1,4 +1,4 @@
-// NL Offline v0.15 — metadata-driven fastest-reasonable routing.
+// NL Offline v0.18 — metadata-driven fastest-reasonable routing.
 // Uses the original National Road Network (NRN) road class / route number / lane metadata.
 // Level 1 NL-RDDb distance and time remain authoritative display values.
 
@@ -18,7 +18,7 @@ const ROAD_ROUTES = ROAD_META.routes || [];
 const ROAD_ROUTE_NAMES = ROAD_META.routeNames || {};
 
 const ROUTING_PROFILE = Object.freeze({
-  version: 'NRN fastest-reasonable v3 + civic ranges',
+  version: 'NRN fastest-reasonable v4 + dual-end civic access',
   maxKmh: 105,
   primaryRoutes: ['1', '2', '75'],
   speedKmh: {

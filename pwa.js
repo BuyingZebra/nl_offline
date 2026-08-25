@@ -6,12 +6,47 @@ async function swMessage(type, timeout = 45000) {
     ch.port1.onmessage = e => { clearTimeout(timer); resolve(e.data); }; worker.postMessage({ type }, [ch.port2]);
   });
 }
+let updateRegistration = null, controllerChangeHandled = false;
+function showUpdateReady(message = 'Reload to use the newest offline map package.') {
+  const banner = $('updateBanner'), copy = $('updateMessage'); if (!banner || !copy) return;
+  copy.textContent = message; banner.hidden = false;
+}
+function reloadForAppUpdate() {
+  try { sessionStorage.setItem('nl-offline-update-reload', '1'); } catch (_) {}
+  if (updateRegistration?.waiting) { updateRegistration.waiting.postMessage({ type: 'SKIP_WAITING' }); return; }
+  location.reload();
+}
+function armAppUpdateFlow(registration) {
+  if (!registration || !navigator.serviceWorker) return; updateRegistration = registration;
+  if (registration.waiting && navigator.serviceWorker.controller) showUpdateReady();
+  registration.addEventListener('updatefound', () => {
+    const worker = registration.installing; if (!worker) return;
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateReady('The new package is complete and will activate safely.');
+    });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (controllerChangeHandled) return; controllerChangeHandled = true;
+    if (gpsRunning) { showUpdateReady('Update activated. Reload after stopping navigation.'); return; }
+    showUpdateReady('Update activated. Reloading the app…'); setTimeout(() => location.reload(), 350);
+  });
+}
 async function verifyOfflinePackage(force = false) {
   if (!window.isSecureContext || !('serviceWorker' in navigator)) { offlinePackageReady = false; updateRoadReadiness(); return false; }
   try { const r = await swMessage(force ? 'PREPARE_OFFLINE' : 'CACHE_STATUS', 60000); offlinePackageReady = !!r?.ready; updateRoadReadiness(r); return offlinePackageReady; }
   catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); return false; }
 }
-async function requestPersistentStorage() { try { if (navigator.storage?.persist) return await navigator.storage.persist(); } catch (_) {} return false; }
+async function refreshStoragePersistence() {
+  try { storagePersistent = navigator.storage?.persisted ? await navigator.storage.persisted() : null; }
+  catch (_) { storagePersistent = null; }
+  return storagePersistent;
+}
+async function requestPersistentStorage() {
+  try {
+    if (!navigator.storage?.persist) return await refreshStoragePersistence();
+    storagePersistent = await navigator.storage.persist(); return storagePersistent;
+  } catch (_) { storagePersistent = false; return false; }
+}
 function installInstructions() {
   if (standaloneMode()) return 'Installed on Home Screen.'; if (deferredInstall) return 'Install is available on this device.';
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent); return ios ? 'On iPhone/iPad: Share → Add to Home Screen after this page is on HTTPS.' : 'Install from your browser menu after this page is on HTTPS.';
@@ -21,13 +56,13 @@ function updateRoadReadiness(cacheResult = null) {
   if (!secure) { text = 'Needs HTTPS before phone GPS can work.'; cls = 'warn'; }
   else if (!cache) { text = cacheResult?.error ? `Offline package incomplete: ${cacheResult.error}` : 'Offline package is still being verified.'; cls = 'warn'; }
   else if (gpsPermission === 'denied') { text = 'Offline data is ready, but Location permission is denied.'; cls = 'warn'; }
-  else { text = `Offline package ready · GPS ${gpsPermission === 'granted' ? 'permission granted' : 'available'}${standalone ? ' · installed' : ''}.`; cls = 'good'; }
+  else { text = `Offline package ready · GPS ${gpsPermission === 'granted' ? 'permission granted' : 'available'}${standalone ? ' · installed' : ''}${storagePersistent === true ? ' · storage protected' : storagePersistent === false ? ' · browser-managed storage' : ''}.`; cls = 'good'; }
   $('roadReadyDetail').textContent = text; $('roadReadyDetail').className = `readydetail ${cls}`; $('installHint').textContent = installInstructions();
-  $('prepareRoad').textContent = secure && cache ? 'Recheck road setup' : 'Prepare for road';
+  $('prepareRoad').textContent = secure && cache ? 'Verify offline map' : 'Prepare offline map';
   if (secure && cache && gpsPermission !== 'denied') { $('appBadge').textContent = navigator.onLine ? '● ROAD READY' : '● OFFLINE READY'; $('appBadge').classList.remove('warn'); }
 }
 async function prepareForRoad() {
-  const b = $('prepareRoad'); b.disabled = true; b.textContent = 'Preparing…'; setStatus('Preparing the complete offline package…');
+  const b = $('prepareRoad'); b.disabled = true; b.textContent = 'Verifying…'; setStatus('Verifying the complete offline map package…');
   try {
     await requestPersistentStorage(); const cache = await verifyOfflinePackage(true); await refreshGpsPermission();
     if (!cache) { setStatus('Offline package did not finish caching. The previous complete offline version was kept; stay online and try again.', true); return; }

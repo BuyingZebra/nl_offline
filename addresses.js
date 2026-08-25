@@ -1,4 +1,4 @@
-// NL Offline v0.15 — compact offline civic-address resolver.
+// NL Offline v0.18 — compact offline civic-address resolver and suggestion index.
 // Source: civic address ranges embedded in the Newfoundland & Labrador National Road Network.
 // These are range/interpolation estimates, not exact building/entrance points.
 
@@ -53,6 +53,8 @@ function decodeAddressRecords() {
 
 const ADDRESS_RECORDS = decodeAddressRecords();
 const ADDRESS_LOOKUP = new Map();
+const ADDRESS_PAIR_OPTIONS = [];
+const ADDRESS_EDGE_STREET_ID = new Int32Array(DATA.edges.length); ADDRESS_EDGE_STREET_ID.fill(-1);
 const ADDRESS_PLACE_NORM = ADDRESS_PLACES.map(normalizeAddressText);
 const ADDRESS_PLACE_BY_NORM = new Map(ADDRESS_PLACE_NORM.map((p, i) => [p, i]));
 const ADDRESS_STREET_NORM = ADDRESS_STREETS.map(normalizeAddressText);
@@ -75,7 +77,10 @@ function addressPlaceId(placeRaw, placeNorm) {
 for (let i = 0; i < ADDRESS_RECORDS.length; i++) {
   const r = ADDRESS_RECORDS[i]; if (!r) continue;
   const key = `${ADDRESS_STREET_NORM[r.streetId]}|${ADDRESS_PLACE_NORM[r.placeId]}`;
-  let a = ADDRESS_LOOKUP.get(key); if (!a) ADDRESS_LOOKUP.set(key, a = []); a.push(i);
+  let a = ADDRESS_LOOKUP.get(key);
+  if (!a) { ADDRESS_LOOKUP.set(key, a = []); ADDRESS_PAIR_OPTIONS.push({ key, streetId: r.streetId, placeId: r.placeId, streetNorm: ADDRESS_STREET_NORM[r.streetId], placeNorm: ADDRESS_PLACE_NORM[r.placeId] }); }
+  a.push(i);
+  if (r.edgeId !== 65535 && r.edgeId < ADDRESS_EDGE_STREET_ID.length && ADDRESS_EDGE_STREET_ID[r.edgeId] < 0) ADDRESS_EDGE_STREET_ID[r.edgeId] = r.streetId;
 }
 
 function addressCoverageText() {
@@ -179,20 +184,34 @@ function resolveAddress(text) {
 
 function isAddressQuery(text) { return !!parseAddressQuery(text); }
 function addressSuggestions(text, max = 4) {
-  const q = parseAddressQuery(text); if (!q) return [];
-  const out = [], seen = new Set();
-  for (let i = 0; i < ADDRESS_STREETS.length; i++) {
-    const sn = ADDRESS_STREET_NORM[i]; if (!sn.includes(q.streetNorm) && !q.streetNorm.includes(sn)) continue;
-    for (let p = 0; p < ADDRESS_PLACES.length; p++) {
-      const key = `${sn}|${ADDRESS_PLACE_NORM[p]}`; if (!ADDRESS_LOOKUP.has(key)) continue;
-      const label = `${q.number}${q.suffix || ''} ${ADDRESS_STREETS[i]}, ${ADDRESS_PLACES[p]}`;
-      if (!seen.has(label)) { seen.add(label); out.push(label); if (out.length >= max) return out; }
-    }
+  const raw = String(text || '').trim(), match = raw.match(/^\s*(\d{1,5})([a-zA-Z]?)\s+(.+?)\s*$/); if (!match) return [];
+  const number = +match[1], suffix = (match[2] || '').toUpperCase(), rest = match[3];
+  const comma = rest.lastIndexOf(','), streetInput = normalizeAddressText(comma >= 0 ? rest.slice(0, comma) : rest), placeInput = comma >= 0 ? normalizeAddressText(rest.slice(comma + 1)) : '';
+  const tokens = normalizeAddressText(rest).split(' ').filter(Boolean), ranked = [];
+  for (const option of ADDRESS_PAIR_OPTIONS) {
+    if (!option.streetNorm || option.streetNorm === 'none') continue;
+    const combined = `${option.streetNorm} ${option.placeNorm}`;
+    if (comma >= 0) {
+      if (streetInput && !option.streetNorm.includes(streetInput) && !streetInput.includes(option.streetNorm)) continue;
+      if (placeInput && !option.placeNorm.includes(placeInput) && !placeInput.includes(option.placeNorm)) continue;
+    } else if (!tokens.every(token => combined.includes(token))) continue;
+    let score = 10;
+    if (option.streetNorm === streetInput) score -= 6;
+    else if (streetInput && option.streetNorm.startsWith(streetInput)) score -= 4;
+    if (placeInput && option.placeNorm === placeInput) score -= 3;
+    else if (placeInput && option.placeNorm.startsWith(placeInput)) score -= 2;
+    score += Math.abs(combined.length - normalizeAddressText(rest).length) / 1000;
+    ranked.push([score, `${number}${suffix} ${ADDRESS_STREETS[option.streetId]}, ${ADDRESS_PLACES[option.placeId]}`]);
   }
+  ranked.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
+  const out = [], seen = new Set();
+  for (const [, label] of ranked) { if (!seen.has(label)) { seen.add(label); out.push(label); if (out.length >= max) break; } }
   return out;
 }
+function streetNameForEdge(edgeId) { const id = ADDRESS_EDGE_STREET_ID[edgeId]; return id >= 0 ? ADDRESS_STREETS[id] : ''; }
 
 window.resolveAddress = resolveAddress;
 window.isAddressQuery = isAddressQuery;
 window.addressCoverageText = addressCoverageText;
 window.addressSuggestions = addressSuggestions;
+window.streetNameForEdge = streetNameForEdge;

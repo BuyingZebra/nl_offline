@@ -18,25 +18,26 @@ function setRouteTotals(info) {
 }
 function segmentLengthKm(coords) { let k = 0; for (let i = 1; i < (coords || []).length; i++) k += kmBetween(coords[i - 1], coords[i]); return k; }
 function setEstimatedRouteTotalsFromPath() {
-  let roadKm = 0, ferryKm = 0, accessMin = 0;
+  let roadKm = 0, ferryKm = 0, accessMin = 0, schematicFerryMin = 0;
   for (const s of routeSegments) {
     const k = segmentLengthKm(s.coords);
     if (s.type === 'ferry') ferryKm += k;
     else roadKm += k;
-    if (s.type === 'virtual') accessMin += k / 25 * 60;
-    if (s.type === 'ferry' && !s.edgeCount) accessMin += k / 25 * 60;
+    if (s.type === 'access') accessMin += s.accessMinutes ?? k / 25 * 60;
+    if (s.type === 'ferry' && !s.edgeCount) schematicFerryMin += k / 25 * 60;
   }
   const roadEdgeIds = routeEdgeIds.filter(ei => (DATA.edges[ei]?.[4] || 'road') !== 'ferry');
   const ferryEdgeIds = routeEdgeIds.filter(ei => (DATA.edges[ei]?.[4] || 'road') === 'ferry');
   const roadMin = (typeof estimateRouteMinutes === 'function' ? estimateRouteMinutes(roadEdgeIds) : Math.max(1, roadKm / 60 * 60)) + accessMin;
-  const ferryMin = ferryEdgeIds.reduce((m, ei) => m + (DATA.edges[ei]?.[2] || 0) / 25 * 60, 0);
+  const ferryMin = ferryEdgeIds.reduce((m, ei) => m + (DATA.edges[ei]?.[2] || 0) / 25 * 60, 0) + schematicFerryMin;
   setRouteTotals({ roadDistance: roadKm, roadTime: roadMin, ferryDistance: ferryKm, ferryTime: ferryMin, totalDistance: roadKm + ferryKm, totalTime: roadMin + ferryMin, hasFerry: ferryKm > .02 || ferryEdgeIds.length > 0 });
 }
-function busy(on) { $('go').disabled = on; $('go').textContent = on ? 'Calculating…' : 'Show trip'; }
+function routeHasSchematicSegments() { return routeSegments.some(s => s.schematic || s.type === 'virtual'); }
+function busy(on) { $('go').disabled = on; $('go').textContent = on ? 'Calculating…' : 'Show route'; }
 function updateRouteQuality(virtual = false) {
   if ($('viaRoute')) $('viaRoute').textContent = (!virtual && routeEdgeIds.length && typeof describeRouteEdges === 'function') ? describeRouteEdges(routeEdgeIds) : (routeEdgeIds.length && typeof describeRouteEdges === 'function' ? describeRouteEdges(routeEdgeIds) : '');
   const estimated = !!(currentOriginAddress || currentDestAddress || originMode === 'gps' || liveRerouteCount);
-  if (!routeProgressReliable) { $('routeStatus').textContent = 'Schematic'; $('routeNote').textContent = estimated ? 'NRN estimate · schematic ferry/remote leg' : 'Level 1 reliable · Level 2 ferry map approximate'; return; }
+  if (!routeProgressReliable) { $('routeStatus').textContent = 'Schematic'; $('routeNote').textContent = estimated ? 'Offline estimate · schematic segment · driving mode disabled' : 'Official total · schematic map segment · driving mode disabled'; return; }
   if (estimated) {
     $('routeStatus').textContent = currentTripHasFerry ? 'Mixed' : 'On road';
     $('routeNote').textContent = `Map ${routePolylineKm.toFixed(1)} km · NRN estimated${liveRerouteCount ? ` · rerouted ${liveRerouteCount}×` : ''}`;
@@ -51,11 +52,11 @@ function updateRouteQuality(virtual = false) {
 function setProgressReliability(ok) {
   routeProgressReliable = !!ok;
   $('gpsStart').disabled = !routeProgressReliable || !currentTripLoaded || routeCoords.length < 2;
-  if (!ok) $('gpsDetail').textContent = 'This route contains a schematic ferry/remote connection, so live route progress is limited for this trip.';
+  if (!ok) $('gpsDetail').textContent = 'This route does not have continuous verified road geometry, so live driving mode is disabled.';
 }
 function ferryFallback(originName, destName, a, b) {
   const p1 = pointForCommunity(originName, a), p2 = pointForCommunity(destName, b); if (!p1 || !p2) return false;
-  routeEdgeIds = []; routeSegments = [{ type: 'ferry', coords: [p1, p2], label: 'Schematic ferry connection' }]; routeCoords = flattenSegments(); metrics();
+  routeEdgeIds = []; routeEdgeTraversals = []; routeSegments = [{ type: 'ferry', coords: [p1, p2], label: 'Schematic ferry connection', schematic: true }]; routeCoords = flattenSegments(); metrics();
   setProgressReliability(false); fit(routeCoords); updateRouteQuality(true); return true;
 }
 function finishPath(virtual, statusText, originName, destName, a, b) {
@@ -64,21 +65,22 @@ function finishPath(virtual, statusText, originName, destName, a, b) {
   if (currentTripHasFerry && mismatch > 10 && ferryFallback(originName, destName, a, b)) {
     setStatus('Official ferry trip loaded. Level 2 is shown schematically because the local ferry network geometry does not match the official trip closely enough.');
   } else {
-    setProgressReliability(true); setFollow(false); fit(routeCoords); updateRouteQuality(virtual); setStatus(statusText);
+    const schematic = routeHasSchematicSegments(); setProgressReliability(!schematic); setFollow(false); fit(routeCoords); updateRouteQuality(virtual || schematic);
+    setStatus(schematic ? `${statusText} This path includes a schematic connection, so driving mode is disabled.` : statusText, schematic);
   }
   progress = 0; offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; resetEta(); currentTripLoaded = true; update(); logRoadEvent('trip_loaded', currentTripSnapshot(), true);
 }
 function finishEstimatedPath(statusText) {
   routeCoords = flattenSegments(); if (routeCoords.length < 2) throw new Error('empty path'); metrics(); setEstimatedRouteTotalsFromPath();
-  const schematicFerry = routeSegments.some(s => s.type === 'ferry' && !s.edgeCount);
-  setProgressReliability(!schematicFerry); setEstimatedLabels(currentOriginAddress || currentDestAddress ? 'NRN civic address range + road network' : 'NRN road network');
+  const schematic = routeHasSchematicSegments();
+  setProgressReliability(!schematic); setEstimatedLabels(currentOriginAddress || currentDestAddress ? 'NRN civic address range + road network' : 'NRN road network');
   $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime);
-  setFollow(false); fit(routeCoords); updateRouteQuality(routeSegments.some(s => s.type !== 'road'));
+  setFollow(false); fit(routeCoords); updateRouteQuality(schematic || currentTripHasFerry);
   progress = 0; offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; lastGpsAppliedAt = 0; resetEta(); currentTripLoaded = true; update();
-  setStatus(statusText); logRoadEvent('estimated_trip_loaded', currentTripSnapshot(), true);
+  setStatus(schematic ? `${statusText} This path includes a schematic connection, so driving mode is disabled.` : statusText, schematic); logRoadEvent('estimated_trip_loaded', currentTripSnapshot(), true);
 }
 function buildAlias(av, bv, a, b, info) {
-  setRouteTotals(info); setTownLabels(info); currentTripLoaded = true; routeSegments = []; routeEdgeIds = [];
+  setRouteTotals(info); setTownLabels(info); currentTripLoaded = true; routeSegments = []; routeEdgeIds = []; routeEdgeTraversals = [];
   const p1 = pointForCommunity(av, a), p2 = pointForCommunity(bv, b); routeCoords = p1 && p2 ? [p1, p2] : p1 ? [p1] : [];
   routeCoordKinds = routeCoords.length > 1 ? ['road'] : []; metrics(); setFollow(false); if (routeCoords.length) fit(routeCoords);
   $('destination').textContent = bv; $('distance').textContent = '0 km'; $('time').textContent = '0 min'; $('routeStatus').textContent = 'Same place'; $('routeNote').textContent = 'Official aliases / co-located communities';
@@ -86,7 +88,7 @@ function buildAlias(av, bv, a, b, info) {
 }
 function endpointFromText(text) {
   const raw = String(text || '').trim(); if (!raw) return null;
-  const i = nameIndex.get(raw.toLowerCase());
+  const i = townIndexFromText(raw);
   if (i != null) return { kind: 'town', label: names[i], index: i, node: special[names[i]] ? -1 : routingAnchor(i), point: pointForCommunity(names[i], i) };
   if (typeof resolveAddress === 'function') {
     const a = resolveAddress(raw); if (a) return { kind: 'address', label: a.label, index: -1, node: a.node, point: a.point, address: a };
@@ -106,7 +108,7 @@ function setEndpointState(originEp, destEp) {
 }
 function buildEstimatedEndpoints(originEp, destEp, statusPrefix = 'Offline route') {
   return new Promise(resolve => {
-    setEndpointState(originEp, destEp); routeSegments = []; routeEdgeIds = []; routeCoords = []; currentTripLoaded = true; progress = 0; resetEta(); update(); busy(true); setStatus('Calculating fastest reasonable path locally…');
+    setEndpointState(originEp, destEp); routeSegments = []; routeEdgeIds = []; routeEdgeTraversals = []; routeCoords = []; currentTripLoaded = true; progress = 0; resetEta(); update(); busy(true); setStatus('Calculating fastest reasonable path locally…');
     setTimeout(() => {
       let ok = false;
       try {
@@ -122,7 +124,7 @@ function makeTrip() {
   if (!destEp) { setStatus('Choose a Newfoundland & Labrador town, or enter an address like “123 Water Street, Carbonear”.', true); return; }
   if (originMode === 'gps') {
     if (!originGPS) { setStatus('Current location has not been captured yet.', true); return; }
-    const nn = nearestNode(originGPS.lon, originGPS.lat); if (nn.node < 0) { setStatus('Could not connect current location to the offline road network.', true); return; }
+    const nn = nearestNode(originGPS.lon, originGPS.lat); if (nn.node < 0 || nn.distanceKm > 8) { setStatus('Current location is too far from the packaged NL road network.', true); return; }
     const originEp = { kind: 'gps', label: 'Current location', index: -1, node: nn.node, point: [originGPS.lon, originGPS.lat] };
     buildEstimatedEndpoints(originEp, destEp, 'Current-location route'); return;
   }
@@ -139,7 +141,7 @@ function makeTrip() {
 }
 function buildTown(av, bv, a, b, info) {
   $('destination').textContent = bv; $('distance').textContent = `${routeDist} km`; $('time').textContent = fmtMin(routeTime);
-  routeSegments = []; routeEdgeIds = []; routeCoords = []; currentTripLoaded = true; progress = 0; resetEta(); update(); busy(true); setStatus('Calculating path locally…');
+  routeSegments = []; routeEdgeIds = []; routeEdgeTraversals = []; routeCoords = []; currentTripLoaded = true; progress = 0; resetEta(); update(); busy(true); setStatus('Calculating path locally…');
   setTimeout(() => {
     try {
       composePath(av, bv, a, b, info.hasFerry);
@@ -151,7 +153,7 @@ function buildTown(av, bv, a, b, info) {
 }
 function buildGpsEndpoint(destEp = currentDestination) {
   if (!originGPS || !destEp) return Promise.resolve(false);
-  const nn = nearestNode(originGPS.lon, originGPS.lat); if (nn.node < 0) return Promise.resolve(false);
+  const nn = nearestNode(originGPS.lon, originGPS.lat); if (nn.node < 0 || nn.distanceKm > 8) return Promise.resolve(false);
   const originEp = { kind: 'gps', label: 'Current location', index: -1, node: nn.node, point: [originGPS.lon, originGPS.lat] };
   return buildEstimatedEndpoints(originEp, destEp, 'Current-location route');
 }
@@ -168,17 +170,29 @@ function rerouteFromGpsPosition(lon, lat, reason = 'off-route') {
     rerouteInFlight = true; setStatus('Recalculating route from your current position…');
     setTimeout(() => {
       let ok = false;
+      const previous = {
+        routeSegments, routeEdgeIds, routeEdgeTraversals, routeCoords, routeCoordKinds, routeCum, routeLabelCandidates, routeManeuvers,
+        routePolylineKm, routeRoadGeomKm, routeFerryGeomKm, routeRoadDistance, routeRoadTime,
+        routeFerryDistance, routeFerryTime, routeDist, routeTime, currentTripHasFerry
+      };
       try {
         const originEp = { kind: 'gps', label: 'Recalculated position', index: -1, node: nn.node, point: [lon, lat] };
         composeEndpoints(originEp, currentDestination); routeCoords = flattenSegments(); if (routeCoords.length < 2) throw new Error('empty reroute'); metrics(); setEstimatedRouteTotalsFromPath();
+        if (routeHasSchematicSegments()) throw new Error('reroute requires a schematic connection');
         liveRerouteCount += 1; routeDataSource = 'nrn-reroute'; currentOriginIndex = -1; currentOriginAddress = null; originMode = 'gps'; originGPS = { lon, lat, accuracy: gpsPosition?.accuracy || 0, capturedAt: Date.now() }; loadedOriginLabel = 'Current location'; currentTripLoaded = true; progress = 0; lastGpsAppliedAt = 0;
-        offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; setProgressReliability(!routeSegments.some(s => s.type === 'ferry' && !s.edgeCount));
-        setEstimatedLabels('Live NRN reroute'); $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime); updateRouteQuality(routeSegments.some(s => s.type !== 'road'));
+        offRouteState = false; offRouteBadFixes = 0; offRouteGoodFixes = 0; offRouteSince = 0; setProgressReliability(true);
+        setEstimatedLabels('Live NRN reroute'); $('distance').textContent = `${routeDist < 10 ? routeDist.toFixed(1) : Math.round(routeDist)} km`; $('time').textContent = fmtMin(routeTime); updateRouteQuality(currentTripHasFerry);
         resetEta(); startEtaTracking(Date.now()); update(); if (followGPS) followViewAt([lon, lat]); else { renderBase(); renderOverlay(); }
         $('routeStatus').textContent = 'Rerouted'; $('gpsDetail').textContent = `Route recalculated locally · ${routeDist.toFixed(1)} km remaining.`; $('gpsDetail').classList.remove('offroute');
         setStatus(`Route recalculated locally · ${routeDist.toFixed(1)} km remaining.`); lastRerouteAt = Date.now();
         logRoadEvent('route_recalculated', { reason, nearestRoadKm: +nn.distanceKm.toFixed(3), routeKm: +routeDist.toFixed(2), routeMin: +routeTime.toFixed(1), reroutes: liveRerouteCount, via: typeof describeRouteEdges === 'function' ? describeRouteEdges(routeEdgeIds) : '' }, true); ok = true;
-      } catch (e) { setStatus('You are off the planned route and the offline reroute could not connect yet. Tracking will keep trying.', true); logRoadEvent('reroute_failed', { reason, message: e?.message || 'reroute failed' }, true); }
+      } catch (e) {
+        ({ routeSegments, routeEdgeIds, routeEdgeTraversals, routeCoords, routeCoordKinds, routeCum, routeLabelCandidates, routeManeuvers,
+          routePolylineKm, routeRoadGeomKm, routeFerryGeomKm, routeRoadDistance, routeRoadTime,
+          routeFerryDistance, routeFerryTime, routeDist, routeTime, currentTripHasFerry } = previous);
+        setStatus('You are off the planned route and the offline reroute could not connect safely yet. Tracking will keep trying.', true);
+        logRoadEvent('reroute_failed', { reason, message: e?.message || 'reroute failed' }, true);
+      }
       finally { rerouteInFlight = false; resolve(ok); }
     }, 10);
   });

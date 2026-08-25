@@ -7,6 +7,6 @@ Newfoundland & Labrador Road Distance Database (NL-RDDb), Government of Newfound
 Level 2 road/ferry network, routing metadata and civic address ranges:
 National Road Network (NRN), Newfoundland and Labrador, Government of Canada / Natural Resources Canada and contributing jurisdictions, used under the Open Government Licence – Canada.
 
-v0.15 uses NRN road geometry, functional road class, route number/name, lane count and civic address ranges. Civic address points are interpolated from road-side number ranges and are approximate.
+v0.18 uses NRN road geometry, functional road class, route number/name, lane count and civic address ranges. Civic address points are interpolated from road-side number ranges and are approximate. Local street labels and road-level maneuvers are derived from those packaged NRN attributes and geometry.
 
 NL Offline does not copy Google Maps, Apple Maps, HERE or Garmin proprietary map/route geometry.
