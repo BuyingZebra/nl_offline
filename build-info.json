@@ -1,6 +1,6 @@
 {
   "app": "NL Offline",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "releaseDate": "2026-08-25",
   "scope": "Offline Newfoundland and Labrador town-to-town, street and exact civic-address road routing with local maneuver guidance",
   "data": {

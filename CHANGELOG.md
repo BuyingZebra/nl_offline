@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.21.0 — 2026-08-25
+
+- Increased land/ocean luminance and hue separation with a deep-blue ocean and lighter spruce-toned land.
+- Brightened local, collector and highway road classes while preserving a clear hierarchy.
+- Improved street, route-shield and community label contrast.
+- Slightly lifted panels, borders, muted text and controls for better phone readability without abandoning the night-map design.
+- Retained the complete v0.20 shared geometry, address index and offline routing behaviour unchanged.
+
 ## 0.20.0 — 2026-08-25
 
 - Rebuilt all 43,002 routed road shapes from the official Statistics Canada NRN NL 7.0 GeoPackage while preserving stable graph and address edge identifiers.

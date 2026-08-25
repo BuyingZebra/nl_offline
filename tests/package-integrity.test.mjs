@@ -11,11 +11,11 @@ test('release versions agree', () => {
   const build = JSON.parse(read('build-info.json'));
   const manifest = JSON.parse(read('manifest.webmanifest'));
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(build.version, '0.20.0');
+  assert.equal(build.version, '0.21.0');
   assert.equal(pkg.version, build.version);
-  assert.match(manifest.name, /v0\.20$/);
-  assert.match(read('sw.js'), /const VERSION = '0\.20\.0'/);
-  assert.match(read('index.html'), /NL Offline MVP v0\.20/);
+  assert.match(manifest.name, /v0\.21$/);
+  assert.match(read('sw.js'), /const VERSION = '0\.21\.0'/);
+  assert.match(read('index.html'), /NL Offline MVP v0\.21/);
 });
 
 test('HTML runtime files exist and are cached by the service worker', () => {
@@ -34,9 +34,9 @@ test('HTML runtime files exist and are cached by the service worker', () => {
   assert.equal(scripts.filter(file => file.startsWith('addressmeta-part-')).length, 34);
 });
 
-test('release contains no stale v0.19 runtime references', () => {
+test('release contains no stale v0.20 runtime references', () => {
   const files = ['index.html', 'core.js', 'addresses.js', 'routing.js', 'map.js', 'route-path.js', 'guidance.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'sw.js', 'manifest.webmanifest'];
-  const stale = files.filter(file => /v0\.19|0\.19\.0|v019/.test(read(file)));
+  const stale = files.filter(file => /v0\.20|0\.20\.0|v020/.test(read(file)));
   assert.deepEqual(stale, []);
 });
 

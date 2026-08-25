@@ -1,10 +1,11 @@
 # NL Offline
 
-NL Offline is a static, installable vector map for Newfoundland and Labrador that keeps its map, community, exact civic-address and routing data on the device. The v0.20 MVP is intentionally focused on dependable town-to-town, street and civic-address routing where cellular service is unavailable.
+NL Offline is a static, installable vector map for Newfoundland and Labrador that keeps its map, community, exact civic-address and routing data on the device. The v0.21 MVP is intentionally focused on dependable town-to-town, street and civic-address routing where cellular service is unavailable.
 
-## What v0.20 does
+## What v0.21 does
 
 - Browses a packaged NL vector basemap with land, major water bodies and roads without a connection.
+- Uses a higher-contrast coastal night palette so ocean, land, water bodies, road classes and labels remain distinguishable on a phone.
 - Uses the same full-detail NRN LineStrings for road display, address snapping, routing and maneuver guidance.
 - Expands routed-road geometry from 112,313 to 319,387 points while keeping every stable graph edge identifier.
 - Routes between 927 official community entries: 922 road-mapped and 5 remote/special entries.

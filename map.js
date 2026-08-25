@@ -40,12 +40,12 @@ function renderVectorBasemap() {
   const span = view.maxx - view.minx;
   bctx.beginPath();
   if (traceVectorRings(bctx, map.land)) {
-    bctx.fillStyle = '#0d222b'; bctx.globalAlpha = 1; bctx.fill('evenodd');
+    bctx.fillStyle = '#183a3d'; bctx.globalAlpha = 1; bctx.fill('evenodd');
   }
   const waterFloor = span > 6 ? .012 : span > 2.5 ? .0012 : span > .8 ? .00012 : 0;
   bctx.beginPath();
   if (traceVectorRings(bctx, map.water, waterFloor)) {
-    bctx.fillStyle = '#081923'; bctx.globalAlpha = 1; bctx.fill('evenodd');
+    bctx.fillStyle = '#061b2a'; bctx.globalAlpha = 1; bctx.fill('evenodd');
   }
   bctx.globalAlpha = 1;
 }
@@ -64,8 +64,8 @@ function roadPaint(pass, span) {
       : (close ? 3.25 : span < .8 ? 2.2 : 1.2);
   return {
     width,
-    color: major ? '#78939c' : local ? '#38515b' : '#506e78',
-    alpha: major ? .98 : local ? .72 : .88,
+    color: major ? '#a9bbbe' : local ? '#47646b' : '#6f8c93',
+    alpha: major ? 1 : local ? .82 : .96,
   };
 }
 function traceRoadPass(ids, pass, minimumTier) {
@@ -92,7 +92,7 @@ function renderBase() {
   const span = view.maxx - view.minx, minimumTier = minimumVisibleRoadTier(span);
   for (const pass of roadPasses) {
     const paint = roadPaint(pass, span); if (!traceRoadPass(ids, pass, minimumTier)) continue;
-    bctx.strokeStyle = '#07131b'; bctx.globalAlpha = .9; bctx.lineWidth = paint.width + 1.65; bctx.stroke();
+    bctx.strokeStyle = '#07151c'; bctx.globalAlpha = .94; bctx.lineWidth = paint.width + 1.65; bctx.stroke();
     traceRoadPass(ids, pass, minimumTier); bctx.strokeStyle = paint.color; bctx.globalAlpha = paint.alpha; bctx.lineWidth = paint.width; bctx.stroke();
   }
   for (const type of ['virtual', 'ferry']) {
@@ -133,7 +133,7 @@ function renderRoadRouteLabels(ids) {
     if (placed.some(b => boxesOverlap(box, b, 7)) || uiBoxes.some(b => boxesOverlap(box, b, 7))) continue; placed.push(box); seenRoutes.set(r, q);
     bctx.fillStyle = 'rgba(8,25,35,.92)'; bctx.strokeStyle = '#7897a7'; bctx.lineWidth = 1;
     bctx.beginPath(); if (bctx.roundRect) bctx.roundRect(box.l, box.t, w, h, 5); else bctx.rect(box.l, box.t, w, h); bctx.fill(); bctx.stroke();
-    bctx.fillStyle = '#d8e4ea'; bctx.textAlign = 'center'; bctx.textBaseline = 'middle'; bctx.fillText(text, q[0], q[1] + .5); bctx.textAlign = 'start'; bctx.textBaseline = 'alphabetic'; shown++;
+    bctx.fillStyle = '#e5edf0'; bctx.textAlign = 'center'; bctx.textBaseline = 'middle'; bctx.fillText(text, q[0], q[1] + .5); bctx.textAlign = 'start'; bctx.textBaseline = 'alphabetic'; shown++;
   }
 }
 function renderStreetLabels(ids) {
@@ -152,7 +152,7 @@ function renderStreetLabels(ids) {
     const box = { l: q[0] - tw / 2 - 4, t: q[1] - 9, r: q[0] + tw / 2 + 4, b: q[1] + 5 };
     if (placed.some(b => boxesOverlap(box, b, 6)) || uiBoxes.some(b => boxesOverlap(box, b, 6))) continue;
     placed.push(box); seen.set(label, q); bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
-    bctx.lineWidth = 3; bctx.strokeStyle = 'rgba(5,15,23,.94)'; bctx.fillStyle = '#aebfc8'; bctx.strokeText(text, q[0], q[1]); bctx.fillText(text, q[0], q[1]); shown++;
+    bctx.lineWidth = 3; bctx.strokeStyle = 'rgba(5,15,23,.94)'; bctx.fillStyle = '#c9d7dc'; bctx.strokeText(text, q[0], q[1]); bctx.fillText(text, q[0], q[1]); shown++;
   }
   bctx.textAlign = 'start'; bctx.textBaseline = 'alphabetic';
 }
@@ -186,7 +186,7 @@ function renderCommunityLabels() {
     const text = names[i], tw = bctx.measureText(text).width, box = { l: q[0] + 5, t: q[1] - 16, r: q[0] + 9 + tw, b: q[1] + 3 };
     if (boxes.some(b => boxesOverlap(box, b)) || uiBoxes.some(b => boxesOverlap(box, b, 5))) continue; boxes.push(box);
     bctx.beginPath(); bctx.arc(q[0], q[1], 2.15, 0, Math.PI * 2); bctx.fillStyle = '#7897a7'; bctx.fill();
-    bctx.lineWidth = 3.2; bctx.strokeStyle = 'rgba(5,15,23,.94)'; bctx.fillStyle = '#b7c7cf';
+    bctx.lineWidth = 3.2; bctx.strokeStyle = 'rgba(5,15,23,.94)'; bctx.fillStyle = '#d1dde1';
     bctx.strokeText(text, q[0] + 6, q[1] - 5); bctx.fillText(text, q[0] + 6, q[1] - 5); shown++;
   }
 }

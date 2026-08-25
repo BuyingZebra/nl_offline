@@ -1,6 +1,6 @@
 {
   "name": "nl-offline",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "private": true,
   "description": "Offline Newfoundland and Labrador map and local routing PWA",
   "type": "module",
