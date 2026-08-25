@@ -1,6 +1,6 @@
 {
   "app": "NL Offline",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "releaseDate": "2026-08-25",
   "scope": "Offline Newfoundland and Labrador town-to-town, street and exact civic-address road routing with local maneuver guidance",
   "data": {
@@ -12,6 +12,15 @@
     "roadNodes": 37870,
     "networkEdges": 43043,
     "roadEdges": 43002,
+    "roadGeometryPoints": 319387,
+    "previousRoadGeometryPoints": 112313,
+    "nrnGeometryEdgesMatched": 43002,
+    "nrnUniqueSourceFeatures": 43002,
+    "nrnDuplicateSourceAssignments": 0,
+    "vectorLandFeatures": 567,
+    "vectorWaterFeatures": 1200,
+    "vectorLandPoints": 33401,
+    "vectorWaterPoints": 139438,
     "ferryEdges": 32,
     "schematicDataEdges": 9,
     "exactCivicAddresses": 181766,
@@ -29,5 +38,5 @@
     "mappedCivicRangeSides": 27751,
     "fallbackCivicRangeSides": 326
   },
-  "navigationClass": "Exact-address and road-level offline maneuver guidance; no lane, spoken-instruction or truck-restriction model"
+  "navigationClass": "Exact-address and road-level offline maneuver guidance on shared full-detail road/display geometry; no lane, spoken-instruction or truck-restriction model"
 }

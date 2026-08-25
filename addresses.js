@@ -1,4 +1,4 @@
-// NL Offline v0.19 — exact offline civic-address resolver.
+// NL Offline v0.20 — exact offline civic-address resolver.
 // Primary source: Statistics Canada National Address Register, June 2026.
 // NRN civic ranges remain available only as a fallback for a missing exact point.
 

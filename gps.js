@@ -259,7 +259,7 @@ async function boot() {
   restoreTripPrefs(); loadRoadLog(); size(); await refreshGpsPermission(); await refreshStoragePersistence(); updateGpsEnvironment();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=0.19', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
+      const reg = await navigator.serviceWorker.register('./sw.js?v=0.20', { scope: './' }); armAppUpdateFlow(reg); await navigator.serviceWorker.ready; reg.update().catch(() => {}); await verifyOfflinePackage(false);
     } catch (e) { offlinePackageReady = false; updateRoadReadiness({ error: e.message }); }
   } else updateRoadReadiness();
   const addr = typeof addressCoverageText === 'function' ? addressCoverageText() : 'civic-address data unavailable';

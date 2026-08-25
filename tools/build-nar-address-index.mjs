@@ -341,7 +341,7 @@ for (let i = 0; i < edgeNames.length; i++) { edgeNameBuffer.writeUInt16LE(edgeNa
 const distances = rawRecords.map(record => record.roadDistanceKm).filter(Number.isFinite).sort((a, b) => a - b);
 const percentile = fraction => distances[Math.min(distances.length - 1, Math.floor(distances.length * fraction))] || 0;
 const meta = {
-  version: '0.19.0-nar-address-points',
+  version: '0.20.0-nar-address-points',
   source: 'Statistics Canada National Address Register',
   referenceDate: 'June 2026',
   province: 'Newfoundland and Labrador',

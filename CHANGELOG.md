@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.0 — 2026-08-25
+
+- Rebuilt all 43,002 routed road shapes from the official Statistics Canada NRN NL 7.0 GeoPackage while preserving stable graph and address edge identifiers.
+- Increased routed-road geometry detail from 112,313 to 319,387 coordinate points.
+- Made road display, routing, address snapping and maneuver guidance use the same shared geometry.
+- Added a compact fully offline CanVec vector basemap with 567 land features and 1,200 major water features.
+- Added zoom-dependent road visibility, road casings, clearer functional-class styling and a cased route line.
+- Re-snapped all 181,766 exact civic records against the upgraded geometry; 181,752 attach directly to routed roads and only 14 retain fallback points.
+- Added reproducible NRN road and CanVec basemap compilers with geometry-quality metadata.
+
 ## 0.19.0 — 2026-08-25
 
 Exact offline civic-address data release.

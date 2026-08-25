@@ -11,11 +11,11 @@ test('release versions agree', () => {
   const build = JSON.parse(read('build-info.json'));
   const manifest = JSON.parse(read('manifest.webmanifest'));
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(build.version, '0.19.0');
+  assert.equal(build.version, '0.20.0');
   assert.equal(pkg.version, build.version);
-  assert.match(manifest.name, /v0\.19$/);
-  assert.match(read('sw.js'), /const VERSION = '0\.19\.0'/);
-  assert.match(read('index.html'), /NL Offline MVP v0\.19/);
+  assert.match(manifest.name, /v0\.20$/);
+  assert.match(read('sw.js'), /const VERSION = '0\.20\.0'/);
+  assert.match(read('index.html'), /NL Offline MVP v0\.20/);
 });
 
 test('HTML runtime files exist and are cached by the service worker', () => {
@@ -34,9 +34,9 @@ test('HTML runtime files exist and are cached by the service worker', () => {
   assert.equal(scripts.filter(file => file.startsWith('addressmeta-part-')).length, 34);
 });
 
-test('release contains no stale v0.18 runtime references', () => {
+test('release contains no stale v0.19 runtime references', () => {
   const files = ['index.html', 'core.js', 'addresses.js', 'routing.js', 'map.js', 'route-path.js', 'guidance.js', 'route-progress.js', 'route-trip.js', 'pwa.js', 'gps.js', 'sw.js', 'manifest.webmanifest'];
-  const stale = files.filter(file => /v0\.18|0\.18\.0|v018/.test(read(file)));
+  const stale = files.filter(file => /v0\.19|0\.19\.0|v019/.test(read(file)));
   assert.deepEqual(stale, []);
 });
 
@@ -53,6 +53,20 @@ test('declared dataset counts match the packaged data', () => {
   assert.equal(data.edges.filter(edge => (edge[4] || 'road') === 'road').length, build.data.roadEdges);
   assert.equal(data.edges.filter(edge => edge[4] === 'ferry').length, build.data.ferryEdges);
   assert.equal(data.edges.filter(edge => edge[4] === 'virtual').length, build.data.schematicDataEdges);
+  assert.equal(data.geometryQuality.newGeometryPoints, build.data.roadGeometryPoints);
+  assert.equal(data.geometryQuality.oldGeometryPoints, build.data.previousRoadGeometryPoints);
+  assert.equal(data.geometryQuality.matchedExact + data.geometryQuality.matchedNear, build.data.nrnGeometryEdgesMatched);
+  assert.equal(data.geometryQuality.uniqueSourceFeatures, build.data.nrnUniqueSourceFeatures);
+  assert.equal(data.geometryQuality.duplicateSourceAssignments, build.data.nrnDuplicateSourceAssignments);
+  assert.ok(data.geometryQuality.newGeometryPoints > data.geometryQuality.oldGeometryPoints * 2.5, 'road geometry was not materially improved');
+
+  const basemapSandbox = { window: {} }; basemapSandbox.window = basemapSandbox;
+  vm.createContext(basemapSandbox); vm.runInContext(read('basemap.js'), basemapSandbox);
+  const basemap = basemapSandbox.NL_BASEMAP;
+  assert.equal(basemap.land.length, build.data.vectorLandFeatures);
+  assert.equal(basemap.water.length, build.data.vectorWaterFeatures);
+  assert.equal(basemap.quality.landVectorPoints, build.data.vectorLandPoints);
+  assert.equal(basemap.quality.waterVectorPoints, build.data.vectorWaterPoints);
 
   const addressSandbox = { window: {} }; addressSandbox.window = addressSandbox;
   vm.createContext(addressSandbox); vm.runInContext(read('addresspoints.js'), addressSandbox);

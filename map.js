@@ -21,24 +21,79 @@ function project(lon, lat) {
 }
 function visible(bb) { return !(bb[2] < view.minx || bb[0] > view.maxx || bb[3] < view.miny || bb[1] > view.maxy); }
 
+function traceVectorRings(ctx, features, minImportance = 0) {
+  let traced = 0;
+  for (const feature of features || []) {
+    const bb = feature[0], rings = feature[1], importance = feature[2] || 0;
+    if (!visible(bb) || importance < minImportance) continue;
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length; i++) {
+        const q = project(ring[i][0], ring[i][1]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+      }
+      ctx.closePath(); traced++;
+    }
+  }
+  return traced;
+}
+function renderVectorBasemap() {
+  const map = window.NL_BASEMAP; if (!map) return;
+  const span = view.maxx - view.minx;
+  bctx.beginPath();
+  if (traceVectorRings(bctx, map.land)) {
+    bctx.fillStyle = '#0d222b'; bctx.globalAlpha = 1; bctx.fill('evenodd');
+  }
+  const waterFloor = span > 6 ? .012 : span > 2.5 ? .0012 : span > .8 ? .00012 : 0;
+  bctx.beginPath();
+  if (traceVectorRings(bctx, map.water, waterFloor)) {
+    bctx.fillStyle = '#081923'; bctx.globalAlpha = 1; bctx.fill('evenodd');
+  }
+  bctx.globalAlpha = 1;
+}
+
+function minimumVisibleRoadTier(span) {
+  if (span > 7) return 5;
+  if (span > 3.4) return 4;
+  if (span > 1.5) return 3;
+  if (span > .72) return 2;
+  return 0;
+}
+function roadPaint(pass, span) {
+  const close = span < .18, local = pass.max <= 1, major = pass.min >= 4;
+  const width = major ? (close ? 5.2 : span < .8 ? 3.5 : 2.15)
+    : local ? (close ? 2.15 : span < .48 ? 1.35 : .72)
+      : (close ? 3.25 : span < .8 ? 2.2 : 1.2);
+  return {
+    width,
+    color: major ? '#78939c' : local ? '#38515b' : '#506e78',
+    alpha: major ? .98 : local ? .72 : .88,
+  };
+}
+function traceRoadPass(ids, pass, minimumTier) {
+  bctx.beginPath(); let traced = 0;
+  for (const ei of ids) {
+    const e = DATA.edges[ei], raw = e[4] || 'road'; if (raw !== 'road' || !visible(edgeBounds[ei])) continue;
+    const tier = typeof roadTier === 'function' ? roadTier(ei) : 1;
+    if (tier < minimumTier || tier < pass.min || tier > pass.max) continue;
+    for (let i = 0; i < e[3].length; i++) { const q = project(e[3][i][0], e[3][i][1]); i ? bctx.lineTo(q[0], q[1]) : bctx.moveTo(q[0], q[1]); }
+    traced++;
+  }
+  return traced;
+}
+
 function renderBase() {
   bctx.clearRect(0, 0, base.clientWidth, base.clientHeight); bctx.lineJoin = 'round'; bctx.lineCap = 'round';
+  renderVectorBasemap();
   const ids = visibleEdgeIds();
-  // Draw minor roads first and major highways last. v0.14 can do this cheaply because
-  // every compact edge now carries its original NRN functional class metadata.
   const roadPasses = [
-    { min: 0, max: 1, width: .46, alpha: .34, color: '#29404d' },
-    { min: 2, max: 3, width: .72, alpha: .55, color: '#31515f' },
-    { min: 4, max: 5, width: 1.28, alpha: .82, color: '#466b7a' },
+    { min: 0, max: 1 },
+    { min: 2, max: 3 },
+    { min: 4, max: 5 },
   ];
+  const span = view.maxx - view.minx, minimumTier = minimumVisibleRoadTier(span);
   for (const pass of roadPasses) {
-    bctx.beginPath();
-    for (const ei of ids) {
-      const e = DATA.edges[ei], raw = e[4] || 'road'; if (raw !== 'road' || !visible(edgeBounds[ei])) continue;
-      const tier = typeof roadTier === 'function' ? roadTier(ei) : 1; if (tier < pass.min || tier > pass.max) continue;
-      for (let i = 0; i < e[3].length; i++) { const q = project(e[3][i][0], e[3][i][1]); i ? bctx.lineTo(q[0], q[1]) : bctx.moveTo(q[0], q[1]); }
-    }
-    bctx.strokeStyle = pass.color; bctx.globalAlpha = pass.alpha; bctx.lineWidth = pass.width; bctx.stroke();
+    const paint = roadPaint(pass, span); if (!traceRoadPass(ids, pass, minimumTier)) continue;
+    bctx.strokeStyle = '#07131b'; bctx.globalAlpha = .9; bctx.lineWidth = paint.width + 1.65; bctx.stroke();
+    traceRoadPass(ids, pass, minimumTier); bctx.strokeStyle = paint.color; bctx.globalAlpha = paint.alpha; bctx.lineWidth = paint.width; bctx.stroke();
   }
   for (const type of ['virtual', 'ferry']) {
     bctx.beginPath();
@@ -136,11 +191,12 @@ function renderCommunityLabels() {
   }
 }
 function drawSegment(ctx, s) {
-  const c = s.coords; if (!c || c.length < 2) return; ctx.beginPath();
-  for (let i = 0; i < c.length; i++) { const q = project(c[i][0], c[i][1]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }
+  const c = s.coords; if (!c || c.length < 2) return;
+  const trace = () => { ctx.beginPath(); for (let i = 0; i < c.length; i++) { const q = project(c[i][0], c[i][1]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); } };
   const verifiedRoad = s.type === 'road' || s.type === 'access';
-  ctx.strokeStyle = verifiedRoad ? '#61df97' : '#a4dfbd'; ctx.lineWidth = verifiedRoad ? 4.4 : 3.2;
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; if (!verifiedRoad) ctx.setLineDash([10, 7]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; if (!verifiedRoad) ctx.setLineDash([10, 7]);
+  trace(); ctx.strokeStyle = 'rgba(5,14,20,.9)'; ctx.lineWidth = verifiedRoad ? 7.4 : 6; ctx.stroke();
+  trace(); ctx.strokeStyle = verifiedRoad ? '#61df97' : '#a4dfbd'; ctx.lineWidth = verifiedRoad ? 4.8 : 3.4; ctx.stroke(); ctx.setLineDash([]);
 }
 function marker(p, label, kind) {
   if (!p) return; const q = project(p[0], p[1]);

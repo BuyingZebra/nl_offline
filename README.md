@@ -1,10 +1,12 @@
 # NL Offline
 
-NL Offline is a static, installable map for Newfoundland and Labrador that keeps its map, community, exact civic-address and routing data on the device. The v0.19 MVP is intentionally focused on dependable town-to-town, street and civic-address routing where cellular service is unavailable.
+NL Offline is a static, installable vector map for Newfoundland and Labrador that keeps its map, community, exact civic-address and routing data on the device. The v0.20 MVP is intentionally focused on dependable town-to-town, street and civic-address routing where cellular service is unavailable.
 
-## What v0.19 does
+## What v0.20 does
 
-- Browses the packaged NL road network without a connection.
+- Browses a packaged NL vector basemap with land, major water bodies and roads without a connection.
+- Uses the same full-detail NRN LineStrings for road display, address snapping, routing and maneuver guidance.
+- Expands routed-road geometry from 112,313 to 319,387 points while keeping every stable graph edge identifier.
 - Routes between 927 official community entries: 922 road-mapped and 5 remote/special entries.
 - Resolves 181,766 exact NL civic addresses covering 8,323 named streets and 459 localities from the Statistics Canada National Address Register (June 2026).
 - Accepts a full civic address or an unambiguous street-only destination, with punctuation-tolerant partial suggestions.
@@ -59,11 +61,14 @@ Service-worker and phone-GPS behaviour require HTTPS (localhost is treated as se
 ## Project layout
 
 - `index.html`, `core.js`, `map.js`, `route-*.js`, `guidance.js`, `gps.js`: application, route guidance and navigation UI.
-- `data.js`, `ferry.js`: compact community matrices and road/ferry network.
+- `data.js`, `ferry.js`: compact community matrices and shared high-detail road/ferry network.
+- `basemap.js`: generated CanVec land and major-water vector layer.
 - `roadmeta*.js`, `routing.js`: NRN road classes, route names and local route-cost model.
 - `addresspoints.js`: generated compact NL National Address Register index.
 - `addressmeta*.js`, `addresses.js`: fallback civic ranges, exact resolver, suggestions and street labels.
-- `tools/build-nar-address-index.mjs`: reproducible compiler for the federal NL address/location CSV files.
+- `tools/build-nrn-road-geometry.py`: reproducible full-geometry NRN road compiler that preserves stable graph identifiers.
+- `tools/build-canvec-basemap.py`: reproducible compact CanVec land/water vector compiler.
+- `tools/build-nar-address-index.mjs`: reproducible compiler for the federal NL address/location CSV files and road snaps.
 - `sw.js`, `pwa.js`, `manifest.webmanifest`: install/offline lifecycle.
 - `build-info.json`: release scope and dataset counts.
 - `tests/`: route-direction, connectivity, address and package regressions.
