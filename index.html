@@ -180,7 +180,7 @@ input[type=range].effect-slider::-moz-range-thumb{
 <script>
 'use strict';
 // Release identifier displayed continuously in the compact console header.
-const APP_VERSION='0.29';
+const APP_VERSION='0.30';
 const PLACES=[
   {name:'Carbonear',region:'Conception Bay North',lng:-53.2270,lat:47.7350,zoom:14.2},
   {name:'Harbour Grace',region:'Conception Bay North',lng:-53.2110,lat:47.6925,zoom:13.8},
@@ -538,17 +538,11 @@ try{
 function zoomBy(step){if(isReal()){const z=Math.min(19,Math.max(MAP_MIN_ZOOM,state.map.getZoom()+step));state.map.easeTo({zoom:z,duration:450,essential:true});}else{state.zoom=Math.min(18.5,Math.max(10,state.zoom+step));drawFallback();updateReadout()}}
 function viewPlace(p){
  state.center=p;cancelPinPlacement();state.route=null;
- // Government municipal reference points aren't always in the town centre.
- // Keep the six previously established useful map viewpoints for those
- // exact communities when they are close to the authoritative place point.
- // All other places use their own individually verified CGNDB coordinates.
- const existingView=PLACES.find(q=>searchKey(q.name)===searchKey(p.name)&&
-  Number(distanceKm(p,q))<25);
- const target=existingView||p;
+ // OSM entries use the map's own place-node anchor. Official-only fallback
+ // records use their original georeferenced point, not a guessed viewpoint.
  if(isReal()){
-  // easeTo never performs flyTo's distance-dependent zoom-out arc.
-  // Preserve the user's zoom, bearing and pitch during community browsing.
-  state.map.easeTo({center:[target.lng,target.lat],duration:650,essential:true});
+  // Preserve zoom, bearing and tilt; do not trigger flyTo zoom-out.
+  state.map.easeTo({center:[p.lng,p.lat],duration:650,essential:true});
  }else{
   state.panX=0;state.panY=0;state.zoom=p.zoom||state.zoom;
   drawFallback();
@@ -649,8 +643,8 @@ function placeSearchMatches(query,all=officialPlaces.length?officialPlaces:PLACE
   .sort((a,b)=>{
    const ak=searchKey(a.name),bk=searchKey(b.name);
    const score=n=>n===key?0:n.startsWith(key)?1:2;
-   return score(ak)-score(bk)||(a.historic?1:0)-(b.historic?1:0)
-      ||a.name.localeCompare(b.name);
+   return score(ak)-score(bk)||(b.mapAnchor?1:0)-(a.mapAnchor?1:0)
+      ||(a.historic?1:0)-(b.historic?1:0)||a.name.localeCompare(b.name);
   }).slice(0,60);
 }
 function placeResults(q){
@@ -658,15 +652,15 @@ function placeResults(q){
  const indexed=officialPlaces.length>0;
  const intro=$('placeSearchInfo');
  if(intro)intro.textContent=indexed
-  ? officialPlaces.length+' OFFICIAL NL PLACES / '+(searchKey(q)?'MATCHING RESULTS':'SIX QUICK VIEWS / TYPE TO SEARCH ALL')
+  ? officialPlaces.length+' NL MAP PLACES / '+(searchKey(q)?'SEARCH RESULTS':'SIX QUICK VIEWS / TYPE TO SEARCH ALL')
   : placesIndexState==='loading'
    ? 'LOADING NL PLACE INDEX / SIX SHORTCUTS AVAILABLE'
    : 'PLACE INDEX UNAVAILABLE / SIX SHORTCUTS ONLY';
  list.innerHTML=results.length?results.map((p,i)=>{
-  const context=[p.kind||'',p.region&&searchKey(p.region)!==searchKey(p.name)?p.region:'']
-    .filter(Boolean).join(' / ');
+  const area=p.region&&searchKey(p.region)!==searchKey(p.name)
+   ? p.region:'Newfoundland and Labrador';
   return `<button data-place="${i}"><span>${esc(p.name)}</span>
-  <small>${esc(context||'Newfoundland and Labrador')}${p.historic?' · HISTORIC':''} ↗</small></button>`;
+  <small>${esc(area)} ↗</small></button>`;
  }).join(''):'<p class="sheetText">No matching settlement. Try another spelling or community name.</p>';
  list.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const p=results[Number(b.dataset.place)];if(p)viewPlace(p);
@@ -678,11 +672,11 @@ function openSearch(){
  <input id="placeQuery" type="search" autocomplete="off"
   placeholder="Search any NL community…" aria-label="Search communities"/>
  <div id="placesList" class="list"></div>
- <p class="sheetText">Official geographical-name points may represent municipal areas rather than town centres. This is not address search or driving directions.</p>`);
+ <p class="sheetText">Map labels use OpenStreetMap place points; additional names use official geographical reference points. This is not address search or driving directions.</p>`);
  $('placeQuery').addEventListener('input',e=>placeResults(e.target.value));
  placeResults('');$('placeQuery').focus();
 }
-const PLACES_CACHE_KEY='fieldAtlasPlaceIndexV029';
+const PLACES_CACHE_KEY='fieldAtlasPlaceIndexV030';
 function validCommunityIndex(places){
  return Array.isArray(places)&&places.length>=1300&&places.every(p=>
   p&&typeof p.name==='string'&&typeof p.id==='string'&&
