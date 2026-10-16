@@ -19,7 +19,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><div id="mapgrid"></div></div>
+  <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><div id="mapgrid" class="off"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
   <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch between green and dark maps" aria-label="Toggle theme">◐</button></header>
   <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
@@ -43,7 +43,7 @@ const PLACES=[
   {name:'Heart’s Content',region:'Trinity Bay',lng:-53.3680,lat:47.8670,zoom:13.8},
   {name:'St. John’s',region:'Avalon Peninsula',lng:-52.7130,lat:47.5620,zoom:12.8},
 ];
-const $=id=>document.getElementById(id); const state={theme:'green',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showGrid:true,pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
+const $=id=>document.getElementById(id); const state={theme:'green',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showGrid:false,pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
 try{state.saved=JSON.parse(localStorage.getItem('fieldAtlasPinsV02')||'[]');if(!Array.isArray(state.saved))state.saved=[];}catch(e){state.saved=[];}
 function isReal(){return !!(state.real&&state.map)}
 function status(message,warning=false){$('statusMessage').textContent=message;$('status').dataset.type=warning?'warning':'ok';$('modeText').textContent=state.real?'LIVE OPENSTREETMAP / ONLINE':'INTERACTIVE DEMO / NOT GEOGRAPHIC'}
