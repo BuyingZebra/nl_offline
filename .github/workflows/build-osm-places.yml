@@ -1,0 +1,39 @@
+name: Build map-label place index
+on:
+  push:
+    branches: ['feature/osm-labelled-search-v0-30']
+    paths:
+      - 'tools/merge-osm-map-places.py'
+      - '.github/workflows/build-osm-places.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  map-places:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install fast OSM PBF streaming reader
+        run: pip install osmium
+      - name: Download NL OpenStreetMap extract
+        run: |
+          curl --fail --location --retry 3 --show-error \
+            --output /tmp/nl-latest.osm.pbf \
+            https://download.geofabrik.de/north-america/canada/newfoundland-and-labrador-latest.osm.pbf
+          test "$(stat -c %s /tmp/nl-latest.osm.pbf)" -gt 100000000
+      - name: Merge all map-label community nodes with NRCan fallback
+        run: python tools/merge-osm-map-places.py /tmp/nl-latest.osm.pbf
+      - name: Commit validated index back to development branch
+        run: |
+          git add data/nl-places.json
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name="field-atlas-builder[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "data(search): use OSM label anchors for NL town index [skip ci]"
+          git push origin HEAD:feature/osm-labelled-search-v0-30
