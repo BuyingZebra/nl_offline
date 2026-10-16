@@ -122,6 +122,21 @@ input[type=range].effect-slider::-moz-range-thumb{
  pointer-events:none;will-change:transform}
 #compassNeedle .compass-n{font-size:9px;line-height:13px;letter-spacing:.07em}
 #compassNeedle .compass-pointer{font-size:26px;line-height:30px}#crosshair{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);pointer-events:none;color:var(--accent);font-size:29px;opacity:.6}#pinMarker{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-95%);pointer-events:none;font-size:28px;color:var(--accent);display:none}
+#pinTray{position:absolute;z-index:6;bottom:var(--pin-tray-bottom,200px);
+ left:10px;right:10px;display:none;flex-direction:column;gap:8px;
+ padding:11px;background:var(--surface-map-overlay);border:1px solid var(--line);
+ border-radius:10px;backdrop-filter:blur(12px)}
+#pinTray.open{display:flex}
+#pinTrayTitle{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#pinTrayTitle b{font-size:11px}
+#pinCoordinates{font-size:9px;color:var(--weak);font-variant-numeric:tabular-nums;text-align:right}
+#pinActions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#pinActions button{font-size:10px;padding:7px 3px;white-space:nowrap}
+.saved-row{display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:stretch}
+.saved-row button:first-child{text-align:left;display:flex;flex-direction:column;align-items:stretch;gap:3px}
+.saved-row button small{font-size:9px;color:var(--weak);font-weight:400}
+.saved-row button:last-child{font-size:12px;padding:0}
+@media (orientation:landscape) and (max-height:550px){#pinTray{left:270px;right:10px;bottom:12px}}
 #footer{bottom:calc(env(safe-area-inset-bottom,0px) + 10px);left:10px;right:10px;padding:11px}#readout{display:grid;grid-template-columns:1fr 1fr 65px;gap:10px}#readout small{display:block;font-size:9px;color:var(--weak);letter-spacing:.13em}#readout b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:5px}#nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:11px}#nav button{font-size:10px;padding:7px 3px;white-space:nowrap}#footnote{border-top:1px solid var(--line);margin-top:10px;padding-top:9px;color:var(--weak);font-size:9px;display:flex;justify-content:space-between;gap:8px}
 #toast{position:absolute;z-index:8;left:10px;right:10px;bottom:207px;text-align:center;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:7px;padding:10px;color:var(--accent);font-size:11px;display:none}#toast.show{display:block}#sheetShade{position:absolute;z-index:10;inset:0;background:rgba(0,0,0,.64);display:none;align-items:flex-end;padding:10px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}#sheetShade.open{display:flex}#sheet{width:100%;max-height:76vh;overflow:auto;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:12px;padding:15px;box-shadow:0 -7px 35px #0008}#sheethead{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px}#sheetTitle{font-weight:800;letter-spacing:.1em;font-size:14px}#sheetClose{font-size:19px;min-width:43px;min-height:43px;padding:0}.sheetText{color:var(--weak);font-size:11px;line-height:1.6}.line{height:1px;background:var(--line);margin:12px 0}.field{display:block;margin:10px 0 4px;color:var(--weak);font-size:10px;letter-spacing:.1em}input,select{width:100%;background:var(--panel);color:var(--accent);border:1px solid var(--line);padding:12px;border-radius:7px;min-height:44px}.list{display:grid;gap:6px;margin-top:10px}.list button{text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.list button small{font-size:9px;color:var(--weak);font-weight:400}.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);width:100%;margin-top:12px}.setting{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.setting b{font-size:11px}.setting button{min-width:85px}.warning{color:#ffd18b}.hint{font-size:10px;color:var(--weak)}
 @media (orientation:landscape) and (max-height:550px){#app{max-width:100%}#head{top:7px;left:8px;right:auto;width:245px;padding:6px 10px;min-height:50px}#wordmark b{font-size:13px}#wordmark small{font-size:8px}#status{top:62px;left:8px;right:auto;width:245px;font-size:8px}#footer{left:8px;right:auto;width:245px;bottom:7px;padding:8px}#controls{right:7px;top:7px;gap:6px;flex-direction:row}#controls button{width:43px;height:43px}#compass{display:none}#nav{grid-template-columns:repeat(2,1fr);margin-top:7px}#nav button{min-height:35px}#readout{gap:5px}#footnote{margin-top:5px;padding-top:5px;font-size:8px}#toast{left:270px;right:10px;bottom:12px}#sheetShade{align-items:center;justify-content:flex-end}#sheet{width:min(410px,65vw);max-height:94vh}}
@@ -137,6 +152,10 @@ input[type=range].effect-slider::-moz-range-thumb{
   <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
   <button class="overlay" id="compass" type="button" aria-label="Reset map rotation to north" title="Reset map rotation to north"><span id="compassNeedle" aria-hidden="true"><span class="compass-n">N</span><span class="compass-pointer">▲</span></span></button>
   <div class="overlay" id="controls"><button id="plus" aria-label="Zoom in">+</button><button id="minus" aria-label="Zoom out">−</button><button id="gps" title="Use phone GPS" aria-label="My location">◎</button><button id="home" title="Return to Carbonear" aria-label="Home">⌂</button></div>
+  <div id="pinTray" role="region" aria-label="Place map pin">
+   <div id="pinTrayTitle"><b>⌖ PLACE PIN / MAP CENTRE</b><span id="pinCoordinates">—</span></div>
+   <div id="pinActions"><button id="pinSave">SAVE PIN</button><button id="pinSaved">SAVED (0)</button><button id="pinCancel">CANCEL</button></div>
+  </div>
   <div class="overlay panel" id="footer">
     <div id="readout"><div><small>LATITUDE</small><b id="latitude">—</b></div><div><small>LONGITUDE</small><b id="longitude">—</b></div><div><small>ZOOM</small><b id="zoomvalue">14.2</b></div></div>
     <div id="nav"><button id="searchBtn">⌕ SEARCH</button><button id="routeBtn">↗ ROUTE</button><button id="pinBtn">⌖ PIN</button><button id="menuBtn">☷ MENU</button></div>
@@ -161,7 +180,14 @@ const $=id=>document.getElementById(id); const state={theme:'green',real:false,m
  screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
  mapTop:{enabled:true,length:110},mapBottom:{enabled:false,length:100}
 },effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
-try{state.saved=JSON.parse(localStorage.getItem('fieldAtlasPinsV02')||'[]');if(!Array.isArray(state.saved))state.saved=[];}catch(e){state.saved=[];}
+try{
+ state.saved=JSON.parse(localStorage.getItem('fieldAtlasPinsV02')||'[]');
+ if(!Array.isArray(state.saved))state.saved=[];
+ state.saved=state.saved.filter(p=>p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&
+  Math.abs(p.lat)<=85.051129&&Math.abs(p.lng)<=180)
+  .map((p,i)=>({name:typeof p.name==='string'&&p.name.trim()?p.name.slice(0,70):'PIN '+(i+1),
+   lat:p.lat,lng:p.lng}));
+}catch(e){state.saved=[];}
 try{
  const saved=JSON.parse(localStorage.getItem('fieldAtlasEffectsV06')||'null');
  const previous=JSON.parse(localStorage.getItem('fieldAtlasEffectsV05')||'null');
@@ -219,6 +245,8 @@ function applyEffects(){
  root.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
  root.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
  if(isReal()){
+  if(state.map.getLayer('saved-pin-glow'))
+   state.map.setPaintProperty('saved-pin-glow','circle-opacity',+(k*.3).toFixed(3));
   for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow','stream-glow','route-glow']){
    if(state.map.getLayer(id)){
     const factor=id==='stream-glow'?.5:id==='route-glow'?.95:1;
@@ -247,6 +275,11 @@ function positionMapTools(){
  if(!status||!app)return;
  const top=Math.max(128,Math.ceil(status.getBoundingClientRect().bottom-app.getBoundingClientRect().top+14));
  app.style.setProperty('--map-tools-top',top+'px');
+ const footer=$('footer');
+ if(footer){
+  const footerTop=footer.getBoundingClientRect().top-app.getBoundingClientRect().top;
+  app.style.setProperty('--pin-tray-bottom',Math.max(12,Math.ceil(app.clientHeight-footerTop+10))+'px');
+ }
  // Gradient extent is controlled solely by the four length sliders.
 }
 function status(message,warning=false){$('statusMessage').textContent=message;$('status').dataset.type=warning?'warning':'ok';$('modeText').textContent=state.real?'LIVE OPENSTREETMAP / ONLINE':'INTERACTIVE DEMO / NOT GEOGRAPHIC';positionMapTools()}
@@ -373,6 +406,7 @@ function updateReadout(){
   $('longitude').textContent=fmt(c.lng,'lng');
   $('zoomvalue').textContent=state.map.getZoom().toFixed(1);
   setCompassBearing(state.map.getBearing());
+  if(state.pin)updatePinPlacement();
   updateViewEffects();
  }else{
   $('latitude').textContent='DEMO';
@@ -442,11 +476,86 @@ try{
  }
 }catch(e){}
 function zoomBy(step){if(isReal()){const z=Math.min(19,Math.max(MAP_MIN_ZOOM,state.map.getZoom()+step));state.map.easeTo({zoom:z,duration:450,essential:true});}else{state.zoom=Math.min(18.5,Math.max(10,state.zoom+step));drawFallback();updateReadout()}}
-function viewPlace(p){state.center=p;state.pin=false;state.pinAt=null;$('pinMarker').style.display='none';state.route=null;if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:Math.max(MAP_MIN_ZOOM,p.zoom),speed:1.6});else{state.panX=0;state.panY=0;state.zoom=p.zoom;drawFallback();toast('Illustrative map only — live map required to view '+p.name);}updateReadout();closeSheet()}
+function viewPlace(p){state.center=p;cancelPinPlacement();state.route=null;if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:Math.max(MAP_MIN_ZOOM,p.zoom),speed:1.6});else{state.panX=0;state.panY=0;state.zoom=p.zoom;drawFallback();toast('Illustrative map only — live map required to view '+p.name);}updateReadout();closeSheet()}
 function getGPS(){if(!navigator.geolocation){toast('GPS is unavailable in this browser.');return}toast('Requesting location permission…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude,longitude,accuracy}=pos.coords;state.gpsLocation={latitude,longitude};$('gpsText').textContent='GPS ● '+Math.round(accuracy)+'m';if(isReal())state.map.flyTo({center:[longitude,latitude],zoom:15});else toast('GPS coordinates acquired; demo map cannot position them geographically.');},e=>toast('GPS unavailable: '+e.message),{enableHighAccuracy:true,timeout:15000,maximumAge:30000})}
-function togglePin(){state.pin=!state.pin;$('pinMarker').style.display=state.pin?'block':'none';state.pinAt=isReal()?state.map.getCenter():null;if(state.pin){toast('CENTRE PIN SELECTED');openPin()}else toast('PIN CLEARED')}
-function openPin(){openSheet('PIN / MAP CENTRE',`<p class="sheetText">${isReal()?'Pin will be stored at the geographic centre of the visible map.':'This is a design fallback: no geographic point can be saved until the live map loads.'}</p><button class="primary" id="savePin" ${!isReal()?'disabled':''}>SAVE MAP CENTRE</button>`);$('savePin').addEventListener('click',()=>{if(!isReal())return;const c=state.map.getCenter();const item={name:'Saved point '+(state.saved.length+1),lat:c.lat,lng:c.lng};state.saved.push(item);try{localStorage.setItem('fieldAtlasPinsV02',JSON.stringify(state.saved))}catch(e){}closeSheet();toast('PIN SAVED TO THIS BROWSER')})}
-function openSheet(title,html){$('sheetTitle').textContent=title;$('sheetContent').innerHTML=html;$('sheetShade').classList.add('open')}
+// Geographic bookmarks: placing a pin never requests GPS.
+function pinFeatures(){
+ return {type:'FeatureCollection',features:state.saved.map((p,i)=>({
+  type:'Feature',properties:{pinIndex:i,name:p.name},
+  geometry:{type:'Point',coordinates:[p.lng,p.lat]}
+ }))};
+}
+function setSavedPinsGeoJSON(){
+ if(!isReal()||!state.map.isStyleLoaded())return;
+ const source=state.map.getSource('saved-pins');
+ if(source)source.setData(pinFeatures());
+}
+function persistSavedPins(){
+ try{localStorage.setItem('fieldAtlasPinsV02',JSON.stringify(state.saved))}catch(e){}
+ setSavedPinsGeoJSON();updatePinPlacement();
+}
+function updatePinPlacement(){
+ $('pinSaved').textContent='SAVED ('+state.saved.length+')';
+ $('pinSave').disabled=!isReal();
+ if(isReal()&&state.pin){
+  const c=state.map.getCenter();
+  $('pinCoordinates').textContent=fmt(c.lat,'lat')+' / '+fmt(c.lng,'lng');
+ }else $('pinCoordinates').textContent='—';
+}
+function cancelPinPlacement(){
+ state.pin=false;state.pinAt=null;
+ $('pinMarker').style.display='none';
+ $('pinTray').classList.remove('open');
+}
+function togglePin(){
+ if(state.pin){cancelPinPlacement();return}
+ state.pin=true;$('pinMarker').style.display='block';
+ $('pinTray').classList.add('open');updatePinPlacement();
+ if(!isReal())toast('Geographic pins require live map data.');
+}
+function savePin(){
+ if(!state.pin||!isReal())return;
+ const c=state.map.getCenter();
+ let n=state.saved.length+1;
+ while(state.saved.some(p=>p.name==='PIN '+String(n).padStart(2,'0')))n++;
+ const item={name:'PIN '+String(n).padStart(2,'0'),lat:c.lat,lng:c.lng};
+ state.saved.push(item);persistSavedPins();cancelPinPlacement();
+ toast(item.name+' SAVED / ON MAP');
+}
+function openPinDetail(index){
+ const p=state.saved[index];
+ if(!p)return openSaved();
+ openSheet('SAVED PIN / '+p.name,`<p class="sheetText">A geographic bookmark. GPS is not required.</p>
+ <label class="field" for="savedPinName">PIN NAME</label>
+ <input id="savedPinName" maxlength="70" value="${esc(p.name)}">
+ <p class="sheetText">${fmt(p.lat,'lat')} / ${fmt(p.lng,'lng')}</p>
+ <button id="showSavedPin" class="primary">VIEW ON MAP</button>
+ <button id="renameSavedPin" style="width:100%;margin-top:7px">SAVE NAME</button>
+ <button id="deleteSavedPin" style="width:100%;margin-top:7px">DELETE PIN</button>
+ <button id="backToPins" style="width:100%;margin-top:7px">← SAVED PINS</button>`);
+ $('showSavedPin').onclick=()=>{
+  closeSheet();
+  if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:Math.max(14,state.map.getZoom()),speed:1.4});
+  else toast('Live geographic map unavailable.');
+ };
+ $('renameSavedPin').onclick=()=>{
+  const name=$('savedPinName').value.trim().slice(0,70);
+  if(!name){toast('ENTER A PIN NAME');return}
+  p.name=name;persistSavedPins();openPinDetail(index);
+ };
+ let pendingDelete=false;
+ $('deleteSavedPin').onclick=()=>{
+  if(!pendingDelete){
+   pendingDelete=true;$('deleteSavedPin').textContent='CONFIRM DELETE PIN';return;
+  }
+  state.saved.splice(index,1);persistSavedPins();openSaved();
+ };
+ $('backToPins').onclick=openSaved;
+}
+$('pinSave').addEventListener('click',savePin);
+$('pinSaved').addEventListener('click',()=>{cancelPinPlacement();openSaved()});
+$('pinCancel').addEventListener('click',cancelPinPlacement);
+function openSheet(title,html){if(state.pin)cancelPinPlacement();$('sheetTitle').textContent=title;$('sheetContent').innerHTML=html;$('sheetShade').classList.add('open')}
 function closeSheet(){$('sheetShade').classList.remove('open')}
 function placeResults(q){const results=PLACES.filter(p=>(p.name+' '+p.region).toLowerCase().includes(q.toLowerCase()));$('placesList').innerHTML=results.length?results.map(p=>`<button data-place="${PLACES.indexOf(p)}"><span>${esc(p.name)}</span><small>${esc(p.region)} ↗</small></button>`).join(''):'<p class="sheetText">No matching preset. Street/address search is not in this prototype.</p>'; $('placesList').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>viewPlace(PLACES[Number(b.dataset.place)])))}
 function openSearch(){openSheet('SEARCH / COMMUNITIES',`<p class="sheetText">Search six community shortcuts. These are viewpoints, not civic-address search or road routing.</p><input id="placeQuery" type="search" autocomplete="off" placeholder="Search Carbonear, Bay Roberts…" aria-label="Search communities"/><div id="placesList" class="list"></div>`);$('placeQuery').addEventListener('input',e=>placeResults(e.target.value));placeResults('');$('placeQuery').focus()}
@@ -467,7 +576,6 @@ function openMenu(){
  <p class="sheetText">Screen fades are fixed black overlays. Map fades follow the geographical north and south boundaries, transitioning from the map background to transparency. Lengths are fixed in pixels and never depend on zoom.</p>
  <div class="line"></div>${effectMarkup()}
  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
- <div class="line"></div><button id="savedSetting" style="width:100%">SAVED PINS (${state.saved.length})</button>
  <p class="sheetText warning">The browser preview still streams vector tiles online; this is not an offline navigation app yet.</p>`);
  $('themeSetting').onclick=()=>{theme();openMenu()};
  $('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
@@ -503,9 +611,26 @@ function openMenu(){
  $('resetEffects').onclick=()=>{state.effects={glow:65,scanlines:26,vignette:30};
    try{localStorage.setItem('fieldAtlasEffectsV06',JSON.stringify(state.effects))}catch(e){}
    applyEffects();openMenu();};
- $('savedSetting').onclick=openSaved;
 }
-function openSaved(){openSheet('SAVED MAP POINTS',`<p class="sheetText">These points are stored only in this browser.</p><div id="savedList" class="list"></div><button id="clearPins" style="width:100%;margin-top:12px" ${!state.saved.length?'disabled':''}>CLEAR SAVED PINS</button>`);const list=$('savedList');list.innerHTML=state.saved.length?state.saved.map((p,i)=>`<button data-id="${i}"><span>${esc(p.name)}</span><small>${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</small></button>`).join(''):'<p class="sheetText">No saved pins yet. Use PIN while the real map is visible.</p>';list.querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=state.saved[Number(b.dataset.id)];closeSheet();if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:16})});$('clearPins').onclick=()=>{state.saved=[];try{localStorage.setItem('fieldAtlasPinsV02','[]')}catch(e){}openSaved()}}
+function openSaved(){
+ openSheet('SAVED PINS',`<p class="sheetText">Geographic bookmarks stored on this phone. Tap a pin to view or rename it.</p>
+ <div id="savedList" class="list"></div>
+ <button id="newMapPin" class="primary">⌖ PLACE NEW PIN</button>`);
+ const list=$('savedList');
+ list.innerHTML=state.saved.length?state.saved.map((p,i)=>
+  `<div class="saved-row">
+   <button data-id="${i}"><span>${esc(p.name)}</span>
+    <small>${fmt(p.lat,'lat')} / ${fmt(p.lng,'lng')}</small>
+   </button><button data-go="${i}" aria-label="View ${esc(p.name)} on map">↗</button></div>`
+ ).join(''):'<p class="sheetText">No saved pins yet. Choose PLACE NEW PIN.</p>';
+ list.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>openPinDetail(Number(b.dataset.id)));
+ list.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{
+  const p=state.saved[Number(b.dataset.go)];closeSheet();
+  if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:Math.max(14,state.map.getZoom()),speed:1.4});
+  else toast('Live geographic map unavailable.');
+ });
+ $('newMapPin').onclick=()=>{closeSheet();togglePin()};
+}
 // Interactive fallback is intentionally SCHEMATIC. It is never presented as Newfoundland geography.
 const canvas=$('fallback'),ctx=canvas.getContext('2d');let fW=390,fH=740,drag=null;
 const roads=[{width:6,points:[[-60,620],[40,530],[90,460],[155,394],[223,310],[275,234],[354,115],[465,40]]},{width:3.3,points:[[-90,165],[60,207],[184,177],[300,171],[480,187]]},{width:3.2,points:[[38,-70],[76,70],[112,143],[145,390],[175,800]]},{width:3.1,points:[[-70,345],[90,340],[183,357],[286,386],[490,385]]},{width:3.1,points:[[-60,465],[102,508],[184,517],[288,539],[450,558]]},{width:3.3,points:[[250,-40],[233,117],[274,233],[288,386],[277,800]]},{width:1.8,points:[[0,285],[75,261],[167,275],[274,233]]},{width:1.8,points:[[90,340],[94,263]]},{width:1.8,points:[[183,177],[206,330]]},{width:1.8,points:[[0,424],[102,508]]},{width:1.8,points:[[183,357],[184,517]]},{width:1.8,points:[[285,386],[337,290]]},{width:1.8,points:[[285,539],[341,466]]},{width:1.8,points:[[175,648],[279,646]]}];const buildings=[];for(let row=0;row<14;row++){for(let col=0;col<8;col++){const x=20+col*47+(row%2)*10,y=115+row*42+(col%3)*4;const skip=roads.some(r=>r.points.some(p=>Math.hypot(p[0]-x,p[1]-y)<17));if(!skip){const k=(col*17+row*11)%7;buildings.push({x,y,w:14+k*2.1,h:10+((col*5+row*7)%12),rot:((row+col)%5-2)*0.065})}}}
@@ -575,7 +700,8 @@ function makeStyle(){
     glyphs:'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources:{
       osm:{type:'vector',url:'https://tiles.openfreemap.org/planet'},
-      'route-preview':{type:'geojson',data:{type:'FeatureCollection',features:[]}}
+      'route-preview':{type:'geojson',data:{type:'FeatureCollection',features:[]}},
+      'saved-pins':{type:'geojson',data:pinFeatures()}
     },
     layers:[
       {id:'background',type:'background',paint:{'background-color':p.bg}},
@@ -626,6 +752,17 @@ function makeStyle(){
           'line-opacity':+(opacity*.95).toFixed(3),'line-dasharray':[2,2]}},
       {id:'route',type:'line',source:'route-preview',
         layout:join,paint:{'line-color':p.route,'line-width':3.5,'line-opacity':0.98,'line-dasharray':[2,2]}},
+      {id:'saved-pin-glow',type:'circle',source:'saved-pins',
+        paint:{'circle-color':p.route,'circle-radius':12,'circle-blur':.8,
+          'circle-opacity':+(glowLevel*.3).toFixed(3)}},
+      {id:'saved-pin-points',type:'circle',source:'saved-pins',
+        paint:{'circle-color':p.route,'circle-radius':6,'circle-stroke-width':2,
+          'circle-stroke-color':p.bg}},
+      {id:'saved-pin-labels',type:'symbol',source:'saved-pins',
+        layout:{'text-font':['Noto Sans Regular'],'text-field':['get','name'],
+          'text-size':10,'text-offset':[0,1.65],'text-anchor':'top',
+          'text-allow-overlap':false},
+        paint:{'text-color':p.route,'text-halo-color':p.bg,'text-halo-width':1.5}},
       {id:'street-labels',type:'symbol',source:src,'source-layer':'transportation_name',minzoom:13,
         layout:{'symbol-placement':'line','text-font':['Noto Sans Regular'],
           'text-field':namedRoad,'text-size':['interpolate',['linear'],['zoom'],13,8.8,16,10.5,19,11.8],
@@ -643,14 +780,20 @@ function makeStyle(){
 function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,minZoom:MAP_MIN_ZOOM,maxZoom:19,pitch:0,renderWorldCopies:true,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
 // Mercator intentionally remains flat. Native world copies repeat east/west.
 // Only reload route/glow when a theme changes; don't alter camera from this hook.
-m.on('style.load',()=>{if(state.real){setRouteGeoJSON();applyEffects();}});
+m.on('style.load',()=>{if(state.real){setRouteGeoJSON();setSavedPinsGeoJSON();applyEffects();}});
 
 m.on('styleimagemissing',e=>{
  const expected='water-grid-'+state.theme;
  if(e.id===expected&&!m.hasImage(expected))
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
-m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
+m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();setSavedPinsGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});
+m.on('click','saved-pin-points',event=>{
+ if(state.pin)return;
+ const n=Number(event.features?.[0]?.properties?.pinIndex);
+ if(Number.isInteger(n)&&n>=0&&n<state.saved.length)openPinDetail(n);
+});
+m.on('move',updateReadout);m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
 // MapLibre GL JS v5 retains a browser-compatible UMD build and supports globe.
 // v6's dist/maplibre-gl.js does not exist (v6 is ESM-only); never reference it.
 // Try the original working CDN, with a second host if it is blocked on mobile.
