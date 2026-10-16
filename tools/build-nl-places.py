@@ -9,6 +9,8 @@ import csv
 import io
 import json
 import pathlib
+import re
+import unicodedata
 import urllib.request
 import zipfile
 from collections import Counter
@@ -41,7 +43,10 @@ def build(raw: bytes):
     places = []
     seen = set()
     for record in rows:
-        if record["Generic Category"] != "Populated Place":
+        # Natuashish is an active Innu community, but the federal file
+        # classifies its official community point ACJUH as SITE, not
+        # "Populated Place". Include this documented exception.
+        if record["Generic Category"] != "Populated Place" and record["CGNDB ID"] != "ACJUH":
             continue
         name = record["Geographical Name"].strip()
         key = record["CGNDB ID"].strip()
@@ -59,6 +64,8 @@ def build(raw: bytes):
         is_seasonal = "Vacated" in term or "Seasonal" in term
         # Label relevant neighbourhoods/localities honestly, rather than
         # implying that each entry is an incorporated municipality.
+        if key == "ACJUH":
+            kind = "Indigenous community"
         if code == "UNP":
             if term in {"Neighbourhood", "Neighborhood"}:
                 kind = "Neighbourhood"
@@ -80,10 +87,13 @@ def build(raw: bytes):
         seen.add(key)
     if not 1300 <= len(places) <= 2500:
         raise ValueError(f"Unexpected populated-place count: {len(places)}")
-    names = {p["name"].casefold() for p in places}
-    # Federal spelling may differ from the earlier route app, but major
-    # communities must exist before we ever publish a new index.
-    missing = [name for name in REFERENCE if name.casefold() not in names]
+    def normalized(text):
+        ascii_text = unicodedata.normalize("NFKD", text).casefold()
+        return re.sub(r"[^a-z0-9]", "", "".join(
+            c for c in ascii_text if not unicodedata.combining(c)))
+    names = {normalized(p["name"]) for p in places}
+    # Federal spelling sometimes has different punctuation in names.
+    missing = [name for name in REFERENCE if normalized(name) not in names]
     if missing:
         raise ValueError("Missing reference communities: " + ", ".join(missing))
     places.sort(key=lambda p: (p["name"].casefold(), p["region"].casefold(), p["id"]))
