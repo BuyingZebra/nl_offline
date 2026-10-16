@@ -86,7 +86,7 @@ export function MapScreen() {
     </>
   );
   return <View style={[styles.root,{backgroundColor:p.bg}]}>
-    <Map mapStyle={mapStyle} style={StyleSheet.absoluteFillObject}
+    <Map mapStyle={mapStyle} style={StyleSheet.absoluteFill}
       compass={false} logo={false} attribution attributionPosition={{bottom:pLayout.landscape?16:115,right:7}}
       onRegionDidChange={e=>{
         const state = e.nativeEvent;
@@ -157,7 +157,7 @@ export function MapScreen() {
     </View>
     {!!sheet && <View style={[styles.sheetShade,{paddingTop:inset.top+20,paddingBottom:Math.max(inset.bottom,12)+12}]}
       pointerEvents="box-none">
-      <Pressable onPress={()=>setSheet(null)} style={StyleSheet.absoluteFillObject} accessibilityLabel="Dismiss overlay" />
+      <Pressable onPress={()=>setSheet(null)} style={StyleSheet.absoluteFill} accessibilityLabel="Dismiss overlay" />
       <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} style={[styles.sheetPosition,{justifyContent:pLayout.landscape?'center':'flex-end'}]}>
         {sheet==='search' && <PlaceSearch theme={theme} onSelect={placeSelected} onClose={()=>setSheet(null)}/>}
         {sheet==='offline' && <OfflinePanel theme={theme} offline={offline} onClose={()=>setSheet(null)}/>}
@@ -175,7 +175,7 @@ export function MapScreen() {
 const styles=StyleSheet.create({
   root:{flex:1},edgeTop:{position:'absolute',top:0,left:0,right:0,borderTopWidth:2,opacity:.7},
   edgeBottom:{position:'absolute',bottom:0,left:0,right:0,borderBottomWidth:2,opacity:.7},
-  safeOverlay:{...StyleSheet.absoluteFillObject},
+  safeOverlay:{...StyleSheet.absoluteFill},
   header:{marginHorizontal:10,paddingVertical:9,paddingHorizontal:12,borderWidth:1,borderRadius:7,
     flexDirection:'row',alignItems:'center',gap:10},
   overline:{fontFamily:'monospace',fontSize:9,letterSpacing:1.6},
@@ -193,7 +193,7 @@ const styles=StyleSheet.create({
   status:{fontFamily:'monospace',fontSize:9,letterSpacing:.1},
   smallTitle:{fontFamily:'monospace',fontWeight:'700',fontSize:12},
   micro:{fontFamily:'monospace',fontSize:10},
-  sheetShade:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(2,8,5,.72)'},
+  sheetShade:{...StyleSheet.absoluteFill,backgroundColor:'rgba(2,8,5,.72)'},
   sheetPosition:{flex:1,alignItems:'center',paddingHorizontal:12},
   heading:{fontSize:18,fontFamily:'monospace',fontWeight:'800',marginBottom:10},
   infoText:{fontFamily:'monospace',fontSize:12,lineHeight:19,marginBottom:15},
