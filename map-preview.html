@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NL Map Data Inspector — FIELD ATLAS</title>
+<link href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+:root { color-scheme:dark; --bg:#091410;--line:#315e46;--fg:#d6f5df;--muted:#96b4a0;--surface:#12241a;--hi:#9bf1b9 }
+* {box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+main{height:100dvh;display:flex;overflow:hidden}
+aside{width:315px;flex:none;padding:20px 15px;overflow:auto;background:#102018;border-right:1px solid var(--line);z-index:1}
+h1{font-size:19px;margin:0 0 7px;letter-spacing:.02em}h2{font-size:12px;margin:22px 0 9px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+p{font-size:12px;line-height:1.5;color:var(--muted)}
+#map{flex:1;min-width:0;background:#0e2119}button,input{font:inherit}button{cursor:pointer;color:var(--fg);background:#163624;border:1px solid #3c7753;border-radius:7px;padding:9px;text-align:left}
+button:hover{background:#29593a}button:focus-visible,input:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+#places{display:grid;gap:6px;margin:8px 0 10px}#places button{font-size:13px}
+input[type=text]{width:100%;padding:11px;color:var(--fg);background:#08160f;border:1px solid var(--line);border-radius:7px}
+label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;accent-color:#a7e8c0}
+#results{max-height:170px;overflow-y:auto;margin:8px 0;display:grid;gap:3px}#results button{padding:7px;font-size:12px}
+#stats{font-size:12px;line-height:1.8;background:#092116;padding:10px;border-radius:7px;white-space:pre-line}
+#status{font-size:12px;line-height:1.4;padding:8px;color:#b9e6c8;min-height:45px}
+.maplibregl-control-container .maplibregl-ctrl-attrib{background:#12241a!important;color:#dae6dd!important}
+@media(max-width:720px){main{flex-direction:column}aside{order:2;width:100%;height:39dvh;border-right:0;border-top:1px solid var(--line);padding:12px 15px}#map{order:1;height:61dvh;flex:none}h1{font-size:15px}h2{margin:10px 0 6px}#places{grid-template-columns:1fr 1fr;margin:5px 0}#places button{font-size:12px;padding:6px}}
+</style></head><body><main>
+<aside>
+<h1>NL MAP DATA INSPECTOR</h1>
+<p>Actual vector data produced by our Newfoundland and Labrador GitHub build. Pan, zoom, search official communities, and toggle geographic layers.</p>
+<div id="status" role="status">Loading locally generated vector tiles…</div>
+<h2>Zoom to detailed sample</h2>
+<div id="places">
+<button data-place="Carbonear">Carbonear</button><button data-place="Twillingate">Twillingate</button>
+<button data-place="Baie Verte">Baie Verte</button><button data-place="St. John's">St. John's</button>
+<button id="island">Whole island</button>
+</div>
+<h2>Official community search</h2>
+<input id="search" type="text" placeholder="Try Wild Cove or Carbonear…" autocomplete="off">
+<div id="results"></div>
+<h2>Show / hide vector layers</h2>
+<label><input type="checkbox" data-group="roads" checked> Roads and paths</label>
+<label><input type="checkbox" data-group="buildings" checked> Building footprints</label>
+<label><input type="checkbox" data-group="terrain" checked> Forests, parks and land use</label>
+<label><input type="checkbox" data-group="water" checked> Water and rivers</label>
+<label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
+<h2>Coverage</h2><div id="stats">Inspecting generated tiles…</div>
+<p><strong>Important:</strong> Island-wide overview zooms are stored; more detailed zooms are sampled in four locations to keep the browser preview small. A blank or generalized area outside those samples does not necessarily mean the full 1.09 GB map lacks that detail. The government's road network remains in the separate GeoPackage, and this is not a navigation system.</p>
+<p>Map data © OpenStreetMap contributors (ODbL). Community locations © Natural Resources Canada. Online access is required for the MapLibre viewer library and label fonts; geographic tiles in this preview are ours.</p>
+</aside>
+<div id="map"></div>
+</main>
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script src="./map-preview-data.js"></script>
+<script>
+(function(){
+'use strict';
+const status = document.getElementById('status');
+const meta = window.NL_PREVIEW_META, tiles = window.NL_PREVIEW_TILES;
+if (!window.maplibregl || !meta || !tiles) {
+  status.textContent = 'Preview data is not ready. Run the GitHub “Build NL browser preview” workflow and check that map-preview-data.js exists.';
+  return;
+}
+if (!window.DecompressionStream) {
+  status.textContent = 'This preview requires a modern browser with DecompressionStream (current Edge, Chrome or Firefox).';
+  return;
+}
+const layers = {};
+maplibregl.addProtocol('nlpreview', async (req) => {
+  const match = req.url.match(/(\d+)\/(\d+)\/(\d+)(?:[?#].*)?$/);
+  if (!match) throw new Error('Bad tile URL ' + req.url);
+  const key = match.slice(1).join('/');
+  const b64 = tiles[key];
+  if (!b64) return {data: new Uint8Array(0)};
+  const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const decoded = raw[0] === 0x1f && raw[1] === 0x8b
+    ? await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+    : raw.buffer;
+  return {data:decoded};
+});
+const style = {version:8, name:'NL Data Inspector', glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources:{base:{type:'vector',tiles:['nlpreview://tiles/{z}/{x}/{y}'],minzoom:0,maxzoom:meta.baseZoom},
+           samples:{type:'vector',tiles:['nlpreview://tiles/{z}/{x}/{y}'],minzoom:meta.baseZoom+1,maxzoom:15}},
+  layers:[{id:'background',type:'background',paint:{'background-color':'#091710'}}]};
+const available = new Set(meta.sourceLayerNames || []);
+function add(group, sourceLayer, type, paint, options={}) {
+  if (!available.has(sourceLayer)) return;
+  for (const source of ['base','samples']) {
+    const id = [source, sourceLayer, type, group, Object.keys(layers).length].join('-');
+    const def={id,type,source,'source-layer':sourceLayer,paint};
+    if (source === 'samples') def.minzoom = meta.baseZoom+1;
+    if (options.layout) def.layout=options.layout;
+    if (options.filter) def.filter=options.filter;
+    if (options.minzoom !== undefined) def.minzoom = Math.max(def.minzoom || 0, options.minzoom);
+    style.layers.push(def);
+    (layers[group] ||= []).push(id);
+  }
+}
+add('terrain','landcover','fill',{'fill-color':'#214631','fill-opacity':.58});
+add('terrain','landuse','fill',{'fill-color':'#1d4130','fill-opacity':.45});
+add('terrain','park','fill',{'fill-color':'#27623d','fill-opacity':.52});
+add('water','water','fill',{'fill-color':'#245b63'});
+add('water','waterway','line',{'line-color':'#328b9c','line-width':['interpolate',['linear'],['zoom'],4,.3,14,1.6]});
+add('roads','transportation','line',
+  {'line-color':['match',['get','class'],'motorway','#f0c584','trunk','#e8ca8f','primary','#dcd59c','secondary','#c0d5a9','tertiary','#95ccaa','#76ab96'],
+   'line-width':['interpolate',['linear'],['zoom'],5,.5,10,1.2,14,2.6,16,3.2],'line-opacity':.9});
+add('buildings','building','fill',{'fill-color':'#87af87','fill-outline-color':'#497e68','fill-opacity':.75},{minzoom:12});
+add('labels','transportation_name','symbol',{'text-color':'#d9e9d4','text-halo-color':'#102019','text-halo-width':1.5},
+  {minzoom:11,layout:{'symbol-placement':'line','text-field':['coalesce',['get','name'],['get','ref'],''],
+    'text-font':['Open Sans Regular'],'text-size':11}});
+add('labels','place','symbol',{'text-color':'#f4eac0','text-halo-color':'#12241b','text-halo-width':1.6},
+  {layout:{'text-field':['coalesce',['get','name:en'],['get','name'],''],
+    'text-font':['Open Sans Regular'],'text-size':['interpolate',['linear'],['zoom'],5,10,11,14]}});
+const map = new maplibregl.Map({container:'map',style,center:[-56.3,48.9],zoom:5.4,maxZoom:18,attributionControl:false});
+map.addControl(new maplibregl.NavigationControl(),'top-right');
+map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
+map.on('load',()=>{
+  map.addSource('government-places',{type:'geojson',data:window.NL_PREVIEW_PLACES});
+  map.addLayer({id:'government-dots',type:'circle',source:'government-places',minzoom:8,
+    paint:{'circle-radius':3,'circle-color':'#f9edbe','circle-stroke-color':'#071a12','circle-stroke-width':1}});
+  map.addLayer({id:'government-labels',type:'symbol',source:'government-places',minzoom:10,
+    layout:{'text-field':['get','name'],'text-font':['Open Sans Regular'],'text-size':11,'text-offset':[0,1]},
+    paint:{'text-color':'#f8eebc','text-halo-color':'#092117','text-halo-width':1}});
+  (layers.labels ||= []).push('government-dots','government-labels');
+  status.textContent='Using ' + meta.tileCount.toLocaleString() + ' map tiles from our own build.';
+});
+map.on('error',e=>{ console.warn('Map preview:',e.error||e); });
+document.querySelectorAll('[data-group]').forEach(input=>input.addEventListener('change',()=>{
+  for(const id of layers[input.dataset.group]||[]) if(map.getLayer(id)) map.setLayoutProperty(id,'visibility',input.checked?'visible':'none');
+}));
+document.querySelectorAll('[data-place]').forEach(button=>button.addEventListener('click',()=>{
+ const c=meta.detailedSamples[button.dataset.place].center;
+ map.flyTo({center:c,zoom:13,essential:true});
+}));
+document.getElementById('island').addEventListener('click',()=>map.fitBounds([[-59.65,46.5],[-52.4,51.25]],{padding:35,duration:800}));
+const allPlaces=(window.NL_PREVIEW_PLACES?.features||[]).slice().sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
+const results=document.getElementById('results');
+const input=document.getElementById('search');
+input.addEventListener('input',()=>{
+  const q=input.value.trim().toLocaleLowerCase();
+  results.replaceChildren();
+  if(q.length<2) return;
+  const found=allPlaces.filter(f=>f.properties.name.toLocaleLowerCase().includes(q)).slice(0,12);
+  for(const f of found){
+    const button=document.createElement('button');
+    const coords=f.geometry.coordinates;
+    button.textContent=f.properties.name + '  (' + coords[1].toFixed(3)+', '+coords[0].toFixed(3)+')';
+    button.onclick=()=>{map.flyTo({center:coords,zoom:12});input.value=f.properties.name;results.replaceChildren();};
+    results.appendChild(button);
+  }
+  if(!found.length)results.textContent='No matching official populated-place record.';
+});
+const locs=Object.entries(meta.detailedSamples).map(([k,v])=>k+': '+v.tileCount.toLocaleString()+' tiles').join('\n');
+document.getElementById('stats').textContent=
+  meta.tileCount.toLocaleString()+' stored tiles\n'+
+  'Province overview: up to zoom '+meta.baseZoom+'\n'+
+  meta.communities.toLocaleString()+' official populated places\n'+locs;
+})();
+</script></body></html>
