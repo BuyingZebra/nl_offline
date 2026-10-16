@@ -52,19 +52,26 @@
  from{transform:translate3d(0,0,0)}
  to{transform:translate3d(0,calc(100dvh + 90px),0)}
 }
-/* Bright flash at the instant of a one-action click, then phosphor decay. */
-#app button.phosphor-reactive.phosphor-flash{
- animation:phosphorClickDecay 1150ms ease-out 1}
-@keyframes phosphorClickDecay{
- 0%{filter:brightness(2.2) drop-shadow(0 0 11px rgba(var(--phosphor-rgb),.85))}
- 14%{filter:brightness(1.85) drop-shadow(0 0 10px rgba(var(--phosphor-rgb),.65))}
- 55%{filter:brightness(1.27) drop-shadow(0 0 5px rgba(var(--phosphor-rgb),.26))}
- 100%{filter:brightness(1) drop-shadow(0 0 0 transparent)}
+/* Phosphor response: ONLY a static overlay's opacity changes.
+   No filter keyframes, box-shadow interpolation or forced layout on clicks.
+   The browser can composite one small opacity-only layer per press. */
+#app button.phosphor-reactive{position:relative}
+#app button.phosphor-reactive:active{background:var(--panel)}
+#app #controls button.phosphor-reactive:active{background:var(--surface-map-overlay)}
+#app button .phosphor-hit-layer{
+ position:absolute;inset:-2px;border-radius:inherit;pointer-events:none;
+ opacity:0;
+ border:1px solid rgba(var(--phosphor-rgb),.52);
+ background:radial-gradient(ellipse at center,
+  rgba(var(--phosphor-rgb),.22) 0%,
+  rgba(var(--phosphor-rgb),.10) 62%,transparent 100%);
+ box-shadow:0 0 14px 2px rgba(var(--phosphor-rgb),.49),
+  inset 0 0 9px rgba(var(--phosphor-rgb),.24);
 }
-@media(prefers-reduced-motion:reduce){
- #phosphorSweep{display:none}
- #app button.phosphor-reactive.phosphor-flash{animation:none}
-}
+#themeIcon{display:inline-flex;align-items:center;justify-content:center;
+ width:24px;height:24px;vertical-align:middle}
+#themeIcon svg{width:23px;height:23px;display:block}
+@media(prefers-reduced-motion:reduce){#phosphorSweep{display:none}}
 #mapfx{position:absolute;inset:0;z-index:102;pointer-events:none;
  background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
  rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%);
@@ -104,7 +111,7 @@ input[type=range].effect-slider::-moz-range-thumb{height:22px;width:22px;backgro
   <!-- Screen fades are black overlays; map fades are alpha masks. -->
   <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><canvas id="mapEdgeFade" aria-hidden="true"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
-  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch between green and amber phosphor" aria-label="Toggle theme">◐</button></header>
+  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Day theme — switch to amber night" aria-label="Day theme — switch to night"><span id="themeIcon" aria-hidden="true">☀</span></button></header>
   <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
   <div class="overlay" id="compass"><span>▲</span></div>
   <div class="overlay" id="controls"><button id="plus" aria-label="Zoom in">+</button><button id="minus" aria-label="Zoom out">−</button><button id="gps" title="Use phone GPS" aria-label="My location">◎</button><button id="home" title="Return to Carbonear" aria-label="Home">⌂</button></div>
@@ -148,6 +155,17 @@ try{
 }catch(e){}
 try{const t=localStorage.getItem('fieldAtlasThemeV06');if(t==='green'||t==='amber')state.theme=t;}catch(e){}
 document.documentElement.dataset.theme=state.theme;
+// Sun denotes the selected green/day phosphor; crescent denotes amber/night.
+// The icon reflects the CURRENT theme, not an automatic time-of-day setting.
+function syncThemeButton(){
+ const day=state.theme==='green',button=$('theme');
+ $('themeIcon').innerHTML=day
+  ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>'
+  : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.98 13A9 9 0 0 1 11 3.02 9 9 0 1 0 20.98 13Z"/></svg>';
+ button.title=day?'Day phosphor — switch to amber night':'Night phosphor — switch to green day';
+ button.setAttribute('aria-label',button.title);
+}
+syncThemeButton();
 try{const saved=localStorage.getItem('fieldAtlasWaterGridV09');if(saved!==null)state.showWaterGrid=saved==='true'}catch(e){}
 function isReal(){return !!(state.real&&state.map)}
 const EFFECT_OPTIONS=[
@@ -290,22 +308,38 @@ function updateViewEffects(){
  paintGeoEdge(mapEdgeCtx,south,width,height,color);
 }
 function updateReadout(){if(isReal()){const c=state.map.getCenter();$('latitude').textContent=fmt(c.lat,'lat');$('longitude').textContent=fmt(c.lng,'lng');$('zoomvalue').textContent=state.map.getZoom().toFixed(1);updateViewEffects();}else{$('latitude').textContent='DEMO';$('longitude').textContent='DEMO';$('zoomvalue').textContent=state.zoom.toFixed(1)}}
-function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());updateViewEffects();drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
+function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;syncThemeButton();try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());updateViewEffects();drawFallback();toast(state.theme==='green'?'DAY / GREEN PHOSPHOR':'NIGHT / AMBER PHOSPHOR')}
 $('theme').addEventListener('click',theme);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));
-// Direct-action controls briefly flare and decay like a phosphor display.
-// Buttons which open dialogs/menus are intentionally excluded.
-for(const id of ['theme','plus','minus','gps','home']){
- const button=$(id);
+// Direct-action controls get a real phosphor-style instant flare and linear
+// decay. Keep the overlay and its shadows STATIC; only animate its opacity.
+// WAAPI restarts with cancel(), never a forced synchronous layout read.
+function installPhosphorFeedback(button){
  button.classList.add('phosphor-reactive');
+ const layer=document.createElement('span');
+ layer.className='phosphor-hit-layer';
+ layer.setAttribute('aria-hidden','true');
+ button.appendChild(layer);
+ let activeAnimation=null;
  button.addEventListener('click',()=>{
-  button.classList.remove('phosphor-flash');
-  void button.offsetWidth; // restart animation for rapid consecutive presses
-  button.classList.add('phosphor-flash');
- });
- button.addEventListener('animationend',event=>{
-  if(event.animationName==='phosphorClickDecay')button.classList.remove('phosphor-flash');
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+  if(activeAnimation)activeAnimation.cancel();
+  if(typeof layer.animate==='function'){
+   activeAnimation=layer.animate([{opacity:0.95},{opacity:0}],{
+    duration:1050,easing:'linear',iterations:1
+   });
+  }else{
+   // Basic browser fallback: the same fixed layer fades through opacity only.
+   layer.style.transition='none';
+   layer.style.opacity='0.95';
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    layer.style.transition='opacity 1050ms linear';
+    layer.style.opacity='0';
+   }));
+  }
  });
 }
+for(const id of ['theme','plus','minus','gps','home'])
+ installPhosphorFeedback($(id));
 $('searchBtn').addEventListener('click',openSearch);$('routeBtn').addEventListener('click',openRoute);$('pinBtn').addEventListener('click',togglePin);$('menuBtn').addEventListener('click',openMenu);$('sheetClose').addEventListener('click',closeSheet);$('sheetShade').addEventListener('click',e=>{if(e.target===$('sheetShade'))closeSheet()});window.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 // Regional camera: no whole-planet mode. Street views stay level;
 // zooming out across Conception Bay and nearby peninsulas gradually adds pitch.
