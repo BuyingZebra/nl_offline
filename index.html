@@ -675,21 +675,33 @@ function openSearch(){
  $('placeQuery').addEventListener('input',e=>placeResults(e.target.value));
  placeResults('');$('placeQuery').focus();
 }
+const PLACES_CACHE_KEY='fieldAtlasPlaceIndexV029';
+function validCommunityIndex(places){
+ return Array.isArray(places)&&places.length>=1300&&places.every(p=>
+  p&&typeof p.name==='string'&&typeof p.id==='string'&&
+  Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&
+  p.lat>=45&&p.lat<=61&&p.lng>=-70&&p.lng<=-50);
+}
 async function loadCommunityIndex(){
+ // A previously downloaded index remains searchable if the network later
+ // fails. This alone does NOT make map tiles or the app shell offline-ready.
+ try{
+  const cached=JSON.parse(localStorage.getItem(PLACES_CACHE_KEY)||'null');
+  if(validCommunityIndex(cached)){
+   officialPlaces=cached;placesIndexState='ready';
+   if($('placeQuery'))placeResults($('placeQuery').value);
+  }
+ }catch(e){}
  try{
   const response=await fetch('./data/nl-places.json?v='+APP_VERSION);
   if(!response.ok)throw Error('HTTP '+response.status);
   const data=await response.json();
-  if(!Array.isArray(data.places)||data.places.length<1300)
-   throw Error('Incomplete place index');
-  const valid=data.places.filter(p=>p&&typeof p.name==='string'&&
-   Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat)<=90&&Math.abs(p.lng)<=180);
-  if(valid.length!==data.places.length)throw Error('Malformed coordinates');
-  officialPlaces=valid;placesIndexState='ready';
+  if(!validCommunityIndex(data.places))throw Error('Incomplete or malformed place index');
+  officialPlaces=data.places;placesIndexState='ready';
+  try{localStorage.setItem(PLACES_CACHE_KEY,JSON.stringify(officialPlaces))}catch(e){}
  }catch(e){
-  placesIndexState='error';
-  // Keep the six original shortcuts available if the index is blocked.
-  console.warn('NL community index unavailable',e);
+  if(!officialPlaces.length)placesIndexState='error';
+  console.warn('NL community index unavailable; cached or shortcut places in use',e);
  }
  if($('placeQuery'))placeResults($('placeQuery').value);
 }
