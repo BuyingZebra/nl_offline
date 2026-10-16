@@ -198,6 +198,18 @@ function effectMarkup(){
  <p class="effect-note">${f.note}</p>
  <input class="effect-slider" id="fx-${f.key}" type="range" min="0" max="100" step="1" value="${n}" style="--fill:${n}%" aria-label="${f.name}"></div>`;}).join('');
 }
+// Preserve the dark contrast halo while adding text-colour-derived phosphor light.
+function blendHex(from,to,fraction){
+ const t=Math.max(0,Math.min(1,fraction));
+ const a=from.match(/[0-9a-f]{2}/gi),b=to.match(/[0-9a-f]{2}/gi);
+ if(!a||!b||a.length!==3||b.length!==3)return to;
+ return '#'+a.map((v,i)=>Math.round(parseInt(v,16)*(1-t)+parseInt(b[i],16)*t).toString(16).padStart(2,'0')).join('');
+}
+function textHaloPaint(background,ink,level,baseWidth){
+ return {color:blendHex(background,ink,level*.45),
+  blur:+(.25+level*1.2).toFixed(2),
+  width:+(baseWidth+level*.55).toFixed(2)};
+}
 function applyEffects(){
  const e=state.effects,k=e.glow/100,root=$('app');
  root.style.setProperty('--scan-intensity',String(e.scanlines/100));
@@ -211,6 +223,18 @@ function applyEffects(){
     const factor=id==='stream-glow'?.5:id==='route-glow'?.95:1;
     state.map.setPaintProperty(id,'line-opacity',+(k*.92*factor).toFixed(3));
     state.map.setPaintProperty(id,'line-blur',+(k*7.5).toFixed(2));
+   }
+  }
+  if(state.map.getLayer('background')){
+   const background=state.map.getPaintProperty('background','background-color');
+   for(const [id,baseWidth] of [['street-labels',1.05],['places',1.75]]){
+    if(!state.map.getLayer(id))continue;
+    const ink=state.map.getPaintProperty(id,'text-color');
+    if(typeof background!=='string'||typeof ink!=='string')continue;
+    const halo=textHaloPaint(background,ink,k,baseWidth);
+    state.map.setPaintProperty(id,'text-halo-color',halo.color);
+    state.map.setPaintProperty(id,'text-halo-blur',halo.blur);
+    state.map.setPaintProperty(id,'text-halo-width',halo.width);
    }
   }
  }else if(typeof canvas!=='undefined')drawFallback();
@@ -504,7 +528,10 @@ function makeStyle(){
   for(const key of ['waterline','building','path','local','tertiary','secondary','major','street','town','route']){
     p[key]=brightenPhosphor(p[key]);
   }
-  const blur=+(state.effects.glow/100*7.5).toFixed(2),opacity=+(state.effects.glow/100*.92).toFixed(3);
+  const glowLevel=state.effects.glow/100;
+  const blur=+(glowLevel*7.5).toFixed(2),opacity=+(glowLevel*.92).toFixed(3);
+  const streetHalo=textHaloPaint(p.bg,p.street,glowLevel,1.05);
+  const placeHalo=textHaloPaint(p.bg,p.town,glowLevel,1.75);
   const src='osm';
   const roadSource={source:src,'source-layer':'transportation'};
   const namedRoad=['coalesce',['get','name:en'],['get','name'],''];
@@ -575,13 +602,13 @@ function makeStyle(){
         layout:{'symbol-placement':'line','text-font':['Noto Sans Regular'],
           'text-field':namedRoad,'text-size':['interpolate',['linear'],['zoom'],13,8.8,16,10.5,19,11.8],
           'text-padding':6,'text-max-angle':35,'text-allow-overlap':false,'text-letter-spacing':0.005},
-        paint:{'text-color':p.street,'text-opacity':0.90,'text-halo-color':p.bg,'text-halo-width':1.05,'text-halo-blur':0.25}},
+        paint:{'text-color':p.street,'text-opacity':0.90,'text-halo-color':streetHalo.color,'text-halo-width':streetHalo.width,'text-halo-blur':streetHalo.blur}},
       {id:'places',type:'symbol',source:src,'source-layer':'place',minzoom:5,
         filter:klass(['city','town','village','hamlet','suburb','neighbourhood']),
         layout:{'text-font':['Noto Sans Regular'],'text-field':namedRoad,
           'text-size':['interpolate',['linear'],['zoom'],7,10.5,12,12.5,16,14.5],
           'text-padding':10,'text-max-width':10,'text-allow-overlap':false},
-        paint:{'text-color':p.town,'text-opacity':0.92,'text-halo-color':p.bg,'text-halo-width':1.75}}
+        paint:{'text-color':p.town,'text-opacity':0.92,'text-halo-color':placeHalo.color,'text-halo-width':placeHalo.width,'text-halo-blur':placeHalo.blur}}
     ]
   };
 }
