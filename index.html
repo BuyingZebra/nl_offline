@@ -652,7 +652,7 @@ function placeResults(q){
  const indexed=officialPlaces.length>0;
  const intro=$('placeSearchInfo');
  if(intro)intro.textContent=indexed
-  ? officialPlaces.length+' NL MAP PLACES / '+(searchKey(q)?'SEARCH RESULTS':'SIX QUICK VIEWS / TYPE TO SEARCH ALL')
+  ? (searchKey(q)?'SELECT A COMMUNITY / VIEW ON MAP':'SIX QUICK VIEWS / TYPE A PLACE NAME')
   : placesIndexState==='loading'
    ? 'LOADING NL PLACE INDEX / SIX SHORTCUTS AVAILABLE'
    : 'PLACE INDEX UNAVAILABLE / SIX SHORTCUTS ONLY';
@@ -672,7 +672,7 @@ function openSearch(){
  <input id="placeQuery" type="search" autocomplete="off"
   placeholder="Search any NL community…" aria-label="Search communities"/>
  <div id="placesList" class="list"></div>
- <p class="sheetText">Map labels use OpenStreetMap place points; additional names use official geographical reference points. This is not address search or driving directions.</p>`);
+ <p class="sheetText">Select a community to centre the map. Not driving directions.</p>`);
  $('placeQuery').addEventListener('input',e=>placeResults(e.target.value));
  placeResults('');$('placeQuery').focus();
 }
