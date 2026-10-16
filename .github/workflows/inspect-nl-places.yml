@@ -32,3 +32,22 @@ jobs:
                   print('COLUMN',col,'TOP',collections.Counter(r.get(col) for r in rows).most_common(25))
               print('EXAMPLE ROWS',rows[:2])
           PY
+      - name: Inspect NL provincial community point layer
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.parse,json,collections
+          service='https://services8.arcgis.com/aCyQID5qQcyrJMm2/ArcGIS/rest/services/Communities/FeatureServer/0/query'
+          params={'where':'1=1','outFields':'*','returnGeometry':'true','outSR':4326,'f':'geojson'}
+          url=service+'?'+urllib.parse.urlencode(params)
+          req=urllib.request.Request(url,headers={'User-Agent':'FIELD-ATLAS/0.29 (community index research)'})
+          with urllib.request.urlopen(req,timeout=100) as response:
+            raw=response.read()
+            print('SERVICE_STATUS',response.status,'BYTES',len(raw))
+          data=json.loads(raw)
+          print('META',str({k:v for k,v in data.items() if k!='features'})[:900])
+          records=data.get('features',[])
+          print('PROVINCIAL FEATURE COUNT',len(records))
+          print('SAMPLES',json.dumps(records[:3],ensure_ascii=False)[:1600])
+          labels=[f.get('properties',{}).get('name','') for f in records]
+          print('KNOWN SEARCH',[(q,[(n,records[i].get('geometry')) for i,n in enumerate(labels) if q.lower() in n.lower()][:4]) for q in ['Natuashish','Goose Bay','Carbonear','Bay Roberts']])
+          PY
