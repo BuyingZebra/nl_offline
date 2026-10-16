@@ -1,0 +1,34 @@
+name: Inspect NL Place Data
+on:
+  push:
+    branches: ['feature/complete-town-search-v0-29']
+    paths: ['.github/workflows/inspect-nl-places.yml']
+  workflow_dispatch:
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect official Newfoundland and Labrador names archive
+        run: |
+          python - <<'PY'
+          import urllib.request,zipfile,io,csv,collections
+          url='https://ftp.maps.canada.ca/pub/nrcan_rncan/vector/geobase_cgn_toponyme/prov_csv_eng/cgn_nl_csv_eng.zip'
+          req=urllib.request.Request(url,headers={'User-Agent':'FIELD-ATLAS/0.29 (Geographical Names search; GitHub Actions)'})
+          with urllib.request.urlopen(req,timeout=90) as response: raw=response.read()
+          print('ARCHIVE BYTES',len(raw))
+          with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            print('FILES',z.namelist())
+            for name in z.namelist():
+              if not name.lower().endswith(('.csv','.txt')):continue
+              text=z.read(name).decode('utf-8-sig',errors='replace')
+              print('FILE',name,'START',repr(text[:500]))
+              reader=csv.DictReader(io.StringIO(text))
+              print('HEADERS',reader.fieldnames)
+              rows=list(reader)
+              print('ROW COUNT',len(rows))
+              for col in reader.fieldnames or []:
+                if any(term in col.lower() for term in ['concise','type','generic','status','feature']):
+                  print('COLUMN',col,'TOP',collections.Counter(r.get(col) for r in rows).most_common(25))
+              print('EXAMPLE ROWS',rows[:2])
+          PY
