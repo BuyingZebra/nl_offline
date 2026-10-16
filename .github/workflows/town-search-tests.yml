@@ -1,7 +1,7 @@
 name: Town Search Regression Tests
 on:
   push:
-    branches: ['feature/complete-town-search-v0-29']
+    branches: ['feature/complete-town-search-v0-29', 'feature/osm-labelled-search-v0-30']
     paths:
       - 'index.html'
       - 'data/nl-places.json'
