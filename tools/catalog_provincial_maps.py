@@ -179,6 +179,7 @@ def main():
         writer = csv.DictWriter(f, fieldnames=COLUMNS)
         writer.writeheader()
         writer.writerows(photos)
+    (args.output / "provincial_image_index.json").write_text(json.dumps(photos, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     apps, layers, warnings = ([], [], []) if args.only_airphotos else discover_arcgis(s)
     if not args.only_airphotos:
         fieldnames = ("app", "webmap_id", "name", "service_url", "service_type",
