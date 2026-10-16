@@ -148,6 +148,8 @@ function openMenu(){
  <div class="line"></div><div class="setting"><b>PHOSPHOR COLOUR</b><button id="themeSetting">${state.theme.toUpperCase()}</button></div>
  <div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>
  <div class="setting"><b>WATER GRID</b><button id="waterGridSetting">${state.showWaterGrid?'ON':'OFF'}</button></div>
+ <div class="setting"><b>MAP PERSPECTIVE</b><button id="view3dSetting" title="Two-finger swipe up/down also tilts the map">${isReal()&&state.map.getPitch()>1?'3D / TILTED':'2D / FLAT'}</button></div>
+ <p class="sheetText" style="margin-top:-6px">Swipe vertically with two fingers to tilt the globe. Zoom out to see the planet's curvature.</p>
  <div class="line"></div>${effectMarkup()}
  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
  <div class="line"></div><button id="savedSetting" style="width:100%">SAVED PINS (${state.saved.length})</button>
@@ -156,6 +158,13 @@ function openMenu(){
  $('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
    if(isReal()&&state.map.getLayer('buildings'))state.map.setLayoutProperty('buildings','visibility',state.showBuildings?'visible':'none');
    drawFallback();openMenu();};
+ $('view3dSetting').onclick=()=>{
+  if(!isReal()){toast('3D globe requires the live vector map');return;}
+  const target=state.map.getPitch()>1?0:48;
+  state.map.easeTo({pitch:target,duration:650,essential:true});
+  closeSheet();
+  toast(target?'3D GLOBE / TWO-FINGER TILT':'2D VIEW / LEVEL');
+ };
  $('waterGridSetting').onclick=()=>{
   state.showWaterGrid=!state.showWaterGrid;
   if(isReal()&&state.map.getLayer('water-grid'))
@@ -302,14 +311,21 @@ function makeStyle(){
     ]
   };
 }
-function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,attributionControl:false,pitchWithRotate:false,dragRotate:false,trackResize:true});state.map=m;
+function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
+// OSIRIS uses MapLibre's actual globe projection rather than a fisheye filter.
+// Apply it after every style change (including green/amber theme switches).
+m.on('style.load',()=>{
+ if(typeof m.setProjection==='function'){
+  try{m.setProjection({type:'globe'});}catch(error){console.warn('Globe projection unavailable',error);}
+ }
+});
 m.on('styleimagemissing',e=>{
  const expected='water-grid-'+state.theme;
  if(e.id===expected&&!m.hasImage(expected))
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
 m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('styledata',()=>{if(m.isStyleLoaded())setRouteGeoJSON()});m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
-function loadRemoteMap(){const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.css';document.head.appendChild(css);const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js';s.async=true;s.onload=startLiveMap;s.onerror=()=>status('No internet map library. Try the working schematic demo.',true);document.head.appendChild(s)}
+function loadRemoteMap(){const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css';document.head.appendChild(css);const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.js';s.async=true;s.onload=startLiveMap;s.onerror=()=>status('No internet map library. Try the working schematic demo.',true);document.head.appendChild(s)}
 window.addEventListener('resize',drawFallback);applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
 </script>
 </body></html>
