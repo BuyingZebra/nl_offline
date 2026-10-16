@@ -95,44 +95,37 @@ try{const t=localStorage.getItem('fieldAtlasThemeV06');if(t==='green'||t==='ambe
 document.documentElement.dataset.theme=state.theme;
 function isReal(){return !!(state.real&&state.map)}
 const EFFECT_OPTIONS=[
- {key:'road',name:'ROAD PHOSPHOR',note:'Luminous glow beneath roads; geometry stays sharp.'},
- {key:'panel',name:'INTERFACE GLOW',note:'Glow around panels, compass and text.'},
- {key:'vignette',name:'SCREEN VIGNETTE',note:'Dark edges and subtle phosphor tint.'},
- {key:'scanlines',name:'CRT SCANLINES',note:'Horizontal scanlines; zero disables them.'}
+ {key:'glow',name:'PHOSPHOR GLOW',note:'Same bloom spread for all elements, derived from their colour.'},
+ {key:'scanlines',name:'CRT SCANLINES',note:'Covers map, menus and controls.'},
+ {key:'vignette',name:'EDGE VIGNETTE',note:'At 100%, the screen edges become nearly black.'}
 ];
 function effectMarkup(){
- return EFFECT_OPTIONS.map(f=>{
-   const val=state.effects[f.key];
-   return `<div class="effect-row">
-    <div class="effect-head"><label for="fx-${f.key}">${f.name}</label><output id="value-${f.key}" for="fx-${f.key}">${val}%</output></div>
-    <p class="effect-note">${f.note}</p>
-    <input class="effect-slider" id="fx-${f.key}" type="range" min="0" max="100" step="1" value="${val}" style="--fill:${val}%" aria-label="${f.name}">
-   </div>`;
- }).join('');
+ return EFFECT_OPTIONS.map(f=>{const n=state.effects[f.key];return `
+ <div class="effect-row"><div class="effect-head"><label for="fx-${f.key}">${f.name}</label><output id="value-${f.key}">${n}%</output></div>
+ <p class="effect-note">${f.note}</p>
+ <input class="effect-slider" id="fx-${f.key}" type="range" min="0" max="100" step="1" value="${n}" style="--fill:${n}%" aria-label="${f.name}"></div>`;}).join('');
 }
 function applyEffects(){
- const e=state.effects,p=e.panel/100,root=$('app');
- root.style.setProperty('--scan-intensity',String(e.scanlines/100*.98));
+ const e=state.effects,k=e.glow/100,root=$('app');
+ root.style.setProperty('--scan-intensity',String(e.scanlines/100));
  root.style.setProperty('--vignette-intensity',String(e.vignette/100));
- root.style.setProperty('--panel-halo-radius',(4+p*30).toFixed(1)+'px');
- root.style.setProperty('--panel-halo-color',`rgba(83,255,143,${(.6*p).toFixed(3)})`);
- root.style.setProperty('--panel-inner-color',`rgba(173,255,194,${(.4*p).toFixed(3)})`);
- root.style.setProperty('--text-halo-radius',(3+p*19).toFixed(1)+'px');
- root.style.setProperty('--text-halo-color',`rgba(108,255,150,${(.8*p).toFixed(3)})`);
- root.style.setProperty('--text-halo-outer',`rgba(95,255,153,${(.45*p).toFixed(3)})`);
+ root.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
+ root.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
  if(isReal()){
-   for(const [id,maximum] of [['road-glow',.68],['major-glow',.85]]){
-     if(state.map.getLayer(id))state.map.setPaintProperty(id,'line-opacity',+(e.road/100*maximum).toFixed(3));
+  for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow']){
+   if(state.map.getLayer(id)){
+    state.map.setPaintProperty(id,'line-opacity',+(k*.92).toFixed(3));
+    state.map.setPaintProperty(id,'line-blur',+(k*7.5).toFixed(2));
    }
- }else if(typeof canvas!=='undefined'){drawFallback();}
+  }
+ }else if(typeof canvas!=='undefined')drawFallback();
 }
-
 function status(message,warning=false){$('statusMessage').textContent=message;$('status').dataset.type=warning?'warning':'ok';$('modeText').textContent=state.real?'LIVE OPENSTREETMAP / ONLINE':'INTERACTIVE DEMO / NOT GEOGRAPHIC'}
 let toastTimer;function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2800)}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(v,axis){return (Math.abs(v).toFixed(4)+'°'+((axis==='lat')?(v>=0?'N':'S'):(v<0?'W':'E')))}
 function updateReadout(){if(isReal()){const c=state.map.getCenter();$('latitude').textContent=fmt(c.lat,'lat');$('longitude').textContent=fmt(c.lng,'lng');$('zoomvalue').textContent=state.map.getZoom().toFixed(1);}else{$('latitude').textContent='DEMO';$('longitude').textContent='DEMO';$('zoomvalue').textContent=state.zoom.toFixed(1)}}
-function theme(){state.theme=state.theme==='green'?'night':'green';document.documentElement.dataset.theme=state.theme;if(isReal())state.map.setStyle(makeStyle());drawFallback();toast(state.theme==='green'?'PIP-BOY GREEN':'NIGHT BLUE')}
+function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
 $('theme').addEventListener('click',theme);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));$('searchBtn').addEventListener('click',openSearch);$('routeBtn').addEventListener('click',openRoute);$('pinBtn').addEventListener('click',togglePin);$('menuBtn').addEventListener('click',openMenu);$('sheetClose').addEventListener('click',closeSheet);$('sheetShade').addEventListener('click',e=>{if(e.target===$('sheetShade'))closeSheet()});window.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 function zoomBy(step){if(isReal())state.map.zoomTo(Math.min(19,Math.max(4,state.map.getZoom()+step)),{duration:250});else{state.zoom=Math.min(18.5,Math.max(10, state.zoom+step));drawFallback();updateReadout()}}
 function viewPlace(p){state.center=p;state.pin=false;state.pinAt=null;$('pinMarker').style.display='none';state.route=null;if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:p.zoom,speed:1.6});else{state.panX=0;state.panY=0;state.zoom=p.zoom;drawFallback();toast('Illustrative map only — live map required to view '+p.name);}updateReadout();closeSheet()}
@@ -148,38 +141,29 @@ function setRouteGeoJSON(){if(!isReal()||!state.map.isStyleLoaded())return;try{c
 function chooseRoute(a,b){state.route={a,b};closeSheet();if(isReal()){setRouteGeoJSON();state.map.fitBounds([[Math.min(a.lng,b.lng),Math.min(a.lat,b.lat)],[Math.max(a.lng,b.lng),Math.max(a.lat,b.lat)]],{padding:80,maxZoom:13,duration:500});toast('STRAIGHT-LINE '+distanceKm(a,b)+' KM — NOT DRIVING DIRECTIONS');}else toast('Route planner is not yet implemented. '+distanceKm(a,b)+' km straight-line only.');}
 function openRoute(){openSheet('ROUTE / CONCEPT',`<p class="sheetText warning">Road routing is NOT implemented. This panel compares selected communities using straight-line distance only — never use it for driving directions.</p><label class="field" for="startPoint">FROM</label><select id="startPoint">${PLACES.map((p,i)=>`<option value="${i}" ${p.name===state.center.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select><label class="field" for="endPoint">TO</label><select id="endPoint">${PLACES.map((p,i)=>`<option value="${i}" ${p.name==='Bay Roberts'?'selected':''}>${esc(p.name)}</option>`).join('')}</select><p class="sheetText" id="distanceText"></p><button id="routePreview" class="primary">SHOW STRAIGHT-LINE PREVIEW</button>`);const update=()=>{const a=PLACES[Number($('startPoint').value)],b=PLACES[Number($('endPoint').value)];$('distanceText').textContent=a===b?'Select different communities.':distanceKm(a,b)+' km direct distance, not driving distance';$('routePreview').disabled=a===b};$('startPoint').addEventListener('change',update);$('endPoint').addEventListener('change',update);$('routePreview').addEventListener('click',()=>chooseRoute(PLACES[Number($('startPoint').value)],PLACES[Number($('endPoint').value)]));update()}
 function openMenu(){
- openSheet('FIELD ATLAS / VISUAL SETTINGS',`
-  <p class="sheetText">Tune the display live. Building shapes and street geometry remain unchanged. Settings are saved on this phone.</p>
-  <div class="line"></div>
-  <div class="setting"><b>THEME</b><button id="themeSetting">${state.theme==='green'?'GREEN':'NIGHT'}</button></div>
-  <div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>
-  <div class="line"></div><p class="sheetText"><b>DISPLAY EFFECTS · 0–100%</b></p>
-  ${effectMarkup()}
-  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET TO DEFAULT</button>
-  <div class="line"></div><button id="savedSetting" style="width:100%">SAVED PINS (${state.saved.length})</button>
-  <p class="sheetText warning">This web map still uses online geographic data. Offline map packaging and navigation are separate work.</p>`);
+ openSheet('FIELD ATLAS / DISPLAY',`
+ <p class="sheetText">One glow setting across luminous content, with independent full-screen CRT and vignette overlays. Preferences are saved on this phone.</p>
+ <div class="line"></div><div class="setting"><b>PHOSPHOR COLOUR</b><button id="themeSetting">${state.theme.toUpperCase()}</button></div>
+ <div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>
+ <div class="line"></div>${effectMarkup()}
+ <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
+ <div class="line"></div><button id="savedSetting" style="width:100%">SAVED PINS (${state.saved.length})</button>
+ <p class="sheetText warning">The browser preview still streams vector tiles online; this is not an offline navigation app yet.</p>`);
  $('themeSetting').onclick=()=>{theme();openMenu()};
- $('buildingSetting').onclick=()=>{
-   state.showBuildings=!state.showBuildings;
+ $('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
    if(isReal()&&state.map.getLayer('buildings'))state.map.setLayoutProperty('buildings','visibility',state.showBuildings?'visible':'none');
-   drawFallback();openMenu();
- };
+   drawFallback();openMenu();};
  for(const f of EFFECT_OPTIONS){
-   const input=$('fx-'+f.key),output=$('value-'+f.key);
-   input.addEventListener('input',()=>{
-     const val=Math.round(Math.max(0,Math.min(100,Number(input.value))));
-     state.effects[f.key]=val;
-     input.style.setProperty('--fill',val+'%');
-     output.textContent=val+'%';
-     applyEffects();
-     try{localStorage.setItem('fieldAtlasEffectsV05',JSON.stringify(state.effects))}catch(e){}
-   });
+  const input=$('fx-'+f.key),output=$('value-'+f.key);
+  input.addEventListener('input',()=>{
+   const n=Math.round(Math.max(0,Math.min(100,Number(input.value))));
+   state.effects[f.key]=n;input.style.setProperty('--fill',n+'%');output.textContent=n+'%';applyEffects();
+   try{localStorage.setItem('fieldAtlasEffectsV06',JSON.stringify(state.effects))}catch(e){}
+  });
  }
- $('resetEffects').onclick=()=>{
-   state.effects={road:64,panel:85,vignette:30,scanlines:26};
-   try{localStorage.setItem('fieldAtlasEffectsV05',JSON.stringify(state.effects))}catch(e){}
-   applyEffects();openMenu();
- };
+ $('resetEffects').onclick=()=>{state.effects={glow:65,scanlines:26,vignette:30};
+   try{localStorage.setItem('fieldAtlasEffectsV06',JSON.stringify(state.effects))}catch(e){}
+   applyEffects();openMenu();};
  $('savedSetting').onclick=openSaved;
 }
 function openSaved(){openSheet('SAVED MAP POINTS',`<p class="sheetText">These points are stored only in this browser.</p><div id="savedList" class="list"></div><button id="clearPins" style="width:100%;margin-top:12px" ${!state.saved.length?'disabled':''}>CLEAR SAVED PINS</button>`);const list=$('savedList');list.innerHTML=state.saved.length?state.saved.map((p,i)=>`<button data-id="${i}"><span>${esc(p.name)}</span><small>${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</small></button>`).join(''):'<p class="sheetText">No saved pins yet. Use PIN while the real map is visible.</p>';list.querySelectorAll('button').forEach(b=>b.onclick=()=>{const p=state.saved[Number(b.dataset.id)];closeSheet();if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:16})});$('clearPins').onclick=()=>{state.saved=[];try{localStorage.setItem('fieldAtlasPinsV02','[]')}catch(e){}openSaved()}}
@@ -187,7 +171,7 @@ function openSaved(){openSheet('SAVED MAP POINTS',`<p class="sheetText">These po
 const canvas=$('fallback'),ctx=canvas.getContext('2d');let fW=390,fH=740,drag=null;
 const roads=[{width:6,points:[[-60,620],[40,530],[90,460],[155,394],[223,310],[275,234],[354,115],[465,40]]},{width:3.3,points:[[-90,165],[60,207],[184,177],[300,171],[480,187]]},{width:3.2,points:[[38,-70],[76,70],[112,143],[145,390],[175,800]]},{width:3.1,points:[[-70,345],[90,340],[183,357],[286,386],[490,385]]},{width:3.1,points:[[-60,465],[102,508],[184,517],[288,539],[450,558]]},{width:3.3,points:[[250,-40],[233,117],[274,233],[288,386],[277,800]]},{width:1.8,points:[[0,285],[75,261],[167,275],[274,233]]},{width:1.8,points:[[90,340],[94,263]]},{width:1.8,points:[[183,177],[206,330]]},{width:1.8,points:[[0,424],[102,508]]},{width:1.8,points:[[183,357],[184,517]]},{width:1.8,points:[[285,386],[337,290]]},{width:1.8,points:[[285,539],[341,466]]},{width:1.8,points:[[175,648],[279,646]]}];const buildings=[];for(let row=0;row<14;row++){for(let col=0;col<8;col++){const x=20+col*47+(row%2)*10,y=115+row*42+(col%3)*4;const skip=roads.some(r=>r.points.some(p=>Math.hypot(p[0]-x,p[1]-y)<17));if(!skip){const k=(col*17+row*11)%7;buildings.push({x,y,w:14+k*2.1,h:10+((col*5+row*7)%12),rot:((row+col)%5-2)*0.065})}}}
 function themeVal(k){return getComputedStyle(document.documentElement).getPropertyValue(k).trim()}
-function drawFallback(){if(state.real)return;const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);fW=rect.width;fH=rect.height;ctx.clearRect(0,0,fW,fH);ctx.fillStyle=themeVal('--bg');ctx.fillRect(0,0,fW,fH);ctx.save();const scale=Math.pow(1.23,state.zoom-14.2),baseScale=fH/740;ctx.translate(fW/2+state.panX,fH/2+state.panY);ctx.scale(scale*baseScale,scale*baseScale);ctx.translate(-195,-370);ctx.fillStyle=themeVal('--water');ctx.strokeStyle=themeVal('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(335,-40);ctx.bezierCurveTo(315,90,365,120,326,177);ctx.bezierCurveTo(290,211,344,276,440,321);ctx.lineTo(450,-50);ctx.closePath();ctx.fill();ctx.stroke();if(state.effects.scanlines>70){ctx.strokeStyle=themeVal('--line');ctx.globalAlpha=.25;ctx.lineWidth=.5;ctx.beginPath();for(let x=-100;x<500;x+=50){ctx.moveTo(x,-80);ctx.lineTo(x,830)}for(let y=-80;y<830;y+=50){ctx.moveTo(-100,y);ctx.lineTo(500,y)}ctx.stroke();ctx.globalAlpha=1}if(state.showBuildings){ctx.fillStyle=themeVal('--building');ctx.strokeStyle=themeVal('--roads');ctx.lineWidth=.55;for(const b of buildings){ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.rot);ctx.fillRect(-b.w/2,-b.h/2,b.w,b.h);ctx.strokeRect(-b.w/2,-b.h/2,b.w,b.h);ctx.restore()}}for(const r of roads){ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();r.points.forEach((p,i)=>i===0?ctx.moveTo(...p):ctx.lineTo(...p));ctx.strokeStyle=themeVal('--bg');ctx.lineWidth=r.width+4;ctx.stroke();ctx.strokeStyle=themeVal(r.width>5?'--accent':'--roads');ctx.lineWidth=r.width;ctx.shadowColor=themeVal('--roads');ctx.shadowBlur=state.effects.road*.24;ctx.stroke();ctx.shadowBlur=0}ctx.fillStyle=themeVal('--accent');ctx.font='10px ui-monospace,monospace';ctx.save();ctx.translate(32,477);ctx.rotate(-.76);ctx.fillText('EXAMPLE ROAD',0,0);ctx.restore();ctx.fillText('DEMO GEOGRAPHY',40,277);ctx.restore();ctx.fillStyle=themeVal('--accent');ctx.font='10px ui-monospace,monospace';ctx.fillText('ILLUSTRATIVE MAP · NOT ROAD DATA',15,122)}
+function drawFallback(){if(state.real)return;const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);fW=rect.width;fH=rect.height;ctx.clearRect(0,0,fW,fH);ctx.fillStyle=themeVal('--bg');ctx.fillRect(0,0,fW,fH);ctx.save();const scale=Math.pow(1.23,state.zoom-14.2),baseScale=fH/740;ctx.translate(fW/2+state.panX,fH/2+state.panY);ctx.scale(scale*baseScale,scale*baseScale);ctx.translate(-195,-370);ctx.fillStyle=themeVal('--water');ctx.strokeStyle=themeVal('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(335,-40);ctx.bezierCurveTo(315,90,365,120,326,177);ctx.bezierCurveTo(290,211,344,276,440,321);ctx.lineTo(450,-50);ctx.closePath();ctx.fill();ctx.stroke();if(state.effects.scanlines>70){ctx.strokeStyle=themeVal('--line');ctx.globalAlpha=.25;ctx.lineWidth=.5;ctx.beginPath();for(let x=-100;x<500;x+=50){ctx.moveTo(x,-80);ctx.lineTo(x,830)}for(let y=-80;y<830;y+=50){ctx.moveTo(-100,y);ctx.lineTo(500,y)}ctx.stroke();ctx.globalAlpha=1}if(state.showBuildings){ctx.fillStyle=themeVal('--building');ctx.strokeStyle=themeVal('--roads');ctx.lineWidth=.55;for(const b of buildings){ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.rot);ctx.fillRect(-b.w/2,-b.h/2,b.w,b.h);ctx.strokeRect(-b.w/2,-b.h/2,b.w,b.h);ctx.restore()}}for(const r of roads){ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();r.points.forEach((p,i)=>i===0?ctx.moveTo(...p):ctx.lineTo(...p));ctx.strokeStyle=themeVal('--bg');ctx.lineWidth=r.width+4;ctx.stroke();ctx.strokeStyle=themeVal(r.width>5?'--accent':'--roads');ctx.lineWidth=r.width;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=state.effects.glow*.20;ctx.stroke();ctx.shadowBlur=0}ctx.fillStyle=themeVal('--accent');ctx.font='10px ui-monospace,monospace';ctx.save();ctx.translate(32,477);ctx.rotate(-.76);ctx.fillText('EXAMPLE ROAD',0,0);ctx.restore();ctx.fillText('DEMO GEOGRAPHY',40,277);ctx.restore();ctx.fillStyle=themeVal('--accent');ctx.font='10px ui-monospace,monospace';ctx.fillText('ILLUSTRATIVE MAP · NOT ROAD DATA',15,122)}
 canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,ox:state.panX,oy:state.panY};canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging')});canvas.addEventListener('pointermove',e=>{if(!drag)return;state.panX=drag.ox+e.clientX-drag.x;state.panY=drag.oy+e.clientY-drag.y;drawFallback()});for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{drag=null;canvas.classList.remove('dragging')});canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY<0?0.5:-0.5)},{passive:false});canvas.addEventListener('dblclick',e=>{e.preventDefault();zoomBy(1)});
 // FIELD ATLAS map styling v0.2: understated geographic hierarchy.
 // Uses OpenMapTiles layers from the OpenFreeMap OSM source. No CARTO tiles.
