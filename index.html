@@ -179,6 +179,8 @@ input[type=range].effect-slider::-moz-range-thumb{
 </div>
 <script>
 'use strict';
+// Release identifier displayed continuously in the compact console header.
+const APP_VERSION='0.28';
 const PLACES=[
   {name:'Carbonear',region:'Conception Bay North',lng:-53.2270,lat:47.7350,zoom:14.2},
   {name:'Harbour Grace',region:'Conception Bay North',lng:-53.2110,lat:47.6925,zoom:13.8},
@@ -187,7 +189,9 @@ const PLACES=[
   {name:'Heart’s Content',region:'Trinity Bay',lng:-53.3680,lat:47.8670,zoom:13.8},
   {name:'St. John’s',region:'Avalon Peninsula',lng:-52.7130,lat:47.5620,zoom:12.8},
 ];
-const $=id=>document.getElementById(id); const state={theme:'green',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,gradients:{
+const $=id=>document.getElementById(id);
+$('consolePrefix').textContent='CONSOLE v'+APP_VERSION+':';
+const state={theme:'green',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,gradients:{
  screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
  mapTop:{enabled:true,length:110},mapBottom:{enabled:false,length:100}
 },effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
