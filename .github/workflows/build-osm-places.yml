@@ -30,6 +30,23 @@ jobs:
           test "$(stat -c %s /tmp/nl-latest.osm.pbf)" -gt 100000000
       - name: Merge all map-label community nodes with NRCan fallback
         run: python tools/merge-osm-map-places.py /tmp/nl-latest.osm.pbf
+      - name: Assert provenance and distinct map-labelled Wild Cove positions
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          official=json.loads(Path("data/nl-official-places.json").read_text())["places"]
+          derived=json.loads(Path("data/nl-places.json").read_text())["places"]
+          ids={x["id"] for x in official}
+          assert all(p.get("officialId") in ids for p in derived if p.get("officialId"))
+          anchors=[p for p in derived if p.get("mapAnchor")]
+          assert len(anchors)>=500
+          wild=[p for p in anchors if p["name"]=="Wild Cove"]
+          assert any(p["region"]=="Baie Verte Peninsula" for p in wild)
+          assert any(p["region"]=="Twillingate / Notre Dame Bay" for p in wild)
+          assert len([p for p in derived if p["name"]=="Twillingate"])==1
+          print("PASSED:",len(derived),"places;",len(anchors),"matching map-label nodes")
+          PY
       - name: Commit validated index back to development branch
         run: |
           git add data/nl-places.json
