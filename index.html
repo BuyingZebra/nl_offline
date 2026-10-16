@@ -202,12 +202,14 @@ function applyEffects(){
  const e=state.effects,k=e.glow/100,root=$('app');
  root.style.setProperty('--scan-intensity',String(e.scanlines/100));
  root.style.setProperty('--vignette-intensity',String(e.vignette/100));
+ root.style.setProperty('--glow-level',k.toFixed(3));
  root.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
  root.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
  if(isReal()){
-  for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow']){
+  for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow','stream-glow','route-glow']){
    if(state.map.getLayer(id)){
-    state.map.setPaintProperty(id,'line-opacity',+(k*.92).toFixed(3));
+    const factor=id==='stream-glow'?.5:id==='route-glow'?.95:1;
+    state.map.setPaintProperty(id,'line-opacity',+(k*.92*factor).toFixed(3));
     state.map.setPaintProperty(id,'line-blur',+(k*7.5).toFixed(2));
    }
   }
@@ -359,10 +361,15 @@ function installPhosphorFeedback(button){
 }
 for(const id of ['theme','plus','minus','gps','home'])
  installPhosphorFeedback($(id));
+// A tapped command or toggle is not a selected mode. Blur pointer activations
+// after their handlers have run; keyboard/screen-reader clicks retain focus.
+document.addEventListener('click',event=>{
+ if(event.detail===0)return;
+ const target=event.target.closest?.('button,input[type="checkbox"]');
+ if(target&&document.activeElement===target)target.blur();
+});
 $('searchBtn').addEventListener('click',openSearch);$('routeBtn').addEventListener('click',openRoute);$('pinBtn').addEventListener('click',togglePin);$('menuBtn').addEventListener('click',openMenu);$('sheetClose').addEventListener('click',closeSheet);$('sheetShade').addEventListener('click',e=>{if(e.target===$('sheetShade'))closeSheet()});window.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
-// Regional camera: no whole-planet mode. Street views stay level;
-// zooming out across Conception Bay and nearby peninsulas gradually adds pitch.
-// This is genuine geographic perspective, not a fisheye or geometry distortion.
+// Regional flat-Mercator map: manual pitch remains independent of zoom.
 const MAP_MIN_ZOOM=7.5;
 try{
  const current=JSON.parse(localStorage.getItem('fieldAtlasGradientsV20')||'null');
@@ -527,6 +534,9 @@ function makeStyle(){
       {id:'water-grid',type:'fill',source:src,'source-layer':'water',
         layout:{visibility:state.showWaterGrid?'visible':'none'},
         paint:{'fill-pattern':'water-grid-'+state.theme,'fill-opacity':0.32}},
+      {id:'stream-glow',type:'line',source:src,'source-layer':'waterway',minzoom:11,
+        layout:join,paint:{'line-color':p.waterline,'line-width':w(0.45,0.9,1.45,2.1),
+          'line-blur':blur,'line-opacity':+(opacity*.5).toFixed(3)}},
       {id:'streams',type:'line',source:src,'source-layer':'waterway',minzoom:11,
         layout:join,paint:{'line-color':p.waterline,'line-opacity':0.75,'line-width':w(0.35,0.6,1,1.35)}},
       // Building geometry stays intact. The styling is subdued, not simplified.
@@ -556,6 +566,9 @@ function makeStyle(){
       road('major-casing',['secondary','secondary_link','primary','primary_link','trunk','trunk_link','motorway','motorway_link'],p.casing,w(1.9,4,5.8,7.1),7),
       road('secondary-roads',['secondary','secondary_link'],p.secondary,w(1.3,2.5,3.7,4.6),8),
       road('primary-roads',['primary','primary_link','trunk','trunk_link','motorway','motorway_link'],p.major,w(1.6,3.0,4.4,5.3),7),
+      {id:'route-glow',type:'line',source:'route-preview',
+        layout:join,paint:{'line-color':p.route,'line-width':5.5,'line-blur':blur,
+          'line-opacity':+(opacity*.95).toFixed(3),'line-dasharray':[2,2]}},
       {id:'route',type:'line',source:'route-preview',
         layout:join,paint:{'line-color':p.route,'line-width':3.5,'line-opacity':0.98,'line-dasharray':[2,2]}},
       {id:'street-labels',type:'symbol',source:src,'source-layer':'transportation_name',minzoom:13,
