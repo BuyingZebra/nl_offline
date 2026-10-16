@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NL Provincial Mapping Sources — FIELD ATLAS</title>
+<style>
+:root{color-scheme:dark;--bg:#0a1510;--surface:#122319;--line:#31563f;--light:#d7f1df;--muted:#9ebaaa;--accent:#b1edbb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--light);font:14px/1.5 system-ui,Segoe UI,sans-serif}
+main{min-height:100dvh;display:grid;grid-template-columns:360px minmax(0,1fr)}
+aside{padding:22px 17px;background:var(--surface);border-right:1px solid var(--line);max-height:100dvh;overflow:auto}
+h1{font-size:21px;line-height:1.2;margin:0 0 8px}h2{font-size:13px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:22px 0 7px}
+p,.quiet{color:var(--muted);font-size:13px}label{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}
+input,select{border:1px solid var(--line);border-radius:7px;background:#08160e;color:var(--light);padding:10px;width:100%;font:inherit}
+button,a.pill{display:inline-block;cursor:pointer;border:1px solid #3b674b;padding:8px 10px;border-radius:7px;color:var(--light);background:#193a26;text-decoration:none;font:inherit}
+button:hover,a.pill:hover{background:#2c5837}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#results{display:grid;gap:6px;margin-top:10px}#results button{text-align:left;display:block;background:#102718;width:100%;font-size:12px}#results small{display:block;color:var(--muted);padding-top:4px;font-size:11px}
+#pager{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:12px 0}#pager button{font-size:12px}
+#viewer{padding:20px 24px;max-height:100dvh;overflow:auto}
+#picture{width:100%;height:auto;max-height:76dvh;object-fit:contain;background:#0e1a13;border:1px solid var(--line);border-radius:8px}
+#picture[hidden]{display:none}
+#viewerHead{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#source{margin:8px 0 16px}#gis{display:grid;gap:7px}#gis a{display:block;color:var(--accent);word-break:break-all}
+.note{background:#101e15;padding:11px;border:1px solid var(--line);border-radius:7px}
+@media(max-width:740px){main{display:flex;flex-direction:column}aside{max-height:none;width:100%;border-right:0;border-bottom:1px solid var(--line)}#viewer{max-height:none;padding:15px}#picture{max-height:58dvh}}
+</style></head><body>
+<main>
+<aside>
+<h1>Provincial map sources</h1>
+<p>An inventory of historical Newfoundland and Labrador scanned air-photo survey index maps, and government ArcGIS data services.</p>
+<div class="note" id="summary" role="status">Loading province-wide map index…</div>
+<label for="q">Search place, area, sheet, or year</label>
+<input id="q" placeholder="e.g. Baie Verte, 01N11, 1995">
+<label for="mode">Image type</label><select id="mode"><option value="">All</option><option>CO</option><option>BW</option><option>IR</option></select>
+<label for="scale">Map scale denominator</label><select id="scale"><option value="">All</option><option value="5000">1:5,000 or more detailed</option><option value="12500">1:12,500 or more detailed</option><option value="25000">1:25,000 or more detailed</option><option value="50000">1:50,000 or more detailed</option></select>
+<div id="pager"><button id="back">Previous</button><span id="page"></span><button id="next">Next</button></div>
+<div id="results"></div>
+<h2>ArcGIS map services</h2>
+<div id="gis" class="quiet">Discovering provincial service endpoints…</div>
+</aside>
+<section id="viewer">
+<div id="viewerHead"><h1 id="title">Choose a map index image</h1><a id="openOriginal" class="pill" href="#" rel="noopener noreferrer" target="_blank" hidden>Open original JPG ↗</a></div>
+<p id="details">Select a sheet from the left to inspect its road markings and recorded survey coverage.</p>
+<img id="picture" alt="Scanned provincial topographic air-photo flight index" hidden>
+<div id="source" class="quiet"></div>
+<p class="note"><strong>Reading these maps:</strong> Roads, place names, and terrain depicted in the background can be useful as historic references. Overprinted flight lines and photograph ID dots are <em>not roads</em>. These JPGs are generally not georeferenced; coordinate extraction needs registration and comparison with modern GIS before any road could enter navigation.</p>
+<p class="quiet">All images remain hosted by the Government of Newfoundland and Labrador. Source copyrights and reuse conditions apply.</p>
+</section></main>
+<script>
+'use strict';
+const el = id => document.getElementById(id);
+let rows=[],filtered=[],page=0,selected=null;
+const size=20;
+const root='./data/provincial_maps/';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function choose(r){
+ selected=r;
+ el('title').textContent=r.region||r.sheet||r.filename;
+ el('details').textContent=[r.sheet, r.year||'', r.photo_type||'', r.scale_denominator?'1:'+r.scale_denominator:''].filter(Boolean).join('  ·  ');
+ el('picture').src=r.url;el('picture').hidden=false;
+ el('openOriginal').href=r.url;el('openOriginal').hidden=false;
+ el('source').textContent=r.filename;
+}
+function draw(){
+ const q=el('q').value.trim().toLocaleLowerCase(), mode=el('mode').value, scale=Number(el('scale').value)||0;
+ filtered=rows.filter(r=>(!mode||r.photo_type===mode)&&(!scale||r.scale_denominator&&Number(r.scale_denominator)<=scale)
+ &&(!q||[r.sheet,r.year,r.region,r.filename].some(v=>String(v??'').toLocaleLowerCase().includes(q))));
+ const pages=Math.max(1,Math.ceil(filtered.length/size));page=Math.max(0,Math.min(page,pages-1));
+ el('page').textContent=(page+1)+'/'+pages+' · '+filtered.length+' sheets';
+ el('back').disabled=page===0;el('next').disabled=page>=pages-1;
+ el('results').replaceChildren();
+ for(const r of filtered.slice(page*size,(page+1)*size)){
+  const b=document.createElement('button');
+  const name=document.createElement('strong');name.textContent=r.region||r.filename;
+  const detail=document.createElement('small');detail.textContent=
+    [r.sheet,r.year,r.photo_type,r.scale_denominator?'1:'+r.scale_denominator:''].filter(Boolean).join(' · ');
+  b.append(name,detail);b.onclick=()=>choose(r);el('results').append(b);
+ }
+}
+for(const id of ['q','mode','scale'])el(id).addEventListener(id==='q'?'input':'change',()=>{page=0;draw();});
+el('back').onclick=()=>{page--;draw();};el('next').onclick=()=>{page++;draw();};
+(async()=>{
+ try{
+  const [images,report]=await Promise.all([fetch(root+'provincial_image_index.json'),fetch(root+'provincial_map_inventory.json')]);
+  if(!images.ok||!report.ok)throw Error('Catalog build has not published files yet. Check the GitHub Actions run.');
+  rows=await images.json();const s=await report.json();
+  el('summary').textContent=rows.length.toLocaleString()+' indexed images across '+s.sheet_count+' map-sheet identifiers. ArcGIS layers discovered: '+s.arcgis_layer_count+'.';
+  draw();
+  if(filtered.length)choose(filtered[0]);
+  const a=await fetch(root+'provincial_arcgis_layers.csv');
+  if(a.ok){
+   const csv=await a.text();
+   const links=[...csv.matchAll(/https?:\/\/[^,\r\n"]+(?:MapServer|FeatureServer|ImageServer)(?:\/\d+)?/g)]
+     .map(m=>m[0]).filter((v,i,l)=>l.indexOf(v)===i).slice(0,35);
+   el('gis').replaceChildren();
+   if(!links.length)el('gis').textContent='No service links confirmed; see the inventory report.';
+   for(const url of links){
+    const link=document.createElement('a');link.textContent=url;link.href=url;link.target='_blank';link.rel='noopener noreferrer';el('gis').appendChild(link);
+   }
+  }
+ }catch(err){el('summary').textContent='Inventory not yet published: '+err.message;el('gis').textContent='Waiting for the cloud catalog.';}
+})();
+</script></body></html>
