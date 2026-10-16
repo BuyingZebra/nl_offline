@@ -1,0 +1,148 @@
+name: Build Newfoundland and Labrador map data
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_addresses:
+        description: "Also download national address archive and extract NL records (large, slower)"
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-nl-map.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nl-map-data-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reference-data:
+    name: Road, place and optional address databases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GIS software
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends gdal-bin sqlite3 unzip
+          python -m pip install --disable-pip-version-check "pyshp==2.3.1"
+      - name: Download official NL road and geographic-name archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/raw work/output work/names
+          curl -fL --retry 3 --retry-delay 4 --connect-timeout 30 \
+            "https://geo.statcan.gc.ca/nrn_rrn/nl/nrn_rrn_nl_GPKG.zip" -o work/raw/nrn.zip
+          curl -fL --retry 3 --retry-delay 4 --connect-timeout 30 \
+            "https://ftp.maps.canada.ca/pub/nrcan_rncan/vector/geobase_cgn_toponyme/prov_shp_eng/cgn_nl_shp_eng.zip" -o work/raw/names.zip
+          unzip -tq work/raw/nrn.zip
+          unzip -tq work/raw/names.zip
+          unzip -p work/raw/nrn.zip NRN_NL_7_0_GPKG_en.gpkg > work/raw/roads.gpkg
+          unzip -oq work/raw/names.zip -d work/names
+          test -s work/raw/roads.gpkg
+      - name: Build province-wide editable government vector layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          ogr2ogr -f GPKG work/output/nl_reference.gpkg work/raw/roads.gpkg \
+            NRN_NL_7_0_ROADSEG -nln road_segments -t_srs EPSG:4326
+          ogr2ogr -update -f GPKG work/output/nl_reference.gpkg work/raw/roads.gpkg \
+            NRN_NL_7_0_JUNCTION -nln road_junctions -t_srs EPSG:4326
+          ogr2ogr -update -f GPKG work/output/nl_reference.gpkg work/raw/roads.gpkg \
+            NRN_NL_7_0_FERRYSEG -nln ferries -t_srs EPSG:4326
+          ogr2ogr -update -f GPKG work/output/nl_reference.gpkg \
+            work/names/cgn_nl_shp_eng.shp -nln official_names -t_srs EPSG:4326
+          sqlite3 work/output/nl_reference.gpkg \
+            "SELECT table_name FROM gpkg_contents ORDER BY table_name;"
+      - name: Optional national address archive (streamed, NL records only)
+        if: ${{ inputs.include_addresses == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 --retry-delay 5 --connect-timeout 30 \
+            "https://www150.statcan.gc.ca/n1/pub/46-26-0002/2022001/202606.zip" \
+            -o work/raw/addresses.zip
+          unzip -tq work/raw/addresses.zip
+      - name: Build offline place and optional address search
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -s work/raw/addresses.zip ]; then
+            python tools/build_nl_catalog.py --names-zip work/raw/names.zip \
+              --addresses-zip work/raw/addresses.zip --output work/output
+          else
+            python tools/build_nl_catalog.py --names-zip work/raw/names.zip \
+              --output work/output
+          fi
+          test -s work/output/nl_search.sqlite
+          test -s work/output/nl_reference.gpkg
+      - name: Package reference data (not the source archives)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-reference-data
+          path: work/output/
+          compression-level: 6
+          retention-days: 7
+          if-no-files-found: error
+
+  osm-vector-map:
+    name: Detailed OSM vector map tiles
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Download NL OpenStreetMap PBF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/output
+          curl -fL --retry 3 --retry-delay 5 --connect-timeout 30 \
+            "https://download.geofabrik.de/north-america/canada/newfoundland-and-labrador-latest.osm.pbf" \
+            -o work/nl.osm.pbf
+          test -s work/nl.osm.pbf
+      - name: Generate offline MBTiles using Planetiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e JAVA_TOOL_OPTIONS="-Xmx3g" \
+            -v "$PWD/work:/data" \
+            ghcr.io/onthegomap/planetiler:latest \
+            --osm-path=/data/nl.osm.pbf \
+            --area=newfoundland-and-labrador \
+            --download \
+            --storage=mmap \
+            --maxzoom=15 \
+            --output=/data/output/nl_osm.mbtiles \
+            --force
+          test -s work/output/nl_osm.mbtiles
+      - name: Validate output tiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import sqlite3
+          db = sqlite3.connect("work/output/nl_osm.mbtiles")
+          count = db.execute("SELECT COUNT(*) FROM tiles").fetchone()[0]
+          print(f"Generated {count:,} tiles")
+          if count < 100:
+              raise RuntimeError("Unexpectedly few vector tiles")
+          db.close()
+          PY
+      - name: Publish offline vector-map download
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-offline-vector-map
+          path: work/output/nl_osm.mbtiles
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
