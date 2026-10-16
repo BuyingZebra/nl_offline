@@ -20,7 +20,7 @@ function searchFunctions(){
   'return {searchKey,placeSearchMatches};')(defaultPlaces,places);
 }
 
-test('full NL official community file is present, valid and audited',()=>{
+test('merged NL community index is present, valid and audited',()=>{
  assert.ok(places.length>=1458,'expected at least 1458 validated place records');
  assert.match(index.licence,/ODbL 1\.0/);
  assert.equal(new Set(places.map(p=>p.id)).size,places.length);
@@ -69,4 +69,49 @@ test('browser script remains parseable and uses fallback when official index fai
  assert.ok(js.includes('loadCommunityIndex();'));
  assert.ok(js.includes("placesIndexState='error'"));
  assert.ok(js.includes('officialPlaces=[]'));
+});
+
+test('OSM map-label anchors override official references without corrupting provenance',()=>{
+ const official=JSON.parse(readFileSync(new URL('../data/nl-official-places.json',import.meta.url),'utf8'));
+ const ids=new Set(official.places.map(p=>p.id));
+ const labels=places.filter(p=>p.mapAnchor===true&&p.source==='osm');
+ assert.ok(labels.length>=500,'expected matching OSM vector map place nodes');
+ assert.ok(places.some(p=>p.source==='cgn'&&!p.mapAnchor),'official-only fallbacks remain');
+ for(const place of labels){
+  assert.ok(place.id.startsWith('osm:n:'),place.id);
+  if(place.officialId)assert.ok(ids.has(place.officialId),'not a real CGNDB ID '+place.officialId);
+ }
+ assert.equal(places.filter(p=>p.name==='Twillingate').length,1,
+   'do not duplicate a nearby official reference of one OSM place');
+});
+test('both map-labelled Wild Cove communities have distinct actual map points',()=>{
+ const {placeSearchMatches}=searchFunctions();
+ const matches=placeSearchMatches('Wild Cove');
+ const baie=matches.find(p=>p.mapAnchor&&p.region==='Baie Verte Peninsula');
+ const twill=matches.find(p=>p.mapAnchor&&p.region==='Twillingate / Notre Dame Bay');
+ assert.ok(baie,'Wild Cove on Baie Verte Peninsula');
+ assert.ok(twill,'Wild Cove by Twillingate');
+ assert.ok(Math.abs(baie.lat-49.9931947)<0.0001);
+ assert.ok(Math.abs(baie.lng-(-56.3364852))<0.0001);
+ assert.ok(Math.abs(twill.lat-49.6691808)<0.0001);
+ assert.ok(Math.abs(twill.lng-(-54.7869282))<0.0001);
+ assert.equal(matches[0].mapAnchor,true);
+ assert.equal(matches[1].mapAnchor,true);
+});
+test('town result UI displays only name and geographic region',()=>{
+ const a=js.indexOf('function placeResults(q){');
+ const b=js.indexOf('function openSearch(){',a);
+ const body=js.slice(a,b);
+ assert.ok(body.includes('esc(p.name)'));
+ assert.ok(body.includes('esc(area)'));
+ assert.ok(!body.includes('p.kind'));
+ assert.ok(!body.includes('p.historic'));
+});
+test('town selection goes directly to its own map-label node coordinate',()=>{
+ const a=js.indexOf('function viewPlace(p){');
+ const b=js.indexOf('function getGPS(){',a);
+ const body=js.slice(a,b);
+ assert.ok(body.includes('center:[p.lng,p.lat]'));
+ assert.ok(!body.includes('const existingView'));
+ assert.ok(!body.includes('flyTo('));
 });
