@@ -116,7 +116,8 @@ function applyEffects(){
  if(isReal()){
   for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow']){
    if(state.map.getLayer(id)){
-    state.map.setPaintProperty(id,'line-opacity',+(k*.92).toFixed(3));
+    const range=ZOOM_REVEALS[id];
+    state.map.setPaintProperty(id,'line-opacity',fadeByZoom(range[0],range[1],+(k*.92).toFixed(3)));
     state.map.setPaintProperty(id,'line-blur',+(k*7.5).toFixed(2));
    }
   }
@@ -199,6 +200,24 @@ function makeWaterGridTexture(theme){
 // FIELD ATLAS map styling v0.2: understated geographic hierarchy.
 // Uses OpenMapTiles layers from the OpenFreeMap OSM source. No CARTO tiles.
 // All source, font and icon URLs must be replaced with local resources for the offline release.
+// Fade map details by continuous zoom rather than snapping whole layers on.
+const ZOOM_REVEALS={"paths":[11.6,13.8],"path-glow":[11.6,13.8],"local-roads":[9.8,12],"local-glow":[9.8,12],"tertiary-roads":[8.7,10.8],"tertiary-glow":[8.7,10.8],"major-casing":[5.8,8.2],"secondary-roads":[6.8,9],"secondary-glow":[6.8,9],"primary-roads":[5.8,8.2],"major-glow":[5.8,8.2],"streams":[9.5,11.8],"street-labels":[11.5,13.8],"places":[5,7]};
+function fadeByZoom(from,to,opacity){return ['interpolate',['linear'],['zoom'],from,0,to,opacity]}
+function withZoomFades(style){
+ for(const layer of style.layers){
+  if(layer.id==='buildings'){
+   layer.minzoom=11.5;
+   layer.paint['fill-opacity']=['interpolate',['linear'],['zoom'],11.5,0,12.8,.13,14.2,.5,16,.72,19,.82];
+  }else{
+   const limits=ZOOM_REVEALS[layer.id];
+   if(!limits)continue;
+   layer.minzoom=limits[0];
+   const key=layer.type==='symbol'?'text-opacity':'line-opacity';
+   layer.paint[key]=fadeByZoom(limits[0],limits[1],layer.paint[key]??.92);
+  }
+ }
+ return style;
+}
 function makeStyle(){
   const amber=state.theme==='amber';
   const p=amber
@@ -230,7 +249,7 @@ function makeStyle(){
     id,type:'line',...roadSource,minzoom,filter:klass(types),layout:join,
     paint:{'line-color':color,'line-width':width,'line-opacity':0.92,...extra}
   });
-  return {
+  const style={
     version:8,
     glyphs:'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources:{
@@ -294,6 +313,7 @@ function makeStyle(){
         paint:{'text-color':p.town,'text-opacity':0.92,'text-halo-color':p.bg,'text-halo-width':1.75}}
     ]
   };
+  return withZoomFades(style);
 }
 function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,attributionControl:false,pitchWithRotate:false,dragRotate:false,trackResize:true});state.map=m;
 m.on('styleimagemissing',e=>{
