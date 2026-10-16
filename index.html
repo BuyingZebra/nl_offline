@@ -138,27 +138,14 @@ function autoPitchForZoom(zoom){
  const ease=t*t*(3-2*t); // smoothstep, no hard change in camera pitch
  return +(ease*48).toFixed(2);
 }
-// During a two-finger pinch, MapLibre emits zoom changes on each interaction frame.
-// Drive pitch directly from that LIVE zoom value, so camera curvature follows the
-// fingers rather than animating to the final zoom only when they are released.
-// setPitch updates the camera immediately; the smoothstep above supplies the curve.
-// Avoid changing pitch during a deliberate two-finger tilt gesture.
-let syncingLivePerspective=false;
-function syncPerspectiveDuringPinch(map){
- if(!state.autoPerspective||syncingLivePerspective)return;
- if(!map.touchZoomRotate?.isActive?.()||map.touchPitch?.isActive?.())return;
- const target=autoPitchForZoom(map.getZoom());
- if(Math.abs(target-map.getPitch())<0.12)return;
- syncingLivePerspective=true;
- try{map.setPitch(target);}
- finally{syncingLivePerspective=false;}
-}
-// Catch remaining momentum and other zoom interactions. Usually this does nothing
-// after a pinch, because pitch has already been kept in sync frame by frame.
-function moveToPerspective(map,duration=300){
+// The zoom/pitch relationship remains a single smoothstep curve, but pinch
+// handling is owned exclusively by MapLibre. Do NOT call setPitch/easeTo/jumpTo
+// inside its 'zoom' event: those camera APIs stop MapLibre's active touch handler.
+// Once the zoom gesture completes, gently settle at its corresponding pitch.
+function moveToPerspective(map,duration=360){
  if(!state.autoPerspective)return;
  const target=autoPitchForZoom(map.getZoom());
- if(Math.abs(target-map.getPitch())>0.5)
+ if(Math.abs(target-map.getPitch())>0.35)
    map.easeTo({pitch:target,duration,essential:true});
 }
 function zoomBy(step){if(isReal()){const z=Math.min(19,Math.max(MAP_MIN_ZOOM,state.map.getZoom()+step));const opts={zoom:z,duration:650,essential:true};if(state.autoPerspective)opts.pitch=autoPitchForZoom(z);state.map.easeTo(opts)}else{state.zoom=Math.min(18.5,Math.max(10,state.zoom+step));drawFallback();updateReadout()}}
@@ -349,13 +336,16 @@ m.on('style.load',()=>{
  if(typeof m.setProjection==='function'){
   try{m.setProjection({type:'globe'});}catch(error){console.warn('Globe projection unavailable',error);}
  }
+ // Re-apply route data only after a new style (e.g. theme change), not on
+ // every styledata event. All regular interaction leaves the source alone.
+ if(state.real){setRouteGeoJSON();applyEffects();}
 });
 m.on('styleimagemissing',e=>{
  const expected='water-grid-'+state.theme;
  if(e.id===expected&&!m.hasImage(expected))
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
-m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('zoom',()=>syncPerspectiveDuringPinch(m));m.on('zoomend',()=>moveToPerspective(m,300));m.on('styledata',()=>{if(m.isStyleLoaded())setRouteGeoJSON()});m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
+m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('zoomend',()=>moveToPerspective(m,360));m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
 // MapLibre GL JS v5 retains a browser-compatible UMD build and supports globe.
 // v6's dist/maplibre-gl.js does not exist (v6 is ESM-only); never reference it.
 // Try the original working CDN, with a second host if it is blocked on mobile.
