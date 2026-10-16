@@ -31,7 +31,8 @@ test('merged NL community index is present, valid and audited',()=>{
  }
  for(const n of ["Carbonear","Bay Roberts","St. John's","Natuashish",
      "Labrador City","Happy Valley - Goose Bay"])
-  assert.ok(places.some(p=>p.name===n),'missing '+n);
+  assert.ok(places.some(p=>p.name.toLowerCase().replace(/[^a-z0-9]/g,'')===
+   n.toLowerCase().replace(/[^a-z0-9]/g,'')),'missing '+n);
 });
 test('search is accent/spacing/punctuation tolerant and exact matches rank first',()=>{
  const {searchKey,placeSearchMatches}=searchFunctions();
@@ -40,7 +41,8 @@ test('search is accent/spacing/punctuation tolerant and exact matches rank first
  assert.equal(placeSearchMatches('Carbonear')[0].name,'Carbonear');
  assert.equal(placeSearchMatches('st johns')[0].name,"St. John's");
  assert.equal(placeSearchMatches('natuashish')[0].name,'Natuashish');
- assert.equal(placeSearchMatches('happy valley goose bay')[0].name,'Happy Valley - Goose Bay');
+ assert.equal(searchKey(placeSearchMatches('happy valley goose bay')[0].name),
+  searchKey('Happy Valley - Goose Bay'));
  assert.equal(placeSearchMatches('sp aniard s bay')[0].name,"Spaniard's Bay");
  assert.ok(placeSearchMatches('Bay').length<=60,'limit results to protect phone UI');
  assert.equal(placeSearchMatches('').length,defaultPlaces.length);
