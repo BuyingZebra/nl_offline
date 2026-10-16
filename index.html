@@ -16,13 +16,13 @@
  height:0;pointer-events:none;opacity:1}
 #screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
 #screenBottomFade{bottom:0;background:linear-gradient(to top,#000,transparent)}
-/* The map layers instead use an ALPHA MASK: transparent edge -> fully opaque
-   geography. Mask length is in device-independent CSS pixels, not percent.
-   JS can incline the top mask to match a projected northern map boundary. */
-#maplibre,#fallback{
- -webkit-mask-image:linear-gradient(to bottom,#000,#000);
- mask-image:linear-gradient(to bottom,#000,#000);
-}
+/* Geographic-edge fades are a transparent canvas projected onto the actual
+   Mercator poles, not fixed alpha masks on the map viewport. It renders over
+   the map and never receives touches; geographic pixels stay unmodified. */
+#map{background:#07170f}
+:root[data-theme=amber] #map{background:#160d05}
+#mapEdgeFade{position:absolute;inset:0;z-index:2;width:100%;height:100%;
+ pointer-events:none;display:block}
 .gradient-row{display:grid;grid-template-columns:minmax(112px,1.12fr) minmax(95px,1fr) 35px;
  gap:6px;align-items:center;min-height:49px}
 .gradient-label{display:flex;align-items:center;gap:7px;min-width:0;min-height:44px;
@@ -73,7 +73,7 @@ input[type=range].effect-slider::-moz-range-thumb{height:22px;width:22px;backgro
 <body>
 <div id="app">
   <!-- Screen fades are black overlays; map fades are alpha masks. -->
-  <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
+  <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><canvas id="mapEdgeFade" aria-hidden="true"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
   <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch between green and amber phosphor" aria-label="Toggle theme">◐</button></header>
   <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
@@ -185,60 +185,77 @@ function gradientMarkup(){
 function saveGradients(){
  try{localStorage.setItem('fieldAtlasGradientsV20',JSON.stringify(state.gradients))}catch(e){}
 }
-// Compute the map's actual northern Mercator boundary when it approaches the
-// viewport. A straight screen-top mask does not conceal the slanted edge that
-// appears near the pole when the user rotates the pitched map. This uses
-// project() only: no camera repositioning and no gesture-controller calls.
-function northMapBoundary(map,width,height){
- if(!map||map.getCenter().lat<69||map.getPitch()<5)return null;
- try{
-  const lng=map.getCenter().lng,lat=85.0511285;
-  const mid=map.project([lng,lat]);
-  const left=map.project([lng-1,lat]),right=map.project([lng+1,lat]);
-  const dx=right.x-left.x,dy=right.y-left.y,len=Math.hypot(dx,dy);
-  if(!Number.isFinite(mid.x)||!Number.isFinite(mid.y)||len<.1)return null;
-  let nx=-dy/len,ny=dx/len;
-  if(ny<0){nx=-nx;ny=-ny}
-  const travel=Math.abs(nx)*width+Math.abs(ny)*height;
-  const edge=travel/2+nx*(mid.x-width/2)+ny*(mid.y-height/2);
-  if(!Number.isFinite(edge)||edge< -120||edge>travel+120)return null;
-  return {angle:(Math.atan2(nx,-ny)*180/Math.PI+360)%360,edge,travel};
- }catch(e){return null}
+// Mercator geometry ends at these latitude limits. The camera projection is
+// the only authority for the edges, including when a user rotates the map.
+// This draws colour overlays over the map; there are NO CSS alpha masks.
+const MERCATOR_LIMIT=85.05112878;
+function mapEdgeGeometry(map,north){
+ const latitude=north?MERCATOR_LIMIT:-MERCATOR_LIMIT;
+ const inward=north?MERCATOR_LIMIT-.025:-MERCATOR_LIMIT+.025;
+ const lng=map.getCenter().lng;
+ const midpoint=map.project([lng,latitude]);
+ const west=map.project([lng-1,latitude]),east=map.project([lng+1,latitude]);
+ const interior=map.project([lng,inward]);
+ const coords=[midpoint,west,east,interior];
+ if(!coords.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&Math.abs(p.x)<1e8&&Math.abs(p.y)<1e8))return null;
+ const dx=east.x-west.x,dy=east.y-west.y,len=Math.hypot(dx,dy);
+ if(len<.0001)return null;
+ let nx=-dy/len,ny=dx/len;
+ if((interior.x-midpoint.x)*nx+(interior.y-midpoint.y)*ny<0){nx=-nx;ny=-ny;}
+ return {x:midpoint.x,y:midpoint.y,nx,ny};
 }
-// A single mask gradient always handles BOTH map edges, with transparency at
-// each end and solid opacity in the middle. Near the northern Mercator limit,
-// its top start line follows the projected geographic boundary, even at a
-// rotated bearing. Otherwise it starts at the map viewport's top edge.
-function mapAlphaMask(map,top,bottom,width,height){
- const boundary=top>0?northMapBoundary(map,width,height):null;
- const travel=boundary?boundary.travel:height;
- const angle=boundary?boundary.angle:180;
- const start=boundary?Math.max(0,Math.min(travel,boundary.edge)):0;
- const a=Math.min(travel,start+top),b=Math.max(a,travel-bottom);
- const px=n=>Math.round(n*10)/10+'px';
- return 'linear-gradient('+angle.toFixed(2)+'deg,'+
-  'transparent 0px,transparent '+px(start)+','+
-  '#000 '+px(a)+',#000 '+px(b)+','+
-  'transparent '+px(travel)+')';
+function viewportNormalDistances(edge,width,height){
+ const at=(x,y)=>(x-edge.x)*edge.nx+(y-edge.y)*edge.ny;
+ const values=[at(0,0),at(width,0),at(0,height),at(width,height)];
+ return {min:Math.min(...values),max:Math.max(...values)};
 }
-let lastMapMask='';
+// Pure calculation: the boundary has no visibility threshold or angular
+// cut-over. If a fade is entirely outside the viewport, no pixels change;
+// it becomes visible continuously as the geographic edge moves inward.
+function edgeGradientSpec(map,north,length,width,height){
+ if(!map||length<=0)return null;
+ const edge=mapEdgeGeometry(map,north);
+ if(!edge)return null;
+ const distances=viewportNormalDistances(edge,width,height);
+ if(distances.min>=length)return null; // viewport lies fully inside map
+ return {edge,length,solid:distances.max<=0};
+}
+const mapEdgeCanvas=$('mapEdgeFade'),mapEdgeCtx=mapEdgeCanvas.getContext('2d');
+let edgeCanvasWidth=0,edgeCanvasHeight=0;
+function mapBackdropColor(){
+ return state.theme==='amber'?'#160d05':'#07170f';
+}
+function paintGeoEdge(ctx,spec,width,height,color){
+ if(!spec)return;
+ if(spec.solid){ctx.fillStyle=color;ctx.fillRect(0,0,width,height);return;}
+ const {edge,length}=spec;
+ const gradient=ctx.createLinearGradient(edge.x,edge.y,edge.x+edge.nx*length,edge.y+edge.ny*length);
+ const rgb=color.match(/[0-9a-f]{2}/gi).map(x=>parseInt(x,16));
+ gradient.addColorStop(0,'rgba('+rgb.join(',')+',1)');
+ gradient.addColorStop(1,'rgba('+rgb.join(',')+',0)');
+ ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);
+}
 function updateViewEffects(){
- const map=state.real?state.map:null;
- const length=k=>{const g=state.gradients[k];return g.enabled?Math.max(0,Math.min(420,g.length)):0};
- $('screenTopFade').style.height=length('screenTop')+'px';
- $('screenBottomFade').style.height=length('screenBottom')+'px';
- const top=length('mapTop'),bottom=length('mapBottom');
- const element=$('maplibre'),width=element.clientWidth||390,height=element.clientHeight||780;
- const mask=mapAlphaMask(map,top,bottom,width,height);
- if(mask!==lastMapMask){
-  for(const id of ['maplibre','fallback']){
-   const el=$(id);el.style.webkitMaskImage=mask;el.style.maskImage=mask;
-  }
-  lastMapMask=mask;
+ const pixels=key=>{const g=state.gradients[key];return g.enabled?Math.max(0,Math.min(420,g.length)):0;};
+ $('screenTopFade').style.height=pixels('screenTop')+'px';
+ $('screenBottomFade').style.height=pixels('screenBottom')+'px';
+ const rect=mapEdgeCanvas.getBoundingClientRect(),width=Math.round(rect.width),height=Math.round(rect.height);
+ if(width<=0||height<=0||!mapEdgeCtx)return;
+ if(edgeCanvasWidth!==width||edgeCanvasHeight!==height){
+  mapEdgeCanvas.width=width;mapEdgeCanvas.height=height;
+  edgeCanvasWidth=width;edgeCanvasHeight=height;
  }
+ mapEdgeCtx.clearRect(0,0,width,height);
+ if(!state.real||!state.map)return;
+ const north=edgeGradientSpec(state.map,true,pixels('mapTop'),width,height);
+ const south=edgeGradientSpec(state.map,false,pixels('mapBottom'),width,height);
+ if(!north&&!south)return;
+ const color=mapBackdropColor();
+ paintGeoEdge(mapEdgeCtx,north,width,height,color);
+ paintGeoEdge(mapEdgeCtx,south,width,height,color);
 }
 function updateReadout(){if(isReal()){const c=state.map.getCenter();$('latitude').textContent=fmt(c.lat,'lat');$('longitude').textContent=fmt(c.lng,'lng');$('zoomvalue').textContent=state.map.getZoom().toFixed(1);updateViewEffects();}else{$('latitude').textContent='DEMO';$('longitude').textContent='DEMO';$('zoomvalue').textContent=state.zoom.toFixed(1)}}
-function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
+function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());updateViewEffects();drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
 $('theme').addEventListener('click',theme);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));$('searchBtn').addEventListener('click',openSearch);$('routeBtn').addEventListener('click',openRoute);$('pinBtn').addEventListener('click',togglePin);$('menuBtn').addEventListener('click',openMenu);$('sheetClose').addEventListener('click',closeSheet);$('sheetShade').addEventListener('click',e=>{if(e.target===$('sheetShade'))closeSheet()});window.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 // Regional camera: no whole-planet mode. Street views stay level;
 // zooming out across Conception Bay and nearby peninsulas gradually adds pitch.
@@ -300,7 +317,7 @@ function openMenu(){
  <div class="line"></div>
  <p class="sheetText">GRADIENT LENGTH / CSS PIXELS</p>
  ${gradientMarkup()}
- <p class="sheetText">Four independent, fixed lengths in pixels. Screen fades paint black; map fades reach full transparency at the map edges. Zoom and tilt never change your chosen lengths.</p>
+ <p class="sheetText">Screen fades are fixed black overlays. Map fades follow the geographical north and south boundaries, transitioning from the map background to transparency. Lengths are fixed in pixels and never depend on zoom.</p>
  <div class="line"></div>${effectMarkup()}
  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
  <div class="line"></div><button id="savedSetting" style="width:100%">SAVED PINS (${state.saved.length})</button>
@@ -514,6 +531,6 @@ function loadRemoteMap(){
  }
  tryNext();
 }
-window.addEventListener('resize',()=>{positionMapTools();lastMapMask='';updateViewEffects();drawFallback()});positionMapTools();updateViewEffects();applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
+window.addEventListener('resize',()=>{positionMapTools();updateViewEffects();drawFallback()});positionMapTools();updateViewEffects();applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
 </script>
 </body></html>
