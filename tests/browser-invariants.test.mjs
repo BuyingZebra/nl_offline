@@ -59,3 +59,9 @@ test('glow controls continue to affect MapLibre and screen UI',()=>{
     "const MAP_LABEL_HALOS=","--glow-strength","--glow-radius"])
   assert.ok(js.includes(marker),marker);
 });
+
+test('release version is displayed beside CONSOLE without changing status messages',()=>{
+ assert.match(js,/const APP_VERSION='0\\.28';/);
+ assert.match(js,/\$\('consolePrefix'\)\.textContent='CONSOLE v'\+APP_VERSION\+':'/);
+ assert.match(js,/\$\('statusMessage'\)\.textContent='> \['\+entry\.channel\+'\] '\+entry\.message/);
+});
