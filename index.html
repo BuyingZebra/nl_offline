@@ -148,7 +148,7 @@ input[type=range].effect-slider::-moz-range-thumb{
   <!-- Screen fades are black overlays; map fades are alpha masks. -->
   <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><canvas id="mapEdgeFade" aria-hidden="true"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
-  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch phosphor colour" aria-label="Switch phosphor colour">◐</button></header>
+  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch phosphor colour" aria-label="Switch phosphor colour"><span id="themeGlyph" aria-hidden="true">◐</span></button></header>
   <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
   <button class="overlay" id="compass" type="button" aria-label="Reset map rotation to north" title="Reset map rotation to north"><span id="compassNeedle" aria-hidden="true"><span class="compass-n">N</span><span class="compass-pointer">▲</span></span></button>
   <div class="overlay" id="controls"><button id="plus" aria-label="Zoom in">+</button><button id="minus" aria-label="Zoom out">−</button><button id="gps" title="Use phone GPS" aria-label="My location">◎</button><button id="home" title="Return to Carbonear" aria-label="Home">⌂</button></div>
@@ -207,7 +207,7 @@ document.documentElement.dataset.theme=state.theme;
 // The icon reflects the CURRENT theme, not an automatic time-of-day setting.
 function syncThemeButton(){
  const button=$('theme');
- button.textContent='◐';
+ $('themeGlyph').textContent='◐';
  button.title='Switch phosphor colour (GREEN / AMBER)';
  button.setAttribute('aria-label','Switch phosphor colour');
 }
