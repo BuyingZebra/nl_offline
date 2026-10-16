@@ -18,7 +18,7 @@ from collections import Counter
 URL = ("https://ftp.maps.canada.ca/pub/nrcan_rncan/vector/"
        "geobase_cgn_toponyme/prov_csv_eng/cgn_nl_csv_eng.zip")
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUTPUT = ROOT / "data" / "nl-places.json"
+OUTPUT = ROOT / "data" / "nl-official-places.json"
 KINDS = {
     "CITY": "City", "TOWN": "Town", "VILG": "Village",
     "HAM": "Hamlet", "UNP": "Community", "IR": "Indigenous community",
