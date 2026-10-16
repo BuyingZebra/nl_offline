@@ -1,0 +1,55 @@
+{
+  "baseZoom": 9,
+  "detailedSamples": {
+    "Carbonear": {
+      "tileCount": 163,
+      "center": [
+        -53.235,
+        47.735
+      ]
+    },
+    "Twillingate": {
+      "tileCount": 173,
+      "center": [
+        -54.766,
+        49.663
+      ]
+    },
+    "Baie Verte": {
+      "tileCount": 167,
+      "center": [
+        -56.19,
+        49.929
+      ]
+    },
+    "St. John's": {
+      "tileCount": 163,
+      "center": [
+        -52.709,
+        47.565
+      ]
+    }
+  },
+  "tileCount": 2640,
+  "tileBytes": 13389601,
+  "inputMBTiles": "nl_osm.mbtiles",
+  "sourceLayerNames": [
+    "aerodrome_label",
+    "aeroway",
+    "boundary",
+    "building",
+    "housenumber",
+    "landcover",
+    "landuse",
+    "mountain_peak",
+    "park",
+    "place",
+    "poi",
+    "transportation",
+    "transportation_name",
+    "water",
+    "water_name",
+    "waterway"
+  ],
+  "communities": 1457
+}
