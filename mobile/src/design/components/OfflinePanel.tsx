@@ -12,15 +12,15 @@ export function OfflinePanel({theme,onClose,offline}:{theme:ThemeName;onClose:()
    <View style={styles.row}><Text style={[styles.heading,{color:p.primary}]}>OFFLINE / AREA PACK</Text>
      <TerminalButton theme={theme} label="×" onPress={onClose} accessibilityLabel="Close offline settings" />
    </View>
-   <Text style={[styles.name,{color:p.primary}]}>CARBONEAR · TEST AREA</Text>
-   <Text style={[styles.copy,{color:p.secondary}]}>Download a small area over Wi-Fi, then switch your phone to airplane mode. Zoom levels 10–16. This is NOT a province-wide map.</Text>
+   <Text style={[styles.name,{color:p.primary}]}>CARBONEAR · {theme.toUpperCase()} TEST</Text>
+   <Text style={[styles.copy,{color:p.secondary}]}>Download this small area while online, then restart in airplane mode and verify roads, buildings and street names. This downloads only the selected theme, zooms 10–16; it is NOT a Newfoundland-wide map.</Text>
    <View style={[styles.track,{backgroundColor:p.bg,borderColor:p.outline}]}>
      <View style={{backgroundColor:p.primary,width:`${offline.percent}%`,height:'100%'}} />
    </View>
-   <Text style={[styles.state,{color:p.primaryDim}]}>{isReady?'✓ DOWNLOAD COMPLETED':offline.phase==='downloading'?`DOWNLOADING ${offline.percent}%`:offline.phase.toUpperCase().replaceAll('-',' ')}</Text>
+   <Text style={[styles.state,{color:p.primaryDim}]}>{isReady?'✓ PACK DOWNLOADED / TEST OFFLINE':offline.phase==='downloading'?`DOWNLOADING ${offline.percent}%`:offline.phase.toUpperCase().replaceAll('-',' ')}</Text>
    {!!offline.notice && <Text style={[styles.copy,{color:p.secondary}]}>{offline.notice}</Text>}
    <View style={[styles.row,{gap:8,marginTop:12}]}>
-     <TerminalButton theme={theme} label="DOWNLOAD" disabled={offline.phase==='downloading'||isReady} style={{flex:1}}
+     <TerminalButton theme={theme} label="DOWNLOAD" disabled={offline.phase==='downloading'||offline.phase==='checking'||isReady} style={{flex:1}}
        onPress={offline.download}/>
      <TerminalButton theme={theme} label="REMOVE" disabled={!isReady && offline.phase !== 'error'} onPress={offline.remove}/>
    </View>
