@@ -538,10 +538,17 @@ try{
 function zoomBy(step){if(isReal()){const z=Math.min(19,Math.max(MAP_MIN_ZOOM,state.map.getZoom()+step));state.map.easeTo({zoom:z,duration:450,essential:true});}else{state.zoom=Math.min(18.5,Math.max(10,state.zoom+step));drawFallback();updateReadout()}}
 function viewPlace(p){
  state.center=p;cancelPinPlacement();state.route=null;
+ // Government municipal reference points aren't always in the town centre.
+ // Keep the six previously established useful map viewpoints for those
+ // exact communities when they are close to the authoritative place point.
+ // All other places use their own individually verified CGNDB coordinates.
+ const existingView=PLACES.find(q=>searchKey(q.name)===searchKey(p.name)&&
+  Number(distanceKm(p,q))<25);
+ const target=existingView||p;
  if(isReal()){
   // easeTo never performs flyTo's distance-dependent zoom-out arc.
   // Preserve the user's zoom, bearing and pitch during community browsing.
-  state.map.easeTo({center:[p.lng,p.lat],duration:650,essential:true});
+  state.map.easeTo({center:[target.lng,target.lat],duration:650,essential:true});
  }else{
   state.panX=0;state.panY=0;state.zoom=p.zoom||state.zoom;
   drawFallback();
