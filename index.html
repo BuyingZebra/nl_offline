@@ -78,13 +78,11 @@ button:not(.primary):active{background:var(--panel)}
 /* Single shared phosphor glow: every luminous UI part uses its own colour.
    Dim borders/text emit dimmer light, bright glyphs emit brighter light. */
 #app :is(button,b,strong,small,output,label,.sheetText,.hint,#crosshair,#pinMarker,
-         #compass,#status,#footnote,#toast,input,select){
+         #compass,#status,#consolePrefix,#statusMessage,#footnote,#toast,input,select){
  text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app :is(.panel,button,#compass,#status,#toast,input:not([type=range]),select){
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--line) var(--glow-strength),transparent)}
 #app #crosshair{opacity:.85}
-#app #status .led{
- box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app .line{
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--line) var(--glow-strength),transparent)}
 #app input[type=checkbox]{
@@ -113,7 +111,16 @@ input[type=range].effect-slider::-moz-range-thumb{
  height:22px;width:22px;background:var(--accent);border:3px solid var(--panel-solid);border-radius:50%;
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
 /* Surface hierarchy: map -> dark translucent direct overlay -> tinted nested controls. */
-.panel{background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(13px)}.overlay{position:absolute;z-index:5}#head{top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;min-height:64px;display:flex;align-items:center;gap:9px;padding:9px 12px}#wordmark{flex:1;min-width:0}#wordmark small{display:block;color:var(--weak);letter-spacing:.14em;font-size:9px}#wordmark b{font-size:17px;letter-spacing:.13em;display:block;margin-top:3px}#theme{min-width:46px;padding:0;font-size:18px}#status{top:calc(env(safe-area-inset-top,0px) + 83px);left:10px;right:10px;color:var(--accent);font-size:9px;letter-spacing:.055em;background:var(--surface-map-overlay);border:1px solid var(--line);padding:7px 9px;border-radius:6px;display:flex;gap:8px;align-items:center}#status[data-type=warning]{color:#ffd18b}#status .led{width:7px;height:7px;background:currentColor;border-radius:50%;flex:none}#controls{right:10px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));display:flex;flex-direction:column;gap:8px}#controls button{width:47px;height:47px;padding:0;font-size:21px;background:var(--surface-map-overlay)}#compass{left:15px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));
+.panel{background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(13px)}.overlay{position:absolute;z-index:5}#head{top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;min-height:64px;display:flex;align-items:center;gap:9px;padding:9px 12px}#wordmark{flex:1;min-width:0}#wordmark small{display:block;color:var(--weak);letter-spacing:.14em;font-size:9px}#wordmark b{font-size:17px;letter-spacing:.13em;display:block;margin-top:3px}#theme{min-width:46px;padding:0;font-size:18px}/* Small read-only console output, not a command prompt yet. Each entry has
+   a source channel and a real runtime status; no simulated responses. */
+#status{top:calc(env(safe-area-inset-top,0px) + 83px);left:10px;right:10px;
+ color:var(--accent);font-size:9px;letter-spacing:.045em;
+ background:var(--surface-map-overlay);border:1px solid var(--line);
+ padding:8px 9px;border-radius:6px;display:flex;gap:7px;
+ align-items:baseline;line-height:1.35}
+#consolePrefix{font-weight:800;flex:none;color:var(--accent);white-space:nowrap}
+#statusMessage{flex:1;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#status[data-type=warning] #statusMessage{color:#ffd18b}#controls{right:10px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));display:flex;flex-direction:column;gap:8px}#controls button{width:47px;height:47px;padding:0;font-size:21px;background:var(--surface-map-overlay)}#compass{left:15px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));
  width:58px;height:58px;min-width:58px;min-height:58px;padding:0;border-radius:50%;
  border:1px solid var(--line);background:var(--surface-map-overlay);color:var(--accent);
  display:flex;align-items:center;justify-content:center;touch-action:manipulation}
@@ -153,7 +160,7 @@ input[type=range].effect-slider::-moz-range-thumb{
   <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><canvas id="mapEdgeFade" aria-hidden="true"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
   <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch phosphor colour" aria-label="Switch phosphor colour"><span id="themeGlyph" aria-hidden="true">◐</span></button></header>
-  <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
+  <div id="status" class="overlay" data-type="warning" role="status" aria-live="polite" aria-atomic="true"><span id="consolePrefix">CONSOLE:</span><span id="statusMessage">&gt; [SYS] INITIALIZING MAP</span></div>
   <button class="overlay" id="compass" type="button" aria-label="Reset map rotation to north" title="Reset map rotation to north"><span id="compassNeedle" aria-hidden="true"><span class="compass-n">N</span><span class="compass-pointer">▲</span></span></button>
   <div class="overlay" id="controls"><button id="plus" aria-label="Zoom in">+</button><button id="minus" aria-label="Zoom out">−</button><button id="gps" title="Use phone GPS" aria-label="My location">◎</button><button id="home" title="Return to Carbonear" aria-label="Home">⌂</button></div>
   <div id="pinTray" role="region" aria-label="Place map pin">
@@ -286,7 +293,24 @@ function positionMapTools(){
  }
  // Gradient extent is controlled solely by the four length sliders.
 }
-function status(message,warning=false){$('statusMessage').textContent=message;$('status').dataset.type=warning?'warning':'ok';$('modeText').textContent=state.real?'LIVE OPENSTREETMAP / ONLINE':'INTERACTIVE DEMO / NOT GEOGRAPHIC';positionMapTools()}
+// A bounded in-memory event log is the foundation for a future functional
+// console. Today only the most recent genuine event is visible in the HUD.
+const consoleHistory=[];
+function status(message,warning=false,channel='SYS'){
+ const entry={
+  channel:String(channel).trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||'SYS',
+  message:String(message).trim().toUpperCase(),
+  level:warning?'WARN':'OK',
+  timestamp:Date.now()
+ };
+ consoleHistory.push(entry);
+ if(consoleHistory.length>50)consoleHistory.shift();
+ $('statusMessage').textContent='> ['+entry.channel+'] '+entry.message;
+ $('status').dataset.type=warning?'warning':'ok';
+ $('modeText').textContent=state.real?'LIVE OPENSTREETMAP / ONLINE':'INTERACTIVE DEMO / NOT GEOGRAPHIC';
+ positionMapTools();
+ return entry;
+}
 let toastTimer;function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2800)}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(v,axis){return (Math.abs(v).toFixed(4)+'°'+((axis==='lat')?(v>=0?'N':'S'):(v<0?'W':'E')))}
@@ -781,7 +805,7 @@ function makeStyle(){
     ]
   };
 }
-function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,minZoom:MAP_MIN_ZOOM,maxZoom:19,pitch:0,renderWorldCopies:true,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
+function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('DEMO / MAP LIBRARY BLOCKED',true,'MAP');return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,minZoom:MAP_MIN_ZOOM,maxZoom:19,pitch:0,renderWorldCopies:true,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
 // Mercator intentionally remains flat. Native world copies repeat east/west.
 // Only reload route/glow when a theme changes; don't alter camera from this hook.
 m.on('style.load',()=>{if(state.real){setRouteGeoJSON();setSavedPinsGeoJSON();applyEffects();}});
@@ -791,13 +815,13 @@ m.on('styleimagemissing',e=>{
  if(e.id===expected&&!m.hasImage(expected))
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
-m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();setSavedPinsGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});
+m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();setSavedPinsGeoJSON();status('VECTOR DATA / ONLINE',false,'MAP');m.resize()});
 m.on('click','saved-pin-points',event=>{
  if(state.pin)return;
  const n=Number(event.features?.[0]?.properties?.pinIndex);
  if(Number.isInteger(n)&&n>=0&&n<state.saved.length)openPinDetail(n);
 });
-m.on('move',updateReadout);m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
+m.on('move',updateReadout);m.on('error',e=>{if(!state.real)status('DEMO / MAP SERVICE ERROR',true,'MAP')});setTimeout(()=>{if(!state.real)status('DEMO / WAITING FOR TILES',true,'MAP')},7000)}catch(e){status('DEMO / MAP INITIALIZATION FAILED',true,'MAP')}}
 // MapLibre GL JS v5 retains a browser-compatible UMD build and supports globe.
 // v6's dist/maplibre-gl.js does not exist (v6 is ESM-only); never reference it.
 // Try the original working CDN, with a second host if it is blocked on mobile.
@@ -813,7 +837,7 @@ function loadRemoteMap(){
  function tryNext(){
   if(window.maplibregl){startLiveMap();return}
   if(i>=hosts.length){
-   status('Map library unavailable. Check connection and retry the page.',true);
+   status('DEMO / MAP LIBRARY UNAVAILABLE',true,'MAP');
    return;
   }
   const host=hosts[i++];
@@ -828,6 +852,6 @@ function loadRemoteMap(){
  }
  tryNext();
 }
-window.addEventListener('resize',()=>{positionMapTools();updateViewEffects();drawFallback()});positionMapTools();updateViewEffects();applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
+window.addEventListener('resize',()=>{positionMapTools();updateViewEffects();drawFallback()});positionMapTools();updateViewEffects();applyEffects();drawFallback();updateReadout();status('STARTUP / LOADING VECTOR MAP',false,'SYS');loadRemoteMap();
 </script>
 </body></html>
