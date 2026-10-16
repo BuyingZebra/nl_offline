@@ -4,6 +4,7 @@ on:
     branches: ['feature/osm-labelled-search-v0-30']
     paths:
       - 'tools/merge-osm-map-places.py'
+      - 'data/nl-official-places.json'
       - '.github/workflows/build-osm-places.yml'
   workflow_dispatch:
 
