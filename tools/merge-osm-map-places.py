@@ -74,8 +74,15 @@ def build(path):
                 osm["officialId"]=nearest["id"]
                 osm["historic"]=nearest.get("historic",False)
         result.append(osm)
+    # The federal file can carry multiple points for the same settlement
+    # (for example a town and a neighbourhood called Twillingate). Do not
+    # show an extra official-only result if an OSM map label is already within
+    # 5 km under the same name. Preserve distant same-name communities.
+    byname=defaultdict(list)
+    for osm in collector.places: byname[key(osm["name"])].append(osm)
     for p in old:
         if p["id"] in matched: continue
+        if any(km(p,osm)<=5 for osm in byname[key(p["name"])]): continue
         fallback=dict(p)
         fallback.update(source="cgn",mapAnchor=False,
                         region=region(p["lat"],p["lng"]))
