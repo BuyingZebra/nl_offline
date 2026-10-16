@@ -225,6 +225,17 @@ function makeStyle(){
       {id:'buildings',type:'fill',source:src,'source-layer':'building',minzoom:13.2,
         layout:{visibility:state.showBuildings?'visible':'none'},
         paint:{'fill-color':p.building,'fill-opacity':['interpolate',['linear'],['zoom'],13,0.4,16,0.72,19,0.82]}},
+      // Only the underlayers blur. The actual street strokes and labels remain crisp.
+      {id:'road-glow',type:'line',source:src,'source-layer':'transportation',minzoom:11.2,
+        filter:klass(['minor','residential','living_street','service','unclassified','road','track','tertiary','tertiary_link']),
+        layout:join,paint:{'line-color':dark?'#a0c7ff':'#70ffac',
+          'line-width':w(1.5,4.4,7.4,9.2),'line-blur':3.6,
+          'line-opacity':+(state.effects.road/100*.68).toFixed(3)}},
+      {id:'major-glow',type:'line',source:src,'source-layer':'transportation',minzoom:8,
+        filter:klass(['secondary','secondary_link','primary','primary_link','trunk','trunk_link','motorway','motorway_link']),
+        layout:join,paint:{'line-color':dark?'#bfd7ff':'#9affc1',
+          'line-width':w(2.8,8,11,14),'line-blur':4.8,
+          'line-opacity':+(state.effects.road/100*.85).toFixed(3)}},
       road('paths',['path','footway','cycleway','steps','pedestrian','bridleway'],p.path,w(0.25,0.48,0.75,1),13,
         {'line-dasharray':[2,2]}),
       road('local-roads',['minor','residential','living_street','service','unclassified','road','track'],p.local,w(0.45,1.32,2.15,2.85),11.2),
@@ -248,7 +259,7 @@ function makeStyle(){
     ]
   };
 }
-function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,attributionControl:false,pitchWithRotate:false,dragRotate:false,trackResize:true});state.map=m;m.on('load',()=>{state.real=true;canvas.style.display='none';updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('styledata',()=>{if(m.isStyleLoaded())setRouteGeoJSON()});m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
+function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,attributionControl:false,pitchWithRotate:false,dragRotate:false,trackResize:true});state.map=m;m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('styledata',()=>{if(m.isStyleLoaded())setRouteGeoJSON()});m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
 function loadRemoteMap(){const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.css';document.head.appendChild(css);const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js';s.async=true;s.onload=startLiveMap;s.onerror=()=>status('No internet map library. Try the working schematic demo.',true);document.head.appendChild(s)}
 window.addEventListener('resize',drawFallback);applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
 </script>
