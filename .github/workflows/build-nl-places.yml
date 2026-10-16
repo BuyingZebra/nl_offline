@@ -22,7 +22,7 @@ jobs:
         run: python tools/build-nl-places.py
       - name: Commit generated static search index to development branch
         run: |
-          git add data/nl-places.json
+          git add data/nl-official-places.json
           if git diff --cached --quiet; then
             echo "No updated place records."
             exit 0
