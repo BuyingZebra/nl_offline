@@ -325,7 +325,36 @@ m.on('styleimagemissing',e=>{
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
 m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('styledata',()=>{if(m.isStyleLoaded())setRouteGeoJSON()});m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
-function loadRemoteMap(){const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css';document.head.appendChild(css);const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.js';s.async=true;s.onload=startLiveMap;s.onerror=()=>status('No internet map library. Try the working schematic demo.',true);document.head.appendChild(s)}
+// MapLibre GL JS v5 retains a browser-compatible UMD build and supports globe.
+// v6's dist/maplibre-gl.js does not exist (v6 is ESM-only); never reference it.
+// Try the original working CDN, with a second host if it is blocked on mobile.
+function loadRemoteMap(){
+ const version='5.9.0';
+ const hosts=['https://unpkg.com/maplibre-gl@'+version+'/dist/',
+              'https://cdn.jsdelivr.net/npm/maplibre-gl@'+version+'/dist/'];
+ const css=document.createElement('link');
+ css.rel='stylesheet';css.href=hosts[0]+'maplibre-gl.css';
+ css.onerror=()=>{css.href=hosts[1]+'maplibre-gl.css'};
+ document.head.appendChild(css);
+ let i=0;
+ function tryNext(){
+  if(window.maplibregl){startLiveMap();return}
+  if(i>=hosts.length){
+   status('Map library unavailable. Check connection and retry the page.',true);
+   return;
+  }
+  const host=hosts[i++];
+  const script=document.createElement('script');
+  script.src=host+'maplibre-gl.js';script.async=true;
+  script.onload=()=>{
+   if(window.maplibregl)startLiveMap();
+   else tryNext();
+  };
+  script.onerror=()=>tryNext();
+  document.head.appendChild(script);
+ }
+ tryNext();
+}
 window.addEventListener('resize',drawFallback);applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
 </script>
 </body></html>
