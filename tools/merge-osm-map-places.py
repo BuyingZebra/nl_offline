@@ -9,6 +9,7 @@ from collections import defaultdict
 import osmium
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+OFFICIAL = ROOT / "data" / "nl-official-places.json"
 OUTPUT = ROOT / "data" / "nl-places.json"
 CLASSES = {"city", "town", "village", "hamlet", "suburb", "neighbourhood"}
 
@@ -55,7 +56,7 @@ class Collector(osmium.SimpleHandler):
             "source":"osm","mapAnchor":True})
 
 def build(path):
-    original=json.loads(OUTPUT.read_text(encoding="utf8"))
+    original=json.loads(OFFICIAL.read_text(encoding="utf8"))
     old=original["places"]
     if not 1400<=len(old)<=3000: raise ValueError("Invalid official base")
     collector=Collector()
