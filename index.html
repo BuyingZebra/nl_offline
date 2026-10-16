@@ -658,7 +658,7 @@ function placeResults(q){
  const indexed=officialPlaces.length>0;
  const intro=$('placeSearchInfo');
  if(intro)intro.textContent=indexed
-  ? officialPlaces.length+' OFFICIAL NL PLACE NAMES / MAP VIEW ONLY'
+  ? officialPlaces.length+' OFFICIAL NL PLACES / '+(searchKey(q)?'MATCHING RESULTS':'SIX QUICK VIEWS / TYPE TO SEARCH ALL')
   : placesIndexState==='loading'
    ? 'LOADING NL PLACE INDEX / SIX SHORTCUTS AVAILABLE'
    : 'PLACE INDEX UNAVAILABLE / SIX SHORTCUTS ONLY';
