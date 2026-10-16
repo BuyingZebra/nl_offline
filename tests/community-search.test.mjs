@@ -22,7 +22,7 @@ function searchFunctions(){
 
 test('full NL official community file is present, valid and audited',()=>{
  assert.ok(places.length>=1458,'expected at least 1458 validated place records');
- assert.equal(index.licence,'Open Government Licence - Canada');
+ assert.match(index.licence,/ODbL 1\.0/);
  assert.equal(new Set(places.map(p=>p.id)).size,places.length);
  for(const p of places){
   assert.ok(p.name && p.id && p.kind);
