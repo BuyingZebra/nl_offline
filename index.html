@@ -116,8 +116,7 @@ function applyEffects(){
  if(isReal()){
   for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow']){
    if(state.map.getLayer(id)){
-    const range=ZOOM_REVEALS[id];
-    state.map.setPaintProperty(id,'line-opacity',fadeByZoom(range[0],range[1],+(k*.92).toFixed(3)));
+    state.map.setPaintProperty(id,'line-opacity',+(k*.92).toFixed(3));
     state.map.setPaintProperty(id,'line-blur',+(k*7.5).toFixed(2));
    }
   }
@@ -130,7 +129,7 @@ function fmt(v,axis){return (Math.abs(v).toFixed(4)+'°'+((axis==='lat')?(v>=0?'
 function updateReadout(){if(isReal()){const c=state.map.getCenter();$('latitude').textContent=fmt(c.lat,'lat');$('longitude').textContent=fmt(c.lng,'lng');$('zoomvalue').textContent=state.map.getZoom().toFixed(1);}else{$('latitude').textContent='DEMO';$('longitude').textContent='DEMO';$('zoomvalue').textContent=state.zoom.toFixed(1)}}
 function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
 $('theme').addEventListener('click',theme);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));$('searchBtn').addEventListener('click',openSearch);$('routeBtn').addEventListener('click',openRoute);$('pinBtn').addEventListener('click',togglePin);$('menuBtn').addEventListener('click',openMenu);$('sheetClose').addEventListener('click',closeSheet);$('sheetShade').addEventListener('click',e=>{if(e.target===$('sheetShade'))closeSheet()});window.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
-function zoomBy(step){if(isReal())state.map.zoomTo(Math.min(19,Math.max(4,state.map.getZoom()+step)),{duration:480});else{state.zoom=Math.min(18.5,Math.max(10, state.zoom+step));drawFallback();updateReadout()}}
+function zoomBy(step){if(isReal())state.map.zoomTo(Math.min(19,Math.max(4,state.map.getZoom()+step)),{duration:250});else{state.zoom=Math.min(18.5,Math.max(10, state.zoom+step));drawFallback();updateReadout()}}
 function viewPlace(p){state.center=p;state.pin=false;state.pinAt=null;$('pinMarker').style.display='none';state.route=null;if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:p.zoom,speed:1.6});else{state.panX=0;state.panY=0;state.zoom=p.zoom;drawFallback();toast('Illustrative map only — live map required to view '+p.name);}updateReadout();closeSheet()}
 function getGPS(){if(!navigator.geolocation){toast('GPS is unavailable in this browser.');return}toast('Requesting location permission…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude,longitude,accuracy}=pos.coords;state.gpsLocation={latitude,longitude};$('gpsText').textContent='GPS ● '+Math.round(accuracy)+'m';if(isReal())state.map.flyTo({center:[longitude,latitude],zoom:15});else toast('GPS coordinates acquired; demo map cannot position them geographically.');},e=>toast('GPS unavailable: '+e.message),{enableHighAccuracy:true,timeout:15000,maximumAge:30000})}
 function togglePin(){state.pin=!state.pin;$('pinMarker').style.display=state.pin?'block':'none';state.pinAt=isReal()?state.map.getCenter():null;if(state.pin){toast('CENTRE PIN SELECTED');openPin()}else toast('PIN CLEARED')}
@@ -183,7 +182,7 @@ const canvas=$('fallback'),ctx=canvas.getContext('2d');let fW=390,fH=740,drag=nu
 const roads=[{width:6,points:[[-60,620],[40,530],[90,460],[155,394],[223,310],[275,234],[354,115],[465,40]]},{width:3.3,points:[[-90,165],[60,207],[184,177],[300,171],[480,187]]},{width:3.2,points:[[38,-70],[76,70],[112,143],[145,390],[175,800]]},{width:3.1,points:[[-70,345],[90,340],[183,357],[286,386],[490,385]]},{width:3.1,points:[[-60,465],[102,508],[184,517],[288,539],[450,558]]},{width:3.3,points:[[250,-40],[233,117],[274,233],[288,386],[277,800]]},{width:1.8,points:[[0,285],[75,261],[167,275],[274,233]]},{width:1.8,points:[[90,340],[94,263]]},{width:1.8,points:[[183,177],[206,330]]},{width:1.8,points:[[0,424],[102,508]]},{width:1.8,points:[[183,357],[184,517]]},{width:1.8,points:[[285,386],[337,290]]},{width:1.8,points:[[285,539],[341,466]]},{width:1.8,points:[[175,648],[279,646]]}];const buildings=[];for(let row=0;row<14;row++){for(let col=0;col<8;col++){const x=20+col*47+(row%2)*10,y=115+row*42+(col%3)*4;const skip=roads.some(r=>r.points.some(p=>Math.hypot(p[0]-x,p[1]-y)<17));if(!skip){const k=(col*17+row*11)%7;buildings.push({x,y,w:14+k*2.1,h:10+((col*5+row*7)%12),rot:((row+col)%5-2)*0.065})}}}
 function themeVal(k){return getComputedStyle(document.documentElement).getPropertyValue(k).trim()}
 function drawFallback(){if(state.real)return;const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);fW=rect.width;fH=rect.height;ctx.clearRect(0,0,fW,fH);ctx.fillStyle=themeVal('--bg');ctx.fillRect(0,0,fW,fH);ctx.save();const scale=Math.pow(1.23,state.zoom-14.2),baseScale=fH/740;ctx.translate(fW/2+state.panX,fH/2+state.panY);ctx.scale(scale*baseScale,scale*baseScale);ctx.translate(-195,-370);ctx.fillStyle=themeVal('--water');ctx.strokeStyle=themeVal('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(335,-40);ctx.bezierCurveTo(315,90,365,120,326,177);ctx.bezierCurveTo(290,211,344,276,440,321);ctx.lineTo(450,-50);ctx.closePath();ctx.fill();ctx.stroke();if(state.showWaterGrid){
- ctx.save();ctx.clip();ctx.strokeStyle='rgba(0,0,0,.46)';ctx.globalAlpha=.38;ctx.lineWidth=.7;ctx.beginPath();
+ ctx.save();ctx.clip();ctx.strokeStyle=themeVal('--roads');ctx.globalAlpha=.11;ctx.lineWidth=.7;ctx.beginPath();
  for(let x=-128;x<576;x+=64){ctx.moveTo(x,-80);ctx.lineTo(x,830)}
  for(let y=-80;y<830;y+=64){ctx.moveTo(-128,y);ctx.lineTo(576,y)}
  ctx.stroke();ctx.restore();
@@ -191,42 +190,23 @@ function drawFallback(){if(state.real)return;const dpr=Math.min(window.devicePix
 canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,ox:state.panX,oy:state.panY};canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging')});canvas.addEventListener('pointermove',e=>{if(!drag)return;state.panX=drag.ox+e.clientX-drag.x;state.panY=drag.oy+e.clientY-drag.y;drawFallback()});for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{drag=null;canvas.classList.remove('dragging')});canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY<0?0.5:-0.5)},{passive:false});canvas.addEventListener('dblclick',e=>{e.preventDefault();zoomBy(1)});
 // Procedural water-only grid sprite. Its fill-pattern layer clips at mapped
 // coastline and inland-water polygons, not at the edge of the whole screen.
-// A constant 64-CSS-pixel pattern, independent of map zoom.
-// Dark strokes subtract brightness from water instead of illuminating it.
-// The transparent pixels leave the underlying water colour untouched.
-function makeWaterGridTexture(){
+// Subtle, light phosphor water grid: a static 64px tile that never fades
+// with map zoom. The pattern is clipped by the water polygons in MapLibre.
+function makeWaterGridTexture(theme){
  const size=64,data=new Uint8Array(size*size*4);
+ const rgb=theme==='amber'?[255,200,119]:[145,231,169];
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-   const outer=x===0||y===0;
-   const inner=x===32||y===32;
-   if(!outer&&!inner)continue;
-   const n=(y*size+x)*4;
-   data[n]=0;data[n+1]=0;data[n+2]=0;
-   data[n+3]=outer?90:32;
+  const major=x===0||y===0,minor=x===32||y===32;
+  if(!major&&!minor)continue;
+  const k=(y*size+x)*4;
+  data[k]=rgb[0];data[k+1]=rgb[1];data[k+2]=rgb[2];
+  data[k+3]=major?66:30;
  }
  return {width:size,height:size,data};
 }
 // FIELD ATLAS map styling v0.2: understated geographic hierarchy.
 // Uses OpenMapTiles layers from the OpenFreeMap OSM source. No CARTO tiles.
 // All source, font and icon URLs must be replaced with local resources for the offline release.
-// Fade map details by continuous zoom rather than snapping whole layers on.
-const ZOOM_REVEALS={"paths":[11.6,13.8],"path-glow":[11.6,13.8],"local-roads":[9.8,12],"local-glow":[9.8,12],"tertiary-roads":[8.7,10.8],"tertiary-glow":[8.7,10.8],"major-casing":[5.8,8.2],"secondary-roads":[6.8,9],"secondary-glow":[6.8,9],"primary-roads":[5.8,8.2],"major-glow":[5.8,8.2],"streams":[9.5,11.8],"street-labels":[11.5,13.8],"places":[5,7]};
-function fadeByZoom(from,to,opacity){return ['interpolate',['linear'],['zoom'],from,0,to,opacity]}
-function withZoomFades(style){
- for(const layer of style.layers){
-  if(layer.id==='buildings'){
-   layer.minzoom=11.5;
-   layer.paint['fill-opacity']=['interpolate',['linear'],['zoom'],11.5,0,12.8,.13,14.2,.5,16,.72,19,.82];
-  }else{
-   const limits=ZOOM_REVEALS[layer.id];
-   if(!limits)continue;
-   layer.minzoom=limits[0];
-   const key=layer.type==='symbol'?'text-opacity':'line-opacity';
-   layer.paint[key]=fadeByZoom(limits[0],limits[1],layer.paint[key]??.92);
-  }
- }
- return style;
-}
 function makeStyle(){
   const amber=state.theme==='amber';
   const p=amber
@@ -258,7 +238,7 @@ function makeStyle(){
     id,type:'line',...roadSource,minzoom,filter:klass(types),layout:join,
     paint:{'line-color':color,'line-width':width,'line-opacity':0.92,...extra}
   });
-  const style={
+  return {
     version:8,
     glyphs:'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources:{
@@ -276,13 +256,13 @@ function makeStyle(){
         paint:{'fill-color':p.water}},
       {id:'water-grid',type:'fill',source:src,'source-layer':'water',
         layout:{visibility:state.showWaterGrid?'visible':'none'},
-        paint:{'fill-pattern':'water-grid-dark','fill-opacity':0.38}},
+        paint:{'fill-pattern':'water-grid-'+state.theme,'fill-opacity':0.32}},
       {id:'streams',type:'line',source:src,'source-layer':'waterway',minzoom:11,
         layout:join,paint:{'line-color':p.waterline,'line-opacity':0.75,'line-width':w(0.35,0.6,1,1.35)}},
       // Building geometry stays intact. The styling is subdued, not simplified.
       {id:'buildings',type:'fill',source:src,'source-layer':'building',minzoom:13.2,
         layout:{visibility:state.showBuildings?'visible':'none'},
-        paint:{'fill-color':p.building,'fill-opacity':['interpolate',['linear'],['zoom'],13,0.4,16,0.72,19,0.82]}},
+        paint:{'fill-color':p.building,'fill-opacity':0.72}},
       // These use the same colour and line thickness as their corresponding crisp roads.
       {id:'path-glow',type:'line',source:src,'source-layer':'transportation',minzoom:13,
         filter:klass(['path','footway','cycleway','steps','pedestrian','bridleway']),
@@ -321,13 +301,12 @@ function makeStyle(){
         paint:{'text-color':p.town,'text-opacity':0.92,'text-halo-color':p.bg,'text-halo-width':1.75}}
     ]
   };
-  return withZoomFades(style);
 }
-function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,fadeDuration:850,attributionControl:false,pitchWithRotate:false,dragRotate:false,trackResize:true});state.map=m;
+function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('Map library blocked. Drag/zoom the built-in design demo.',true);return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,attributionControl:false,pitchWithRotate:false,dragRotate:false,trackResize:true});state.map=m;
 m.on('styleimagemissing',e=>{
- const expected='water-grid-dark';
+ const expected='water-grid-'+state.theme;
  if(e.id===expected&&!m.hasImage(expected))
-   m.addImage(expected,makeWaterGridTexture(),{pixelRatio:1});
+   m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
 m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();status('REAL VECTOR MAP / ONLINE DATA');m.resize()});m.on('move',updateReadout);m.on('styledata',()=>{if(m.isStyleLoaded())setRouteGeoJSON()});m.on('error',e=>{if(!state.real)status('Map service unavailable. Demo map remains interactive.',true)});setTimeout(()=>{if(!state.real)status('Waiting for map tiles. Design demo remains available.',true)},7000)}catch(e){status('Live map failed to initialize; demo is interactive.',true)}}
 function loadRemoteMap(){const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.css';document.head.appendChild(css);const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@5.9.0/dist/maplibre-gl.js';s.async=true;s.onload=startLiveMap;s.onerror=()=>status('No internet map library. Try the working schematic demo.',true);document.head.appendChild(s)}
