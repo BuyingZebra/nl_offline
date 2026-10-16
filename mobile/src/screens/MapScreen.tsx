@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, GeoJSONSource, Layer, Map } from '@maplibre/maplibre-react-native';
@@ -11,7 +11,7 @@ import { Panel } from '../design/components/Panel';
 import { Readout } from '../design/components/Readout';
 import { useGps } from '../core/gps/useGps';
 import { useOfflineRegion } from '../core/offline/useOfflineRegion';
-import { createMapStyle } from '../map/createMapStyle';
+import { PILOT_STYLE_URLS } from '../map/pilotStyles';
 import { Place } from '../data/places';
 
 type Sheet = 'search'|'offline'|'about'|null;
@@ -34,9 +34,20 @@ export function MapScreen() {
   const [follow, setFollow] = useState(false);
   const camera = useRef<React.ElementRef<typeof Camera> | null>(null);
   const gps = useGps();
-  const offline = useOfflineRegion();
+  const offline = useOfflineRegion(theme);
   const p = palettes[theme];
-  const mapStyle = useMemo(() => createMapStyle(theme), [theme]);
+  const mapStyle = PILOT_STYLE_URLS[theme];
+  const pendingLocate = useRef(false);
+  useEffect(() => {
+    if (!pendingLocate.current || !gps.fix || gps.permission !== 'granted') return;
+    pendingLocate.current = false;
+    setFollow(true);
+    camera.current?.easeTo({
+      center: [gps.fix.longitude, gps.fix.latitude],
+      zoom: 15.5,
+      duration: 650,
+    });
+  }, [gps.fix, gps.permission]);
   const placeSelected = useCallback((place: Place) => {
     setFollow(false);
     camera.current?.easeTo({ center: place.coordinate, zoom: place.zoom, duration: 750 });
@@ -44,10 +55,23 @@ export function MapScreen() {
   }, []);
   const goHome = () => { setFollow(false); camera.current?.easeTo({center: HOME, zoom: 14.2, duration:800}); };
   const locate = async () => {
-    if (gps.permission !== 'granted') { await gps.request(); return; }
-    if (!gps.fix) { Alert.alert('Waiting for GPS', gps.error ?? 'The device is acquiring a location fix.'); return; }
-    setFollow(true);
-    camera.current?.easeTo({center: [gps.fix.longitude, gps.fix.latitude], zoom: 15.5, duration:650});
+    // A single tap both requests permission (if needed) and schedules recenter
+    // as soon as the first real GPS fix is available. Never fake a location.
+    pendingLocate.current = true;
+    if (gps.permission !== 'granted') {
+      const granted = await gps.request();
+      if (!granted) {
+        pendingLocate.current = false;
+        Alert.alert('Location access needed',
+          'Enable Location While Using the App to show your position.');
+      }
+      return;
+    }
+    if (gps.fix) {
+      pendingLocate.current = false;
+      setFollow(true);
+      camera.current?.easeTo({center:[gps.fix.longitude,gps.fix.latitude],zoom:15.5,duration:650});
+    }
   };
   const zoomBy = (delta: number) => camera.current?.zoomTo(Math.max(4,Math.min(19,zoom + delta)), {duration:200});
   const pinned = useMemo(() => pin ? pointGeoJson(pin) : null,[pin]);
@@ -62,7 +86,7 @@ export function MapScreen() {
     </>
   );
   return <View style={[styles.root,{backgroundColor:p.bg}]}>
-    <Map mapStyle={mapStyle as React.ComponentProps<typeof Map>["mapStyle"]} style={StyleSheet.absoluteFillObject}
+    <Map mapStyle={mapStyle} style={StyleSheet.absoluteFillObject}
       compass={false} logo={false} attribution attributionPosition={{bottom:pLayout.landscape?16:115,right:7}}
       onRegionDidChange={e=>{
         const state = e.nativeEvent;
@@ -125,7 +149,9 @@ export function MapScreen() {
         {!pLayout.landscape && <View style={styles.navRow}>{navButtons}</View>}
         <View style={styles.statusRow}>
           <Text style={[styles.status,{color:p.secondary}]} numberOfLines={1}>{offline.phase==='downloaded'?'▰ CARBONEAR TEST PACK SAVED':'◇ MAP REQUIRES NETWORK UNTIL SAVED'}</Text>
-          <Text style={[styles.status,{color:p.primaryDim}]}>{gps.fix?'● GPS':'○ GPS OFF'}</Text>
+          <Text style={[styles.status,{color:p.primaryDim}]}>{gps.fix
+            ? '● GPS '+(gps.fix.accuracy===null?'FIX':Math.round(gps.fix.accuracy)+'m')
+            : gps.permission==='denied'?'○ GPS DENIED':'○ GPS OFF'}</Text>
         </View>
       </View>
     </View>
