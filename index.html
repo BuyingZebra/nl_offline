@@ -248,6 +248,11 @@ function textHaloPaint(background,ink,level,baseWidth){
   blur:+(.25+level*1.2).toFixed(2),
   width:+(baseWidth+level*.55).toFixed(2)};
 }
+// Reuse immutable layer identities instead of building arrays every time
+// the glow slider changes. The MapLibre paint calls and order are unchanged.
+const MAP_GLOW_LAYERS=['path-glow','local-glow','tertiary-glow','secondary-glow',
+ 'major-glow','stream-glow','route-glow'];
+const MAP_LABEL_HALOS=[['street-labels',1.05],['places',1.75]];
 function applyEffects(){
  const e=state.effects,k=e.glow/100,root=$('app');
  root.style.setProperty('--scan-intensity',String(e.scanlines/100));
@@ -258,7 +263,7 @@ function applyEffects(){
  if(isReal()){
   if(state.map.getLayer('saved-pin-glow'))
    state.map.setPaintProperty('saved-pin-glow','circle-opacity',+(k*.3).toFixed(3));
-  for(const id of ['path-glow','local-glow','tertiary-glow','secondary-glow','major-glow','stream-glow','route-glow']){
+  for(const id of MAP_GLOW_LAYERS){
    if(state.map.getLayer(id)){
     const factor=id==='stream-glow'?.5:id==='route-glow'?.95:1;
     state.map.setPaintProperty(id,'line-opacity',+(k*.92*factor).toFixed(3));
@@ -267,7 +272,7 @@ function applyEffects(){
   }
   if(state.map.getLayer('background')){
    const background=state.map.getPaintProperty('background','background-color');
-   for(const [id,baseWidth] of [['street-labels',1.05],['places',1.75]]){
+   for(const [id,baseWidth] of MAP_LABEL_HALOS){
     if(!state.map.getLayer(id))continue;
     const ink=state.map.getPaintProperty(id,'text-color');
     if(typeof background!=='string'||typeof ink!=='string')continue;
@@ -395,10 +400,27 @@ function paintGeoEdge(ctx,spec,width,height,color){
  gradient.addColorStop(1,'rgba('+rgb.join(',')+',0)');
  ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);
 }
+// These DOM nodes are permanent. Cache them and the fade-length helper
+// instead of querying DOM/allocating a closure during every map move event.
+const screenTopFadeEl=$('screenTopFade'),screenBottomFadeEl=$('screenBottomFade');
+function gradientPixels(key){
+ const g=state.gradients[key];
+ return g.enabled?Math.max(0,Math.min(420,g.length)):0;
+}
+let edgeCanvasHasContent=false;
 function updateViewEffects(){
- const pixels=key=>{const g=state.gradients[key];return g.enabled?Math.max(0,Math.min(420,g.length)):0;};
- $('screenTopFade').style.height=pixels('screenTop')+'px';
- $('screenBottomFade').style.height=pixels('screenBottom')+'px';
+ const topHeight=gradientPixels('screenTop')+'px';
+ const bottomHeight=gradientPixels('screenBottom')+'px';
+ if(screenTopFadeEl.style.height!==topHeight)screenTopFadeEl.style.height=topHeight;
+ if(screenBottomFadeEl.style.height!==bottomHeight)screenBottomFadeEl.style.height=bottomHeight;
+ const map=state.real?state.map:null;
+ const top=gradientPixels('mapTop'),bottom=gradientPixels('mapBottom');
+ // Away from both poles the geographic overlay is provably transparent:
+ // edgeGradientSpec() gates north at 60N and south at 60S. When already
+ // clear, skip canvas sizing, layout reads and pixel clearing on every pan.
+ const lat=map?map.getCenter().lat:0;
+ const mayShowEdge=!!map&&((top>0&&lat>=60)||(bottom>0&&lat<=-60));
+ if(!mayShowEdge&&!edgeCanvasHasContent)return;
  const rect=mapEdgeCanvas.getBoundingClientRect(),width=Math.round(rect.width),height=Math.round(rect.height);
  if(width<=0||height<=0||!mapEdgeCtx)return;
  if(edgeCanvasWidth!==width||edgeCanvasHeight!==height){
@@ -406,13 +428,15 @@ function updateViewEffects(){
   edgeCanvasWidth=width;edgeCanvasHeight=height;
  }
  mapEdgeCtx.clearRect(0,0,width,height);
- if(!state.real||!state.map)return;
- const north=edgeGradientSpec(state.map,true,pixels('mapTop'),width,height);
- const south=edgeGradientSpec(state.map,false,pixels('mapBottom'),width,height);
+ edgeCanvasHasContent=false;
+ if(!mayShowEdge)return;
+ const north=edgeGradientSpec(map,true,top,width,height);
+ const south=edgeGradientSpec(map,false,bottom,width,height);
  if(!north&&!south)return;
  const color=mapBackdropColor();
  paintGeoEdge(mapEdgeCtx,north,width,height,color);
  paintGeoEdge(mapEdgeCtx,south,width,height,color);
+ edgeCanvasHasContent=true;
 }
 let compassRotation=0;
 // Follow the bearing continuously without any setPitch/jumpTo camera calls.
