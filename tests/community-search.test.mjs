@@ -48,15 +48,18 @@ test('search is accent/spacing/punctuation tolerant and exact matches rank first
 test('selecting a community eases directly without cinematic zoom-out',()=>{
  const start=js.indexOf('function viewPlace(p){'),end=js.indexOf('function getGPS(){',start);
  assert.ok(end>start);
+ const {searchKey}=searchFunctions();
  const fun=new Function('state','cancelPinPlacement','isReal','drawFallback',
-  'toast','updateReadout','closeSheet',js.slice(start,end)+'return viewPlace;');
+  'toast','updateReadout','closeSheet','PLACES','searchKey','distanceKm',
+  js.slice(start,end)+'return viewPlace;');
  let easing=null,zoomChanges=0;
  const state={center:null,route:null,map:{
    easeTo(o){easing=o;},
    flyTo(){throw new Error('Must not use flyTo')},
    zoomTo(){zoomChanges++}
  }};
- const view=fun(state,()=>{},()=>true,()=>{},()=>{},()=>{},()=>{});
+ const view=fun(state,()=>{},()=>true,()=>{},()=>{},()=>{},()=>{},
+  defaultPlaces,searchKey,()=>99);
  view({name:'Test Point',lng:-57.9,lat:48.9});
  assert.deepEqual(easing,{center:[-57.9,48.9],duration:650,essential:true});
  assert.equal(zoomChanges,0);
