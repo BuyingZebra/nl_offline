@@ -9,21 +9,19 @@
 :root{--bg:#06170e;--panel:#0a2115;--panel-solid:#102719;--surface-map-overlay:rgba(2,9,5,.91);--accent:#b4ffce;--roads:#77ffa5;--weak:#8fc19d;--line:#3f8254;--water:#12412f;--building:#29653e;--shadow:#020905;--phosphor-rgb:108,255,156;--glow-radius:9px;--glow-strength:60%}
 :root[data-theme=amber]{--bg:#140c05;--panel:#271806;--panel-solid:#301f0c;--surface-map-overlay:rgba(12,7,2,.92);--accent:#ffe79a;--roads:#f5b661;--weak:#d19e58;--line:#8e5f24;--water:#2e1f0e;--building:#54391e;--shadow:#0a0602;--phosphor-rgb:255,196,100}
 *{box-sizing:border-box}html,body{margin:0;height:100%;width:100%;overflow:hidden;background:#020603;color:var(--accent);font:12px ui-monospace,Menlo,Consolas,monospace}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation;appearance:none;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--accent);font-weight:700;letter-spacing:.07em;min-height:44px;padding:8px 12px}button:hover{border-color:var(--roads)}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button:disabled{opacity:.45;cursor:not-allowed}button:active{background:var(--line)}#controls button:active{background:var(--surface-map-overlay)}
-#app{position:relative;margin:auto;height:100dvh;max-width:520px;background:var(--bg);overflow:hidden;box-shadow:0 0 80px #000}#map,#maplibre,#fallback{position:absolute;inset:0}#maplibre{z-index:1}#maplibre.field-arc{filter:url(#fieldArcFilter)}
-/* Four independently adjustable fades. The two screen layers sit above the
-   map; the map fades mask the MapLibre canvas itself, below all UI overlays.
-   All four use pure black-to-transparent gradients, with no colour controls. */
+#app{position:relative;margin:auto;height:100dvh;max-width:520px;background:var(--bg);overflow:hidden;box-shadow:0 0 80px #000}#map,#maplibre,#fallback{position:absolute;inset:0}#maplibre{z-index:1}
+/* The screen layers PAINT BLACK at the top/bottom of the phone, reaching
+   full transparency after their pixel length. They never affect touch input. */
 #screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;z-index:3;
  height:0;pointer-events:none;opacity:1}
 #screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
 #screenBottomFade{bottom:0;background:linear-gradient(to top,#000,transparent)}
+/* The map layers instead use an ALPHA MASK: transparent edge -> fully opaque
+   geography. Mask length is in device-independent CSS pixels, not percent.
+   JS can incline the top mask to match a projected northern map boundary. */
 #maplibre,#fallback{
- -webkit-mask-image:linear-gradient(to bottom,transparent 0%,
-    #000 var(--map-fade-top,0%),#000 calc(100% - var(--map-fade-bottom,0%)),
-    transparent 100%);
- mask-image:linear-gradient(to bottom,transparent 0%,
-    #000 var(--map-fade-top,0%),#000 calc(100% - var(--map-fade-bottom,0%)),
-    transparent 100%);
+ -webkit-mask-image:linear-gradient(to bottom,#000,#000);
+ mask-image:linear-gradient(to bottom,#000,#000);
 }
 .gradient-row{display:grid;grid-template-columns:minmax(112px,1.12fr) minmax(95px,1fr) 35px;
  gap:6px;align-items:center;min-height:49px}
@@ -74,13 +72,7 @@ input[type=range].effect-slider::-moz-range-thumb{height:22px;width:22px;backgro
 </head>
 <body>
 <div id="app">
-  <!-- Map compositor stays separate from navigation coordinates and touch input. -->
-  <svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true" focusable="false">
-   <defs><filter id="fieldArcFilter" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
-    <feImage id="arcDisplacement" x="0%" y="0%" width="100%" height="100%" preserveAspectRatio="none" result="arcMap"/>
-    <feDisplacementMap id="arcAmount" in="SourceGraphic" in2="arcMap" xChannelSelector="R" yChannelSelector="G" scale="0"/>
-   </filter></defs>
-  </svg>
+  <!-- Screen fades are black overlays; map fades are alpha masks. -->
   <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
   <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch between green and amber phosphor" aria-label="Toggle theme">◐</button></header>
@@ -108,9 +100,9 @@ const PLACES=[
   {name:'St. John’s',region:'Avalon Peninsula',lng:-52.7130,lat:47.5620,zoom:12.8},
 ];
 const $=id=>document.getElementById(id); const state={theme:'green',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,autoPerspective:true,gradients:{
- screenTop:{enabled:true,length:20},screenBottom:{enabled:false,length:12},
- mapTop:{enabled:true,length:10},mapBottom:{enabled:false,length:10}
-},arcEnabled:true,effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
+ screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
+ mapTop:{enabled:true,length:110},mapBottom:{enabled:false,length:100}
+},effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
 try{state.saved=JSON.parse(localStorage.getItem('fieldAtlasPinsV02')||'[]');if(!Array.isArray(state.saved))state.saved=[];}catch(e){state.saved=[];}
 try{
  const saved=JSON.parse(localStorage.getItem('fieldAtlasEffectsV06')||'null');
@@ -169,31 +161,6 @@ let toastTimer;function toast(s){$('toast').textContent=s;$('toast').classList.a
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(v,axis){return (Math.abs(v).toFixed(4)+'°'+((axis==='lat')?(v>=0?'N':'S'):(v<0?'W':'E')))}
 // Visual compositor reads real zoom and real pitch; it NEVER modifies camera.
-const smooth01=t=>{const v=Math.max(0,Math.min(1,t));return v*v*(3-2*v)};
-let arcReady=false;
-function initArcTexture(){
- try{
-  const c=document.createElement('canvas');c.width=96;c.height=96;
-  const cx=c.getContext('2d');if(!cx)return;
-  const data=cx.createImageData(96,96);
-  for(let y=0;y<96;y++){
-   const v=y/95,fade=1-smooth01((v-.16)/.56);
-   for(let x=0;x<96;x++){
-    const u=2*x/95-1,k=(y*96+x)*4;
-    data.data[k]=128;data.data[k+1]=Math.round(128-82*(1-u*u)*fade);
-    data.data[k+2]=128;data.data[k+3]=255;
-   }
-  }
-  cx.putImageData(data,0,0);
-  $('arcDisplacement').setAttribute('href',c.toDataURL('image/png'));
-  arcReady=true;
- }catch(error){arcReady=false;console.warn('Arc unavailable:',error)}
-}
-function viewEffectStrengths(zoom,pitch){
- const distance=smooth01((13.2-zoom)/5.2);
- const tilt=smooth01(pitch/48);
- return {horizon:distance,arc:tilt*(.35+.65*distance)};
-}
 const GRADIENTS=[
  {key:'screenTop',label:'SCREEN TOP'},
  {key:'screenBottom',label:'SCREEN BOTTOM'},
@@ -202,39 +169,73 @@ const GRADIENTS=[
 ];
 function gradientMarkup(){
  return GRADIENTS.map(item=>{
-  const g=state.gradients[item.key],k=item.key,progress=Math.round(g.length/40*100);
+  const g=state.gradients[item.key],k=item.key,progress=Math.round(g.length/420*100);
   return `<div class="gradient-row">
    <label class="gradient-label" for="gradient-on-${k}">
     <input id="gradient-on-${k}" type="checkbox" ${g.enabled?'checked':''}>
     <span>${item.label}</span>
    </label>
    <input id="gradient-length-${k}" class="effect-slider" type="range"
-     min="0" max="40" step="1" value="${g.length}" style="--fill:${progress}%"
+     min="0" max="420" step="5" value="${g.length}" style="--fill:${progress}%"
      aria-label="${item.label} fade length">
-   <output id="gradient-value-${k}" for="gradient-length-${k}">${g.length}%</output>
+   <output id="gradient-value-${k}" for="gradient-length-${k}">${g.length}px</output>
   </div>`;
  }).join('');
 }
 function saveGradients(){
- try{localStorage.setItem('fieldAtlasGradientsV19',JSON.stringify(state.gradients))}catch(e){}
+ try{localStorage.setItem('fieldAtlasGradientsV20',JSON.stringify(state.gradients))}catch(e){}
 }
+// Compute the map's actual northern Mercator boundary when it approaches the
+// viewport. A straight screen-top mask does not conceal the slanted edge that
+// appears near the pole when the user rotates the pitched map. This uses
+// project() only: no camera repositioning and no gesture-controller calls.
+function northMapBoundary(map,width,height){
+ if(!map||map.getCenter().lat<69||map.getPitch()<5)return null;
+ try{
+  const lng=map.getCenter().lng,lat=85.0511285;
+  const mid=map.project([lng,lat]);
+  const left=map.project([lng-1,lat]),right=map.project([lng+1,lat]);
+  const dx=right.x-left.x,dy=right.y-left.y,len=Math.hypot(dx,dy);
+  if(!Number.isFinite(mid.x)||!Number.isFinite(mid.y)||len<.1)return null;
+  let nx=-dy/len,ny=dx/len;
+  if(ny<0){nx=-nx;ny=-ny}
+  const travel=Math.abs(nx)*width+Math.abs(ny)*height;
+  const edge=travel/2+nx*(mid.x-width/2)+ny*(mid.y-height/2);
+  if(!Number.isFinite(edge)||edge< -120||edge>travel+120)return null;
+  return {angle:(Math.atan2(nx,-ny)*180/Math.PI+360)%360,edge,travel};
+ }catch(e){return null}
+}
+// A single mask gradient always handles BOTH map edges, with transparency at
+// each end and solid opacity in the middle. Near the northern Mercator limit,
+// its top start line follows the projected geographic boundary, even at a
+// rotated bearing. Otherwise it starts at the map viewport's top edge.
+function mapAlphaMask(map,top,bottom,width,height){
+ const boundary=top>0?northMapBoundary(map,width,height):null;
+ const travel=boundary?boundary.travel:height;
+ const angle=boundary?boundary.angle:180;
+ const start=boundary?Math.max(0,Math.min(travel,boundary.edge)):0;
+ const a=Math.min(travel,start+top),b=Math.max(a,travel-bottom);
+ const px=n=>Math.round(n*10)/10+'px';
+ return 'linear-gradient('+angle.toFixed(2)+'deg,'+
+  'transparent 0px,transparent '+px(start)+','+
+  '#000 '+px(a)+',#000 '+px(b)+','+
+  'transparent '+px(travel)+')';
+}
+let lastMapMask='';
 function updateViewEffects(){
  const map=state.real?state.map:null;
- const zoom=map?map.getZoom():state.zoom;
- const pitch=map?map.getPitch():0;
- const strengths=viewEffectStrengths(zoom,pitch);
- const amount=g=>g.enabled?Math.max(0,Math.min(40,g.length))*strengths.horizon:0;
- const screenTop=amount(state.gradients.screenTop),screenBottom=amount(state.gradients.screenBottom);
- const mapTop=amount(state.gradients.mapTop),mapBottom=amount(state.gradients.mapBottom);
- // Both screen fades are absolute overlays. Map fades mask the geographic
- // rendering surface rather than darkening labels, buttons, or HUD elements.
- $('screenTopFade').style.height=screenTop.toFixed(3)+'%';
- $('screenBottomFade').style.height=screenBottom.toFixed(3)+'%';
- $('app').style.setProperty('--map-fade-top',mapTop.toFixed(3)+'%');
- $('app').style.setProperty('--map-fade-bottom',mapBottom.toFixed(3)+'%');
- const scale=state.arcEnabled&&map?strengths.arc*42:0;
- $('arcAmount').setAttribute('scale',scale.toFixed(2));
- $('maplibre').classList.toggle('field-arc',arcReady&&scale>.15);
+ const length=k=>{const g=state.gradients[k];return g.enabled?Math.max(0,Math.min(420,g.length)):0};
+ $('screenTopFade').style.height=length('screenTop')+'px';
+ $('screenBottomFade').style.height=length('screenBottom')+'px';
+ const top=length('mapTop'),bottom=length('mapBottom');
+ const element=$('maplibre'),width=element.clientWidth||390,height=element.clientHeight||780;
+ const mask=mapAlphaMask(map,top,bottom,width,height);
+ if(mask!==lastMapMask){
+  for(const id of ['maplibre','fallback']){
+   const el=$(id);el.style.webkitMaskImage=mask;el.style.maskImage=mask;
+  }
+  lastMapMask=mask;
+ }
 }
 function updateReadout(){if(isReal()){const c=state.map.getCenter();$('latitude').textContent=fmt(c.lat,'lat');$('longitude').textContent=fmt(c.lng,'lng');$('zoomvalue').textContent=state.map.getZoom().toFixed(1);updateViewEffects();}else{$('latitude').textContent='DEMO';$('longitude').textContent='DEMO';$('zoomvalue').textContent=state.zoom.toFixed(1)}}
 function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
@@ -244,19 +245,22 @@ $('theme').addEventListener('click',theme);$('plus').addEventListener('click',()
 // This is genuine geographic perspective, not a fisheye or geometry distortion.
 const MAP_MIN_ZOOM=7.5;
 try{
- const saved=JSON.parse(localStorage.getItem('fieldAtlasGradientsV19')||'null');
- if(saved && typeof saved==='object'){
+ const current=JSON.parse(localStorage.getItem('fieldAtlasGradientsV20')||'null');
+ const previous=current?null:JSON.parse(localStorage.getItem('fieldAtlasGradientsV19')||'null');
+ const saved=current||previous;
+ if(saved&&typeof saved==='object'){
   for(const key of ['screenTop','screenBottom','mapTop','mapBottom']){
    if(!saved[key]||typeof saved[key]!=='object')continue;
    if(typeof saved[key].enabled==='boolean')state.gradients[key].enabled=saved[key].enabled;
-   if(Number.isFinite(saved[key].length))state.gradients[key].length=Math.max(0,Math.min(40,Math.round(saved[key].length)));
+   if(Number.isFinite(saved[key].length)){
+    // Previous revision saved % of viewport; new sliders use CSS pixels.
+    const raw=current?saved[key].length:saved[key].length/100*window.innerHeight;
+    state.gradients[key].length=Math.max(0,Math.min(420,Math.round(raw/5)*5));
+   }
   }
- }else{
-  const oldFade=localStorage.getItem('fieldAtlasHorizonFadeV17');
-  if(oldFade==='false')state.gradients.screenTop.enabled=false;
+ }else if(localStorage.getItem('fieldAtlasHorizonFadeV17')==='false'){
+  state.gradients.screenTop.enabled=false;
  }
- const a=localStorage.getItem('fieldAtlasHorizonArcV17');
- if(a!==null)state.arcEnabled=a==='true';
 }catch(e){}
 function autoPitchForZoom(zoom){
  const t=Math.max(0,Math.min(1,(13.2-zoom)/(13.2-8.0)));
@@ -294,10 +298,9 @@ function openMenu(){
  <div class="setting"><b>WATER GRID</b><button id="waterGridSetting">${state.showWaterGrid?'ON':'OFF'}</button></div>
  <div class="setting"><b>AUTO 3D PERSPECTIVE</b><button id="view3dSetting" title="Automatically tilt as the map zooms out">${state.autoPerspective?'ON':'OFF'}</button></div>
  <div class="line"></div>
- <p class="sheetText">BLACK GRADIENTS / MAXIMUM LENGTH</p>
+ <p class="sheetText">GRADIENT LENGTH / CSS PIXELS</p>
  ${gradientMarkup()}
- <p class="sheetText">Each fade has its own checkbox and length. The full length appears at regional zoom and eases away when zooming in. Screen fades overlay the display; map fades soften only the map image.</p>
- <div class="setting"><b>HORIZON ARC</b><button id="arcSetting">${state.arcEnabled?'ON':'OFF'}</button></div>
+ <p class="sheetText">Four independent, fixed lengths in pixels. Screen fades paint black; map fades reach full transparency at the map edges. Zoom and tilt never change your chosen lengths.</p>
  <div class="line"></div>${effectMarkup()}
  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
  <div class="line"></div><button id="savedSetting" style="width:100%">SAVED PINS (${state.saved.length})</button>
@@ -318,17 +321,12 @@ function openMenu(){
    g.enabled=event.target.checked;updateViewEffects();saveGradients();
   });
   $('gradient-length-'+key).addEventListener('input',event=>{
-   g.length=Math.max(0,Math.min(40,Math.round(Number(event.target.value))));
-   event.target.style.setProperty('--fill',Math.round(g.length/40*100)+'%');
-   $('gradient-value-'+key).textContent=g.length+'%';
+   g.length=Math.max(0,Math.min(420,Math.round(Number(event.target.value)/5)*5));
+   event.target.style.setProperty('--fill',Math.round(g.length/420*100)+'%');
+   $('gradient-value-'+key).textContent=g.length+'px';
    updateViewEffects();saveGradients();
   });
  }
- $('arcSetting').onclick=()=>{
-  state.arcEnabled=!state.arcEnabled;updateViewEffects();
-  try{localStorage.setItem('fieldAtlasHorizonArcV17',String(state.arcEnabled))}catch(e){}
-  openMenu();
- };
  $('waterGridSetting').onclick=()=>{
   state.showWaterGrid=!state.showWaterGrid;
   if(isReal()&&state.map.getLayer('water-grid'))
@@ -516,6 +514,6 @@ function loadRemoteMap(){
  }
  tryNext();
 }
-window.addEventListener('resize',()=>{positionMapTools();drawFallback()});positionMapTools();initArcTexture();updateViewEffects();applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
+window.addEventListener('resize',()=>{positionMapTools();lastMapMask='';updateViewEffects();drawFallback()});positionMapTools();updateViewEffects();applyEffects();drawFallback();updateReadout();status('Design demo ready. Loading real geographic map…',true);loadRemoteMap();
 </script>
 </body></html>
