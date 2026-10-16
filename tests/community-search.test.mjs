@@ -117,3 +117,11 @@ test('town selection goes directly to its own map-label node coordinate',()=>{
  assert.ok(!body.includes('const existingView'));
  assert.ok(!body.includes('flyTo('));
 });
+
+test('official and OSM records retain traceable data source labels',()=>{
+ assert.ok(places.filter(p=>p.mapAnchor&&p.source==='osm').length>=500);
+ assert.ok(places.filter(p=>!p.mapAnchor&&p.source==='cgn').length>=950);
+ const goose=places.find(p=>p.mapAnchor&&p.name==='Happy Valley-Goose Bay');
+ assert.ok(goose,'preserve the place name from the actual map label');
+ assert.equal(goose.region,'Labrador');
+});
