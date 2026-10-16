@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Newfoundland Offline",
+    "slug": "newfoundland-offline",
+    "scheme": "nloffline",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#06120c",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "ca.newfoundlandoffline.navigation",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Show your location on the offline map while the app is open."
+      }
+    },
+    "android": {
+      "package": "ca.newfoundlandoffline.navigation",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#06120c",
+        "foregroundImage": "./assets/icon.png"
+      }
+    },
+    "plugins": [
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Show your location on the offline map while the app is open."
+        }
+      ]
+    ],
+    "extra": {
+      "projectStage": "mapping-prototype",
+      "region": "Carbonear"
+    },
+    "icon": "./assets/icon.png"
+  }
+}
