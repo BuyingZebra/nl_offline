@@ -70,9 +70,6 @@ button:not(.primary):active{background:var(--panel)}
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent),
  inset 0 0 calc(var(--glow-radius) * .6) color-mix(in srgb,currentColor var(--glow-strength),transparent);
 }
-#themeIcon{display:inline-flex;align-items:center;justify-content:center;
- width:24px;height:24px;vertical-align:middle}
-#themeIcon svg{width:23px;height:23px;display:block}
 @media(prefers-reduced-motion:reduce){#phosphorSweep{display:none}}
 #mapfx{position:absolute;inset:0;z-index:102;pointer-events:none;
  background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
@@ -86,8 +83,6 @@ button:not(.primary):active{background:var(--panel)}
 #app :is(.panel,button,#compass,#status,#toast,input:not([type=range]),select){
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--line) var(--glow-strength),transparent)}
 #app #crosshair{opacity:.85}
-#app #themeIcon svg{
- filter:drop-shadow(0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent))}
 #app #status .led{
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app .line{
@@ -118,7 +113,15 @@ input[type=range].effect-slider::-moz-range-thumb{
  height:22px;width:22px;background:var(--accent);border:3px solid var(--panel-solid);border-radius:50%;
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
 /* Surface hierarchy: map -> dark translucent direct overlay -> tinted nested controls. */
-.panel{background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(13px)}.overlay{position:absolute;z-index:5}#head{top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;min-height:64px;display:flex;align-items:center;gap:9px;padding:9px 12px}#wordmark{flex:1;min-width:0}#wordmark small{display:block;color:var(--weak);letter-spacing:.14em;font-size:9px}#wordmark b{font-size:17px;letter-spacing:.13em;display:block;margin-top:3px}#theme{min-width:46px;padding:0;font-size:18px}#status{top:calc(env(safe-area-inset-top,0px) + 83px);left:10px;right:10px;color:var(--accent);font-size:9px;letter-spacing:.055em;background:var(--surface-map-overlay);border:1px solid var(--line);padding:7px 9px;border-radius:6px;display:flex;gap:8px;align-items:center}#status[data-type=warning]{color:#ffd18b}#status .led{width:7px;height:7px;background:currentColor;border-radius:50%;flex:none}#controls{right:10px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));display:flex;flex-direction:column;gap:8px}#controls button{width:47px;height:47px;padding:0;font-size:21px;background:var(--surface-map-overlay)}#compass{left:15px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));width:58px;height:58px;border-radius:50%;border:1px solid var(--line);background:var(--surface-map-overlay);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:26px;pointer-events:none}#compass:before{content:'N';position:absolute;top:4px;font-size:9px}#compass span{padding-top:10px}#crosshair{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);pointer-events:none;color:var(--accent);font-size:29px;opacity:.6}#pinMarker{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-95%);pointer-events:none;font-size:28px;color:var(--accent);display:none}
+.panel{background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(13px)}.overlay{position:absolute;z-index:5}#head{top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;min-height:64px;display:flex;align-items:center;gap:9px;padding:9px 12px}#wordmark{flex:1;min-width:0}#wordmark small{display:block;color:var(--weak);letter-spacing:.14em;font-size:9px}#wordmark b{font-size:17px;letter-spacing:.13em;display:block;margin-top:3px}#theme{min-width:46px;padding:0;font-size:18px}#status{top:calc(env(safe-area-inset-top,0px) + 83px);left:10px;right:10px;color:var(--accent);font-size:9px;letter-spacing:.055em;background:var(--surface-map-overlay);border:1px solid var(--line);padding:7px 9px;border-radius:6px;display:flex;gap:8px;align-items:center}#status[data-type=warning]{color:#ffd18b}#status .led{width:7px;height:7px;background:currentColor;border-radius:50%;flex:none}#controls{right:10px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));display:flex;flex-direction:column;gap:8px}#controls button{width:47px;height:47px;padding:0;font-size:21px;background:var(--surface-map-overlay)}#compass{left:15px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));
+ width:58px;height:58px;min-width:58px;min-height:58px;padding:0;border-radius:50%;
+ border:1px solid var(--line);background:var(--surface-map-overlay);color:var(--accent);
+ display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+#compassNeedle{display:flex;align-items:center;justify-content:center;flex-direction:column;
+ gap:0;width:100%;height:100%;transform:rotate(0deg);transition:transform 55ms linear;
+ pointer-events:none;will-change:transform}
+#compassNeedle .compass-n{font-size:9px;line-height:13px;letter-spacing:.07em}
+#compassNeedle .compass-pointer{font-size:26px;line-height:30px}#crosshair{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);pointer-events:none;color:var(--accent);font-size:29px;opacity:.6}#pinMarker{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-95%);pointer-events:none;font-size:28px;color:var(--accent);display:none}
 #footer{bottom:calc(env(safe-area-inset-bottom,0px) + 10px);left:10px;right:10px;padding:11px}#readout{display:grid;grid-template-columns:1fr 1fr 65px;gap:10px}#readout small{display:block;font-size:9px;color:var(--weak);letter-spacing:.13em}#readout b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:5px}#nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:11px}#nav button{font-size:10px;padding:7px 3px;white-space:nowrap}#footnote{border-top:1px solid var(--line);margin-top:10px;padding-top:9px;color:var(--weak);font-size:9px;display:flex;justify-content:space-between;gap:8px}
 #toast{position:absolute;z-index:8;left:10px;right:10px;bottom:207px;text-align:center;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:7px;padding:10px;color:var(--accent);font-size:11px;display:none}#toast.show{display:block}#sheetShade{position:absolute;z-index:10;inset:0;background:rgba(0,0,0,.64);display:none;align-items:flex-end;padding:10px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}#sheetShade.open{display:flex}#sheet{width:100%;max-height:76vh;overflow:auto;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:12px;padding:15px;box-shadow:0 -7px 35px #0008}#sheethead{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px}#sheetTitle{font-weight:800;letter-spacing:.1em;font-size:14px}#sheetClose{font-size:19px;min-width:43px;min-height:43px;padding:0}.sheetText{color:var(--weak);font-size:11px;line-height:1.6}.line{height:1px;background:var(--line);margin:12px 0}.field{display:block;margin:10px 0 4px;color:var(--weak);font-size:10px;letter-spacing:.1em}input,select{width:100%;background:var(--panel);color:var(--accent);border:1px solid var(--line);padding:12px;border-radius:7px;min-height:44px}.list{display:grid;gap:6px;margin-top:10px}.list button{text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.list button small{font-size:9px;color:var(--weak);font-weight:400}.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);width:100%;margin-top:12px}.setting{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.setting b{font-size:11px}.setting button{min-width:85px}.warning{color:#ffd18b}.hint{font-size:10px;color:var(--weak)}
 @media (orientation:landscape) and (max-height:550px){#app{max-width:100%}#head{top:7px;left:8px;right:auto;width:245px;padding:6px 10px;min-height:50px}#wordmark b{font-size:13px}#wordmark small{font-size:8px}#status{top:62px;left:8px;right:auto;width:245px;font-size:8px}#footer{left:8px;right:auto;width:245px;bottom:7px;padding:8px}#controls{right:7px;top:7px;gap:6px;flex-direction:row}#controls button{width:43px;height:43px}#compass{display:none}#nav{grid-template-columns:repeat(2,1fr);margin-top:7px}#nav button{min-height:35px}#readout{gap:5px}#footnote{margin-top:5px;padding-top:5px;font-size:8px}#toast{left:270px;right:10px;bottom:12px}#sheetShade{align-items:center;justify-content:flex-end}#sheet{width:min(410px,65vw);max-height:94vh}}
@@ -130,9 +133,9 @@ input[type=range].effect-slider::-moz-range-thumb{
   <!-- Screen fades are black overlays; map fades are alpha masks. -->
   <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><canvas id="mapEdgeFade" aria-hidden="true"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
   <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
-  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Day theme — switch to amber night" aria-label="Day theme — switch to night"><span id="themeIcon" aria-hidden="true">☀</span></button></header>
+  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch phosphor colour" aria-label="Switch phosphor colour">◐</button></header>
   <div id="status" class="overlay" data-type="warning"><span class="led"></span><span id="statusMessage">Starting interactive preview…</span></div>
-  <div class="overlay" id="compass"><span>▲</span></div>
+  <button class="overlay" id="compass" type="button" aria-label="Reset map rotation to north" title="Reset map rotation to north"><span id="compassNeedle" aria-hidden="true"><span class="compass-n">N</span><span class="compass-pointer">▲</span></span></button>
   <div class="overlay" id="controls"><button id="plus" aria-label="Zoom in">+</button><button id="minus" aria-label="Zoom out">−</button><button id="gps" title="Use phone GPS" aria-label="My location">◎</button><button id="home" title="Return to Carbonear" aria-label="Home">⌂</button></div>
   <div class="overlay panel" id="footer">
     <div id="readout"><div><small>LATITUDE</small><b id="latitude">—</b></div><div><small>LONGITUDE</small><b id="longitude">—</b></div><div><small>ZOOM</small><b id="zoomvalue">14.2</b></div></div>
@@ -177,12 +180,10 @@ document.documentElement.dataset.theme=state.theme;
 // Sun denotes the selected green/day phosphor; crescent denotes amber/night.
 // The icon reflects the CURRENT theme, not an automatic time-of-day setting.
 function syncThemeButton(){
- const day=state.theme==='green',button=$('theme');
- $('themeIcon').innerHTML=day
-  ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>'
-  : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.98 13A9 9 0 0 1 11 3.02 9 9 0 1 0 20.98 13Z"/></svg>';
- button.title=day?'Day phosphor — switch to amber night':'Night phosphor — switch to green day';
- button.setAttribute('aria-label',button.title);
+ const button=$('theme');
+ button.textContent='◐';
+ button.title='Switch phosphor colour (GREEN / AMBER)';
+ button.setAttribute('aria-label','Switch phosphor colour');
 }
 syncThemeButton();
 try{const saved=localStorage.getItem('fieldAtlasWaterGridV09');if(saved!==null)state.showWaterGrid=saved==='true'}catch(e){}
@@ -352,9 +353,36 @@ function updateViewEffects(){
  paintGeoEdge(mapEdgeCtx,north,width,height,color);
  paintGeoEdge(mapEdgeCtx,south,width,height,color);
 }
-function updateReadout(){if(isReal()){const c=state.map.getCenter();$('latitude').textContent=fmt(c.lat,'lat');$('longitude').textContent=fmt(c.lng,'lng');$('zoomvalue').textContent=state.map.getZoom().toFixed(1);updateViewEffects();}else{$('latitude').textContent='DEMO';$('longitude').textContent='DEMO';$('zoomvalue').textContent=state.zoom.toFixed(1)}}
-function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;syncThemeButton();try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());updateViewEffects();drawFallback();toast(state.theme==='green'?'DAY / GREEN PHOSPHOR':'NIGHT / AMBER PHOSPHOR')}
-$('theme').addEventListener('click',theme);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));
+let compassRotation=0;
+// Follow the bearing continuously without any setPitch/jumpTo camera calls.
+// Wrap at +/-180 using the shortest angular step to avoid full spins.
+function setCompassBearing(bearing){
+ const target=-bearing;
+ const delta=((target-compassRotation+540)%360)-180;
+ compassRotation+=delta;
+ $('compassNeedle').style.transform='rotate('+compassRotation.toFixed(2)+'deg)';
+}
+function resetCompass(){
+ if(isReal())state.map.rotateTo(0,{duration:450,essential:true});
+ else toast('Compass available with live map data');
+}
+function updateReadout(){
+ if(isReal()){
+  const c=state.map.getCenter();
+  $('latitude').textContent=fmt(c.lat,'lat');
+  $('longitude').textContent=fmt(c.lng,'lng');
+  $('zoomvalue').textContent=state.map.getZoom().toFixed(1);
+  setCompassBearing(state.map.getBearing());
+  updateViewEffects();
+ }else{
+  $('latitude').textContent='DEMO';
+  $('longitude').textContent='DEMO';
+  $('zoomvalue').textContent=state.zoom.toFixed(1);
+  setCompassBearing(0);
+ }
+}
+function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;syncThemeButton();try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());updateViewEffects();drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
+$('theme').addEventListener('click',theme);$('compass').addEventListener('click',resetCompass);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));
 // Direct-action controls get a real phosphor-style instant flare and linear
 // decay. Keep the overlay and its shadows STATIC; only animate its opacity.
 // WAAPI restarts with cancel(), never a forced synchronous layout read.
@@ -383,7 +411,7 @@ function installPhosphorFeedback(button){
   }
  });
 }
-for(const id of ['theme','plus','minus','gps','home'])
+for(const id of ['theme','compass','plus','minus','gps','home'])
  installPhosphorFeedback($(id));
 // A tapped command or toggle is not a selected mode. Blur pointer activations
 // after their handlers have run; keyboard/screen-reader clicks retain focus.
