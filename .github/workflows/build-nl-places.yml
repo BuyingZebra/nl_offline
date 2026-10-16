@@ -1,0 +1,33 @@
+name: Build NL Search Places
+on:
+  push:
+    branches: ['feature/complete-town-search-v0-29']
+    paths:
+      - 'tools/build-nl-places.py'
+      - '.github/workflows/build-nl-places.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-places:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download official CGNDB and build validated settlement index
+        run: python tools/build-nl-places.py
+      - name: Commit generated static search index to development branch
+        run: |
+          git add data/nl-places.json
+          if git diff --cached --quiet; then
+            echo "No updated place records."
+            exit 0
+          fi
+          git -c user.name="field-atlas-builder[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "data(search): refresh official NL populated places [skip ci]"
+          git push origin HEAD:feature/complete-town-search-v0-29
