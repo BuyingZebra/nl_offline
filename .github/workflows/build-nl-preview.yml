@@ -1,0 +1,83 @@
+name: Build NL browser preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-nl-preview.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nl-browser-preview
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Find latest completed map-data build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nl-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID" && test "$RUN_ID" != "null" || { echo "No successful source map workflow found"; exit 1; }
+          echo "MAP_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "Using successfully built map data from run $RUN_ID"
+      - name: Download existing map artifacts to GitHub runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/source-map work/reference
+          gh run download "$MAP_RUN_ID" --repo "$GITHUB_REPOSITORY" --name nl-offline-vector-map --dir work/source-map
+          gh run download "$MAP_RUN_ID" --repo "$GITHUB_REPOSITORY" --name nl-reference-data --dir work/reference
+          test -s work/source-map/nl_osm.mbtiles
+          test -s work/reference/nl_communities.csv
+          ls -lh work/source-map/nl_osm.mbtiles work/reference/nl_communities.csv
+      - name: Generate lightweight island vector preview
+        run: |
+          python tools/build_nl_preview.py --tiles work/source-map/nl_osm.mbtiles --communities work/reference/nl_communities.csv --output map-preview-data.js
+          test -s map-preview-data.js
+          test -s map-preview-metadata.json
+          ls -lh map-preview-data.js
+      - name: Upload portable preview (HTML + real map data)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-browser-preview-open-html
+          path: |
+            map-preview.html
+            map-preview-data.js
+            map-preview-metadata.json
+          compression-level: 3
+          retention-days: 7
+          if-no-files-found: error
+      - name: Publish preview data alongside existing GitHub Pages site
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add map-preview-data.js map-preview-metadata.json
+          if git diff --cached --quiet; then
+            echo "No changes to generated preview"
+          else
+            git commit -m "Update NL map browser preview data [skip ci]"
+            git push origin HEAD:main
+          fi
+          echo "Preview page: https://buyingzebra.github.io/nl_offline/map-preview.html"
