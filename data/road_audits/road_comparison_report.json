@@ -1,0 +1,25 @@
+{
+  "run_utc": "2026-10-17T00:10:47.134813+00:00",
+  "national_road_segments": 44484,
+  "provincial_road_segments": 13304,
+  "distance_tolerance_m": 18.0,
+  "classifications": {
+    "potential_addition": {
+      "segments": 12202,
+      "km": 25340.26
+    },
+    "needs_review": {
+      "segments": 965,
+      "km": 2297.15
+    },
+    "probable_overlap": {
+      "segments": 60,
+      "km": 18.98
+    },
+    "review_short_segment": {
+      "segments": 77,
+      "km": 1.04
+    }
+  },
+  "limitations": "Candidate roads are missing relative to the federal NRN, NOT necessarily OSM. No automatic road-network/routing merge. Verify history, access, and alignment before use."
+}
