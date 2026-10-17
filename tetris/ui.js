@@ -299,9 +299,9 @@
     $('bestScore').textContent=Math.max(highScore,game.score).toLocaleString('en-CA');
     $('pieceCount').textContent=game.pieces;
     $('eventText').textContent=game.lastEvent+' / '+game.dropMs+' MS';
-    // PAUSE never becomes RESUME: the on-board ▶ RESUME is the only
-    // control that can continue a paused game.
-    $('pauseButton').disabled=game.status!=='playing';
+    // PAUSE is a consistently lit, clickable control in every state.
+    // The action handler only pauses while playing; ▶ RESUME on the
+    // board remains the only way to continue an existing game.
     $('holdCanvas').style.opacity=game.canHold?'1':'.45';
     renderMini($('holdCanvas'),game.hold);
     previewCanvases.forEach((c,i)=>renderMini(c,game.queue[i]));
@@ -311,7 +311,7 @@
     $('pausedScoresButton').hidden=game.status!=='paused';
     if(game.status==='ready'){
       $('veilTitle').textContent='TETRIS';
-      $('veilText').textContent='FALLING-BLOCK ARCADE / 7 PIECES / 10 × 20';
+      $('veilText').textContent='Stack the blocks. Clear complete rows. Keep the board from filling up.';
       $('playButton').textContent='▶ START GAME';
     }else if(game.status==='paused'){
       $('veilTitle').textContent='PAUSED';
