@@ -169,7 +169,102 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v002'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v003'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
+});
+
+
+const Scores=require('../tetris/scores.js');
+test('top-five scores sort descending, keep five, and handle equal ties safely',()=>{
+ let entries=[];
+ for(const value of [400,1200,600,700,200,900,1,750,1200]){
+  entries=Scores.add(entries,{name:'abc',score:value,lines:2,level:1,at:value});
+ }
+ assert.equal(entries.length,5);
+ assert.deepEqual(entries.map(v=>v.score),[1200,1200,900,750,700]);
+ assert.deepEqual(entries.map(v=>v.name),['ABC','ABC','ABC','ABC','ABC']);
+ assert.equal(Scores.qualifies(entries,400),false);
+ assert.equal(Scores.qualifies(entries,701),true);
+ assert.equal(Scores.qualifies(entries,700),false);
+ assert.equal(Scores.qualifies(entries,0),false);
+});
+
+test('initials are restricted to three uppercase alphanumerics; malformed persisted data is rejected',()=>{
+ assert.equal(Scores.initials('ab c!0'), 'ABC');
+ assert.equal(Scores.initials('a<script>'),'ASC');
+ assert.equal(Scores.initials('  '),'AAA');
+ assert.deepEqual(Scores.sanitize(null),[]);
+ const entries=Scores.sanitize([
+  {name:'xyz',score:5.9,lines:1,level:1,at:100},
+  {name:'BAD',score:-5},{name:'',score:'oops'}
+ ]);
+ assert.deepEqual(entries.map(e=>e.name),['XYZ']);
+ assert.equal(entries[0].score,5);
+});
+
+test('leaderboard saves/reloads locally and migrates prior single best',()=>{
+ const data=new Map([['fieldAtlasTetrisBest','850']]);
+ const storage={getItem:key=>data.has(key)?data.get(key):null,
+                setItem:(key,value)=>data.set(key,value)};
+ let ranks=Scores.read(storage);
+ assert.equal(ranks.length,1);
+ assert.equal(ranks[0].name,'OLD');
+ assert.equal(ranks[0].score,850);
+ ranks=Scores.add(ranks,{name:'JMS',score:1200,lines:8,level:1,at:42});
+ Scores.save(storage,ranks);
+ assert.deepEqual(Scores.read(storage).map(x=>x.score),[1200,850]);
+ assert.equal(data.get('fieldAtlasTetrisBest'),'1200');
+ assert.equal(Scores.read(null).length,0);
+});
+
+test('the high score feature is game-over-only, with visible five-slot board and initials entry',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ assert.ok(html.includes('<script src="./scores.js"></script>'));
+ assert.ok(html.includes('id="scoresButton"'));
+ assert.ok(html.includes('id="scoreEntry"'));
+ assert.ok(html.includes('id="leaderboard"'));
+ assert.ok(html.includes('id="initialsEntry" maxlength="3"'));
+ assert.ok(html.includes('id="saveScore"'));
+ assert.ok(html.includes('id="skipScore"'));
+ assert.match(ui,/if\(game\.status!=='over'\|\|gameOverHandled\)return/);
+ assert.match(ui,/if\(!Scores\.qualifies\(highScores,game\.score\)\)return/);
+ assert.match(ui,/highScores=Scores\.add\(highScores,/);
+ assert.match(ui,/highScores=Scores\.save\(storage,highScores\)/);
+ assert.match(ui,/for\(let rank=0;rank<Scores\.LIMIT;rank\+\+\)/);
+ assert.doesNotMatch(ui,/store\('fieldAtlasTetrisBest',highScore\)/);
+});
+
+test('all map display settings and reactive phosphor behaviors are reflected in the arcade',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ for(const id of ['glowControl','scanControl','vignetteControl','glowValue',
+  'scanValue','vignetteValue','themeSetting','resetEffects',
+  'screenTopFade','screenBottomFade','playfieldTopFade','playfieldBottomFade',
+  'fade-screenTop-on','fade-screenBottom-on','fade-playfieldTop-on',
+  'fade-playfieldBottom-on']) {
+  assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
+ }
+ assert.ok(ui.includes("read('fieldAtlasEffectsV06','null')"));
+ assert.ok(ui.includes("store('fieldAtlasEffectsV06'"));
+ assert.ok(ui.includes("read('fieldAtlasGradientsV20','null')"));
+ assert.ok(ui.includes("store('fieldAtlasGradientsV20'"));
+ assert.ok(html.includes('phosphor-hit-layer'));
+ assert.ok(ui.includes("installPhosphorFeedback(button)"));
+ assert.ok(ui.includes("button.addEventListener('pointerdown',flash)"));
+ assert.ok(ui.includes("button.addEventListener('click',event=>{if(event.detail===0)flash();})"));
+ assert.ok(html.includes('opacity:var(--vignette-intensity)'));
+ assert.ok(html.includes('opacity:var(--scan-intensity)'));
+ assert.ok(ui.includes("app.style.setProperty('--glow-strength'"));
+ assert.ok(ui.includes("app.style.setProperty('--glow-radius'"));
+ assert.ok(ui.includes("app.style.setProperty('--vignette-intensity'"));
+});
+
+test('new cached arcade shell includes the scoring system for offline play',()=>{
+ const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
+ assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v003'/);
 });
