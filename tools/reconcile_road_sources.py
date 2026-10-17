@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Conflate NL GeoAtlas resource roads with real OSM roads and the federal NRN.
+"""Conflate NL Forestry Resource Roads with real OSM roads and the federal NRN.
 
 Province-wide QA only: never snaps, moves, joins, deletes, or adds route edges.
 Keeps every provincial input feature and its source identifiers in an editable
@@ -256,7 +256,7 @@ def main():
             {"dataset": "OpenStreetMap Geofabrik Newfoundland and Labrador extract",
              "attribution": "© OpenStreetMap contributors", "licence": "ODbL"},
             {"dataset": "Statistics Canada National Road Network"},
-            {"dataset": "NL GeoAtlas Resource Access Roads"}
+            {"dataset": "NL Forestry Resource Roads - Newfoundland (direct FFA FeatureServer)"}
         ],
         "limits": "No auto-merge, snapping, rerouting or road deletion. Candidate additions require imagery/field review. Parallel carriageways, bridges, ramps and name conflicts require special care.",
     }
