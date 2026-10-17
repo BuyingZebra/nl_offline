@@ -17,10 +17,9 @@
   let lastFrame=performance.now(),dirty=true;
   let highScore=0,showGhost=true,soundOn=false,glow=65,scan=26,vignette=30,audioCtx=null;
   let gameOverHandled=false,highScores=[],storage=null;
-  const fadeKeys=['screenTop','screenBottom','playfieldTop','playfieldBottom'];
+  const fadeKeys=['screenTop','screenBottom'];
   const defaultGradients={
-    screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
-    playfieldTop:{enabled:false,length:110},playfieldBottom:{enabled:false,length:100}
+    screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110}
   };
   let gradients=JSON.parse(JSON.stringify(defaultGradients));
   let palette=null;
@@ -46,8 +45,8 @@
       glow=clamp(Number(read('fieldAtlasTetrisGlow','65'))||0,0,100);
     }
   }catch(e){}
-  // Map and arcade share screen fades. The playfield fades are independent:
-  // applying map-edge fades directly would obscure falling blocks.
+  // Screen fades are post-processing overlays for all arcade content.
+  // Legacy playfield fade settings are ignored.
   try{
     const mapGradients=JSON.parse(read('fieldAtlasGradientsV20','null'));
     for(const key of ['screenTop','screenBottom']){
@@ -87,8 +86,8 @@
   function applyGradientFades(){
     $('screenTopFade').style.height=gradientHeight('screenTop');
     $('screenBottomFade').style.height=gradientHeight('screenBottom');
-    $('playfieldTopFade').style.height=gradientHeight('playfieldTop');
-    $('playfieldBottomFade').style.height=gradientHeight('playfieldBottom');
+    root.style.setProperty('--screen-top-fade',gradientHeight('screenTop'));
+    root.style.setProperty('--screen-bottom-fade',gradientHeight('screenBottom'));
   }
   function saveGradients(){
     store('fieldAtlasTetrisGradientsV01',JSON.stringify(gradients));
@@ -163,7 +162,11 @@
     const body=mix(palette.base,palette.bright,.25+k*.42);
     const edge=mix(palette.base,palette.ink,.30+k*.54);
     ctx.save();
-    if(glow>0){ctx.shadowColor=color(palette.bright,glow/230);ctx.shadowBlur=glow/15;}
+    if(glow>0){
+      // Bloom follows each tile's actual fill, not a uniform phosphor tint.
+      ctx.shadowColor=color(body,Math.min(1,glow/100));
+      ctx.shadowBlur=glow/6;
+    }
     ctx.fillStyle=color(body,.98);
     ctx.fillRect(cx+1,cy+1,size-2,size-2);
     ctx.shadowBlur=0;
@@ -524,6 +527,19 @@
     }
     button.addEventListener('pointerdown',flash);
     button.addEventListener('click',event=>{if(event.detail===0)flash();});
+  }
+  // Modal dialogs are promoted above #app by showModal(). Mirror the same
+  // screen-space CRT, vignette and gradient filters in that top layer.
+  for(const dialog of document.querySelectorAll('dialog')){
+    const overlay=document.createElement('div');
+    overlay.className='modal-camera-fx';
+    overlay.setAttribute('aria-hidden','true');
+    for(const name of ['scan','vignette','fade-top','fade-bottom']){
+      const layer=document.createElement('span');
+      layer.className='fx-'+name;
+      overlay.appendChild(layer);
+    }
+    dialog.appendChild(overlay);
   }
   document.querySelectorAll('button').forEach(installPhosphorFeedback);
   document.addEventListener('click',event=>{
