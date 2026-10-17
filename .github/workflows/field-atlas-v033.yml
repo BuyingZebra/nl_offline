@@ -1,0 +1,21 @@
+name: FIELD ATLAS v0.33 Carbonear Spline Tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'preview-v033/**'
+      - 'data/osm-detail/carbonear_roads_spline*'
+      - 'tests/field-atlas-v033.test.mjs'
+      - '.github/workflows/field-atlas-v033.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/field-atlas-v033.test.mjs
