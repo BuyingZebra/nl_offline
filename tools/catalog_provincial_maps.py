@@ -192,6 +192,42 @@ def inspect_provincial_layers(s, layers):
         samples.append(record)
     return samples
 
+
+def catalog_topographic_pdfs(s, output):
+    """Get actual government-hosted topographic map PDF URLs from sheet index."""
+    endpoint = "https://services8.arcgis.com/aCyQID5qQcyrJMm2/arcgis/rest/services/Topo_Mapsheets/FeatureServer/0/query"
+    rows = []
+    offset = 0
+    while True:
+        resp = s.get(endpoint, params={
+            "f": "json", "where": "1=1", "outFields": "Name,LinkToPDF",
+            "returnGeometry": "false", "resultOffset": offset, "resultRecordCount": 500
+        }, timeout=(15, 50))
+        resp.raise_for_status()
+        data = resp.json()
+        if "error" in data:
+            raise ValueError(f"Topographic layer query returned {data['error']}")
+        part = data.get("features", [])
+        for record in part:
+            attrs = record.get("attributes", {})
+            link = attrs.get("LinkToPDF")
+            if isinstance(link, str) and link.startswith("https://"):
+                rows.append({"sheet": attrs.get("Name", ""), "pdf_url": link})
+        offset += len(part)
+        if len(part) < 500:
+            break
+        if offset > 10000:
+            raise ValueError("Unexpectedly large topographic PDF layer")
+    rows = sorted({r["pdf_url"]: r for r in rows}.values(), key=lambda r: r["sheet"])
+    with (output / "provincial_topographic_pdf_index.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=("sheet","pdf_url"))
+        w.writeheader()
+        w.writerows(rows)
+    (output / "provincial_topographic_pdf_index.json").write_text(
+        json.dumps(rows, ensure_ascii=False, separators=(",",":")) + "\n", encoding="utf-8"
+    )
+    return len(rows)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -219,10 +255,12 @@ def main():
             writer.writerows(layers)
     layer_samples = inspect_provincial_layers(s, layers) if not args.only_airphotos else []
     (args.output / "provincial_arcgis_field_samples.json").write_text(json.dumps(layer_samples, indent=2, ensure_ascii=False)+"\n", encoding="utf-8")
+    topo_pdf_count = catalog_topographic_pdfs(s, args.output) if not args.only_airphotos else 0
     report = {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "source": AIR_INDEX,
         "linked_index_images": len(photos),
+        "direct_topographic_pdf_links": topo_pdf_count,
         "years": dict(sorted(Counter(str(x["year"]) for x in photos).items())),
         "sheet_count": len({x["sheet"] for x in photos if x["sheet"]}),
         "color_codes": dict(Counter(x["photo_type"] for x in photos)),
