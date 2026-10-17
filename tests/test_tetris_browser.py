@@ -40,8 +40,21 @@ with sync_playwright() as p:
         ) == ["hold", "pause"]
         assert page.locator('[data-action="down"]').count() == 0
         assert page.locator('[data-action="ccw"]').count() == 0
-        assert page.locator(".drop-arrow").inner_text() == "▼"
-        assert page.locator(".drop-label").inner_text() == "DROP"
+        assert page.locator(".drop-arrow").count() == 0
+        assert page.locator(".drop-label").count() == 0
+        assert page.locator('button[data-action="hard"]').inner_text() == "DROP"
+        # The three directional keys have the same bright, filled phosphor
+        # background and shadow-coloured foreground in either screen theme.
+        directional_style = page.locator(
+            '#pad button[data-action="left"], #pad button[data-action="hard"], #pad button[data-action="right"]'
+        ).evaluate_all("""els => els.map(el=>{
+          const css=getComputedStyle(el);
+          return {background:css.backgroundColor,color:css.color,border:css.borderTopColor};
+        })""")
+        assert len(directional_style) == 3
+        assert len({s["background"] for s in directional_style}) == 1
+        assert len({s["color"] for s in directional_style}) == 1
+        assert len({s["border"] for s in directional_style}) == 1
         assert page.locator('button[data-action="cw"]').inner_text() == "↻"
         positions=page.evaluate("""() => {
           const selectors=['[data-action="left"]','[data-action="hard"]',
@@ -157,6 +170,16 @@ with sync_playwright() as p:
         assert page.locator("#scoresButton").count() == 0
         assert page.locator("#buttonFxLayer").count() == 1
 
+        # READY has a friendly game description, not technical piece metrics.
+        assert page.locator("#veilText").inner_text() == (
+            "Stack the blocks. Clear complete rows. Keep the board from filling up."
+        )
+        # PAUSE is always visibly enabled. It does nothing before the
+        # game starts but retains its reactive button flash.
+        assert page.locator("#pauseButton").is_enabled()
+        page.locator("#pauseButton").tap()
+        assert page.locator("#playButton").inner_text().strip() == "▶ START GAME"
+        assert page.locator("#pauseButton").is_enabled()
         page.get_by_role("button", name="START GAME").tap()
         page.locator('button[data-action="hard"]').tap()
         page.wait_for_function(
@@ -169,7 +192,7 @@ with sync_playwright() as p:
         page.locator("#pauseButton").tap()
         page.locator("#newGameButton").wait_for(state="visible", timeout=5000)
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
-        assert page.locator("#pauseButton").is_disabled()
+        assert page.locator("#pauseButton").is_enabled()
         assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
         # The flash is a separately composited effect, not a child that can
         # disappear when a button's label or enabled state changes.
@@ -178,7 +201,7 @@ with sync_playwright() as p:
 
         # P and Escape are one-way pause keys; neither may resume the game.
         page.keyboard.press("p")
-        assert page.locator("#pauseButton").is_disabled()
+        assert page.locator("#pauseButton").is_enabled()
         assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
 
         page.locator("#pausedScoresButton").tap()
@@ -193,16 +216,16 @@ with sync_playwright() as p:
         page.locator("#cancelRestart").tap()
         assert page.locator("#scoreValue").inner_text() == previous_score
         assert page.locator("#restartConfirm").get_attribute("open") is None
-        assert page.locator("#pauseButton").is_disabled()
+        assert page.locator("#pauseButton").is_enabled()
         page.locator("#playButton").tap()
         page.wait_for_function(
-            "() => document.querySelector('#pauseButton').disabled===false",
+            "() => document.querySelector('#veil').classList.contains('hidden')",
             timeout=3000,
         )
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#veil").get_attribute("class") == "hidden"
         assert not exceptions, exceptions
-        print("PASS: unified CRT, responsive Tetris header, stable phosphor flash, pause-only scores and confirmed resume")
+        print("PASS: solid directional keys, text-only Drop, always-visible Pause, friendly instructions and protected Resume")
     finally:
         try:
             page.screenshot(path=str(EVIDENCE/"tetris-final.png"))
