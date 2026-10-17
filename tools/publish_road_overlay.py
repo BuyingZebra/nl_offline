@@ -19,9 +19,10 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--input",type=Path,required=True)
     p.add_argument("--output",type=Path,required=True)
+    p.add_argument("--layer",default="provincial_resource_roads")
     args=p.parse_args()
     args.output.parent.mkdir(parents=True,exist_ok=True)
-    roads=gpd.read_file(args.input,layer="provincial_resource_roads")
+    roads=gpd.read_file(args.input,layer=args.layer)
     if roads.crs is None:
         raise RuntimeError("Road audit GIS file lacks a coordinate system")
     roads=roads.to_crs("EPSG:3347")
@@ -43,6 +44,9 @@ def main():
                 "audit_status":str(getattr(row,"audit_status","unknown")),
                 "match_ratio":round(float(getattr(row,"match_ratio",0)),3),
                 "length_m":round(float(getattr(row,"length_m",0)),0),
+                "osm_cover":round(float(getattr(row,"osm_cover",0)),3),
+                "nrn_cover":round(float(getattr(row,"nrn_cover",0)),3),
+                "source_id":str(getattr(row,"OBJECTID","") or ""),
             }
             counts[p["audit_status"]]+=1
             feature={"type":"Feature","properties":p,
