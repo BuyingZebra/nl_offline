@@ -292,7 +292,7 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  const appStart=html.indexOf('<div id="app">');
  const appEnd=html.lastIndexOf('</div>\n<script src="./core.js">');
- const dialogs=html.indexOf('<dialog id="options">');
+ const dialogs=html.indexOf('<dialog id="options"');
  assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
  assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:41;/);
  assert.match(html,/#screenShade\{z-index:42;/);
