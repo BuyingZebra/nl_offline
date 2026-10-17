@@ -63,8 +63,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
 #newGameButton{width:100%;background:var(--bg);color:var(--ink);font-size:11px}
 #newGameButton[hidden]{display:none}
-#playButton{width:100%;background:var(--bright);color:var(--shadow);border-color:var(--bright);
- box-shadow:0 0 12px rgba(var(--phosphor),.16)}
+#playButton{width:100%}
 #side{display:flex;flex-direction:column;align-self:stretch;justify-content:space-between;
  gap:6px;min-width:0;width:93px}
 .side-panel{display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -125,7 +124,6 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
 #closeOptions{width:100%;margin-top:12px}
 #restartConfirm p{font-size:12px;line-height:1.6;color:var(--weak);margin:0 0 18px}
 #restartConfirm .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-#confirmRestart{background:var(--bright);color:var(--shadow);border-color:var(--bright)}
 #cancelRestart{background:var(--bg)}
 
 #guide{font-size:10px;color:var(--weak);line-height:1.55}
@@ -238,7 +236,6 @@ input.effect-slider::-moz-range-thumb{height:22px;width:22px;border:3px solid va
  border:1px solid var(--border);border-radius:8px;padding:12px;
  font:700 19px ui-monospace,SFMono-Regular,monospace;letter-spacing:.3em}
 #scoreEntry .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
-#saveScore{background:var(--bright);border-color:var(--bright);color:var(--shadow)}
 dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #guide{padding-top:10px;border-top:1px solid var(--border);margin-top:12px}
@@ -295,9 +292,6 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 #app :is(header h1,#veil h2,#entryScore){
  text-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-#app :is(#playButton,#confirmRestart,#saveScore){
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
 #app button .phosphor-hit-layer{
  border-color:color-mix(in srgb,currentColor var(--glow-strength),transparent);
  background:radial-gradient(ellipse at center,
@@ -430,8 +424,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #boardShell{background:var(--card-bg)}
 /* The score rows are child cards inside the high-score dialog. */
 #app .score-row{background:var(--bg)}
-#app button:not(:is(#playButton,#confirmRestart,#saveScore,
- [data-action="left"],[data-action="hard"],[data-action="right"])){
+#app button:not(:is([data-action="left"],[data-action="hard"],[data-action="right"])){
  background:var(--bg);
 }
 /* Menus shade the already-dark game board without repainting its parent. */
