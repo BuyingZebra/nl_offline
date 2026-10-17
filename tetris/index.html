@@ -426,8 +426,8 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  background:var(--card-bg);
 }
 #boardShell{background:var(--card-bg)}
-/* The score rows are child cards inside the high-score dialog. */
-#app .score-row{background:var(--bg)}
+/* Child cards use the same illuminated surface as ordinary buttons. */
+#app .score-row{background:var(--app-face)}
 #app button:not(:is([data-action="left"],[data-action="hard"],[data-action="right"])){
  background:var(--app-face);
 }
