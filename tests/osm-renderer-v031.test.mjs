@@ -41,7 +41,7 @@ test('OSM coastline-clipped water grid and pins survive raster mode', () => {
   for (const layer of ['water-grid','route','saved-pin-glow','saved-pin-points']) {
     assert.ok(js.includes("'" + layer + "'"), layer);
   }
-  assert.match(js, /mapAttribution/);
+  assert.match(html, /mapAttribution/);
 });
 
 test('custom raster protocol is on-demand only and enforces tile URL structure', async () => {
