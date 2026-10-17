@@ -54,7 +54,6 @@ with sync_playwright() as p:
             controls:color('#controlDeck'),
             stage:color('#stage'),
             hold:color('#side .side-panel'),
-            next:color('#side #queue .side-label') ,
             miniCard:color('#side #sideStats'),
             shell:color('#boardShell'),
             veil:color('#veil'),
