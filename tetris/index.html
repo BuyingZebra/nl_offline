@@ -48,10 +48,6 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
  text-shadow:0 0 var(--glow) rgba(var(--phosphor),.44)}
 .header-tools{display:flex;gap:7px}
 .header-tools button{min-width:46px;height:46px;padding:7px;font-size:17px}
-#console{flex:none;font-size:10px;letter-spacing:.075em;padding:8px 10px;
- display:flex;align-items:center;gap:8px;line-height:1.3;min-height:33px}
-#console b{white-space:nowrap}
-#consoleState{flex:1;min-width:0;color:var(--weak);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #stage{min-height:0;flex:1;display:flex;justify-content:center;align-items:center;gap:10px}
 #boardShell{height:100%;max-height:610px;max-width:calc(100% - 103px);aspect-ratio:1/2;
  flex:none;position:relative;overflow:hidden;border:1px solid var(--border);
@@ -89,9 +85,18 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #pad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 #pad button{min-width:0;padding:7px 0;height:53px;font-size:18px;user-select:none;-webkit-user-select:none;
  touch-action:none}
-#pad button[data-action="hard"]{font-size:11px;background:color-mix(in srgb,var(--panel) 70%,var(--bright) 30%)}
-#extras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-#extras button{height:44px;padding:8px 3px;font-size:10px}
+#pad button[data-action="hard"]{
+ grid-column:span 2;
+ display:flex;flex-direction:row;justify-content:center;align-items:center;gap:9px;
+ font-size:14px;letter-spacing:.11em;
+ background:color-mix(in srgb,var(--panel) 70%,var(--bright) 30%);
+ border-color:color-mix(in srgb,var(--border) 65%,var(--bright) 35%)}
+#pad button[data-action="hard"] .drop-arrow{font-size:24px;line-height:1}
+#pad button[data-action="hard"] .drop-label{font-size:12px;line-height:1;white-space:nowrap}
+#pad button[data-action="cw"]{font-size:22px}
+#extras{display:flex;justify-content:center;align-items:center;gap:8px}
+#extras button{flex:0 1 40%;max-width:180px;min-width:0;
+ height:44px;padding:8px 3px;font-size:11px}
 #eventline{flex:none;min-height:13px;display:flex;justify-content:space-between;
  color:var(--weak);font-size:9px;letter-spacing:.07em;gap:6px}
 #eventline span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -131,19 +136,21 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
 @media(max-height:620px) and (orientation:portrait){
  #app{gap:4px;padding-top:calc(env(safe-area-inset-top,0px) + 4px)}
  header{min-height:45px;padding:4px 9px}header small{display:none}
- #console{min-height:25px;padding:5px 8px}#sideStats .mini-stat:last-child{display:none}
+ #sideStats .mini-stat:last-child{display:none}
  #pad button{height:42px;min-height:42px}#extras button{height:39px;min-height:39px}}
 @media(orientation:landscape) and (max-height:600px){
  #app{max-width:none;display:grid;grid-template-columns:minmax(145px,205px) minmax(0,1fr) minmax(195px,260px);
  grid-template-rows:64px minmax(0,1fr) 28px;gap:6px;padding:8px}
  header{grid-column:1;grid-row:1;min-height:0;padding:6px}header h1{font-size:13px}
  header small{font-size:8px}.header-tools button{min-width:35px;min-height:37px;height:37px}
- #console{grid-column:1;grid-row:2;align-self:start;white-space:normal}
  #stage{grid-column:2;grid-row:1 / 4;min-height:0}#boardShell{height:100%;max-width:calc(100% - 98px)}
  #controlDeck{grid-column:3;grid-row:1 / 4;align-self:center}
  #scoreStrip{grid-template-columns:1fr 1fr}#scoreStrip div:last-child{display:none}
- #pad{grid-template-columns:repeat(3,minmax(0,1fr))}
- #extras{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #pad{grid-template-columns:repeat(5,minmax(0,1fr))}
+ #pad button[data-action="hard"]{gap:4px}
+ #pad button[data-action="hard"] .drop-arrow{font-size:16px}
+ #pad button[data-action="hard"] .drop-label{font-size:10px}
+ #extras button{flex-basis:48%}
  #eventline{grid-column:1;grid-row:3;overflow:hidden}
 }
 @media(prefers-reduced-motion:reduce){#sweep{display:none}button:active{transform:none}}
@@ -412,7 +419,6 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    <button id="optionsButton" aria-label="Display options" title="Options">☷</button>
   </div>
  </header>
- <div class="panel" id="console"><b>CONSOLE v0.01:</b><span id="consoleState" aria-live="polite">[ARCADE] STANDBY / TETRIS</span></div>
  <main id="stage">
   <div id="boardShell">
    <canvas id="board" width="300" height="600" aria-label="Tetris game board, 10 columns by 20 rows"></canvas>
@@ -438,14 +444,12 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   </div>
   <div id="pad" aria-label="Movement controls">
    <button data-action="left" aria-label="Move left">◀</button>
-   <button data-action="ccw" aria-label="Rotate counterclockwise">↶</button>
-   <button data-action="cw" aria-label="Rotate clockwise">↷</button>
+   <button data-action="hard" aria-label="Hard drop"><span class="drop-arrow" aria-hidden="true">▼</span><span class="drop-label">DROP</span></button>
    <button data-action="right" aria-label="Move right">▶</button>
-   <button data-action="hard" aria-label="Hard drop">DROP</button>
+   <button data-action="cw" aria-label="Rotate clockwise">↻</button>
   </div>
   <div id="extras">
    <button data-action="hold">HOLD</button>
-   <button data-action="down">▼ SOFT</button>
    <button data-action="pause" id="pauseButton">PAUSE</button>
   </div>
  </section>
@@ -474,7 +478,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">26%</output></div><p class="effect-note">Identical scanline overlay for the entire Pip-Boy display, including menus.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="26"></div>
  <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">30%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="30"></div>
  <button id="resetEffects">RESET DISPLAY EFFECTS</button>
- <p id="guide">ARROW KEYS: MOVE / SOFT DROP. UP OR X: ROTATE. Z: REVERSE. SPACE: DROP. C: HOLD. P: PAUSE. Touch the board to rotate, swipe to move or drop.</p>
+ <p id="guide">LEFT / RIGHT: MOVE. UP OR X: ROTATE. DOWN OR SPACE: DROP. C: HOLD. P: PAUSE. Tap board to rotate; swipe sideways to move or downward to drop.</p>
 </dialog>
 <dialog id="leaderboard" aria-labelledby="leaderboardTitle">
  <h2 id="leaderboardTitle">FIELD ATLAS / TOP FIVE</h2>
