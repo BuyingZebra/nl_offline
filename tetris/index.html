@@ -10,12 +10,12 @@
 <title>FIELD ATLAS — Arcade / Tetris</title>
 <style>
 :root{
- --bg:#04120b;--panel:#010a06;--card-bg:#010a06;--solid:#102719;--ink:#b4ffce;
+ --bg:#04120b;--panel:color-mix(in srgb,var(--bg) 65%,black);--card-bg:var(--panel);--solid:#102719;--ink:#b4ffce;
  --bright:#77ffa5;--weak:#8fc19d;--border:#3f8254;--shadow:#020905;
  --grid:#163724;--phosphor:108,255,156;--glow:8px;--scan:0.28;
 }
 :root[data-theme="amber"]{
- --bg:#100904;--panel:#0c0704;--card-bg:#0c0704;--solid:#301f0c;--ink:#ffe79a;
+ --bg:#100904;--panel:color-mix(in srgb,var(--bg) 65%,black);--card-bg:var(--panel);--solid:#301f0c;--ink:#ffe79a;
  --bright:#f5b661;--weak:#d19e58;--border:#8e5f24;--shadow:#0a0602;
  --grid:#4a2b13;--phosphor:255,196,100;
 }
@@ -420,11 +420,11 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    color-mix(in srgb,var(--bg) 96%,var(--bright) 4%) 0%,
    var(--bg) 75%,var(--bg) 100%);
 }
-/* One two-level FIELD ATLAS colour hierarchy:
- * Outer app background (BG) = the fill of ALL elements nested in a parent.
- * Parent surfaces (CARD) = the darker interior behind those elements.
- * This removes the previous dark-on-dark nested containers; neither
- * #bg nor #card-bg needs a new invented colour for extra contrast. */
+/* One phosphor hue with brightness roles, not separately selected colours:
+ * BG is the canonical phosphor-dark background. Parent panels are its exact
+ * RGB ratios at 65% luminance (mixed with black). Children and unlit buttons
+ * match BG pixel-for-pixel; luminous direction controls retain --bright.
+ * Green/amber therefore work identically without extra hue variations. */
 #app :is(header.panel,#controlDeck.panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
  background:var(--card-bg);
 }
