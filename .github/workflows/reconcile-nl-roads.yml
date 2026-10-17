@@ -96,6 +96,8 @@ jobs:
           git add data/road_audits/conflation_report.json data/road_audits/osm_self_overlap_report.json data/road_audits/osm_checked_provincial_roads.geojson.gz data/road_audits/osm_checked_road_overlay_manifest.json
           if ! git diff --cached --quiet; then
             git commit -m "Publish NL province-wide OSM-federal-resource road conflation results [skip ci]"
-            git pull --rebase origin main
+            # GIS source extraction can leave modified tracked files;
+            # autostash prevents a publish-only failure after a successful audit.
+            git -c rebase.autoStash=true pull --rebase origin main
             git push origin HEAD:main
           fi
