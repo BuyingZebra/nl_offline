@@ -1,0 +1,63 @@
+name: Publish NL road comparison browser layer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-road-overlay.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GIS tools
+        run: python -m pip install "geopandas==1.1.1" "shapely==2.1.2" "pyogrio==0.11.1"
+      - name: Get latest completed province-wide road audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow audit-road-coverage.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          test -n "$RUN_ID" && test "$RUN_ID" != null || exit 1
+          mkdir -p work/road-audit
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name nl-combined-road-source-audit --dir work/road-audit
+          test -s work/road-audit/nl_provincial_road_audit.gpkg
+      - name: Create map overlay for the entire province
+        run: |
+          mkdir -p data/road_audits
+          python tools/publish_road_overlay.py \
+            --input work/road-audit/nl_provincial_road_audit.gpkg \
+            --output data/road_audits/provincial_road_overlay.geojson.gz
+      - name: Keep portable road-overlay artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-browser-road-comparison
+          path: |
+            data/road_audits/provincial_road_overlay.geojson.gz
+            data/road_audits/provincial_road_overlay_manifest.json
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
+      - name: Publish overlay into existing GitHub Pages viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/road_audits/provincial_road_overlay.geojson.gz data/road_audits/provincial_road_overlay_manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update province-wide government road visual comparison [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
