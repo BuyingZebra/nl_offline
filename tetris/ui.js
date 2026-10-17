@@ -178,7 +178,6 @@
       $('fade-'+key+'-on').checked=gradients[key].enabled;
       rangeDisplay($('fade-'+key),$('fade-'+key+'-value'),gradients[key].length,'px');
     }
-    $('themeSetting').textContent=root.dataset.theme.toUpperCase();
   }
   function refreshPalette(){
     palette={bright:hexRgb(css('--bright')),ink:hexRgb(css('--ink')),
@@ -443,7 +442,6 @@
     refreshPalette();
   }
   $('themeToggle').addEventListener('click',toggleTheme);
-  $('themeSetting').addEventListener('click',toggleTheme);
   $('optionsButton').addEventListener('click',()=>{
     if(game.status==='playing')perform('pause');
     openPanel(options);
