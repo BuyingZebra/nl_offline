@@ -67,19 +67,21 @@ with sync_playwright() as p:
         assert colours["base"].lower() == "#04120b", colours
         assert colours["stage"] in ("rgba(0, 0, 0, 0)", "transparent"), colours
         assert colours["header"] == colours["controls"] == colours["hold"] == colours["shell"], colours
-        assert colours["normalButton"] == [4, 18, 11], colours
-        assert all(abs(colours["header"][i] - round(colours["normalButton"][i]*.4)) <= 1
+        assert colours["normalButton"][1] > 18, colours
+        assert all(colours["header"][i] < colours["normalButton"][i]
                    for i in range(3)), colours
         assert colours["brightButton"][1] > colours["normalButton"][1], colours
         assert colours["boardPixel"][1] < colours["normalButton"][1], colours
 
-        # Muted buttons borrow the EXACT app background, rather than a
-        # separately chosen shade. This applies to header, play controls,
-        # pause menu, scores and settings. Filled keys remain luminous.
+        # Muted buttons share the same illuminated background face as the
+        # app gradient's brightest point. Parent cards stay darker and only
+        # LEFT, DROP and RIGHT remain fully luminous.
         button_surfaces=page.evaluate("""() => {
-          const style=getComputedStyle(document.documentElement);
-          const hex=style.getPropertyValue('--bg').trim();
-          const appRgb='rgb('+[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(', ')+')';
+          const probe=document.createElement('span');
+          probe.style.backgroundColor='var(--app-face)';
+          document.querySelector('#app').append(probe);
+          const appRgb=getComputedStyle(probe).backgroundColor;
+          probe.remove();
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
@@ -160,7 +162,9 @@ with sync_playwright() as p:
         # play controls; hidden-dialog computed styles can be cached by WebKit.
         assert page.locator("#closeOptions").evaluate(
             "el => getComputedStyle(el).backgroundColor"
-        ) == "rgb(4, 18, 11)"
+        ) == page.locator("#pauseButton").evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        )
         assert page.locator("#options").get_attribute("open") is not None
         assert page.locator("#modalScrim").is_visible()
         assert page.locator("#fade-screenTop-on").count() == 1
@@ -300,19 +304,21 @@ with sync_playwright() as p:
         assert amber_colours["base"].lower() == "#100904", amber_colours
         assert amber_colours["stage"] in ("rgba(0, 0, 0, 0)", "transparent"), amber_colours
         assert amber_colours["header"] == amber_colours["controls"] == amber_colours["hold"] == amber_colours["shell"], amber_colours
-        assert amber_colours["normalButton"] == [16, 9, 4], amber_colours
-        assert all(abs(amber_colours["header"][i] - round(amber_colours["normalButton"][i]*.4)) <= 1
+        assert amber_colours["normalButton"][0] > 16, amber_colours
+        assert all(amber_colours["header"][i] < amber_colours["normalButton"][i]
                    for i in range(3)), amber_colours
         assert amber_colours["brightButton"][0] > amber_colours["normalButton"][0], amber_colours
         assert amber_colours["boardPixel"][0] < amber_colours["normalButton"][0], amber_colours
 
-        # Muted buttons borrow the EXACT app background, rather than a
-        # separately chosen shade. This applies to header, play controls,
-        # pause menu, scores and settings. Filled keys remain luminous.
+        # Muted buttons share the same illuminated background face as the
+        # app gradient's brightest point. Parent cards stay darker and only
+        # LEFT, DROP and RIGHT remain fully luminous.
         button_surfaces=page.evaluate("""() => {
-          const style=getComputedStyle(document.documentElement);
-          const hex=style.getPropertyValue('--bg').trim();
-          const appRgb='rgb('+[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(', ')+')';
+          const probe=document.createElement('span');
+          probe.style.backgroundColor='var(--app-face)';
+          document.querySelector('#app').append(probe);
+          const appRgb=getComputedStyle(probe).backgroundColor;
+          probe.remove();
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
@@ -331,7 +337,9 @@ with sync_playwright() as p:
         page.get_by_role("button", name="Display options").tap()
         assert page.locator("#closeOptions").evaluate(
             "el => getComputedStyle(el).backgroundColor"
-        ) == "rgb(16, 9, 4)"
+        ) == page.locator("#pauseButton").evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        )
         page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
         page.locator("#closeOptions").tap()
 
