@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/download-provincial-roads.yml"
+      - "tools/download_provincial_roads.py"
 
 permissions:
   contents: write
@@ -24,8 +25,8 @@ jobs:
           python -m pip install "requests==2.32.3"
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends gdal-bin
-      - name: Retrieve all provincial resource-road geometry and attributes
-        run: python tools/download_provincial_roads.py --output work/provincial-roads
+      - name: Retrieve Newfoundland forestry department source road geometry and attributes
+        run: python tools/download_provincial_roads.py --source ffa-island --output work/provincial-roads
       - name: Produce editable GeoPackage
         shell: bash
         run: |
