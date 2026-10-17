@@ -42,18 +42,16 @@ def clipped_features(geometry):
     cut = geometry.intersection(box(*BBOX))
     if cut.is_empty:
         return []
-    kinds = {
-        "LineString": (cut,),
-        "Polygon": (cut,),
-        "MultiLineString": tuple(cut.geoms),
-        "MultiPolygon": tuple(cut.geoms),
-        "GeometryCollection": tuple(
-            g for g in cut.geoms if g.geom_type in ("LineString", "Polygon")
-        ),
-    }
+    if cut.geom_type in ("LineString", "Polygon"):
+        components = (cut,)
+    elif cut.geom_type in ("MultiLineString", "MultiPolygon", "GeometryCollection"):
+        components = cut.geoms
+    else:
+        components = ()
     return [
-        geom for geom in kinds.get(cut.geom_type, ())
-        if not geom.is_empty and geom.is_valid
+        geom for geom in components
+        if geom.geom_type in ("LineString", "Polygon")
+        and not geom.is_empty and geom.is_valid
     ]
 
 
