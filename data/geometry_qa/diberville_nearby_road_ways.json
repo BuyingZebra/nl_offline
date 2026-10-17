@@ -1,0 +1,129 @@
+{
+  "bounds": [
+    -53.238859500000004,
+    47.7234071,
+    -53.229495099999994,
+    47.727548
+  ],
+  "results": [
+    {
+      "way_id": 304607743,
+      "tags": {
+        "highway": "residential",
+        "name": "D'Iberville Street"
+      },
+      "length_m": 460.6,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 1.0
+    },
+    {
+      "way_id": 1462177650,
+      "tags": {
+        "footway": "sidewalk",
+        "highway": "footway"
+      },
+      "length_m": 407.2,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.808
+    },
+    {
+      "way_id": 148011110,
+      "tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "White's Road",
+        "source": "NLRoads",
+        "surface": "paved"
+      },
+      "length_m": 66.5,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.181
+    },
+    {
+      "way_id": 615308862,
+      "tags": {
+        "highway": "residential",
+        "name": "Easton Place"
+      },
+      "length_m": 73.4,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.163
+    },
+    {
+      "way_id": 304607744,
+      "tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "Willoughby Drive",
+        "oneway": "no",
+        "source": "NLRoads",
+        "surface": "unpaved"
+      },
+      "length_m": 402.5,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.03
+    },
+    {
+      "way_id": 148011087,
+      "tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "The Gap Road",
+        "source": "NLRoads",
+        "surface": "paved"
+      },
+      "length_m": 61.6,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.0
+    },
+    {
+      "way_id": 148011112,
+      "tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "White's Road",
+        "source": "NLRoads",
+        "surface": "paved"
+      },
+      "length_m": 623.2,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.0
+    },
+    {
+      "way_id": 148011127,
+      "tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "source": "NLRoads",
+        "surface": "paved"
+      },
+      "length_m": 79.9,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.0
+    },
+    {
+      "way_id": 1462177651,
+      "tags": {
+        "highway": "residential",
+        "lanes": "2",
+        "name": "The Gap Road",
+        "source": "NLRoads",
+        "surface": "unpaved"
+      },
+      "length_m": 43.9,
+      "closest_m": 0.0,
+      "parallel_coverage_fraction": 0.0
+    },
+    {
+      "way_id": 1462177653,
+      "tags": {
+        "highway": "service",
+        "service": "driveway"
+      },
+      "length_m": 122.8,
+      "closest_m": 29.3,
+      "parallel_coverage_fraction": 0.0
+    }
+  ],
+  "interpretation": "Compare actual tags and paths; close or parallel roads are not necessarily duplicates."
+}
