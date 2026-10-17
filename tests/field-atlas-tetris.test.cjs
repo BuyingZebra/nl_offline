@@ -146,7 +146,7 @@ test('restart is only offered in the pause menu and never beside DROP',()=>{
  assert.ok(deck);
  assert.doesNotMatch(deck,/NEW|restart|newGameButton/i);
  assert.equal((html.match(/data-action="restart"/g)||[]).length,0);
- assert.ok(html.includes('<button id="newGameButton" hidden>↻ NEW GAME</button>'));
+ assert.ok(html.includes('<button id="newGameButton" hidden>NEW GAME</button>'));
  assert.ok(html.indexOf('id="newGameButton"')<html.indexOf('id="boardShell"')+500);
  assert.match(ui,/newGameButton'\)\.hidden=game\.status!=='paused'/);
  assert.match(ui,/if\(game\.status==='paused'&&!restartConfirm\.open\)openPanel\(restartConfirm\)/);
@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v015'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v016'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v015'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v016'/);
 });
 
 
@@ -349,7 +349,7 @@ test('the exact map CRT scanline pattern stays over menus without duplicate pass
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const map=fs.readFileSync(path.join(__dirname,'../preview-v033/index.html'),'utf8');
  const black='rgba(0,0,0,.59) 3px,rgba(0,0,0,.59) 4px';
- assert.ok(html.includes('rgba(var(--phosphor-rgb),.15) 0px'));
+ assert.ok(html.includes('rgba(255,255,255,.15) 0px'));
  assert.ok(html.includes(black));
  assert.ok(map.includes('rgba(var(--phosphor-rgb),.15) 0px'));
  assert.ok(map.includes(black));
@@ -538,43 +538,47 @@ test('CRT curvature is a real post-composite SVG warp over game, menus and scanl
  assert.match(ui,/curvature=CRT\.DEFAULT_CURVATURE;/);
  assert.match(ui,/window\.addEventListener\('resize',\(\)=>\{/);
  assert.ok(sw.includes("'./crt-curve.js'"));
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v015'"));
- assert.ok(html.includes('background:radial-gradient(ellipse 112% 84%'));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v016'"));
+ assert.ok(html.includes('background:var(--bg)'));
  assert.ok(html.includes('background:var(--card-bg)'));
  assert.ok(html.includes('color-mix(in srgb,var(--card-bg) 94%,transparent)'));
 });
 
 
-test('only visually apparent cards are tinted, never the technical #stage layout wrapper',()=>{
+test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
- const js=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
- assert.match(html,/--bg:#04120b;[\s\S]*?--app-face:rgb\(from var\(--bg\) calc\(r \* 1\.55\) calc\(g \* 1\.55\) calc\(b \* 1\.55\)\);[\s\S]*?--panel:color-mix\(in srgb,var\(--bg\) 40%,black\);--card-bg:var\(--panel\)/);
- assert.match(html,/--bg:#100904;--panel:color-mix\(in srgb,var\(--bg\) 40%,black\);--card-bg:var\(--panel\)/);
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.ok(html.includes('--bg:#151515;--app-face:var(--bg)'));
+ assert.ok(html.includes('--panel:color-mix(in srgb,var(--bg) 40%,black)'));
+ for(const gray of ['#303030','#e3e3e3','#cecece','#aeaeae','#6a6a6a','#060606','#292929'])
+  assert.ok(html.includes(gray),'Missing grayscale luminance step '+gray);
+ assert.doesNotMatch(html,/:root\[data-theme="amber"\]\{\s*--bg:/);
+ assert.match(html,/#app\{--crt-glass-opacity:0;--crt-glass-radius:0px;\s*background:var\(--bg\)\}/);
+ assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;pointer-events:none;\s*background:rgb\(var\(--phosphor-rgb\)\);mix-blend-mode:color;opacity:1\}/);
+ assert.match(html,/:root\[data-theme="amber"\]\{--phosphor-rgb:255,196,100\}/);
+ assert.match(html,/#screenShade\{opacity:var\(--vignette-intensity\);\s*background:radial-gradient\(/);
+ assert.equal((html.match(/radial-gradient\(/g)||[]).length,2,'Only the darkening vignette may use radial gradients');
+ assert.ok(html.includes('rgba(255,255,255,.15) 0px'));
+ assert.ok(html.includes('#sweep{z-index:40;pointer-events:none}'));
+ assert.doesNotMatch(html,/#stage\s*\{\s*background:/);
+ assert.ok(ui.includes("document.querySelector('meta[name=\"theme-color\"]').content='#151515'"));
+});
+test('flat app, darker visible panels, matching ordinary buttons and bright Start/Resume',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
  assert.match(html,/#boardShell\{background:var\(--card-bg\)\}/);
  assert.match(html,/#app \.score-row\{background:var\(--app-face\)\}/);
- assert.doesNotMatch(html,/#stage\s*\{\s*background:/);
+ assert.match(html,/#app button:not\(:is\(#playButton,\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\)\{\s*background:var\(--app-face\);/);
+ assert.match(html,/#app #playButton\{\s*background:var\(--bright\);color:var\(--shadow\);border-color:var\(--bright\)/);
+ assert.match(html,/#pad button:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\{\s*background:var\(--bright\);color:var\(--shadow\);border-color:var\(--bright\)/);
+ assert.match(html,/#app #playButton:active\{background:var\(--bright\);color:var\(--shadow\)\}/);
  assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 94%,transparent\)/);
- assert.match(js,/c\.fillStyle=color\(mix\(palette\.dark,palette\.base,.55\)\);\s*c\.fillRect\(0,0,BOARD_W,BOARD_H\)/);
 });
-test('ordinary button fills match the app background, brighter than the cards exactly like the map',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
- assert.match(html,/#app button:not\(:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\)\{\s*background:var\(--app-face\);/);
- assert.match(html,/background:radial-gradient\(ellipse 112% 84% at 50% 49%,\s*var\(--app-face\) 0%,/);
- assert.doesNotMatch(html,/#(?:playButton|confirmRestart|saveScore)\{[^}]*background:var\(--bright\)/);
- assert.doesNotMatch(html,/#app :is\(#playButton,#confirmRestart,#saveScore\)/);
- assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
- assert.match(html,/#pad button:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\{\s*background:var\(--bright\)/);
- assert.match(html,/--panel:color-mix\(in srgb,var\(--bg\) 40%,black\)/);
- assert.doesNotMatch(html,/#stage\s*\{\s*background:/);
-});
-test('parent panel colour only darkens the app hue and canvas refreshes instantly',()=>{
+test('pause actions omit icons and use High Score label',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
- assert.ok(html.includes('--panel:color-mix(in srgb,var(--bg) 40%,black)'));
- assert.ok(html.includes('--card-bg:var(--panel)'));
- assert.ok(html.includes('background:var(--app-face);'));
- assert.ok(html.includes('background:var(--bg);'));
- assert.doesNotMatch(html,/--card-bg:#/);
+ assert.ok(html.includes('<button id="newGameButton" hidden>NEW GAME</button>'));
+ assert.ok(html.includes('<button id="pausedScoresButton" hidden>HIGH SCORE</button>'));
+ assert.doesNotMatch(html,/>★ TOP 5 SCORES|>↻ NEW GAME/);
  assert.match(ui,/refreshPalette\(\);\s*\/\/ Canvas is a separate paint surface\.[\s\S]*?paintBoard\(\);\s*updateHUD\(\);/);
 });
