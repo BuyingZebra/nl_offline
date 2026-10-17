@@ -240,67 +240,64 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 }
 
 
-/* Camera post-effects are transparent overlays, never baked into panel colours.
-   Each modal is a browser top-layer element, so it gets its own identical
-   viewport-wide overlays. They are pointer-transparent and don't block menus. */
-#app{--fx-ink:var(--ink)}
-#screenScan{background:repeating-linear-gradient(to bottom,
+/* FIELD ATLAS screen compositor — exactly one stack for everything,
+   including paused menus, leaderboard, confirmation and display settings.
+   Native modal top layers bypass the CRT. Menus instead stay inside #app. */
+#app{background:var(--bg)}
+#modalScrim{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.73)}
+#modalScrim[hidden]{display:none}
+#app dialog{position:absolute;top:50%;left:50%;right:auto;bottom:auto;margin:0;
+ transform:translate(-50%,-50%);z-index:21;display:none;
+ width:min(410px,calc(100% - 22px));max-width:calc(100% - 22px);
+ max-height:calc(100% - 28px);overflow-y:auto;overscroll-behavior:contain;
+ background:var(--bg);color:var(--ink);
+ box-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,var(--border) var(--glow-strength),transparent),
+ 0 14px 42px #000a}
+#app dialog[open]{display:block}
+#app dialog::backdrop{display:none}
+#screenTopFade,#screenBottomFade{z-index:31}
+#screenShade{z-index:32}
+#screenScan{z-index:33;
+ background:repeating-linear-gradient(to bottom,
  rgba(0,0,0,.03) 0,rgba(0,0,0,.03) 1px,
- transparent 1px,transparent 3px,rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
-#sweep{background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09))}
-#screenScan,#screenShade,#sweep,#screenTopFade,#screenBottomFade{
- pointer-events:none}
-#screenScan,#screenShade,#screenTopFade,#screenBottomFade{z-index:11}
-#sweep{z-index:12}
-#app :is(header h1,header small,#console,#consoleState,#eventline,#scoreStrip strong,
- #scoreStrip small,.side-label,.mini-stat b,.score-row,.entry-label,
- button,.setting-line,.effect-head,.effect-note){
+ transparent 1px,transparent 3px,
+ rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
+/* A screen-space colour grade, not a flat coloured glow. The 'color'
+   blend mode inherits pixel luminance: dark elements remain dark. */
+#phosphorFilm{position:absolute;inset:0;z-index:34;pointer-events:none;
+ background:rgb(var(--phosphor-rgb));mix-blend-mode:color;opacity:.17}
+#sweep{z-index:35;mix-blend-mode:screen;
+ background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09))}
+#screenTopFade,#screenBottomFade,#screenScan,#screenShade,#sweep{pointer-events:none}
+/* Element-derived emission: luminous labels use their foreground colour,
+   subdued lines/panels their subdued border, and bright action buttons
+   their actual bright fill colour. No uniform phosphor-colour shadows. */
+#app :is(h1,h2,b,strong,small,output,label,#console,#eventline,.side-panel,
+ .setting-copy,.effect-note,.score-row,.hint){
  text-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-#app :is(.panel,#boardShell,.side-panel,button){
+#app button{
+ text-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--glow-strength),transparent);
  box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--border) var(--glow-strength),transparent)}
-#app :is(.panel,#boardShell,.side-panel,button){
- border-color:var(--border)}
-button .phosphor-hit-layer{
+ color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
+#app :is(.panel,.side-panel,#boardShell){
+ box-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
+#app :is(header h1,#veil h2,#entryScore){
+ text-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+#app :is(#playButton,#confirmRestart,#saveScore){
+ box-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+#app button .phosphor-hit-layer{
  border-color:color-mix(in srgb,currentColor var(--glow-strength),transparent);
  background:radial-gradient(ellipse at center,
  color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
  box-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-/* The modal top layer sits above #app; duplicate the camera filters there. */
-dialog .modal-camera-fx{
- position:fixed;inset:0;pointer-events:none;z-index:2147483646;
- overflow:hidden;isolation:isolate}
-dialog .modal-camera-fx .fx-scan,
-dialog .modal-camera-fx .fx-vignette,
-dialog .modal-camera-fx .fx-fade-top,
-dialog .modal-camera-fx .fx-fade-bottom{
- position:absolute;pointer-events:none;left:0;right:0}
-dialog .modal-camera-fx .fx-scan{
- inset:0;opacity:var(--scan-intensity);
- background:repeating-linear-gradient(to bottom,
- rgba(0,0,0,.03) 0,rgba(0,0,0,.03) 1px,
- transparent 1px,transparent 3px,rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
-dialog .modal-camera-fx .fx-vignette{
- inset:0;opacity:var(--vignette-intensity);
- background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
- rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,#000 100%)}
-dialog .modal-camera-fx .fx-fade-top{
- top:0;height:var(--screen-top-fade,0px);
- background:linear-gradient(to bottom,#000,transparent)}
-dialog .modal-camera-fx .fx-fade-bottom{
- bottom:0;height:var(--screen-bottom-fade,0px);
- background:linear-gradient(to top,#000,transparent)}
-dialog :is(h2,p,label,b,output,button,.score-row,.record,.player,.points){
- text-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-dialog :is(button,.score-row){
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--border) var(--glow-strength),transparent)}
-@media(prefers-reduced-motion:reduce){
- .phosphor-hit-layer{animation:none!important}
-}
+@media(prefers-reduced-motion:reduce){.phosphor-hit-layer{animation:none!important}}
 
 </style>
 </head>
@@ -356,8 +353,9 @@ dialog :is(button,.score-row){
  <div id="screenBottomFade" aria-hidden="true"></div>
  <div id="screenShade" aria-hidden="true"></div>
  <div id="screenScan" aria-hidden="true"></div>
+ <div id="phosphorFilm" aria-hidden="true"></div>
  <div id="sweep" aria-hidden="true"></div>
-</div>
+ <div id="modalScrim" hidden aria-hidden="true"></div>
 <dialog id="options">
  <h2>FIELD ATLAS / DISPLAY</h2>
  <p class="setting-copy">The same phosphor, CRT and vignette controls as FIELD ATLAS navigation. Display effects are saved on this device.</p>
@@ -399,6 +397,7 @@ dialog :is(button,.score-row){
   <button id="confirmRestart">YES, RESTART</button>
  </div>
 </dialog>
+</div>
 <script src="./core.js"></script>
 <script src="./scores.js"></script>
 <script src="./ui.js"></script>
