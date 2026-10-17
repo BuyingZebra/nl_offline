@@ -120,7 +120,9 @@
       weak:hexRgb(css('--weak')),base:hexRgb(css('--bg')),border:hexRgb(css('--border')),
       grid:hexRgb(css('--grid')),dark:hexRgb(css('--shadow'))};
     const k=glow/100;
-    const app=$('app');
+    // CSS properties live on the document root so modal top-layer
+    // buttons and game controls share identical phosphor settings.
+    const app=root;
     app.style.setProperty('--scan-intensity',String(scan/100));
     app.style.setProperty('--vignette-intensity',String(vignette/100));
     app.style.setProperty('--glow-level',k.toFixed(3));
