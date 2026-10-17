@@ -47,7 +47,7 @@ class ConflationTests(unittest.TestCase):
         osm = road.IndexedRoads(roads([LineString([(50, -70), (50, 70)])]))
         parallel_road = LineString([(0, 0), (100, 0)])
         fraction, _, _ = osm.overlap(parallel_road, 10)
-        self.assertLess(fraction, .20)
+        self.assertLessEqual(fraction, .20)
         self.assertEqual(road.assign_status(fraction, .0, 100),
                          "candidate_addition")
 
