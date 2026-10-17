@@ -273,7 +273,9 @@
   function paintBoard(){
     if(!palette)return;
     const c=ctx;
-    c.fillStyle=color(mix(palette.dark,palette.base,.55));
+    // Match the nested board's actual pixels to the app's --bg surface.
+    // The former blend made the canvas visibly darker than its CSS shell.
+    c.fillStyle=color(palette.base);
     c.fillRect(0,0,BOARD_W,BOARD_H);
     c.strokeStyle=color(palette.grid,.32);
     c.lineWidth=.7;
