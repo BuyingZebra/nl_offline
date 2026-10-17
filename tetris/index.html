@@ -61,7 +61,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
  color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
-#newGameButton{width:100%;background:var(--panel);color:var(--ink);font-size:11px}
+#newGameButton{width:100%;background:var(--bg);color:var(--ink);font-size:11px}
 #newGameButton[hidden]{display:none}
 #playButton{width:100%;background:var(--bright);color:var(--shadow);border-color:var(--bright);
  box-shadow:0 0 12px rgba(var(--phosphor),.16)}
@@ -126,7 +126,7 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
 #restartConfirm p{font-size:12px;line-height:1.6;color:var(--weak);margin:0 0 18px}
 #restartConfirm .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 #confirmRestart{background:var(--bright);color:var(--shadow);border-color:var(--bright)}
-#cancelRestart{background:var(--panel)}
+#cancelRestart{background:var(--bg)}
 
 #guide{font-size:10px;color:var(--weak);line-height:1.55}
 @media(max-height:730px){#app{gap:6px}header{min-height:53px;padding:8px 10px}
@@ -329,7 +329,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  display:block;width:100%;max-width:none;min-width:0;min-height:44px;
  margin:0;padding:9px 10px;font-size:11px;letter-spacing:.08em;
  font-weight:700;border:1px solid var(--border);
- border-radius:8px;background:var(--panel);color:var(--ink)}
+ border-radius:8px;background:var(--bg);color:var(--ink)}
 /* Pip-Boy icon semantics: hollow square OFF, solid square ON.
  * No iOS-style checks, round switches, or check marks. */
 #app input[type="checkbox"]{
