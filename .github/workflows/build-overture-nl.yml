@@ -73,8 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/tippecanoe/tile-join -f --no-tile-size-limit             -o work/output/nl_overture_transportation.pmtiles             work/output/nl_overture_transportation.mbtiles
-            work/output/nl_overture_transportation.pmtiles
+          /tmp/tippecanoe/tile-join -f --no-tile-size-limit -o work/output/nl_overture_transportation.pmtiles work/output/nl_overture_transportation.mbtiles
           test -s work/output/nl_overture_transportation.pmtiles
           stat -c '%n: %s bytes' work/output/nl_overture_transportation.pmtiles
           # Pages Git uploads reject files >= 100 MiB. Don't accidentally
