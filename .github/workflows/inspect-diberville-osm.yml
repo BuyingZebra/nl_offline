@@ -1,0 +1,42 @@
+name: Inspect D'Iberville Street OSM geometry
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inspect-diberville-osm.yml"
+      - "tools/inspect_named_osm_road.py"
+
+permissions:
+  contents: write
+
+jobs:
+  investigate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install OSM geometry tools
+        run: python -m pip install "osmium>=4.0,<5" "shapely==2.1.2" "pyproj==3.7.2"
+      - name: Fetch OSM Newfoundland source extract
+        run: |
+          mkdir -p work data/geometry_qa
+          curl -fL --retry 3 --connect-timeout 30 \
+            https://download.geofabrik.de/north-america/canada/newfoundland-and-labrador-latest.osm.pbf \
+            -o work/nl.osm.pbf
+      - name: Examine the actual D'Iberville Street OSM way IDs and tags
+        run: |
+          python tools/inspect_named_osm_road.py --osm-pbf work/nl.osm.pbf --output data/geometry_qa
+      - name: Publish reproducible street-specific source inspection
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/geometry_qa/diberville_osm_way_report.json data/geometry_qa/diberville_osm_way_geometries.geojson
+          git commit -m "Publish raw OSM D'Iberville Street way geometries for accuracy investigation [skip ci]"
+          git -c rebase.autoStash=true pull --rebase origin main
+          git push origin HEAD:main
