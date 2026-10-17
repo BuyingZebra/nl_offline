@@ -420,25 +420,34 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    color-mix(in srgb,var(--bg) 96%,var(--bright) 4%) 0%,
    var(--bg) 75%,var(--bg) 100%);
 }
-/* Shared paused-board/card luminance.
- * Every container takes its interior from the same dark (but not black)
- * phosphor-tinted surface. The paused playfield uses the identical colour
- * with mild translucency to retain a hint of the locked tiles below it. */
-#app :is(.panel,.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
+/* One two-level FIELD ATLAS colour hierarchy:
+ * Outer app background (BG) = the fill of ALL elements nested in a parent.
+ * Parent surfaces (CARD) = the darker interior behind those elements.
+ * This removes the previous dark-on-dark nested containers; neither
+ * #bg nor #card-bg needs a new invented colour for extra contrast. */
+#app :is(header.panel,#controlDeck.panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
  background:var(--card-bg);
 }
-#boardShell{background:var(--card-bg)}
-/* An unlit control reuses the exact outer display background, not a
- * second independently chosen shade. Panels remain --card-bg, giving
- * consistently subtle contrast in both green and amber.
- * High-energy filled controls intentionally retain --bright. */
+/* The play area is itself a parent. It needs a dark backing between
+ * the lighter board/side panels, without altering their flex geometry. */
+#stage{
+ background:var(--card-bg);
+ border-radius:12px;
+}
+/* Child containers and normal button faces use the SAME computed
+ * --bg value as the app's unmodified outer background. */
+#app :is(#boardShell,#side .side-panel,.score-row){
+ background:var(--bg);
+}
 #app button:not(:is(#playButton,#confirmRestart,#saveScore,
  [data-action="left"],[data-action="hard"],[data-action="right"])){
  background:var(--bg);
 }
-#veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
+/* Paused/start/game-over veil stays translucent so the blocks beneath
+ * remain subtly visible, but borrows the app background—not the card. */
+#veil{background:color-mix(in srgb,var(--bg) 94%,transparent)}
 :root[data-theme="amber"] #veil{
- background:color-mix(in srgb,var(--card-bg) 94%,transparent);
+ background:color-mix(in srgb,var(--bg) 94%,transparent);
 }
 #crtGlass{position:absolute;inset:0;z-index:46;pointer-events:none;
  border-radius:var(--crt-glass-radius);
