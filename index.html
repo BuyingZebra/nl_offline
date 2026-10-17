@@ -208,7 +208,7 @@ let officialPlaces=[];
 let placesIndexState='loading';
 const $=id=>document.getElementById(id);
 $('consolePrefix').textContent='CONSOLE v'+APP_VERSION+':';
-const state={theme:'green',mapRenderer:'vector',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,gradients:{
+const state={theme:'green',mapRenderer:'vector',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,waterGridStrength:65,gradients:{
  screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
  mapTop:{enabled:true,length:110},mapBottom:{enabled:false,length:100}
 },effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
@@ -250,6 +250,12 @@ function syncThemeButton(){
 }
 syncThemeButton();
 try{const saved=localStorage.getItem('fieldAtlasWaterGridV09');if(saved!==null)state.showWaterGrid=saved==='true'}catch(e){}
+try{const saved=localStorage.getItem('fieldAtlasWaterGridStrengthV031');if(saved!==null&&Number.isFinite(Number(saved)))state.waterGridStrength=Math.max(0,Math.min(100,Number(saved)));}catch(e){}
+function gridOpacity(){
+ const k=state.waterGridStrength/65;
+ return Math.max(0,Math.min(1,(state.mapRenderer==='osm-composite'?.56:.32)*k));
+}
+function gridPatternId(){return 'water-grid-'+state.theme+'-'+state.mapRenderer;}
 function isReal(){return !!(state.real&&state.map)}
 const MAP_RENDERERS=['vector','osm-standard','osm-composite','osm-phosphor'];
 const MAP_RENDERER_NAMES={vector:'CURRENT VECTOR','osm-standard':'OSM STANDARD','osm-composite':'OSM COMPOSITE','osm-phosphor':'OSM PHOSPHOR'};
@@ -755,6 +761,8 @@ function openMenu(){
   ? `<div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>`
   : '<p class="sheetText">In raster modes, buildings are part of the OSM map image and cannot be hidden individually.</p>'}
  <div class="setting"><b>WATER GRID</b><button id="waterGridSetting">${state.showWaterGrid?'ON':'OFF'}</button></div>
+ <div class="effect-row"><div class="effect-head"><label for="waterGridStrength">WATER GRID STRENGTH</label><output id="waterGridStrengthValue">${state.waterGridStrength}%</output></div>
+ <input class="effect-slider" id="waterGridStrength" type="range" min="0" max="100" step="1" value="${state.waterGridStrength}" style="--fill:${state.waterGridStrength}%" aria-label="Water grid strength"></div>
  <p class="sheetText">Two-finger tilt stays manual and independent of zoom.</p>
  <div class="line"></div>
  <p class="sheetText">GRADIENT LENGTH / CSS PIXELS</p>
@@ -790,6 +798,15 @@ function openMenu(){
   try{localStorage.setItem('fieldAtlasWaterGridV09',String(state.showWaterGrid))}catch(e){}
   drawFallback();openMenu();
  };
+ $('waterGridStrength').addEventListener('input',e=>{
+  const n=Math.round(Math.max(0,Math.min(100,Number(e.target.value))));
+  state.waterGridStrength=n;
+  e.target.style.setProperty('--fill',n+'%');
+  $('waterGridStrengthValue').textContent=n+'%';
+  if(isReal()&&state.map.getLayer('water-grid'))
+   state.map.setPaintProperty('water-grid','fill-opacity',gridOpacity());
+  try{localStorage.setItem('fieldAtlasWaterGridStrengthV031',String(n))}catch(err){}
+ });
  for(const f of EFFECT_OPTIONS){
   const input=$('fx-'+f.key),output=$('value-'+f.key);
   input.addEventListener('input',()=>{
@@ -839,13 +856,16 @@ canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,ox:state
 function makeWaterGridTexture(theme){
  const size=64,data=new Uint8Array(size*size*4);
  // In the inverted composite pass, dark grid ink becomes bright phosphor.
- const rgb=state.mapRenderer==='osm-composite'?[0,0,0]:(theme==='amber'?[255,200,119]:[145,231,169]);
+ const composite=state.mapRenderer==='osm-composite';
+ // This grid is clipped to OSM water geometries. Inverted composite mode
+ // needs stronger pre-inversion dark ink to remain visible after tonemapping.
+ const rgb=composite?[0,0,0]:(theme==='amber'?[255,200,119]:[145,231,169]);
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
   const major=x===0||y===0,minor=x===32||y===32;
   if(!major&&!minor)continue;
   const k=(y*size+x)*4;
   data[k]=rgb[0];data[k+1]=rgb[1];data[k+2]=rgb[2];
-  data[k+3]=major?66:30;
+  data[k+3]=composite?(major?188:100):(major?66:30);
  }
  return {width:size,height:size,data};
 }
@@ -905,7 +925,7 @@ function makeStyle(){
         paint:{'fill-color':p.water}},
       {id:'water-grid',type:'fill',source:src,'source-layer':'water',
         layout:{visibility:state.showWaterGrid?'visible':'none'},
-        paint:{'fill-pattern':'water-grid-'+state.theme,'fill-opacity':0.32}},
+        paint:{'fill-pattern':gridPatternId(),'fill-opacity':gridOpacity()}},
       {id:'stream-glow',type:'line',source:src,'source-layer':'waterway',minzoom:11,
         layout:join,paint:{'line-color':p.waterline,'line-width':w(0.45,0.9,1.45,2.1),
           'line-blur':blur,'line-opacity':+(opacity*.5).toFixed(3)}},
@@ -994,7 +1014,7 @@ function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('DEMO 
 m.on('style.load',()=>{if(state.real){setRouteGeoJSON();setSavedPinsGeoJSON();applyEffects();}});
 
 m.on('styleimagemissing',e=>{
- const expected='water-grid-'+state.theme;
+ const expected=gridPatternId();
  if(e.id===expected&&!m.hasImage(expected))
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
