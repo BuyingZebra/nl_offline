@@ -41,8 +41,8 @@ with sync_playwright() as p:
         )
         assert page.locator("#console").count() == 0
         assert page.locator("#consoleState").count() == 0
-        # Navigation-style layering: no painted stage wrapper. Dark actual
-        # cards, with brighter buttons from the actual app background.
+        # Neutral-grayscale app: stage wrapper stays transparent, visible
+        # panels darker than the common app and ordinary button surface.
         colours=page.evaluate("""() => {
           const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
           const rgb=value=>{
@@ -64,18 +64,28 @@ with sync_playwright() as p:
             brightButton:rgb(color('#pad [data-action="hard"]'))
           };
         }""")
-        assert colours["base"].lower() == "#04120b", colours
+        assert colours["base"].lower() == "#151515", colours
         assert colours["stage"] in ("rgba(0, 0, 0, 0)", "transparent"), colours
         assert colours["header"] == colours["controls"] == colours["hold"] == colours["shell"], colours
-        assert colours["normalButton"][1] > 18, colours
+        assert colours["normalButton"] == [21, 21, 21], colours
         assert all(colours["header"][i] < colours["normalButton"][i]
                    for i in range(3)), colours
         assert colours["brightButton"][1] > colours["normalButton"][1], colours
         assert colours["boardPixel"][1] < colours["normalButton"][1], colours
+        # Confirm there is no background brightening gradient; one hue overlay
+        # colours the already-grayscale scene without changing these values.
+        assert page.locator("#app").evaluate(
+            "el => getComputedStyle(el).backgroundImage"
+        ) == "none"
+        assert page.locator("#phosphorFilm").evaluate(
+            "el => [getComputedStyle(el).mixBlendMode,getComputedStyle(el).opacity]"
+        ) == ["color", "1"]
+        assert "radial-gradient" in page.locator("#screenShade").evaluate(
+            "el => getComputedStyle(el).backgroundImage"
+        )
 
-        # Muted buttons share the same illuminated background face as the
-        # app gradient's brightest point. Parent cards stay darker and only
-        # LEFT, DROP and RIGHT remain fully luminous.
+        # The app is flat grayscale. Regular button faces equal the app pixel
+        # value, parent cards are darker, Start/Resume joins LEFT/DROP/RIGHT.
         button_surfaces=page.evaluate("""() => {
           const probe=document.createElement('span');
           probe.style.backgroundColor='var(--app-face)';
@@ -85,18 +95,19 @@ with sync_playwright() as p:
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
-            '#playButton','#confirmRestart','#saveScore',
+            '#confirmRestart','#saveScore',
             '#resetEffects','#cancelRestart','#closeLeaderboard'];
           const colours=samples.map(selector=>({
             selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
           }));
-          const primary=['#pad [data-action="left"]',
+          const primary=['#playButton','#pad [data-action="left"]',
             '#pad [data-action="hard"]','#pad [data-action="right"]']
             .map(selector=>({selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor}));
           return {appRgb,colours,primary};
         }""")
         assert all(e["background"]==button_surfaces["appRgb"] for e in button_surfaces["colours"]), button_surfaces
         assert all(e["background"]!=button_surfaces["appRgb"] for e in button_surfaces["primary"]), button_surfaces
+        assert len({e["background"] for e in button_surfaces["primary"]})==1, button_surfaces
         # One large, central drop button replaces two rotation buttons.
         # Preserve left/right arrows, a single clockwise rotate, and the
         # already functioning phosphor feedback surface.
@@ -301,18 +312,20 @@ with sync_playwright() as p:
             brightButton:rgb(color('#pad [data-action="hard"]'))
           };
         }""")
-        assert amber_colours["base"].lower() == "#100904", amber_colours
+        assert amber_colours["base"].lower() == "#151515", amber_colours
         assert amber_colours["stage"] in ("rgba(0, 0, 0, 0)", "transparent"), amber_colours
         assert amber_colours["header"] == amber_colours["controls"] == amber_colours["hold"] == amber_colours["shell"], amber_colours
-        assert amber_colours["normalButton"][0] > 16, amber_colours
+        assert amber_colours["normalButton"] == [21, 21, 21], amber_colours
         assert all(amber_colours["header"][i] < amber_colours["normalButton"][i]
                    for i in range(3)), amber_colours
         assert amber_colours["brightButton"][0] > amber_colours["normalButton"][0], amber_colours
         assert amber_colours["boardPixel"][0] < amber_colours["normalButton"][0], amber_colours
+        assert amber_colours["header"]==colours["header"]
+        assert amber_colours["normalButton"]==colours["normalButton"]
+        assert amber_colours["brightButton"]==colours["brightButton"]
 
-        # Muted buttons share the same illuminated background face as the
-        # app gradient's brightest point. Parent cards stay darker and only
-        # LEFT, DROP and RIGHT remain fully luminous.
+        # The app is flat grayscale. Regular button faces equal the app pixel
+        # value, parent cards are darker, Start/Resume joins LEFT/DROP/RIGHT.
         button_surfaces=page.evaluate("""() => {
           const probe=document.createElement('span');
           probe.style.backgroundColor='var(--app-face)';
@@ -322,18 +335,19 @@ with sync_playwright() as p:
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
-            '#playButton','#confirmRestart','#saveScore',
+            '#confirmRestart','#saveScore',
             '#resetEffects','#cancelRestart','#closeLeaderboard'];
           const colours=samples.map(selector=>({
             selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
           }));
-          const primary=['#pad [data-action="left"]',
+          const primary=['#playButton','#pad [data-action="left"]',
             '#pad [data-action="hard"]','#pad [data-action="right"]']
             .map(selector=>({selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor}));
           return {appRgb,colours,primary};
         }""")
         assert all(e["background"]==button_surfaces["appRgb"] for e in button_surfaces["colours"]), button_surfaces
         assert all(e["background"]!=button_surfaces["appRgb"] for e in button_surfaces["primary"]), button_surfaces
+        assert len({e["background"] for e in button_surfaces["primary"]})==1, button_surfaces
         page.get_by_role("button", name="Display options").tap()
         assert page.locator("#closeOptions").evaluate(
             "el => getComputedStyle(el).backgroundColor"
@@ -371,6 +385,8 @@ with sync_playwright() as p:
         assert page.locator('button[data-action="restart"]').count() == 0
         page.locator("#pauseButton").tap()
         page.locator("#newGameButton").wait_for(state="visible", timeout=5000)
+        assert page.locator("#newGameButton").inner_text().strip() == "NEW GAME"
+        assert page.locator("#pausedScoresButton").inner_text().strip() == "HIGH SCORE"
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#pauseButton").is_enabled()
         assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
