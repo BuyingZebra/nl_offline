@@ -45,7 +45,12 @@ def main():
         center1=page.evaluate("window.NL_PREVIEW_DEBUG_MAP.getCenter().toArray()")
         page.locator("#search").fill("Wild Cove")
         page.locator("#results button").nth(1).click()
-        page.wait_for_timeout(2400)
+        page.wait_for_function("""(start) => {
+          const m=window.NL_PREVIEW_DEBUG_MAP;
+          const c=m.getCenter();
+          return !m.isMoving() && m.getZoom()>12 &&
+                 (Math.abs(c.lng-start[0])>.01 || Math.abs(c.lat-start[1])>.01);
+        }""",arg=center1,timeout=30000)
         zoom2=page.evaluate("window.NL_PREVIEW_DEBUG_MAP.getZoom()")
         center2=page.evaluate("window.NL_PREVIEW_DEBUG_MAP.getCenter().toArray()")
         assert zoom2>12, f"Second town didn't zoom into roads: {zoom2}"
