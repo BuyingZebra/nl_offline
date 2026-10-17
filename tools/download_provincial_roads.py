@@ -55,7 +55,7 @@ def main():
     if meta.get("geometryType")!="esriGeometryPolyline":
         raise RuntimeError("Unexpected non-line road layer")
     count=get(s,layer+"/query",{"f":"json","where":"1=1","returnCountOnly":"true"}).get("count")
-    identifiers=get(s,LAYER+"/query",{"f":"json","where":"1=1","returnIdsOnly":"true"})
+    identifiers=get(s,layer+"/query",{"f":"json","where":"1=1","returnIdsOnly":"true"})
     ids=sorted(identifiers.get("objectIds") or [])
     if not ids:
         raise RuntimeError("No road object IDs returned")
@@ -67,7 +67,7 @@ def main():
         fh.write('{"type":"FeatureCollection","features":[\n')
         for start in range(0,len(ids),args.batch):
             batch=ids[start:start+args.batch]
-            data=get(s,LAYER+"/query",{
+            data=get(s,layer+"/query",{
                 "f":"geojson","objectIds":",".join(map(str,batch)),
                 "outFields":"*","outSR":4326,"returnGeometry":"true"
             })
