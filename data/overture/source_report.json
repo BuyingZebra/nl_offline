@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-10-17T01:27:51.024032+00:00",
+  "generated_utc": "2026-10-17T01:32:26.494381+00:00",
   "source": "Overture Maps transportation/segment",
   "source_file": "overture_nl_segments.parquet",
   "bounding_box_note": "This is a Newfoundland island-covering bbox; there may be bordering mainland/coastal features.",

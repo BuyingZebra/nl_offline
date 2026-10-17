@@ -1,0 +1,44 @@
+{
+  "source": "Overture Maps transportation (OSM + TomTom)",
+  "source_license": "ODbL 1.0; \u00a9 OpenStreetMap contributors",
+  "tileset_layer": "overture_transportation",
+  "format": "PMTiles v3; each complete feature is assigned to exactly one geographic shard",
+  "longitude_partition_bounds": [
+    -56.381270900000004,
+    -54.87398895,
+    -52.9377225
+  ],
+  "part_count": 4,
+  "feature_count": 107379,
+  "parts": [
+    {
+      "part": 0,
+      "filename": "nl_overture_part_0.pmtiles",
+      "features": 26093,
+      "source_bytes": 13302119,
+      "tile_archive_bytes": 31893505
+    },
+    {
+      "part": 1,
+      "filename": "nl_overture_part_1.pmtiles",
+      "features": 26147,
+      "source_bytes": 13302344,
+      "tile_archive_bytes": 32153922
+    },
+    {
+      "part": 2,
+      "filename": "nl_overture_part_2.pmtiles",
+      "features": 25741,
+      "source_bytes": 13302445,
+      "tile_archive_bytes": 29756309
+    },
+    {
+      "part": 3,
+      "filename": "nl_overture_part_3.pmtiles",
+      "features": 29398,
+      "source_bytes": 13302471,
+      "tile_archive_bytes": 16967362
+    }
+  ],
+  "note": "Shard boundaries are for file sizing, not geometry clipping. A road crossing a boundary keeps all its vertices. Each PMTiles is queried independently through HTTP Range."
+}
