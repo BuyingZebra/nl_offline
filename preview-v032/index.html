@@ -996,8 +996,9 @@ function makeStyle(){
   // omit POIs, parks, footways, service clutter and decorative road glow.
   // This live prototype uses OpenFreeMap's OSM-derived vector tile schema.
   // It does not increase the geometry resolution contained in those tiles.
+  let q;
   if(state.mapRenderer==='osm-essentials'||state.mapRenderer==='osm-native'){
-   const q=amber
+   q=amber
     ? {land:'#21180c',water:'#261a0e',shore:'#77542d',stream:'#654923',
        building:'#50371e',local:'#b5884d',tertiary:'#c69c61',
        secondary:'#ddb577',major:'#ffe2a5',name:'#ffdfab'}
