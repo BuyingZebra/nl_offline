@@ -22,8 +22,11 @@ from shapely import from_wkb
 from shapely.geometry import mapping, box
 
 DIBERVILLE = box(-53.239, 47.722, -53.229, 47.729)
-PEDESTRIAN_CLASSES = {"footway","path","pedestrian","cycleway","steps","bridleway"}
-TRACK_CLASSES = {"track"}
+# Preserve the geometry but never put a sidewalk or urban footway on
+# OSIRIS/Pip-Boy's default map. Only outdoor trails and resource tracks are
+# part of the core surface; ped/cycle navigation is a future optional mode.
+TRAIL_CLASSES = {"path", "track", "bridleway"}
+FOOTWAY_CLASSES = {"footway", "pedestrian", "cycleway", "steps"}
 
 def normalized(value):
     return re.sub(r"[^a-z0-9]","",unicodedata.normalize(
@@ -41,10 +44,14 @@ def label_and_origins(record):
             names.append(str(name_of_source))
     return name or "",names
 
-def classify(subtype,road_class):
+def classify(subtype,road_class,subclass=""):
     if subtype!="road":return None
-    if road_class in PEDESTRIAN_CLASSES:return "pedestrian"
-    if road_class in TRACK_CLASSES:return "track"
+    road_class=str(road_class or "").lower()
+    subclass=str(subclass or "").lower()
+    if subclass=="sidewalk" or road_class in FOOTWAY_CLASSES:
+        return "hidden_pedestrian"
+    if road_class in TRAIL_CLASSES:
+        return "trail"
     return "motor_candidate"
 
 def main():
@@ -69,7 +76,7 @@ def main():
         for batch in table.iter_batches(batch_size=6000,columns=cols):
             for record in batch.to_pylist():
                 road_class=str(record.get("class") or "unknown")
-                kind=classify(record.get("subtype"),road_class)
+                kind=classify(record.get("subtype"),road_class,record.get("subclass"))
                 if kind is None:continue
                 try:
                     geom=from_wkb(record["geometry"])
@@ -107,7 +114,7 @@ def main():
         "source_combinations":dict(origins.most_common()),
         "diberville_named_features":d_named,
         "diberville_nearby_segment_count":len(nearby),
-        "important":"Unlike the geometry preview, the original Overture segments and connectors are needed for a navigable topology. Footways are NOT motor roads. No geometries are automatically merged or discarded.",
+        "important":"The main Pip-Boy style shows motor roads and trails only. Sidewalks/footways remain in original data and tile features with kind=hidden_pedestrian, but are not displayed. Overture segments and connectors are still required for routing. No geometry is merged or discarded.",
         "license":"Overture transportation ODbL 1.0, includes OpenStreetMap contributors",
     }
     args.report.write_text(json.dumps(report,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
