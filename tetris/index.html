@@ -428,6 +428,14 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  background:var(--card-bg);
 }
 #boardShell{background:var(--card-bg)}
+/* An unlit control reuses the exact outer display background, not a
+ * second independently chosen shade. Panels remain --card-bg, giving
+ * consistently subtle contrast in both green and amber.
+ * High-energy filled controls intentionally retain --bright. */
+#app button:not(:is(#playButton,#confirmRestart,#saveScore,
+ [data-action="left"],[data-action="hard"],[data-action="right"])){
+ background:var(--bg);
+}
 #veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
 :root[data-theme="amber"] #veil{
  background:color-mix(in srgb,var(--card-bg) 94%,transparent);
