@@ -163,6 +163,35 @@ def discover_arcgis(s):
     return apps, layers, warnings
 
 
+
+def inspect_provincial_layers(s, layers):
+    """Read service field schemas and a few records, never bulk-export data."""
+    samples = []
+    for entry in layers:
+        if not entry["supports_query"] or "services8.arcgis.com/aCyQID5qQcyrJMm2" not in entry["service_url"]:
+            continue
+        url = entry["service_url"].rstrip("/") + "/query"
+        record = {"app": entry["app"], "name": entry["name"], "url": entry["service_url"]}
+        try:
+            r = s.get(url, params={"f": "json", "where": "1=1", "returnCountOnly": "true"}, timeout=30)
+            r.raise_for_status()
+            count = r.json()
+            if "error" in count:
+                raise ValueError(str(count["error"]))
+            record["count"] = count.get("count")
+            r = s.get(url, params={"f": "json", "where": "1=1", "outFields": "*",
+                                   "returnGeometry": "false", "resultRecordCount": 2}, timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            if "error" in data:
+                raise ValueError(str(data["error"]))
+            record["fields"] = [p["name"] for p in data.get("fields", [])]
+            record["sample_records"] = [f.get("attributes", {}) for f in data.get("features", [])]
+        except Exception as exc:
+            record["error"] = str(exc)
+        samples.append(record)
+    return samples
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -188,6 +217,8 @@ def main():
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(layers)
+    layer_samples = inspect_provincial_layers(s, layers) if not args.only_airphotos else []
+    (args.output / "provincial_arcgis_field_samples.json").write_text(json.dumps(layer_samples, indent=2, ensure_ascii=False)+"\n", encoding="utf-8")
     report = {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "source": AIR_INDEX,
