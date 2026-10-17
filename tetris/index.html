@@ -302,27 +302,27 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 
 /* Arcade control icons share the FIELD ATLAS terminal font everywhere.
  * Settings window dimensions, height and scroll behavior are unchanged. */
-:root{--terminal-font:"Courier New",Courier,ui-monospace,Menlo,Consolas,monospace}
+:root{--terminal-font:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  font-family:var(--terminal-font)}
 #app :is(h1,h2,b,strong,button,.side-label,.settings-heading,.effect-head){
  font-weight:700}
 #app #initialsEntry{font-family:var(--terminal-font)}
-/* Only the menu controls change position: the RETURN action stays visible
- * in the title row without shrinking or otherwise resizing the window. */
+/* The display panel uses at most two-thirds of the phone height.
+ * Its controls scroll internally, while the full-size RETURN action stays
+ * at the top, with the same appearance as RESET DISPLAY EFFECTS. */
+#app #options{max-height:66.6667%;max-height:min(66.6667%,66.6667dvh);
+ overflow-y:auto;overscroll-behavior:contain}
 #app #options>.dialog-toolbar{
- display:flex;position:sticky;top:-18px;z-index:4;
- align-items:center;justify-content:space-between;gap:9px;
- padding:12px 0 12px;margin:-6px 0 14px;
- border-bottom:1px solid var(--border);
- background:var(--bg)}
-#app #options .dialog-toolbar h2{
- min-width:0;flex:1;font-size:clamp(11px,3.3vw,15px);
- line-height:1.3;letter-spacing:.06em;margin:0}
-#app #closeOptions{flex:none;min-width:133px;width:auto;max-width:49%;
- min-height:44px;margin:0;padding:8px 7px;
- border:1px solid var(--border);background:var(--panel);
- font-size:10px;letter-spacing:0}
+ position:sticky;top:-18px;z-index:4;
+ display:block;background:var(--bg);
+ margin:-4px 0 13px;padding:4px 0 13px;
+ border-bottom:1px solid var(--border)}
+#app #closeOptions{
+ display:block;width:100%;max-width:none;min-width:0;min-height:44px;
+ margin:0;padding:9px 10px;font-size:11px;letter-spacing:.08em;
+ font-weight:700;border:1px solid var(--border);
+ border-radius:8px;background:var(--panel);color:var(--ink)}
 /* Pip-Boy icon semantics: hollow square OFF, solid square ON.
  * No iOS-style checks, round switches, or check marks. */
 #app input[type="checkbox"]{
@@ -433,12 +433,10 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div id="phosphorFilm" aria-hidden="true"></div>
  <div id="sweep" aria-hidden="true"></div>
  <div id="modalScrim" hidden aria-hidden="true"></div>
-<dialog id="options" aria-labelledby="displayTitle">
+<dialog id="options" aria-label="FIELD ATLAS display settings">
  <div class="dialog-toolbar">
-  <h2 id="displayTitle">FIELD ATLAS / DISPLAY</h2>
-  <button id="closeOptions" aria-label="Return to game">◀ RETURN TO GAME</button>
+  <button id="closeOptions">RETURN TO GAME</button>
  </div>
- <p class="setting-copy">Screen-wide effects shared with FIELD ATLAS. Preferences are saved on this device.</p>
  <div class="setting-line"><b>GHOST PIECE</b><input id="ghostControl" type="checkbox" checked aria-label="Show ghost piece"></div>
  <div class="setting-line"><b>SOUND</b><input id="soundControl" type="checkbox" aria-label="Enable sound"></div>
  <div class="settings-divider"></div>
