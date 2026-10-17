@@ -25,6 +25,16 @@ with sync_playwright() as p:
         page.goto(URL + "?qa=visual-compositing", wait_until="networkidle", timeout=30000)
         page.locator("#board").wait_for()
         assert page.locator("#scoreValue").inner_text() == "000000"
+        assert page.locator("#crtFilterDefs").count() == 1
+        assert page.locator("#crtDisplacementMap").count() == 1
+        assert page.locator("#curvatureControl").count() == 1
+        assert page.locator("#crtDisplacementImage").get_attribute("href").startswith(
+            "data:image/png;base64,"
+        )
+        assert float(page.locator("#crtDisplacementMap").get_attribute("scale")) > 0
+        assert "fieldAtlasCRTBarrel" in page.locator("#app").evaluate(
+            "el => getComputedStyle(el).filter"
+        )
         assert page.locator("#console").count() == 0
         assert page.locator("#consoleState").count() == 0
         # One large, central drop button replaces two rotation buttons.
@@ -105,6 +115,27 @@ with sync_playwright() as p:
 
         # Adjusting the vignette while the menu is open affects the entire
         # compositor. It must not cover the menu with a second FX copy.
+        # True barrel/fish-eye distortion has a live, persistent slider.
+        # Zero MUST disable the SVG filter, not just fade a fake vignette.
+        page.locator("#curvatureControl").evaluate(
+            """el => {el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}))}"""
+        )
+        assert page.locator("#curvatureValue").inner_text() == "0%"
+        assert page.locator("#app").evaluate("el => getComputedStyle(el).filter") == "none"
+        assert page.evaluate(
+            "localStorage.getItem('fieldAtlasTetrisCurvatureV01')"
+        ) == "0"
+        page.locator("#curvatureControl").evaluate(
+            """el => {el.value='75';el.dispatchEvent(new Event('input',{bubbles:true}))}"""
+        )
+        assert page.locator("#curvatureValue").inner_text() == "75%"
+        assert float(page.locator("#crtDisplacementMap").get_attribute("scale")) > 10
+        assert "fieldAtlasCRTBarrel" in page.locator("#app").evaluate(
+            "el => getComputedStyle(el).filter"
+        )
+        assert page.evaluate(
+            "localStorage.getItem('fieldAtlasTetrisCurvatureV01')"
+        ) == "75"
         page.locator("#vignetteControl").evaluate(
             """el => {el.value='75';el.dispatchEvent(new Event('input',{bubbles:true}))}"""
         )
@@ -157,6 +188,29 @@ with sync_playwright() as p:
         page.locator("#closeOptions").tap()
         assert page.locator("#options").get_attribute("open") is None
         assert page.locator("#modalScrim").is_hidden()
+        # Test actual pixel displacement independently of curved-glass
+        # vignette and animations: snapshots must differ with the SVG
+        # barrel filter enabled versus disabled.
+        page.add_style_tag(content="""
+          #crtGlass {opacity:0!important}
+          #sweep {display:none!important}
+          #buttonFxLayer {display:none!important}
+        """)
+        warped=page.screenshot(animations="disabled")
+        page.evaluate("""() => {
+          const slider=document.querySelector('#curvatureControl');
+          slider.value='0';
+          slider.dispatchEvent(new Event('input',{bubbles:true}));
+        }""")
+        flat=page.screenshot(animations="disabled")
+        assert flat != warped, "CRT filter did not visually distort the output"
+        assert page.locator("#app").evaluate("el => getComputedStyle(el).filter") == "none"
+        # Return to the mild first-pass curvature; test reset separately.
+        page.evaluate("""() => {
+          const slider=document.querySelector('#curvatureControl');
+          slider.value='16';
+          slider.dispatchEvent(new Event('input',{bubbles:true}));
+        }""")
         page.locator("#themeToggle").tap()
         assert page.locator("html").get_attribute("data-theme") == "amber"
         page.get_by_role("button", name="Display options").tap()
