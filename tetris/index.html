@@ -65,6 +65,8 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
  color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
+#newGameButton{width:100%;background:var(--panel);color:var(--ink);font-size:11px}
+#newGameButton[hidden]{display:none}
 #playButton{width:100%;background:var(--bright);color:var(--shadow);border-color:var(--bright);
  box-shadow:0 0 12px rgba(var(--phosphor),.16)}
 #side{display:flex;flex-direction:column;align-self:stretch;justify-content:space-between;
@@ -88,7 +90,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #pad button{min-width:0;padding:7px 0;height:53px;font-size:18px;user-select:none;-webkit-user-select:none;
  touch-action:none}
 #pad button[data-action="hard"]{font-size:11px;background:color-mix(in srgb,var(--panel) 70%,var(--bright) 30%)}
-#extras{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+#extras{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #extras button{height:44px;padding:8px 3px;font-size:10px}
 #eventline{flex:none;min-height:13px;display:flex;justify-content:space-between;
  color:var(--weak);font-size:9px;letter-spacing:.07em;gap:6px}
@@ -114,6 +116,11 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
 .options-row input[type=range]{width:55%;accent-color:var(--bright)}
 .options-row input[type=checkbox]{width:22px;height:22px;accent-color:var(--bright)}
 #closeOptions{width:100%;margin-top:12px}
+#restartConfirm p{font-size:12px;line-height:1.6;color:var(--weak);margin:0 0 18px}
+#restartConfirm .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#confirmRestart{background:var(--bright);color:var(--shadow);border-color:var(--bright)}
+#cancelRestart{background:var(--panel)}
+
 #guide{font-size:10px;color:var(--weak);line-height:1.55}
 @media(max-height:730px){#app{gap:6px}header{min-height:53px;padding:8px 10px}
  header h1{font-size:16px}header .header-tools button{height:42px;min-height:42px}
@@ -159,6 +166,7 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
     <h2 id="veilTitle">TETRIS</h2>
     <p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>
     <button id="playButton">▶ START GAME</button>
+    <button id="newGameButton" hidden>↻ NEW GAME</button>
    </div>
   </div>
   <aside id="side" aria-label="Game preview panels">
@@ -184,7 +192,6 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
    <button data-action="hold">HOLD</button>
    <button data-action="down">▼ SOFT</button>
    <button data-action="pause" id="pauseButton">PAUSE</button>
-   <button data-action="restart">NEW</button>
   </div>
  </section>
  <div id="eventline"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE</span></div>
@@ -200,6 +207,14 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  <label class="options-row">GHOST PIECE <input id="ghostControl" type="checkbox" checked></label>
  <label class="options-row">SOUND <input id="soundControl" type="checkbox"></label>
  <button id="closeOptions">RETURN TO GAME</button>
+</dialog>
+<dialog id="restartConfirm" aria-labelledby="restartConfirmTitle" aria-describedby="restartConfirmText">
+ <h2 id="restartConfirmTitle">START NEW GAME?</h2>
+ <p id="restartConfirmText">Your current game and score will be lost. Are you sure?</p>
+ <div class="decision">
+  <button id="cancelRestart">CANCEL</button>
+  <button id="confirmRestart">YES, RESTART</button>
+ </div>
 </dialog>
 <script src="./core.js"></script>
 <script src="./ui.js"></script>
