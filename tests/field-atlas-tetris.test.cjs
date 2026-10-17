@@ -135,3 +135,41 @@ test('browser assets are local, parse cleanly, and expose iPhone controls',()=>{
  assert.ok(sw.includes('cache.addAll(APP_SHELL)'));
  assert.ok(!html.includes('tile.openstreetmap.org'));
 });
+
+test('restart is only offered in the pause menu and never beside DROP',()=>{
+ const path=require('node:path');
+ const fs=require('node:fs');
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const deck=html.match(/<div id="extras">([\s\S]*?)<\/div>/)?.[1];
+ assert.ok(deck);
+ assert.doesNotMatch(deck,/NEW|restart|newGameButton/i);
+ assert.equal((html.match(/data-action="restart"/g)||[]).length,0);
+ assert.ok(html.includes('<button id="newGameButton" hidden>↻ NEW GAME</button>'));
+ assert.ok(html.indexOf('id="newGameButton"')<html.indexOf('id="boardShell"')+500);
+ assert.match(ui,/newGameButton'\)\.hidden=game\.status!=='paused'/);
+ assert.match(ui,/if\(game\.status==='paused'&&!restartConfirm\.open\)restartConfirm\.showModal\(\)/);
+ assert.doesNotMatch(ui,/case 'restart':|KeyR:'restart'/);
+});
+
+test('new game requires explicit yes and cancel does not reset score',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.match(html,/<dialog id="restartConfirm"[^>]+aria-labelledby="restartConfirmTitle"/);
+ assert.ok(html.includes('Your current game and score will be lost. Are you sure?'));
+ assert.ok(html.includes('<button id="cancelRestart">CANCEL</button>'));
+ assert.ok(html.includes('<button id="confirmRestart">YES, RESTART</button>'));
+ assert.match(ui,/\$\('cancelRestart'\)\.addEventListener\('click',\(\)=>restartConfirm\.close\(\)\)/);
+ assert.match(ui,/\$\('confirmRestart'\)\.addEventListener\('click',\(\)=>\{/);
+ assert.match(ui,/if\(game\.status!=='paused'\)\{restartConfirm\.close\(\);return;\}/);
+ assert.match(ui,/restartConfirm\.close\(\);\s*game\.reset\(\);\s*game\.start\(\);/);
+ assert.match(ui,/if\(options\.open\|\|restartConfirm\.open\)return/);
+});
+
+test('service worker fetches current game first and preserves offline fallback',()=>{
+ const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v002'"));
+ assert.match(sw,/event\.respondWith\(fetch\(request\)/);
+ assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
+});
