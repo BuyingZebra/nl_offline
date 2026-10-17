@@ -302,7 +302,7 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.match(html,/#screenShade\{z-index:42;/);
  assert.match(html,/#screenScan\{position:absolute;inset:0;z-index:43;/);
  assert.match(html,/#phosphorFilm\{z-index:44;/);
- assert.match(html,/#sweep\{z-index:45;/);
+ assert.match(html,/#sweep\{z-index:40;/);
  assert.ok(html.includes('mix-blend-mode:color'));
  assert.ok(ui.includes("root.style.setProperty('--screen-top-fade'"));
  assert.ok(ui.includes("root.style.setProperty('--screen-bottom-fade'"));
