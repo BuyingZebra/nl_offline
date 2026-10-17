@@ -66,6 +66,33 @@ with sync_playwright() as p:
           document.querySelector('#closeOptions').getBoundingClientRect().top <
           document.querySelector('#ghostControl').getBoundingClientRect().top
         )""")
+        # Settings are deliberately smaller than the screen (not resized
+        # fullscreen) and the original SF Mono/system face is reinstated.
+        menu_rect = page.locator("#options").bounding_box()
+        assert menu_rect is not None
+        assert menu_rect["height"] <= 844 * 2 / 3 + 2, menu_rect
+        assert menu_rect["height"] > 200, menu_rect
+        assert page.locator("#displayTitle").count() == 0
+        assert "Courier New" not in page.locator("#options").evaluate(
+            "el => getComputedStyle(el).fontFamily"
+        )
+        assert page.evaluate("""() => {
+          const returnButton=getComputedStyle(document.querySelector('#closeOptions'));
+          const resetButton=getComputedStyle(document.querySelector('#resetEffects'));
+          const menu=document.querySelector('#options');
+          const button=document.querySelector('#closeOptions');
+          const font=getComputedStyle(document.body).fontFamily;
+          return returnButton.backgroundColor===resetButton.backgroundColor
+            && returnButton.borderRadius===resetButton.borderRadius
+            && returnButton.fontFamily===font
+            && button.getBoundingClientRect().width >= menu.clientWidth-38;
+        }""")
+        # The menu scrolls, not the whole page; return remains accessible.
+        page.locator("#options").evaluate("el => el.scrollTop=el.scrollHeight")
+        assert page.locator("#closeOptions").is_visible()
+        assert page.locator("#closeOptions").evaluate(
+            "el => {const p=el.closest('#options').getBoundingClientRect();const r=el.getBoundingClientRect();return r.top>=p.top && r.bottom<p.bottom;}"
+        )
         assert page.locator('#options input[type="checkbox"]').evaluate_all(
           """els => els.every(el => getComputedStyle(el).borderTopLeftRadius==='0px')"""
         )
