@@ -1,0 +1,13 @@
+{
+  "description": "Cubic Bezier segments (a form of degree-3 unit-weight NURBS) interpolating all original OSM road nodes in the Carbonear regional extract. Source remains unchanged. All original endpoints, internal OSM nodes, way IDs and properties are preserved.",
+  "max_deviation_target_m": 1.8,
+  "spacing_target_m": 12,
+  "stats": {
+    "ways": 3065,
+    "original_nodes": 24291,
+    "curved_nodes": 82537,
+    "modified_ways": 2189,
+    "total_km": 854.59,
+    "max_sampled_shift_m": 1.8
+  }
+}
