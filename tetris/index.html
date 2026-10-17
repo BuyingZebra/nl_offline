@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en" data-theme="green">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#06170e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="color-scheme" content="dark">
+<title>FIELD ATLAS — Arcade / Tetris</title>
+<style>
+:root{
+ --bg:#06170e;--panel:#0a2115;--solid:#102719;--ink:#b4ffce;
+ --bright:#77ffa5;--weak:#8fc19d;--border:#3f8254;--shadow:#020905;
+ --grid:#163724;--phosphor:108,255,156;--glow:8px;--scan:0.28;
+}
+:root[data-theme="amber"]{
+ --bg:#140c05;--panel:#271806;--solid:#301f0c;--ink:#ffe79a;
+ --bright:#f5b661;--weak:#d19e58;--border:#8e5f24;--shadow:#0a0602;
+ --grid:#4a2b13;--phosphor:255,196,100;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020603;
+ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
+button,input{font:inherit}
+button{appearance:none;-webkit-appearance:none;-webkit-tap-highlight-color:transparent;
+ cursor:pointer;touch-action:manipulation;border:1px solid var(--border);border-radius:11px;
+ background:rgba(5,20,12,.8);color:var(--ink);font-weight:800;letter-spacing:.08em;
+ min-height:44px;padding:9px 10px}
+:root[data-theme="amber"] button{background:rgba(24,14,6,.8)}
+button:active{background:var(--solid);transform:translateY(1px)}
+button:disabled{opacity:.35;cursor:default}
+button:focus-visible,input:focus-visible{outline:2px solid var(--bright);outline-offset:2px}
+a{color:var(--weak)}
+#app{position:relative;display:flex;flex-direction:column;gap:9px;
+ margin:auto;padding:calc(env(safe-area-inset-top,0px) + 9px) 11px
+ calc(env(safe-area-inset-bottom,0px) + 8px);
+ max-width:520px;height:100dvh;min-height:0;background:
+ radial-gradient(ellipse at 50% 58%,rgba(var(--phosphor),.075),transparent 65%),var(--bg);
+ overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate}
+.panel{border:1px solid var(--border);background:rgba(3,14,8,.86);
+ border-radius:12px;box-shadow:0 0 var(--glow) rgba(var(--phosphor),.13)}
+:root[data-theme="amber"] .panel{background:rgba(14,8,3,.86)}
+header{flex:none;display:flex;align-items:center;gap:12px;padding:12px 13px;min-height:65px}
+header .heading{flex:1;min-width:0}
+header small{display:block;color:var(--weak);font-size:9px;letter-spacing:.17em}
+header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;letter-spacing:.105em;
+ text-shadow:0 0 var(--glow) rgba(var(--phosphor),.44)}
+.header-tools{display:flex;gap:7px}
+.header-tools button{min-width:46px;height:46px;padding:7px;font-size:17px}
+#console{flex:none;font-size:10px;letter-spacing:.075em;padding:8px 10px;
+ display:flex;align-items:center;gap:8px;line-height:1.3;min-height:33px}
+#console b{white-space:nowrap}
+#consoleState{flex:1;min-width:0;color:var(--weak);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#stage{min-height:0;flex:1;display:flex;justify-content:center;align-items:center;gap:10px}
+#boardShell{height:100%;max-height:610px;max-width:calc(100% - 103px);aspect-ratio:1/2;
+ flex:none;position:relative;overflow:hidden;border:1px solid var(--border);
+ border-radius:7px;background:#020a06;box-shadow:inset 0 0 35px #000,0 0 var(--glow) rgba(var(--phosphor),.16)}
+#board{display:block;width:100%;height:100%;touch-action:none}
+#veil{position:absolute;inset:0;z-index:2;background:rgba(0,8,4,.81);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;
+ padding:15px;text-align:center;gap:10px;backdrop-filter:blur(3px)}
+:root[data-theme="amber"] #veil{background:rgba(11,6,1,.86)}
+#veil.hidden{display:none}
+#veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
+ color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
+#veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
+#playButton{width:100%;background:var(--bright);color:var(--shadow);border-color:var(--bright);
+ box-shadow:0 0 12px rgba(var(--phosphor),.16)}
+#side{display:flex;flex-direction:column;align-self:stretch;justify-content:space-between;
+ gap:6px;min-width:0;width:93px}
+.side-panel{display:flex;flex-direction:column;align-items:center;gap:3px;
+ border:1px solid var(--border);border-radius:9px;background:rgba(0,9,4,.65);padding:6px 3px}
+.side-label{font-size:9px;color:var(--weak);letter-spacing:.12em;white-space:nowrap}
+.side-panel canvas{display:block;width:80px;max-width:100%;height:60px}
+#queue{display:flex;flex-direction:column;align-items:center;gap:1px}
+#queue canvas{height:44px}
+#sideStats{padding:8px 4px;gap:7px;align-items:stretch}
+.mini-stat{display:flex;flex-direction:column;gap:4px;text-align:center}
+.mini-stat b{font-size:13px;font-variant-numeric:tabular-nums}
+#controlDeck{flex:none;display:flex;flex-direction:column;gap:7px;padding:9px}
+#scoreStrip{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:8px;
+ border-bottom:1px solid var(--border);padding:1px 2px 8px}
+#scoreStrip div{display:flex;flex-direction:column;gap:3px;min-width:0}
+#scoreStrip small{font-size:9px;color:var(--weak);letter-spacing:.13em}
+#scoreStrip strong{font-size:clamp(13px,4vw,17px);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+#pad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+#pad button{min-width:0;padding:7px 0;height:53px;font-size:18px;user-select:none;-webkit-user-select:none;
+ touch-action:none}
+#pad button[data-action="hard"]{font-size:11px;background:color-mix(in srgb,var(--panel) 70%,var(--bright) 30%)}
+#extras{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+#extras button{height:44px;padding:8px 3px;font-size:10px}
+#eventline{flex:none;min-height:13px;display:flex;justify-content:space-between;
+ color:var(--weak);font-size:9px;letter-spacing:.07em;gap:6px}
+#eventline span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screenScan{position:absolute;inset:0;pointer-events:none;z-index:8;
+ background:repeating-linear-gradient(to bottom,
+ rgba(var(--phosphor),.16) 0,rgba(var(--phosphor),.16) 1px,
+ transparent 1px,transparent 3px,rgba(0,0,0,.58) 3px,rgba(0,0,0,.58) 4px);
+ opacity:var(--scan)}
+#screenShade{position:absolute;inset:0;pointer-events:none;z-index:7;
+ background:radial-gradient(ellipse 90% 79% at 50% 49%,transparent 44%,rgba(0,0,0,.45) 100%);
+ opacity:.5}
+#sweep{position:absolute;left:0;top:-70px;width:100%;height:70px;z-index:9;pointer-events:none;
+ background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09));
+ animation:sweep 13s linear infinite}
+@keyframes sweep{to{transform:translateY(calc(100dvh + 90px))}}
+dialog{color:var(--ink);background:var(--bg);border:1px solid var(--border);border-radius:14px;
+ padding:18px;max-width:calc(100vw - 40px);width:410px;box-shadow:0 0 50px #000}
+dialog::backdrop{background:rgba(0,0,0,.72)}
+dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
+.options-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:13px 0;
+ font-size:12px}
+.options-row input[type=range]{width:55%;accent-color:var(--bright)}
+.options-row input[type=checkbox]{width:22px;height:22px;accent-color:var(--bright)}
+#closeOptions{width:100%;margin-top:12px}
+#guide{font-size:10px;color:var(--weak);line-height:1.55}
+@media(max-height:730px){#app{gap:6px}header{min-height:53px;padding:8px 10px}
+ header h1{font-size:16px}header .header-tools button{height:42px;min-height:42px}
+ #controlDeck{gap:5px;padding:7px}#pad button{height:45px;min-height:45px}
+ #extras button{height:40px;min-height:40px}
+ #sideStats{gap:3px}.side-panel{padding:3px 2px}
+ #side .side-panel canvas{height:43px}#side #queue canvas{height:36px}}
+@media(max-height:620px) and (orientation:portrait){
+ #app{gap:4px;padding-top:calc(env(safe-area-inset-top,0px) + 4px)}
+ header{min-height:45px;padding:4px 9px}header small{display:none}
+ #console{min-height:25px;padding:5px 8px}#sideStats .mini-stat:last-child{display:none}
+ #pad button{height:42px;min-height:42px}#extras button{height:39px;min-height:39px}}
+@media(orientation:landscape) and (max-height:600px){
+ #app{max-width:none;display:grid;grid-template-columns:minmax(145px,205px) minmax(0,1fr) minmax(195px,260px);
+ grid-template-rows:64px minmax(0,1fr) 28px;gap:6px;padding:8px}
+ header{grid-column:1;grid-row:1;min-height:0;padding:6px}header h1{font-size:13px}
+ header small{font-size:8px}.header-tools button{min-width:35px;min-height:37px;height:37px}
+ #console{grid-column:1;grid-row:2;align-self:start;white-space:normal}
+ #stage{grid-column:2;grid-row:1 / 4;min-height:0}#boardShell{height:100%;max-width:calc(100% - 98px)}
+ #controlDeck{grid-column:3;grid-row:1 / 4;align-self:center}
+ #scoreStrip{grid-template-columns:1fr 1fr}#scoreStrip div:last-child{display:none}
+ #pad{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #extras{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #eventline{grid-column:1;grid-row:3;overflow:hidden}
+}
+@media(prefers-reduced-motion:reduce){#sweep{display:none}button:active{transform:none}}
+</style>
+</head>
+<body>
+<div id="app">
+ <header class="panel">
+  <div class="heading"><small>FIELD ATLAS / NEWFOUNDLAND</small><h1>ARCADE SYSTEM</h1></div>
+  <div class="header-tools">
+   <button id="themeToggle" aria-label="Switch green or amber phosphor" title="Change phosphor">◐</button>
+   <button id="optionsButton" aria-label="Display options" title="Options">☷</button>
+  </div>
+ </header>
+ <div class="panel" id="console"><b>CONSOLE v0.01:</b><span id="consoleState" aria-live="polite">[ARCADE] STANDBY / TETRIS</span></div>
+ <main id="stage">
+  <div id="boardShell">
+   <canvas id="board" width="300" height="600" aria-label="Tetris game board, 10 columns by 20 rows"></canvas>
+   <div id="veil">
+    <h2 id="veilTitle">TETRIS</h2>
+    <p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>
+    <button id="playButton">▶ START GAME</button>
+   </div>
+  </div>
+  <aside id="side" aria-label="Game preview panels">
+   <div class="side-panel"><span class="side-label">HOLD</span><canvas id="holdCanvas" width="120" height="90" aria-label="Held piece"></canvas></div>
+   <div class="side-panel"><span class="side-label">NEXT</span><div id="queue"><canvas id="next1" width="120" height="75" aria-label="Next piece"></canvas><canvas id="next2" width="120" height="75" aria-label="Second next piece"></canvas><canvas id="next3" width="120" height="75" aria-label="Third next piece"></canvas></div></div>
+   <div class="side-panel" id="sideStats"><div class="mini-stat"><span class="side-label">BEST</span><b id="bestScore">0</b></div><div class="mini-stat"><span class="side-label">PIECES</span><b id="pieceCount">0</b></div></div>
+  </aside>
+ </main>
+ <section id="controlDeck" class="panel" aria-label="Tetris controls and score">
+  <div id="scoreStrip">
+   <div><small>SCORE</small><strong id="scoreValue">000000</strong></div>
+   <div><small>LINES</small><strong id="linesValue">00</strong></div>
+   <div><small>LEVEL</small><strong id="levelValue">01</strong></div>
+  </div>
+  <div id="pad" aria-label="Movement controls">
+   <button data-action="left" aria-label="Move left">◀</button>
+   <button data-action="ccw" aria-label="Rotate counterclockwise">↶</button>
+   <button data-action="cw" aria-label="Rotate clockwise">↷</button>
+   <button data-action="right" aria-label="Move right">▶</button>
+   <button data-action="hard" aria-label="Hard drop">DROP</button>
+  </div>
+  <div id="extras">
+   <button data-action="hold">HOLD</button>
+   <button data-action="down">▼ SOFT</button>
+   <button data-action="pause" id="pauseButton">PAUSE</button>
+   <button data-action="restart">NEW</button>
+  </div>
+ </section>
+ <div id="eventline"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE</span></div>
+ <div id="screenShade" aria-hidden="true"></div>
+ <div id="screenScan" aria-hidden="true"></div>
+ <div id="sweep" aria-hidden="true"></div>
+</div>
+<dialog id="options">
+ <h2>FIELD ATLAS / DISPLAY</h2>
+ <p id="guide">ARROW KEYS: MOVE / SOFT DROP. UP OR X: ROTATE. Z: REVERSE. SPACE: DROP. C: HOLD. P: PAUSE. Touch the board to rotate, swipe to move or drop.</p>
+ <label class="options-row">SCANLINES <input id="scanControl" type="range" min="0" max="90" value="28"></label>
+ <label class="options-row">PHOSPHOR GLOW <input id="glowControl" type="range" min="0" max="100" value="45"></label>
+ <label class="options-row">GHOST PIECE <input id="ghostControl" type="checkbox" checked></label>
+ <label class="options-row">SOUND <input id="soundControl" type="checkbox"></label>
+ <button id="closeOptions">RETURN TO GAME</button>
+</dialog>
+<script src="./core.js"></script>
+<script src="./ui.js"></script>
+</body>
+</html>
