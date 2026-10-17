@@ -243,9 +243,8 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  for(const id of ['glowControl','scanControl','vignetteControl','glowValue',
   'scanValue','vignetteValue','themeSetting','resetEffects',
-  'screenTopFade','screenBottomFade','playfieldTopFade','playfieldBottomFade',
-  'fade-screenTop-on','fade-screenBottom-on','fade-playfieldTop-on',
-  'fade-playfieldBottom-on']) {
+  'screenTopFade','screenBottomFade',
+  'fade-screenTop-on','fade-screenBottom-on']) {
   assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
  }
  assert.ok(ui.includes("read('fieldAtlasEffectsV06','null')"));
@@ -267,4 +266,33 @@ test('new cached arcade shell includes the scoring system for offline play',()=>
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
  assert.match(sw,/const CACHE='field-atlas-arcade-v003'/);
+});
+
+
+test('CRT camera filters cover game and modal top-layer; no board-specific fades',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ for(const id of ['screenTopFade','screenBottomFade','fade-screenTop','fade-screenBottom']){
+  assert.ok(html.includes('id="'+id+'"'));
+ }
+ for(const id of ['playfieldTopFade','playfieldBottomFade','fade-playfieldTop','fade-playfieldBottom']){
+  assert.ok(!html.includes('id="'+id+'"'),'Legacy board fade '+id);
+ }
+ assert.match(ui,/const fadeKeys=\['screenTop','screenBottom'\]/);
+ assert.ok(ui.includes("dialog.appendChild(overlay)"));
+ assert.ok(ui.includes("overlay.className='modal-camera-fx'"));
+ assert.ok(html.includes('dialog .modal-camera-fx .fx-scan'));
+ assert.ok(html.includes('dialog .modal-camera-fx .fx-vignette'));
+ assert.ok(html.includes('dialog .modal-camera-fx .fx-fade-top'));
+ assert.ok(html.includes('dialog .modal-camera-fx .fx-fade-bottom'));
+ assert.ok(ui.includes("root.style.setProperty('--screen-top-fade'"));
+ assert.ok(ui.includes("root.style.setProperty('--screen-bottom-fade'"));
+ assert.ok(html.includes('pointer-events:none'));
+});
+
+test('tile glow follows each tile fill rather than uniform bright tint',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.match(ui,/ctx\.shadowColor=color\(body,/);
+ assert.doesNotMatch(ui,/ctx\.shadowColor=color\(palette\.bright,/);
 });
