@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#06170e"/>
+<title>FIELD ATLAS / NL · Interactive Browser Preview</title>
+<style>
+:root{--bg:#06170e;--panel:#0a2115;--panel-solid:#102719;--surface-map-overlay:rgba(2,9,5,.91);--accent:#b4ffce;--roads:#77ffa5;--weak:#8fc19d;--line:#3f8254;--water:#12412f;--building:#29653e;--shadow:#020905;--phosphor-rgb:108,255,156;--glow-radius:0px;--glow-strength:0%;--glow-level:0}
+:root[data-theme=amber]{--bg:#140c05;--panel:#271806;--panel-solid:#301f0c;--surface-map-overlay:rgba(12,7,2,.92);--accent:#ffe79a;--roads:#f5b661;--weak:#d19e58;--line:#8e5f24;--water:#2e1f0e;--building:#54391e;--shadow:#0a0602;--phosphor-rgb:255,196,100}
+*{box-sizing:border-box}html,body{margin:0;height:100%;width:100%;overflow:hidden;background:#020603;color:var(--accent);font:12px ui-monospace,Menlo,Consolas,monospace}button,input,select{font:inherit}button{cursor:pointer;touch-action:manipulation;appearance:none;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--accent);font-weight:700;letter-spacing:.07em;min-height:44px;padding:8px 12px}/* Hover is a desktop affordance; on iPhone it must never remain selected. */
+button,input[type=checkbox]{-webkit-tap-highlight-color:transparent}
+@media(hover:hover) and (pointer:fine){button:hover{border-color:var(--roads)}}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:not(.primary):active{background:var(--panel)}
+#controls button:active{background:var(--surface-map-overlay)}
+#app{position:relative;margin:auto;height:100dvh;max-width:520px;background:var(--bg);overflow:hidden;box-shadow:0 0 80px #000}#map,#maplibre,#fallback{position:absolute;inset:0}#maplibre{z-index:1}
+/* The screen layers PAINT BLACK at the top/bottom of the phone, reaching
+   full transparency after their pixel length. They never affect touch input. */
+#screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;z-index:3;
+ height:0;pointer-events:none;opacity:1}
+#screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
+#screenBottomFade{bottom:0;background:linear-gradient(to top,#000,transparent)}
+/* Geographic-edge fades are a transparent canvas projected onto the actual
+   Mercator poles, not fixed alpha masks on the map viewport. It renders over
+   the map and never receives touches; geographic pixels stay unmodified. */
+#map{background:#07170f}
+:root[data-theme=amber] #map{background:#160d05}
+#mapEdgeFade{position:absolute;inset:0;z-index:2;width:100%;height:100%;
+ pointer-events:none;display:block}
+.gradient-row{display:grid;grid-template-columns:minmax(112px,1.12fr) minmax(95px,1fr) 35px;
+ gap:6px;align-items:center;min-height:49px}
+.gradient-label{display:flex;align-items:center;gap:7px;min-width:0;min-height:44px;
+ font-size:10px;letter-spacing:.035em;white-space:nowrap;cursor:pointer}
+.gradient-label input{width:18px;height:18px;flex:none;accent-color:var(--accent)}
+.gradient-row output{text-align:right;font-size:10px;font-variant-numeric:tabular-nums;color:var(--accent)}
+.gradient-row .effect-slider{margin:0}
+#fallback{z-index:2;width:100%;height:100%;display:block;touch-action:none;cursor:grab}#fallback.dragging{cursor:grabbing}/* Compositing-inspired shared phosphor controls. CRT and vignette cover the whole app. */
+#mapgrid{position:absolute;inset:0;z-index:101;pointer-events:none;
+ background:repeating-linear-gradient(to bottom,
+   rgba(var(--phosphor-rgb),.15) 0px,rgba(var(--phosphor-rgb),.15) 1px,
+   transparent 1px,transparent 3px,rgba(0,0,0,.59) 3px,rgba(0,0,0,.59) 4px);
+ opacity:var(--scan-intensity,0)}
+/* A very faint traveling phosphor-refresh edge, above the whole interface.
+   It has a crisp front and a broad, softer tail behind it. */
+#phosphorSweep{position:absolute;left:0;right:0;top:-90px;height:90px;
+ z-index:100;pointer-events:none;will-change:transform;
+ background:linear-gradient(to bottom,
+ transparent 0%,rgba(var(--phosphor-rgb),.008) 15%,
+ rgba(var(--phosphor-rgb),.025) 55%,
+ rgba(var(--phosphor-rgb),.055) 83%,
+ rgba(var(--phosphor-rgb),.11) 97%,rgba(var(--phosphor-rgb),.17) 100%);
+ border-bottom:1px solid rgba(var(--phosphor-rgb),.23);
+ box-shadow:0 2px var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent);
+ opacity:var(--glow-level,.65);
+ animation:phosphorSweepDown 13s linear infinite}
+@keyframes phosphorSweepDown{
+ from{transform:translate3d(0,0,0)}
+ to{transform:translate3d(0,calc(100dvh + 90px),0)}
+}
+/* Instant, opacity-only click flare. Its light derives from button currentColor
+   and the shared glow slider, never a hard-coded bright theme-wide outline. */
+#app button.phosphor-reactive{position:relative}
+#app button .phosphor-hit-layer{
+ position:absolute;inset:-2px;border-radius:inherit;pointer-events:none;opacity:0;color:inherit;
+ border:1px solid color-mix(in srgb,currentColor var(--glow-strength),transparent);
+ background:radial-gradient(ellipse at center,
+  color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent),
+ inset 0 0 calc(var(--glow-radius) * .6) color-mix(in srgb,currentColor var(--glow-strength),transparent);
+}
+@media(prefers-reduced-motion:reduce){#phosphorSweep{display:none}}
+#mapfx{position:absolute;inset:0;z-index:102;pointer-events:none;
+ background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
+ rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%);
+ opacity:var(--vignette-intensity,0)}
+/* Single shared phosphor glow: every luminous UI part uses its own colour.
+   Dim borders/text emit dimmer light, bright glyphs emit brighter light. */
+#app :is(button,b,strong,small,output,label,.sheetText,.hint,#crosshair,#pinMarker,
+         #compass,#status,#consolePrefix,#statusMessage,#footnote,#toast,input,select){
+ text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+#app :is(.panel,button,#compass,#status,#toast,input:not([type=range]),select){
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--line) var(--glow-strength),transparent)}
+#app #crosshair{opacity:.85}
+#app .line{
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--line) var(--glow-strength),transparent)}
+#app input[type=checkbox]{
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
+.effect-row{margin:13px 0 16px}
+.effect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;letter-spacing:.04em}
+.effect-head output{font-variant-numeric:tabular-nums;font-size:11px;color:var(--accent);font-weight:bold}
+.effect-note{font-size:10px;color:var(--weak);margin:4px 0 2px;line-height:1.3}
+input[type=range].effect-slider{display:block;width:100%;height:44px;min-height:44px;
+ padding:0;margin:3px 0 0;border:0;border-radius:0;background:transparent;
+ -webkit-appearance:none;appearance:none;accent-color:var(--accent);touch-action:pan-x}
+input[type=range].effect-slider::-webkit-slider-runnable-track{
+ height:7px;border-radius:20px;background:linear-gradient(to right,var(--accent) 0%,var(--accent) var(--fill,50%),var(--line) var(--fill,50%),var(--line) 100%);
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
+input[type=range].effect-slider::-webkit-slider-thumb{
+ -webkit-appearance:none;appearance:none;height:24px;width:24px;margin-top:-8.5px;
+ background:var(--accent);border:3px solid var(--panel-solid);border-radius:50%;
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
+input[type=range].effect-slider::-moz-range-track{
+ height:7px;background:var(--line);border:0;border-radius:20px;
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--line) var(--glow-strength),transparent)}
+input[type=range].effect-slider::-moz-range-progress{
+ height:7px;background:var(--accent);border-radius:20px;
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
+input[type=range].effect-slider::-moz-range-thumb{
+ height:22px;width:22px;background:var(--accent);border:3px solid var(--panel-solid);border-radius:50%;
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--accent) var(--glow-strength),transparent)}
+/* Surface hierarchy: map -> dark translucent direct overlay -> tinted nested controls. */
+.panel{background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:10px;backdrop-filter:blur(13px)}.overlay{position:absolute;z-index:5}#head{top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;min-height:64px;display:flex;align-items:center;gap:9px;padding:9px 12px}#wordmark{flex:1;min-width:0}#wordmark small{display:block;color:var(--weak);letter-spacing:.14em;font-size:9px}#wordmark b{font-size:17px;letter-spacing:.13em;display:block;margin-top:3px}#theme{min-width:46px;padding:0;font-size:18px}/* Small read-only console output, not a command prompt yet. Each entry has
+   a source channel and a real runtime status; no simulated responses. */
+#status{top:calc(env(safe-area-inset-top,0px) + 83px);left:10px;right:10px;
+ color:var(--accent);font-size:9px;letter-spacing:.045em;
+ background:var(--surface-map-overlay);border:1px solid var(--line);
+ padding:8px 9px;border-radius:6px;display:flex;gap:7px;
+ align-items:baseline;line-height:1.35}
+#consolePrefix{font-weight:800;flex:none;color:var(--accent);white-space:nowrap}
+#statusMessage{flex:1;min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#status[data-type=warning] #statusMessage{color:#ffd18b}#controls{right:10px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));display:flex;flex-direction:column;gap:8px}#controls button{width:47px;height:47px;padding:0;font-size:21px;background:var(--surface-map-overlay)}#compass{left:15px;top:var(--map-tools-top,calc(env(safe-area-inset-top,0px) + 146px));
+ width:58px;height:58px;min-width:58px;min-height:58px;padding:0;border-radius:50%;
+ border:1px solid var(--line);background:var(--surface-map-overlay);color:var(--accent);
+ display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+#compassNeedle{display:flex;align-items:center;justify-content:center;flex-direction:column;
+ gap:0;width:100%;height:100%;transform:rotate(0deg);transition:transform 55ms linear;
+ pointer-events:none;will-change:transform}
+#compassNeedle .compass-n{font-size:9px;line-height:13px;letter-spacing:.07em}
+#compassNeedle .compass-pointer{font-size:26px;line-height:30px}#crosshair{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);pointer-events:none;color:var(--accent);font-size:29px;opacity:.6}#pinMarker{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-95%);pointer-events:none;font-size:28px;color:var(--accent);display:none}
+#pinTray{position:absolute;z-index:6;bottom:var(--pin-tray-bottom,200px);
+ left:10px;right:10px;display:none;flex-direction:column;gap:8px;
+ padding:11px;background:var(--surface-map-overlay);border:1px solid var(--line);
+ border-radius:10px;backdrop-filter:blur(12px)}
+#pinTray.open{display:flex}
+#pinTrayTitle{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#pinTrayTitle b{font-size:11px}
+#pinCoordinates{font-size:9px;color:var(--weak);font-variant-numeric:tabular-nums;text-align:right}
+#pinActions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#pinActions button{font-size:10px;padding:7px 3px;white-space:nowrap}
+.saved-row{display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:stretch}
+.saved-row button:first-child{text-align:left;display:flex;flex-direction:column;align-items:stretch;gap:3px}
+.saved-row button small{font-size:9px;color:var(--weak);font-weight:400}
+.saved-row button:last-child{font-size:12px;padding:0}
+@media (orientation:landscape) and (max-height:550px){#pinTray{left:270px;right:10px;bottom:12px}}
+#footer{bottom:calc(env(safe-area-inset-bottom,0px) + 10px);left:10px;right:10px;padding:11px}#readout{display:grid;grid-template-columns:1fr 1fr 65px;gap:10px}#readout small{display:block;font-size:9px;color:var(--weak);letter-spacing:.13em}#readout b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:5px}#nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:11px}#nav button{font-size:10px;padding:7px 3px;white-space:nowrap}#footnote{border-top:1px solid var(--line);margin-top:10px;padding-top:9px;color:var(--weak);font-size:9px;display:flex;justify-content:space-between;gap:8px}
+#mapAttribution{font-size:8px;text-align:right;margin-top:3px}
+#mapAttribution a{color:var(--weak);text-decoration:none}
+#toast{position:absolute;z-index:8;left:10px;right:10px;bottom:207px;text-align:center;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:7px;padding:10px;color:var(--accent);font-size:11px;display:none}#toast.show{display:block}#sheetShade{position:absolute;z-index:10;inset:0;background:rgba(0,0,0,.64);display:none;align-items:flex-end;padding:10px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}#sheetShade.open{display:flex}#sheet{width:100%;max-height:76vh;overflow:auto;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:12px;padding:15px;box-shadow:0 -7px 35px #0008}#sheethead{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px}#sheetTitle{font-weight:800;letter-spacing:.1em;font-size:14px}#sheetClose{font-size:19px;min-width:43px;min-height:43px;padding:0}.sheetText{color:var(--weak);font-size:11px;line-height:1.6}.line{height:1px;background:var(--line);margin:12px 0}.field{display:block;margin:10px 0 4px;color:var(--weak);font-size:10px;letter-spacing:.1em}input,select{width:100%;background:var(--panel);color:var(--accent);border:1px solid var(--line);padding:12px;border-radius:7px;min-height:44px}.list{display:grid;gap:6px;margin-top:10px}.list button{text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.list button small{font-size:9px;color:var(--weak);font-weight:400}.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);width:100%;margin-top:12px}.setting{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.setting b{font-size:11px}.setting button{min-width:85px}.warning{color:#ffd18b}.hint{font-size:10px;color:var(--weak)}
+@media (orientation:landscape) and (max-height:550px){#app{max-width:100%}#head{top:7px;left:8px;right:auto;width:245px;padding:6px 10px;min-height:50px}#wordmark b{font-size:13px}#wordmark small{font-size:8px}#status{top:62px;left:8px;right:auto;width:245px;font-size:8px}#footer{left:8px;right:auto;width:245px;bottom:7px;padding:8px}#controls{right:7px;top:7px;gap:6px;flex-direction:row}#controls button{width:43px;height:43px}#compass{left:auto;right:213px;top:7px;
+ width:45px;height:45px;min-width:45px;min-height:45px}
+#compassNeedle .compass-pointer{font-size:21px;line-height:24px}
+#compassNeedle .compass-n{font-size:8px;line-height:11px}
+#nav{grid-template-columns:repeat(2,1fr);margin-top:7px}#nav button{min-height:35px}#readout{gap:5px}#footnote{margin-top:5px;padding-top:5px;font-size:8px}#toast{left:270px;right:10px;bottom:12px}#sheetShade{align-items:center;justify-content:flex-end}#sheet{width:min(410px,65vw);max-height:94vh}}
+@media (min-width:600px){#app{outline:1px solid #224d32}}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Screen fades are black overlays; map fades are alpha masks. -->
+  <div id="map"><div id="maplibre" aria-label="MapLibre interactive map"></div><canvas id="fallback" aria-label="Interactive illustrative map fallback"></canvas><canvas id="mapEdgeFade" aria-hidden="true"></canvas><div id="screenTopFade" aria-hidden="true"></div><div id="screenBottomFade" aria-hidden="true"></div></div>
+  <div id="crosshair">＋</div><div id="pinMarker">⬟</div>
+  <header class="overlay panel" id="head"><div id="wordmark"><small>FIELD ATLAS / NEWFOUNDLAND</small><b>NAVIGATION SYSTEM</b></div><button id="theme" title="Switch phosphor colour" aria-label="Switch phosphor colour"><span id="themeGlyph" aria-hidden="true">◐</span></button></header>
+  <div id="status" class="overlay" data-type="warning" role="status" aria-live="polite" aria-atomic="true"><span id="consolePrefix">CONSOLE:</span><span id="statusMessage">&gt; [SYS] INITIALIZING MAP</span></div>
+  <button class="overlay" id="compass" type="button" aria-label="Reset map rotation to north" title="Reset map rotation to north"><span id="compassNeedle" aria-hidden="true"><span class="compass-n">N</span><span class="compass-pointer">▲</span></span></button>
+  <div class="overlay" id="controls"><button id="plus" aria-label="Zoom in">+</button><button id="minus" aria-label="Zoom out">−</button><button id="gps" title="Use phone GPS" aria-label="My location">◎</button><button id="home" title="Return to Carbonear" aria-label="Home">⌂</button></div>
+  <div id="pinTray" role="region" aria-label="Place map pin">
+   <div id="pinTrayTitle"><b>⌖ PLACE PIN / MAP CENTRE</b><span id="pinCoordinates">—</span></div>
+   <div id="pinActions"><button id="pinSave">SAVE PIN</button><button id="pinSaved">SAVED (0)</button><button id="pinCancel">CANCEL</button></div>
+  </div>
+  <div class="overlay panel" id="footer">
+    <div id="readout"><div><small>LATITUDE</small><b id="latitude">—</b></div><div><small>LONGITUDE</small><b id="longitude">—</b></div><div><small>ZOOM</small><b id="zoomvalue">14.2</b></div></div>
+    <div id="nav"><button id="searchBtn">⌕ SEARCH</button><button id="routeBtn">↗ ROUTE</button><button id="pinBtn">⌖ PIN</button><button id="menuBtn">☷ MENU</button></div>
+    <div id="footnote"><span id="modeText">BROWSER PREVIEW</span><span id="gpsText">GPS ● OFF</span></div>
+    <div id="mapAttribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></div>
+  </div>
+  <div id="toast" aria-live="polite"></div>
+  <div id="sheetShade"><div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div id="sheethead"><div id="sheetTitle"></div><button id="sheetClose" aria-label="Close">×</button></div><div id="sheetContent"></div></div></div>
+  <!-- Full-app noninteractive display overlays, above every control and dialog. -->
+  <div id="phosphorSweep" aria-hidden="true"></div><div id="mapgrid" aria-hidden="true"></div><div id="mapfx" aria-hidden="true"></div>
+</div>
+<script src="./osm-phosphor-protocol.js"></script>
+<script>
+'use strict';
+// Release identifier displayed continuously in the compact console header.
+const APP_VERSION='0.31';
+const PLACES=[
+  {name:'Carbonear',region:'Conception Bay North',lng:-53.2270,lat:47.7350,zoom:14.2},
+  {name:'Harbour Grace',region:'Conception Bay North',lng:-53.2110,lat:47.6925,zoom:13.8},
+  {name:'Bay Roberts',region:'Conception Bay North',lng:-53.2620,lat:47.5980,zoom:13.8},
+  {name:"Spaniard’s Bay",region:'Conception Bay North',lng:-53.2820,lat:47.6180,zoom:13.5},
+  {name:'Heart’s Content',region:'Trinity Bay',lng:-53.3680,lat:47.8670,zoom:13.8},
+  {name:'St. John’s',region:'Avalon Peninsula',lng:-52.7130,lat:47.5620,zoom:12.8},
+];
+// Small local shortcuts remain available if the full community index fails
+// to load. They are not the source of truth for the community directory.
+let officialPlaces=[];
+let placesIndexState='loading';
+const $=id=>document.getElementById(id);
+$('consolePrefix').textContent='CONSOLE v'+APP_VERSION+':';
+const state={theme:'green',mapRenderer:'vector',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,gradients:{
+ screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
+ mapTop:{enabled:true,length:110},mapBottom:{enabled:false,length:100}
+},effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
+try{
+ state.saved=JSON.parse(localStorage.getItem('fieldAtlasPinsV02')||'[]');
+ if(!Array.isArray(state.saved))state.saved=[];
+ state.saved=state.saved.filter(p=>p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&
+  Math.abs(p.lat)<=85.051129&&Math.abs(p.lng)<=180)
+  .map((p,i)=>({name:typeof p.name==='string'&&p.name.trim()?p.name.slice(0,70):'PIN '+(i+1),
+   lat:p.lat,lng:p.lng}));
+}catch(e){state.saved=[];}
+try{
+ const saved=JSON.parse(localStorage.getItem('fieldAtlasEffectsV06')||'null');
+ const previous=JSON.parse(localStorage.getItem('fieldAtlasEffectsV05')||'null');
+ if(saved && typeof saved==='object'){
+   for(const k of Object.keys(state.effects))
+     if(Number.isFinite(saved[k]))state.effects[k]=Math.round(Math.max(0,Math.min(100,saved[k])));
+ }else if(previous && typeof previous==='object'){
+   if(Number.isFinite(previous.panel)&&Number.isFinite(previous.road))
+     state.effects.glow=Math.round((previous.panel+previous.road)/2);
+   for(const k of ['scanlines','vignette'])
+     if(Number.isFinite(previous[k]))state.effects[k]=Math.round(Math.max(0,Math.min(100,previous[k])));
+ }
+}catch(e){}
+try{const t=localStorage.getItem('fieldAtlasThemeV06');if(t==='green'||t==='amber')state.theme=t;}catch(e){}
+try{
+ const r=localStorage.getItem('fieldAtlasRendererV031');
+ if(['vector','osm-standard','osm-phosphor'].includes(r))state.mapRenderer=r;
+}catch(e){}
+document.documentElement.dataset.theme=state.theme;
+// Sun denotes the selected green/day phosphor; crescent denotes amber/night.
+// The icon reflects the CURRENT theme, not an automatic time-of-day setting.
+function syncThemeButton(){
+ const button=$('theme');
+ $('themeGlyph').textContent='◐';
+ button.title='Switch phosphor colour (GREEN / AMBER)';
+ button.setAttribute('aria-label','Switch phosphor colour');
+}
+syncThemeButton();
+try{const saved=localStorage.getItem('fieldAtlasWaterGridV09');if(saved!==null)state.showWaterGrid=saved==='true'}catch(e){}
+function isReal(){return !!(state.real&&state.map)}
+const MAP_RENDERERS=['vector','osm-standard','osm-phosphor'];
+const MAP_RENDERER_NAMES={vector:'CURRENT VECTOR','osm-standard':'OSM STANDARD','osm-phosphor':'OSM PHOSPHOR'};
+function selectMapRenderer(mode){
+ if(!MAP_RENDERERS.includes(mode))return;
+ if(mode==='osm-phosphor'&&!window.FieldAtlasPhosphor){toast('Phosphor tile processor unavailable.');return;}
+ state.mapRenderer=mode;
+ try{localStorage.setItem('fieldAtlasRendererV031',mode)}catch(e){}
+ if(isReal()){
+  state.map.setStyle(makeStyle());
+  status(MAP_RENDERER_NAMES[mode]+' / ONLINE',false,'MAP');
+  updateReadout();
+ }
+ toast('MAP RENDERER / '+MAP_RENDERER_NAMES[mode]);
+}
+const EFFECT_OPTIONS=[
+ {key:'glow',name:'PHOSPHOR GLOW',note:'Same bloom spread for all elements, derived from their colour.'},
+ {key:'scanlines',name:'CRT SCANLINES',note:'Covers map, menus and controls.'},
+ {key:'vignette',name:'EDGE VIGNETTE',note:'At 100%, the screen edges become nearly black.'}
+];
+function effectMarkup(){
+ return EFFECT_OPTIONS.map(f=>{const n=state.effects[f.key];return `
+ <div class="effect-row"><div class="effect-head"><label for="fx-${f.key}">${f.name}</label><output id="value-${f.key}">${n}%</output></div>
+ <p class="effect-note">${f.note}</p>
+ <input class="effect-slider" id="fx-${f.key}" type="range" min="0" max="100" step="1" value="${n}" style="--fill:${n}%" aria-label="${f.name}"></div>`;}).join('');
+}
+// Preserve the dark contrast halo while adding text-colour-derived phosphor light.
+function blendHex(from,to,fraction){
+ const t=Math.max(0,Math.min(1,fraction));
+ const a=from.match(/[0-9a-f]{2}/gi),b=to.match(/[0-9a-f]{2}/gi);
+ if(!a||!b||a.length!==3||b.length!==3)return to;
+ return '#'+a.map((v,i)=>Math.round(parseInt(v,16)*(1-t)+parseInt(b[i],16)*t).toString(16).padStart(2,'0')).join('');
+}
+function textHaloPaint(background,ink,level,baseWidth){
+ return {color:blendHex(background,ink,level*.45),
+  blur:+(.25+level*1.2).toFixed(2),
+  width:+(baseWidth+level*.55).toFixed(2)};
+}
+// Reuse immutable layer identities instead of building arrays every time
+// the glow slider changes. The MapLibre paint calls and order are unchanged.
+const MAP_GLOW_LAYERS=['path-glow','local-glow','tertiary-glow','secondary-glow',
+ 'major-glow','stream-glow','route-glow'];
+const MAP_LABEL_HALOS=[['street-labels',1.05],['places',1.75]];
+function applyEffects(){
+ const e=state.effects,k=e.glow/100,root=$('app');
+ root.style.setProperty('--scan-intensity',String(e.scanlines/100));
+ root.style.setProperty('--vignette-intensity',String(e.vignette/100));
+ root.style.setProperty('--glow-level',k.toFixed(3));
+ root.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
+ root.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
+ if(isReal()){
+  if(state.map.getLayer('saved-pin-glow'))
+   state.map.setPaintProperty('saved-pin-glow','circle-opacity',+(k*.3).toFixed(3));
+  for(const id of MAP_GLOW_LAYERS){
+   if(state.map.getLayer(id)){
+    const factor=id==='stream-glow'?.5:id==='route-glow'?.95:1;
+    state.map.setPaintProperty(id,'line-opacity',+(k*.92*factor).toFixed(3));
+    state.map.setPaintProperty(id,'line-blur',+(k*7.5).toFixed(2));
+   }
+  }
+  if(state.map.getLayer('background')){
+   const background=state.map.getPaintProperty('background','background-color');
+   for(const [id,baseWidth] of MAP_LABEL_HALOS){
+    if(!state.map.getLayer(id))continue;
+    const ink=state.map.getPaintProperty(id,'text-color');
+    if(typeof background!=='string'||typeof ink!=='string')continue;
+    const halo=textHaloPaint(background,ink,k,baseWidth);
+    state.map.setPaintProperty(id,'text-halo-color',halo.color);
+    state.map.setPaintProperty(id,'text-halo-blur',halo.blur);
+    state.map.setPaintProperty(id,'text-halo-width',halo.width);
+   }
+  }
+ }else if(typeof canvas!=='undefined')drawFallback();
+}
+// Pin the two floating tool groups beneath the real status panel, including
+// when warnings wrap across multiple lines on narrow phones.
+function positionMapTools(){
+ const status=$('status'),app=$('app');
+ if(!status||!app)return;
+ const top=Math.max(128,Math.ceil(status.getBoundingClientRect().bottom-app.getBoundingClientRect().top+14));
+ app.style.setProperty('--map-tools-top',top+'px');
+ const footer=$('footer');
+ if(footer){
+  const footerTop=footer.getBoundingClientRect().top-app.getBoundingClientRect().top;
+  app.style.setProperty('--pin-tray-bottom',Math.max(12,Math.ceil(app.clientHeight-footerTop+10))+'px');
+ }
+ // Gradient extent is controlled solely by the four length sliders.
+}
+// A bounded in-memory event log is the foundation for a future functional
+// console. Today only the most recent genuine event is visible in the HUD.
+const consoleHistory=[];
+function status(message,warning=false,channel='SYS'){
+ const entry={
+  channel:String(channel).trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||'SYS',
+  message:String(message).trim().toUpperCase(),
+  level:warning?'WARN':'OK',
+  timestamp:Date.now()
+ };
+ consoleHistory.push(entry);
+ if(consoleHistory.length>50)consoleHistory.shift();
+ $('statusMessage').textContent='> ['+entry.channel+'] '+entry.message;
+ $('status').dataset.type=warning?'warning':'ok';
+ $('modeText').textContent=state.real
+  ? MAP_RENDERER_NAMES[state.mapRenderer]+' / ONLINE'
+  : 'INTERACTIVE DEMO / NOT GEOGRAPHIC';
+ positionMapTools();
+ return entry;
+}
+let toastTimer;function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2800)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(v,axis){return (Math.abs(v).toFixed(4)+'°'+((axis==='lat')?(v>=0?'N':'S'):(v<0?'W':'E')))}
+// Visual compositor reads real zoom and real pitch; it NEVER modifies camera.
+const GRADIENTS=[
+ {key:'screenTop',label:'SCREEN TOP'},
+ {key:'screenBottom',label:'SCREEN BOTTOM'},
+ {key:'mapTop',label:'MAP TOP'},
+ {key:'mapBottom',label:'MAP BOTTOM'}
+];
+function gradientMarkup(){
+ return GRADIENTS.map(item=>{
+  const g=state.gradients[item.key],k=item.key,progress=Math.round(g.length/420*100);
+  return `<div class="gradient-row">
+   <label class="gradient-label" for="gradient-on-${k}">
+    <input id="gradient-on-${k}" type="checkbox" ${g.enabled?'checked':''}>
+    <span>${item.label}</span>
+   </label>
+   <input id="gradient-length-${k}" class="effect-slider" type="range"
+     min="0" max="420" step="5" value="${g.length}" style="--fill:${progress}%"
+     aria-label="${item.label} fade length">
+   <output id="gradient-value-${k}" for="gradient-length-${k}">${g.length}px</output>
+  </div>`;
+ }).join('');
+}
+function saveGradients(){
+ try{localStorage.setItem('fieldAtlasGradientsV20',JSON.stringify(state.gradients))}catch(e){}
+}
+// Mercator geometry ends at these latitude limits. The camera projection is
+// the only authority for the edges, including when a user rotates the map.
+// This draws colour overlays over the map; there are NO CSS alpha masks.
+const MERCATOR_LIMIT=85.05112878;
+function mapEdgeGeometry(map,north){
+ const latitude=north?MERCATOR_LIMIT:-MERCATOR_LIMIT;
+ const inward=north?MERCATOR_LIMIT-.025:-MERCATOR_LIMIT+.025;
+ const lng=map.getCenter().lng;
+ const midpoint=map.project([lng,latitude]);
+ const west=map.project([lng-1,latitude]),east=map.project([lng+1,latitude]);
+ const interior=map.project([lng,inward]);
+ const coords=[midpoint,west,east,interior];
+ if(!coords.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&Math.abs(p.x)<1e8&&Math.abs(p.y)<1e8))return null;
+ const dx=east.x-west.x,dy=east.y-west.y,len=Math.hypot(dx,dy);
+ if(len<.0001)return null;
+ let nx=-dy/len,ny=dx/len;
+ if((interior.x-midpoint.x)*nx+(interior.y-midpoint.y)*ny<0){nx=-nx;ny=-ny;}
+ return {x:midpoint.x,y:midpoint.y,nx,ny};
+}
+function viewportNormalDistances(edge,width,height){
+ const at=(x,y)=>(x-edge.x)*edge.nx+(y-edge.y)*edge.ny;
+ const values=[at(0,0),at(width,0),at(0,height),at(width,height)];
+ return {min:Math.min(...values),max:Math.max(...values)};
+}
+// Pure calculation: the boundary has no visibility threshold or angular
+// cut-over. If a fade is entirely outside the viewport, no pixels change;
+// it becomes visible continuously as the geographic edge moves inward.
+function edgeGradientSpec(map,north,length,width,height){
+ if(!map||length<=0)return null;
+ // At our regional minimum zoom the opposite pole cannot possibly be visible.
+ // Projecting coordinates behind the camera can still return finite values,
+ // which previously made the SOUTH overlay incorrectly fill northern views.
+ const latitude=map.getCenter().lat;
+ if((north&&latitude<60)||(!north&&latitude> -60))return null;
+ const edge=mapEdgeGeometry(map,north);
+ if(!edge)return null;
+ const distances=viewportNormalDistances(edge,width,height);
+ // Never paint the whole display because of an offscreen projected edge.
+ // Only draw when the physical boundary or its feather intersects the view.
+ if(distances.min>=length||distances.max<=0)return null;
+ return {edge,length};
+}
+const mapEdgeCanvas=$('mapEdgeFade'),mapEdgeCtx=mapEdgeCanvas.getContext('2d');
+let edgeCanvasWidth=0,edgeCanvasHeight=0;
+function mapBackdropColor(){
+ return state.theme==='amber'?'#160d05':'#07170f';
+}
+function paintGeoEdge(ctx,spec,width,height,color){
+ if(!spec)return;
+ const {edge,length}=spec;
+ const gradient=ctx.createLinearGradient(edge.x,edge.y,edge.x+edge.nx*length,edge.y+edge.ny*length);
+ const rgb=color.match(/[0-9a-f]{2}/gi).map(x=>parseInt(x,16));
+ gradient.addColorStop(0,'rgba('+rgb.join(',')+',1)');
+ gradient.addColorStop(1,'rgba('+rgb.join(',')+',0)');
+ ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);
+}
+// These DOM nodes are permanent. Cache them and the fade-length helper
+// instead of querying DOM/allocating a closure during every map move event.
+const screenTopFadeEl=$('screenTopFade'),screenBottomFadeEl=$('screenBottomFade');
+function gradientPixels(key){
+ const g=state.gradients[key];
+ return g.enabled?Math.max(0,Math.min(420,g.length)):0;
+}
+let edgeCanvasHasContent=false;
+function updateViewEffects(){
+ const topHeight=gradientPixels('screenTop')+'px';
+ const bottomHeight=gradientPixels('screenBottom')+'px';
+ if(screenTopFadeEl.style.height!==topHeight)screenTopFadeEl.style.height=topHeight;
+ if(screenBottomFadeEl.style.height!==bottomHeight)screenBottomFadeEl.style.height=bottomHeight;
+ const map=state.real?state.map:null;
+ const top=gradientPixels('mapTop'),bottom=gradientPixels('mapBottom');
+ // Away from both poles the geographic overlay is provably transparent:
+ // edgeGradientSpec() gates north at 60N and south at 60S. When already
+ // clear, skip canvas sizing, layout reads and pixel clearing on every pan.
+ const lat=map?map.getCenter().lat:0;
+ const mayShowEdge=!!map&&((top>0&&lat>=60)||(bottom>0&&lat<=-60));
+ if(!mayShowEdge&&!edgeCanvasHasContent)return;
+ const rect=mapEdgeCanvas.getBoundingClientRect(),width=Math.round(rect.width),height=Math.round(rect.height);
+ if(width<=0||height<=0||!mapEdgeCtx)return;
+ if(edgeCanvasWidth!==width||edgeCanvasHeight!==height){
+  mapEdgeCanvas.width=width;mapEdgeCanvas.height=height;
+  edgeCanvasWidth=width;edgeCanvasHeight=height;
+ }
+ mapEdgeCtx.clearRect(0,0,width,height);
+ edgeCanvasHasContent=false;
+ if(!mayShowEdge)return;
+ const north=edgeGradientSpec(map,true,top,width,height);
+ const south=edgeGradientSpec(map,false,bottom,width,height);
+ if(!north&&!south)return;
+ const color=mapBackdropColor();
+ paintGeoEdge(mapEdgeCtx,north,width,height,color);
+ paintGeoEdge(mapEdgeCtx,south,width,height,color);
+ edgeCanvasHasContent=true;
+}
+let compassRotation=0;
+// Follow the bearing continuously without any setPitch/jumpTo camera calls.
+// Wrap at +/-180 using the shortest angular step to avoid full spins.
+function setCompassBearing(bearing){
+ const target=-bearing;
+ const delta=((target-compassRotation+540)%360)-180;
+ compassRotation+=delta;
+ $('compassNeedle').style.transform='rotate('+compassRotation.toFixed(2)+'deg)';
+}
+function resetCompass(){
+ if(isReal())state.map.rotateTo(0,{duration:450,essential:true});
+ else toast('Compass available with live map data');
+}
+function updateReadout(){
+ if(isReal()){
+  const c=state.map.getCenter();
+  $('latitude').textContent=fmt(c.lat,'lat');
+  $('longitude').textContent=fmt(c.lng,'lng');
+  $('zoomvalue').textContent=state.map.getZoom().toFixed(1);
+  setCompassBearing(state.map.getBearing());
+  if(state.pin)updatePinPlacement();
+  updateViewEffects();
+ }else{
+  $('latitude').textContent='DEMO';
+  $('longitude').textContent='DEMO';
+  $('zoomvalue').textContent=state.zoom.toFixed(1);
+  setCompassBearing(0);
+ }
+}
+function theme(){state.theme=state.theme==='green'?'amber':'green';document.documentElement.dataset.theme=state.theme;syncThemeButton();try{localStorage.setItem('fieldAtlasThemeV06',state.theme)}catch(e){}if(isReal())state.map.setStyle(makeStyle());updateViewEffects();drawFallback();toast(state.theme==='green'?'GREEN PHOSPHOR':'AMBER PHOSPHOR')}
+$('theme').addEventListener('click',theme);$('compass').addEventListener('click',resetCompass);$('plus').addEventListener('click',()=>zoomBy(1));$('minus').addEventListener('click',()=>zoomBy(-1));$('gps').addEventListener('click',getGPS);$('home').addEventListener('click',()=>viewPlace(PLACES[0]));
+// Direct-action controls get a real phosphor-style instant flare and linear
+// decay. Keep the overlay and its shadows STATIC; only animate its opacity.
+// WAAPI restarts with cancel(), never a forced synchronous layout read.
+function installPhosphorFeedback(button){
+ button.classList.add('phosphor-reactive');
+ const layer=document.createElement('span');
+ layer.className='phosphor-hit-layer';
+ layer.setAttribute('aria-hidden','true');
+ button.appendChild(layer);
+ let activeAnimation=null;
+ button.addEventListener('click',()=>{
+  if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+  if(activeAnimation)activeAnimation.cancel();
+  if(typeof layer.animate==='function'){
+   activeAnimation=layer.animate([{opacity:0.95},{opacity:0}],{
+    duration:1050,easing:'linear',iterations:1
+   });
+  }else{
+   // Basic browser fallback: the same fixed layer fades through opacity only.
+   layer.style.transition='none';
+   layer.style.opacity='0.95';
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    layer.style.transition='opacity 1050ms linear';
+    layer.style.opacity='0';
+   }));
+  }
+ });
+}
+for(const id of ['theme','compass','plus','minus','gps','home'])
+ installPhosphorFeedback($(id));
+// A tapped command or toggle is not a selected mode. Blur pointer activations
+// after their handlers have run; keyboard/screen-reader clicks retain focus.
+document.addEventListener('click',event=>{
+ if(event.detail===0)return;
+ const target=event.target.closest?.('button,input[type="checkbox"]');
+ if(target&&document.activeElement===target)target.blur();
+});
+$('searchBtn').addEventListener('click',openSearch);$('routeBtn').addEventListener('click',openRoute);$('pinBtn').addEventListener('click',togglePin);$('menuBtn').addEventListener('click',openMenu);$('sheetClose').addEventListener('click',closeSheet);$('sheetShade').addEventListener('click',e=>{if(e.target===$('sheetShade'))closeSheet()});window.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+// Regional flat-Mercator map: manual pitch remains independent of zoom.
+const MAP_MIN_ZOOM=7.5;
+try{
+ const current=JSON.parse(localStorage.getItem('fieldAtlasGradientsV20')||'null');
+ const previous=current?null:JSON.parse(localStorage.getItem('fieldAtlasGradientsV19')||'null');
+ const saved=current||previous;
+ if(saved&&typeof saved==='object'){
+  for(const key of ['screenTop','screenBottom','mapTop','mapBottom']){
+   if(!saved[key]||typeof saved[key]!=='object')continue;
+   if(typeof saved[key].enabled==='boolean')state.gradients[key].enabled=saved[key].enabled;
+   if(Number.isFinite(saved[key].length)){
+    // Previous revision saved % of viewport; new sliders use CSS pixels.
+    const raw=current?saved[key].length:saved[key].length/100*window.innerHeight;
+    state.gradients[key].length=Math.max(0,Math.min(420,Math.round(raw/5)*5));
+   }
+  }
+ }else if(localStorage.getItem('fieldAtlasHorizonFadeV17')==='false'){
+  state.gradients.screenTop.enabled=false;
+ }
+}catch(e){}
+function zoomBy(step){if(isReal()){const z=Math.min(19,Math.max(MAP_MIN_ZOOM,state.map.getZoom()+step));state.map.easeTo({zoom:z,duration:450,essential:true});}else{state.zoom=Math.min(18.5,Math.max(10,state.zoom+step));drawFallback();updateReadout()}}
+function viewPlace(p){
+ state.center=p;cancelPinPlacement();state.route=null;
+ // OSM entries use the map's own place-node anchor. Official-only fallback
+ // records use their original georeferenced point, not a guessed viewpoint.
+ if(isReal()){
+  // Preserve zoom, bearing and tilt; do not trigger flyTo zoom-out.
+  state.map.easeTo({center:[p.lng,p.lat],duration:650,essential:true});
+ }else{
+  state.panX=0;state.panY=0;state.zoom=p.zoom||state.zoom;
+  drawFallback();
+  toast('Illustrative map only — live map required to view '+p.name);
+ }
+ updateReadout();closeSheet();
+}
+function getGPS(){if(!navigator.geolocation){toast('GPS is unavailable in this browser.');return}toast('Requesting location permission…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude,longitude,accuracy}=pos.coords;state.gpsLocation={latitude,longitude};$('gpsText').textContent='GPS ● '+Math.round(accuracy)+'m';if(isReal())state.map.flyTo({center:[longitude,latitude],zoom:15});else toast('GPS coordinates acquired; demo map cannot position them geographically.');},e=>toast('GPS unavailable: '+e.message),{enableHighAccuracy:true,timeout:15000,maximumAge:30000})}
+// Geographic bookmarks: placing a pin never requests GPS.
+function pinFeatures(){
+ return {type:'FeatureCollection',features:state.saved.map((p,i)=>({
+  type:'Feature',properties:{pinIndex:i,name:p.name},
+  geometry:{type:'Point',coordinates:[p.lng,p.lat]}
+ }))};
+}
+function setSavedPinsGeoJSON(){
+ if(!isReal()||!state.map.isStyleLoaded())return;
+ const source=state.map.getSource('saved-pins');
+ if(source)source.setData(pinFeatures());
+}
+function persistSavedPins(){
+ try{localStorage.setItem('fieldAtlasPinsV02',JSON.stringify(state.saved))}catch(e){}
+ setSavedPinsGeoJSON();updatePinPlacement();
+}
+function updatePinPlacement(){
+ $('pinSaved').textContent='SAVED ('+state.saved.length+')';
+ $('pinSave').disabled=!isReal();
+ if(isReal()&&state.pin){
+  const c=state.map.getCenter();
+  $('pinCoordinates').textContent=fmt(c.lat,'lat')+' / '+fmt(c.lng,'lng');
+ }else $('pinCoordinates').textContent='—';
+}
+function cancelPinPlacement(){
+ state.pin=false;state.pinAt=null;
+ $('pinMarker').style.display='none';
+ $('pinTray').classList.remove('open');
+}
+function togglePin(){
+ if(state.pin){cancelPinPlacement();return}
+ state.pin=true;$('pinMarker').style.display='block';
+ $('pinTray').classList.add('open');updatePinPlacement();
+ if(!isReal())toast('Geographic pins require live map data.');
+}
+function savePin(){
+ if(!state.pin||!isReal())return;
+ const c=state.map.getCenter();
+ let n=state.saved.length+1;
+ while(state.saved.some(p=>p.name==='PIN '+String(n).padStart(2,'0')))n++;
+ const item={name:'PIN '+String(n).padStart(2,'0'),lat:c.lat,lng:c.lng};
+ state.saved.push(item);persistSavedPins();cancelPinPlacement();
+ toast(item.name+' SAVED / ON MAP');
+}
+function openPinDetail(index){
+ const p=state.saved[index];
+ if(!p)return openSaved();
+ openSheet('SAVED PIN / '+p.name,`<p class="sheetText">A geographic bookmark. GPS is not required.</p>
+ <label class="field" for="savedPinName">PIN NAME</label>
+ <input id="savedPinName" maxlength="70" value="${esc(p.name)}">
+ <p class="sheetText">${fmt(p.lat,'lat')} / ${fmt(p.lng,'lng')}</p>
+ <button id="showSavedPin" class="primary">VIEW ON MAP</button>
+ <button id="renameSavedPin" style="width:100%;margin-top:7px">SAVE NAME</button>
+ <button id="deleteSavedPin" style="width:100%;margin-top:7px">DELETE PIN</button>
+ <button id="backToPins" style="width:100%;margin-top:7px">← SAVED PINS</button>`);
+ $('showSavedPin').onclick=()=>{
+  closeSheet();
+  if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:Math.max(14,state.map.getZoom()),speed:1.4});
+  else toast('Live geographic map unavailable.');
+ };
+ $('renameSavedPin').onclick=()=>{
+  const name=$('savedPinName').value.trim().slice(0,70);
+  if(!name){toast('ENTER A PIN NAME');return}
+  p.name=name;persistSavedPins();openPinDetail(index);
+ };
+ let pendingDelete=false;
+ $('deleteSavedPin').onclick=()=>{
+  if(!pendingDelete){
+   pendingDelete=true;$('deleteSavedPin').textContent='CONFIRM DELETE PIN';return;
+  }
+  state.saved.splice(index,1);persistSavedPins();openSaved();
+ };
+ $('backToPins').onclick=openSaved;
+}
+$('pinSave').addEventListener('click',savePin);
+$('pinSaved').addEventListener('click',()=>{cancelPinPlacement();openSaved()});
+$('pinCancel').addEventListener('click',cancelPinPlacement);
+function openSheet(title,html){if(state.pin)cancelPinPlacement();$('sheetTitle').textContent=title;$('sheetContent').innerHTML=html;$('sheetShade').classList.add('open')}
+function closeSheet(){$('sheetShade').classList.remove('open')}
+// Normalize accents, punctuation and spacing so "Goose Bay" or "Spaniards
+// Bay" can be found even if the government uses another apostrophe or dash.
+function searchKey(value){
+ return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
+  .toLocaleLowerCase('en-CA').replace(/[^a-z0-9]/g,'');
+}
+function placeSearchMatches(query,all=officialPlaces.length?officialPlaces:PLACES){
+ const key=searchKey(query);
+ if(!key)return PLACES;
+ return all.filter(p=>searchKey(p.name+' '+(p.region||'')).includes(key))
+  .sort((a,b)=>{
+   const ak=searchKey(a.name),bk=searchKey(b.name);
+   const score=n=>n===key?0:n.startsWith(key)?1:2;
+   return score(ak)-score(bk)||(b.mapAnchor?1:0)-(a.mapAnchor?1:0)
+      ||(a.historic?1:0)-(b.historic?1:0)||a.name.localeCompare(b.name);
+  }).slice(0,60);
+}
+function placeResults(q){
+ const list=$('placesList'),results=placeSearchMatches(q);
+ const indexed=officialPlaces.length>0;
+ const intro=$('placeSearchInfo');
+ if(intro)intro.textContent=indexed
+  ? (searchKey(q)?'SELECT A COMMUNITY / VIEW ON MAP':'SIX QUICK VIEWS / TYPE A PLACE NAME')
+  : placesIndexState==='loading'
+   ? 'LOADING NL PLACE INDEX / SIX SHORTCUTS AVAILABLE'
+   : 'PLACE INDEX UNAVAILABLE / SIX SHORTCUTS ONLY';
+ list.innerHTML=results.length?results.map((p,i)=>{
+  const area=p.region&&searchKey(p.region)!==searchKey(p.name)
+   ? p.region:'Newfoundland and Labrador';
+  return `<button data-place="${i}"><span>${esc(p.name)}</span>
+  <small>${esc(area)} ↗</small></button>`;
+ }).join(''):'<p class="sheetText">No matching settlement. Try another spelling or community name.</p>';
+ list.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  const p=results[Number(b.dataset.place)];if(p)viewPlace(p);
+ }));
+}
+function openSearch(){
+ openSheet('SEARCH / COMMUNITIES',`
+ <p class="sheetText" id="placeSearchInfo">LOADING NL PLACE INDEX</p>
+ <input id="placeQuery" type="search" autocomplete="off"
+  placeholder="Search any NL community…" aria-label="Search communities"/>
+ <div id="placesList" class="list"></div>
+ <p class="sheetText">Select a community to centre the map. Not driving directions.</p>`);
+ $('placeQuery').addEventListener('input',e=>placeResults(e.target.value));
+ placeResults('');$('placeQuery').focus();
+}
+const PLACES_CACHE_KEY='fieldAtlasPlaceIndexV030';
+function validCommunityIndex(places){
+ return Array.isArray(places)&&places.length>=1300&&places.every(p=>
+  p&&typeof p.name==='string'&&typeof p.id==='string'&&
+  Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&
+  p.lat>=45&&p.lat<=61&&p.lng>=-70&&p.lng<=-50);
+}
+async function loadCommunityIndex(){
+ // A previously downloaded index remains searchable if the network later
+ // fails. This alone does NOT make map tiles or the app shell offline-ready.
+ try{
+  const cached=JSON.parse(localStorage.getItem(PLACES_CACHE_KEY)||'null');
+  if(validCommunityIndex(cached)){
+   officialPlaces=cached;placesIndexState='ready';
+   if($('placeQuery'))placeResults($('placeQuery').value);
+  }
+ }catch(e){}
+ try{
+  const response=await fetch('../data/nl-places.json?v='+APP_VERSION);
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const data=await response.json();
+  if(!validCommunityIndex(data.places))throw Error('Incomplete or malformed place index');
+  officialPlaces=data.places;placesIndexState='ready';
+  try{localStorage.setItem(PLACES_CACHE_KEY,JSON.stringify(officialPlaces))}catch(e){}
+ }catch(e){
+  if(!officialPlaces.length)placesIndexState='error';
+  console.warn('NL community index unavailable; cached or shortcut places in use',e);
+ }
+ if($('placeQuery'))placeResults($('placeQuery').value);
+}
+function distanceKm(a,b){const r=Math.PI/180,dlat=(b.lat-a.lat)*r,dlng=(b.lng-a.lng)*r,s=Math.sin(dlat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dlng/2)**2;return (6371*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s))).toFixed(1)}
+function setRouteGeoJSON(){if(!isReal()||!state.map.isStyleLoaded())return;try{const source=state.map.getSource('route-preview');if(!source)return;source.setData({type:'FeatureCollection',features:state.route?[{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:[[state.route.a.lng,state.route.a.lat],[state.route.b.lng,state.route.b.lat]]}}]:[]})}catch(e){}}
+function chooseRoute(a,b){state.route={a,b};closeSheet();if(isReal()){setRouteGeoJSON();state.map.fitBounds([[Math.min(a.lng,b.lng),Math.min(a.lat,b.lat)],[Math.max(a.lng,b.lng),Math.max(a.lat,b.lat)]],{padding:80,maxZoom:13,duration:500});toast('STRAIGHT-LINE '+distanceKm(a,b)+' KM — NOT DRIVING DIRECTIONS');}else toast('Route planner is not yet implemented. '+distanceKm(a,b)+' km straight-line only.');}
+function openRoute(){openSheet('ROUTE / CONCEPT',`<p class="sheetText warning">Road routing is NOT implemented. This panel compares selected communities using straight-line distance only — never use it for driving directions.</p><label class="field" for="startPoint">FROM</label><select id="startPoint">${PLACES.map((p,i)=>`<option value="${i}" ${p.name===state.center.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select><label class="field" for="endPoint">TO</label><select id="endPoint">${PLACES.map((p,i)=>`<option value="${i}" ${p.name==='Bay Roberts'?'selected':''}>${esc(p.name)}</option>`).join('')}</select><p class="sheetText" id="distanceText"></p><button id="routePreview" class="primary">SHOW STRAIGHT-LINE PREVIEW</button>`);const update=()=>{const a=PLACES[Number($('startPoint').value)],b=PLACES[Number($('endPoint').value)];$('distanceText').textContent=a===b?'Select different communities.':distanceKm(a,b)+' km direct distance, not driving distance';$('routePreview').disabled=a===b};$('startPoint').addEventListener('change',update);$('endPoint').addEventListener('change',update);$('routePreview').addEventListener('click',()=>chooseRoute(PLACES[Number($('startPoint').value)],PLACES[Number($('endPoint').value)]));update()}
+function openMenu(){
+ openSheet('FIELD ATLAS / DISPLAY',`
+ <p class="sheetText">One glow setting across luminous content, with independent full-screen CRT and vignette overlays. Preferences are saved on this phone.</p>
+ <div class="line"></div><div class="setting"><b>PHOSPHOR COLOUR</b><button id="themeSetting">${state.theme.toUpperCase()}</button></div>
+ <div class="setting"><b>MAP RENDERER</b><button id="rendererSetting">${MAP_RENDERER_NAMES[state.mapRenderer]}</button></div>
+ <p class="sheetText">v0.31 test: current vector map / untouched OSM Standard / recoloured OSM Standard. All options remain online and preserve the water grid.</p>
+ ${state.mapRenderer==='vector'
+  ? `<div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>`
+  : '<p class="sheetText">In raster modes, buildings are part of the OSM map image and cannot be hidden individually.</p>'}
+ <div class="setting"><b>WATER GRID</b><button id="waterGridSetting">${state.showWaterGrid?'ON':'OFF'}</button></div>
+ <p class="sheetText">Two-finger tilt stays manual and independent of zoom.</p>
+ <div class="line"></div>
+ <p class="sheetText">GRADIENT LENGTH / CSS PIXELS</p>
+ ${gradientMarkup()}
+ <p class="sheetText">Screen fades are fixed black overlays. Map fades follow the geographical north and south boundaries, transitioning from the map background to transparency. Lengths are fixed in pixels and never depend on zoom.</p>
+ <div class="line"></div>${effectMarkup()}
+ <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
+ <p class="sheetText warning">This experiment is online only. OSMF Standard tiles cannot be prefetched or redistributed offline; a future offline map must be rendered independently from OSM source data.</p>`);
+ $('themeSetting').onclick=()=>{theme();openMenu()};
+ $('rendererSetting').onclick=()=>{
+  selectMapRenderer(MAP_RENDERERS[(MAP_RENDERERS.indexOf(state.mapRenderer)+1)%MAP_RENDERERS.length]);
+  openMenu();
+ };
+ if($('buildingSetting'))$('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
+   if(isReal()&&state.map.getLayer('buildings'))state.map.setLayoutProperty('buildings','visibility',state.showBuildings?'visible':'none');
+   drawFallback();openMenu();};
+ for(const item of GRADIENTS){
+  const key=item.key,g=state.gradients[key];
+  $('gradient-on-'+key).addEventListener('change',event=>{
+   g.enabled=event.target.checked;updateViewEffects();saveGradients();
+  });
+  $('gradient-length-'+key).addEventListener('input',event=>{
+   g.length=Math.max(0,Math.min(420,Math.round(Number(event.target.value)/5)*5));
+   event.target.style.setProperty('--fill',Math.round(g.length/420*100)+'%');
+   $('gradient-value-'+key).textContent=g.length+'px';
+   updateViewEffects();saveGradients();
+  });
+ }
+ $('waterGridSetting').onclick=()=>{
+  state.showWaterGrid=!state.showWaterGrid;
+  if(isReal()&&state.map.getLayer('water-grid'))
+   state.map.setLayoutProperty('water-grid','visibility',state.showWaterGrid?'visible':'none');
+  try{localStorage.setItem('fieldAtlasWaterGridV09',String(state.showWaterGrid))}catch(e){}
+  drawFallback();openMenu();
+ };
+ for(const f of EFFECT_OPTIONS){
+  const input=$('fx-'+f.key),output=$('value-'+f.key);
+  input.addEventListener('input',()=>{
+   const n=Math.round(Math.max(0,Math.min(100,Number(input.value))));
+   state.effects[f.key]=n;input.style.setProperty('--fill',n+'%');output.textContent=n+'%';applyEffects();
+   try{localStorage.setItem('fieldAtlasEffectsV06',JSON.stringify(state.effects))}catch(e){}
+  });
+ }
+ $('resetEffects').onclick=()=>{state.effects={glow:65,scanlines:26,vignette:30};
+   try{localStorage.setItem('fieldAtlasEffectsV06',JSON.stringify(state.effects))}catch(e){}
+   applyEffects();openMenu();};
+}
+function openSaved(){
+ openSheet('SAVED PINS',`<p class="sheetText">Geographic bookmarks stored on this phone. Tap a pin to view or rename it.</p>
+ <div id="savedList" class="list"></div>
+ <button id="newMapPin" class="primary">⌖ PLACE NEW PIN</button>`);
+ const list=$('savedList');
+ list.innerHTML=state.saved.length?state.saved.map((p,i)=>
+  `<div class="saved-row">
+   <button data-id="${i}"><span>${esc(p.name)}</span>
+    <small>${fmt(p.lat,'lat')} / ${fmt(p.lng,'lng')}</small>
+   </button><button data-go="${i}" aria-label="View ${esc(p.name)} on map">↗</button></div>`
+ ).join(''):'<p class="sheetText">No saved pins yet. Choose PLACE NEW PIN.</p>';
+ list.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>openPinDetail(Number(b.dataset.id)));
+ list.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{
+  const p=state.saved[Number(b.dataset.go)];closeSheet();
+  if(isReal())state.map.flyTo({center:[p.lng,p.lat],zoom:Math.max(14,state.map.getZoom()),speed:1.4});
+  else toast('Live geographic map unavailable.');
+ });
+ $('newMapPin').onclick=()=>{closeSheet();togglePin()};
+}
+// Interactive fallback is intentionally SCHEMATIC. It is never presented as Newfoundland geography.
+const canvas=$('fallback'),ctx=canvas.getContext('2d');let fW=390,fH=740,drag=null;
+const roads=[{width:6,points:[[-60,620],[40,530],[90,460],[155,394],[223,310],[275,234],[354,115],[465,40]]},{width:3.3,points:[[-90,165],[60,207],[184,177],[300,171],[480,187]]},{width:3.2,points:[[38,-70],[76,70],[112,143],[145,390],[175,800]]},{width:3.1,points:[[-70,345],[90,340],[183,357],[286,386],[490,385]]},{width:3.1,points:[[-60,465],[102,508],[184,517],[288,539],[450,558]]},{width:3.3,points:[[250,-40],[233,117],[274,233],[288,386],[277,800]]},{width:1.8,points:[[0,285],[75,261],[167,275],[274,233]]},{width:1.8,points:[[90,340],[94,263]]},{width:1.8,points:[[183,177],[206,330]]},{width:1.8,points:[[0,424],[102,508]]},{width:1.8,points:[[183,357],[184,517]]},{width:1.8,points:[[285,386],[337,290]]},{width:1.8,points:[[285,539],[341,466]]},{width:1.8,points:[[175,648],[279,646]]}];const buildings=[];for(let row=0;row<14;row++){for(let col=0;col<8;col++){const x=20+col*47+(row%2)*10,y=115+row*42+(col%3)*4;const skip=roads.some(r=>r.points.some(p=>Math.hypot(p[0]-x,p[1]-y)<17));if(!skip){const k=(col*17+row*11)%7;buildings.push({x,y,w:14+k*2.1,h:10+((col*5+row*7)%12),rot:((row+col)%5-2)*0.065})}}}
+function themeVal(k){return getComputedStyle(document.documentElement).getPropertyValue(k).trim()}
+function drawFallback(){if(state.real)return;const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);fW=rect.width;fH=rect.height;ctx.clearRect(0,0,fW,fH);ctx.fillStyle=themeVal('--bg');ctx.fillRect(0,0,fW,fH);ctx.save();const scale=Math.pow(1.23,state.zoom-14.2),baseScale=fH/740;ctx.translate(fW/2+state.panX,fH/2+state.panY);ctx.scale(scale*baseScale,scale*baseScale);ctx.translate(-195,-370);ctx.fillStyle=themeVal('--water');ctx.strokeStyle=themeVal('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(335,-40);ctx.bezierCurveTo(315,90,365,120,326,177);ctx.bezierCurveTo(290,211,344,276,440,321);ctx.lineTo(450,-50);ctx.closePath();ctx.fill();ctx.stroke();if(state.showWaterGrid){
+ ctx.save();ctx.clip();ctx.strokeStyle=themeVal('--roads');ctx.globalAlpha=.11;ctx.lineWidth=.7;ctx.beginPath();
+ for(let x=-128;x<576;x+=64){ctx.moveTo(x,-80);ctx.lineTo(x,830)}
+ for(let y=-80;y<830;y+=64){ctx.moveTo(-128,y);ctx.lineTo(576,y)}
+ ctx.stroke();ctx.restore();
+ }if(state.showBuildings){ctx.fillStyle=themeVal('--building');ctx.strokeStyle=themeVal('--roads');ctx.lineWidth=.55;for(const b of buildings){ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.rot);ctx.fillRect(-b.w/2,-b.h/2,b.w,b.h);ctx.strokeRect(-b.w/2,-b.h/2,b.w,b.h);ctx.restore()}}for(const r of roads){ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();r.points.forEach((p,i)=>i===0?ctx.moveTo(...p):ctx.lineTo(...p));ctx.strokeStyle=themeVal('--bg');ctx.lineWidth=r.width+4;ctx.stroke();ctx.strokeStyle=themeVal(r.width>5?'--accent':'--roads');ctx.lineWidth=r.width;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=state.effects.glow*.20;ctx.stroke();ctx.shadowBlur=0}ctx.fillStyle=themeVal('--accent');ctx.font='10px ui-monospace,monospace';ctx.save();ctx.translate(32,477);ctx.rotate(-.76);ctx.fillText('EXAMPLE ROAD',0,0);ctx.restore();ctx.fillText('DEMO GEOGRAPHY',40,277);ctx.restore();ctx.fillStyle=themeVal('--accent');ctx.font='10px ui-monospace,monospace';ctx.fillText('ILLUSTRATIVE MAP · NOT ROAD DATA',15,122)}
+canvas.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,ox:state.panX,oy:state.panY};canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging')});canvas.addEventListener('pointermove',e=>{if(!drag)return;state.panX=drag.ox+e.clientX-drag.x;state.panY=drag.oy+e.clientY-drag.y;drawFallback()});for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>{drag=null;canvas.classList.remove('dragging')});canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY<0?0.5:-0.5)},{passive:false});canvas.addEventListener('dblclick',e=>{e.preventDefault();zoomBy(1)});
+// Procedural water-only grid sprite. Its fill-pattern layer clips at mapped
+// coastline and inland-water polygons, not at the edge of the whole screen.
+// Subtle, light phosphor water grid: a static 64px tile that never fades
+// with map zoom. The pattern is clipped by the water polygons in MapLibre.
+function makeWaterGridTexture(theme){
+ const size=64,data=new Uint8Array(size*size*4);
+ const rgb=theme==='amber'?[255,200,119]:[145,231,169];
+ for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  const major=x===0||y===0,minor=x===32||y===32;
+  if(!major&&!minor)continue;
+  const k=(y*size+x)*4;
+  data[k]=rgb[0];data[k+1]=rgb[1];data[k+2]=rgb[2];
+  data[k+3]=major?66:30;
+ }
+ return {width:size,height:size,data};
+}
+// FIELD ATLAS map styling v0.2: understated geographic hierarchy.
+// Uses OpenMapTiles layers from the OpenFreeMap OSM source. No CARTO tiles.
+// All source, font and icon URLs must be replaced with local resources for the offline release.
+function makeStyle(){
+  const amber=state.theme==='amber';
+  const p=amber
+   ? {bg:'#160d05',land:'#201408',park:'#281b0c',water:'#21170b',waterline:'#5a3919',
+      building:'#4b3117',path:'#62401e',local:'#8b5e2e',tertiary:'#a97537',
+      secondary:'#c18943',major:'#e4aa60',casing:'#0e0903',street:'#ebc488',
+      town:'#ffe0a8',route:'#ffe7a5'}
+   : {bg:'#07170f',land:'#0b2117',park:'#112d1e',water:'#0b2926',waterline:'#245045',
+      building:'#254233',path:'#254b35',local:'#3c7354',tertiary:'#4e8965',
+      secondary:'#659c79',major:'#82b896',casing:'#05120b',street:'#a1c5ac',
+      town:'#b5eac4',route:'#caffd7'};
+  // A gentle +10% RGB luminosity lift for visible vector features.
+  // Near-black land, water and road casings stay unchanged to preserve contrast.
+  const brightenPhosphor=(hex)=>{
+    const rgb=hex.match(/[0-9a-f]{2}/gi);
+    return '#'+rgb.map(x=>Math.min(255,Math.round(parseInt(x,16)*1.1)).toString(16).padStart(2,'0')).join('');
+  };
+  for(const key of ['waterline','building','path','local','tertiary','secondary','major','street','town','route']){
+    p[key]=brightenPhosphor(p[key]);
+  }
+  const glowLevel=state.effects.glow/100;
+  const blur=+(glowLevel*7.5).toFixed(2),opacity=+(glowLevel*.92).toFixed(3);
+  const streetHalo=textHaloPaint(p.bg,p.street,glowLevel,1.05);
+  const placeHalo=textHaloPaint(p.bg,p.town,glowLevel,1.75);
+  const src='osm';
+  const roadSource={source:src,'source-layer':'transportation'};
+  const namedRoad=['coalesce',['get','name:en'],['get','name'],''];
+  const join={ 'line-join':'round', 'line-cap':'round' };
+  const w=(a,b,c,d)=>['interpolate',['linear'],['zoom'],10,a,14,b,17,c,19,d];
+  const klass=items=>['match',['get','class'],items,true,false];
+  const road=(id,types,color,width,minzoom=9,extra={})=>({
+    id,type:'line',...roadSource,minzoom,filter:klass(types),layout:join,
+    paint:{'line-color':color,'line-width':width,'line-opacity':0.92,...extra}
+  });
+  const style={
+    version:8,
+    glyphs:'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+    sources:{
+      osm:{type:'vector',url:'https://tiles.openfreemap.org/planet'},
+      'route-preview':{type:'geojson',data:{type:'FeatureCollection',features:[]}},
+      'saved-pins':{type:'geojson',data:pinFeatures()}
+    },
+    layers:[
+      {id:'background',type:'background',paint:{'background-color':p.bg}},
+      {id:'land',type:'fill',source:src,'source-layer':'landcover',
+        paint:{'fill-color':p.land,'fill-opacity':0.30}},
+      {id:'parks',type:'fill',source:src,'source-layer':'landuse',
+        filter:klass(['park','grass','wood','forest','nature_reserve']),
+        paint:{'fill-color':p.park,'fill-opacity':0.48}},
+      {id:'water',type:'fill',source:src,'source-layer':'water',
+        paint:{'fill-color':p.water}},
+      {id:'water-grid',type:'fill',source:src,'source-layer':'water',
+        layout:{visibility:state.showWaterGrid?'visible':'none'},
+        paint:{'fill-pattern':'water-grid-'+state.theme,'fill-opacity':0.32}},
+      {id:'stream-glow',type:'line',source:src,'source-layer':'waterway',minzoom:11,
+        layout:join,paint:{'line-color':p.waterline,'line-width':w(0.45,0.9,1.45,2.1),
+          'line-blur':blur,'line-opacity':+(opacity*.5).toFixed(3)}},
+      {id:'streams',type:'line',source:src,'source-layer':'waterway',minzoom:11,
+        layout:join,paint:{'line-color':p.waterline,'line-opacity':0.75,'line-width':w(0.35,0.6,1,1.35)}},
+      // Building geometry stays intact. The styling is subdued, not simplified.
+      {id:'buildings',type:'fill',source:src,'source-layer':'building',minzoom:13.2,
+        layout:{visibility:state.showBuildings?'visible':'none'},
+        paint:{'fill-color':p.building,'fill-opacity':0.72}},
+      // These use the same colour and line thickness as their corresponding crisp roads.
+      {id:'path-glow',type:'line',source:src,'source-layer':'transportation',minzoom:13,
+        filter:klass(['path','footway','cycleway','steps','pedestrian','bridleway']),
+        layout:join,paint:{'line-color':p.path,'line-width':w(.25,.48,.75,1),'line-blur':blur,'line-opacity':opacity}},
+      {id:'local-glow',type:'line',source:src,'source-layer':'transportation',minzoom:11.2,
+        filter:klass(['minor','residential','living_street','service','unclassified','road','track']),
+        layout:join,paint:{'line-color':p.local,'line-width':w(.45,1.32,2.15,2.85),'line-blur':blur,'line-opacity':opacity}},
+      {id:'tertiary-glow',type:'line',source:src,'source-layer':'transportation',minzoom:10,
+        filter:klass(['tertiary','tertiary_link']),
+        layout:join,paint:{'line-color':p.tertiary,'line-width':w(.65,1.7,2.65,3.4),'line-blur':blur,'line-opacity':opacity}},
+      {id:'secondary-glow',type:'line',source:src,'source-layer':'transportation',minzoom:8,
+        filter:klass(['secondary','secondary_link']),
+        layout:join,paint:{'line-color':p.secondary,'line-width':w(1.3,2.5,3.7,4.6),'line-blur':blur,'line-opacity':opacity}},
+      {id:'major-glow',type:'line',source:src,'source-layer':'transportation',minzoom:7,
+        filter:klass(['primary','primary_link','trunk','trunk_link','motorway','motorway_link']),
+        layout:join,paint:{'line-color':p.major,'line-width':w(1.6,3,4.4,5.3),'line-blur':blur,'line-opacity':opacity}},
+      road('paths',['path','footway','cycleway','steps','pedestrian','bridleway'],p.path,w(0.25,0.48,0.75,1),13,
+        {'line-dasharray':[2,2]}),
+      road('local-roads',['minor','residential','living_street','service','unclassified','road','track'],p.local,w(0.45,1.32,2.15,2.85),11.2),
+      road('tertiary-roads',['tertiary','tertiary_link'],p.tertiary,w(0.65,1.7,2.65,3.4),10),
+      road('major-casing',['secondary','secondary_link','primary','primary_link','trunk','trunk_link','motorway','motorway_link'],p.casing,w(1.9,4,5.8,7.1),7),
+      road('secondary-roads',['secondary','secondary_link'],p.secondary,w(1.3,2.5,3.7,4.6),8),
+      road('primary-roads',['primary','primary_link','trunk','trunk_link','motorway','motorway_link'],p.major,w(1.6,3.0,4.4,5.3),7),
+      {id:'route-glow',type:'line',source:'route-preview',
+        layout:join,paint:{'line-color':p.route,'line-width':5.5,'line-blur':blur,
+          'line-opacity':+(opacity*.95).toFixed(3),'line-dasharray':[2,2]}},
+      {id:'route',type:'line',source:'route-preview',
+        layout:join,paint:{'line-color':p.route,'line-width':3.5,'line-opacity':0.98,'line-dasharray':[2,2]}},
+      {id:'street-labels',type:'symbol',source:src,'source-layer':'transportation_name',minzoom:13,
+        layout:{'symbol-placement':'line','text-font':['Noto Sans Regular'],
+          'text-field':namedRoad,'text-size':['interpolate',['linear'],['zoom'],13,8.8,16,10.5,19,11.8],
+          'text-padding':6,'text-max-angle':35,'text-allow-overlap':false,'text-letter-spacing':0.005},
+        paint:{'text-color':p.street,'text-opacity':0.90,'text-halo-color':streetHalo.color,'text-halo-width':streetHalo.width,'text-halo-blur':streetHalo.blur}},
+      {id:'places',type:'symbol',source:src,'source-layer':'place',minzoom:5,
+        filter:klass(['city','town','village','hamlet','suburb','neighbourhood']),
+        layout:{'text-font':['Noto Sans Regular'],'text-field':namedRoad,
+          'text-size':['interpolate',['linear'],['zoom'],7,10.5,12,12.5,16,14.5],
+          'text-padding':10,'text-max-width':10,'text-allow-overlap':false},
+        paint:{'text-color':p.town,'text-opacity':0.92,'text-halo-color':placeHalo.color,'text-halo-width':placeHalo.width,'text-halo-blur':placeHalo.blur}},
+      {id:'saved-pin-glow',type:'circle',source:'saved-pins',
+        paint:{'circle-color':p.route,'circle-radius':12,'circle-blur':.8,
+          'circle-opacity':+(glowLevel*.3).toFixed(3)}},
+      {id:'saved-pin-points',type:'circle',source:'saved-pins',
+        paint:{'circle-color':p.route,'circle-radius':6,'circle-stroke-width':2,
+          'circle-stroke-color':p.bg}},
+      {id:'saved-pin-labels',type:'symbol',source:'saved-pins',
+        layout:{'text-font':['Noto Sans Regular'],'text-field':['get','name'],
+          'text-size':10,'text-offset':[0,1.65],'text-anchor':'top',
+          'text-allow-overlap':false},
+        paint:{'text-color':p.route,'text-halo-color':p.bg,'text-halo-width':1.5}}
+    ]
+  };
+  if(state.mapRenderer!=='vector'){
+   const url=state.mapRenderer==='osm-phosphor'
+     ? window.FieldAtlasPhosphor.tileTemplate(state.theme)
+     : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+   style.sources['osm-standard']={type:'raster',tiles:[url],tileSize:256,maxzoom:19,
+     attribution:'© OpenStreetMap contributors'};
+   // OSM-derived water geometry still clips the existing phosphor grid.
+   // Route and saved-pin overlays remain interactive above raster imagery.
+   const keep=new Set(['water-grid','route-glow','route',
+     'saved-pin-glow','saved-pin-points','saved-pin-labels']);
+   style.layers=[
+    style.layers[0],
+    {id:'osm-standard-raster',type:'raster',source:'osm-standard',
+      paint:{'raster-fade-duration':0}},
+    ...style.layers.filter(layer=>keep.has(layer.id))
+   ];
+  }
+  return style;
+}
+function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('DEMO / MAP LIBRARY BLOCKED',true,'MAP');return}try{
+ if(window.FieldAtlasPhosphor)window.FieldAtlasPhosphor.install(maplibregl);
+ const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,minZoom:MAP_MIN_ZOOM,maxZoom:19,pitch:0,renderWorldCopies:true,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
+// Mercator intentionally remains flat. Native world copies repeat east/west.
+// Only reload route/glow when a theme changes; don't alter camera from this hook.
+m.on('style.load',()=>{if(state.real){setRouteGeoJSON();setSavedPinsGeoJSON();applyEffects();}});
+
+m.on('styleimagemissing',e=>{
+ const expected='water-grid-'+state.theme;
+ if(e.id===expected&&!m.hasImage(expected))
+   m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
+});
+m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();setSavedPinsGeoJSON();status(MAP_RENDERER_NAMES[state.mapRenderer]+' / ONLINE',false,'MAP');m.resize()});
+m.on('click','saved-pin-points',event=>{
+ if(state.pin)return;
+ const n=Number(event.features?.[0]?.properties?.pinIndex);
+ if(Number.isInteger(n)&&n>=0&&n<state.saved.length)openPinDetail(n);
+});
+m.on('move',updateReadout);m.on('error',e=>{if(!state.real)status('DEMO / MAP SERVICE ERROR',true,'MAP')});setTimeout(()=>{if(!state.real)status('DEMO / WAITING FOR TILES',true,'MAP')},7000)}catch(e){status('DEMO / MAP INITIALIZATION FAILED',true,'MAP')}}
+// MapLibre GL JS v5 retains a browser-compatible UMD build and supports globe.
+// v6's dist/maplibre-gl.js does not exist (v6 is ESM-only); never reference it.
+// Try the original working CDN, with a second host if it is blocked on mobile.
+function loadRemoteMap(){
+ const version='5.9.0';
+ const hosts=['https://unpkg.com/maplibre-gl@'+version+'/dist/',
+              'https://cdn.jsdelivr.net/npm/maplibre-gl@'+version+'/dist/'];
+ const css=document.createElement('link');
+ css.rel='stylesheet';css.href=hosts[0]+'maplibre-gl.css';
+ css.onerror=()=>{css.href=hosts[1]+'maplibre-gl.css'};
+ document.head.appendChild(css);
+ let i=0;
+ function tryNext(){
+  if(window.maplibregl){startLiveMap();return}
+  if(i>=hosts.length){
+   status('DEMO / MAP LIBRARY UNAVAILABLE',true,'MAP');
+   return;
+  }
+  const host=hosts[i++];
+  const script=document.createElement('script');
+  script.src=host+'maplibre-gl.js';script.async=true;
+  script.onload=()=>{
+   if(window.maplibregl)startLiveMap();
+   else tryNext();
+  };
+  script.onerror=()=>tryNext();
+  document.head.appendChild(script);
+ }
+ tryNext();
+}
+window.addEventListener('resize',()=>{positionMapTools();updateViewEffects();drawFallback()});positionMapTools();updateViewEffects();applyEffects();drawFallback();updateReadout();status('STARTUP / LOADING VECTOR MAP',false,'SYS');loadRemoteMap();loadCommunityIndex();
+</script>
+</body></html>
