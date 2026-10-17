@@ -13,15 +13,13 @@
   const options=$('options');
   const restartConfirm=$('restartConfirm');
   const leaderboard=$('leaderboard'),scoreEntry=$('scoreEntry');
-  const names={ready:'STANDBY',playing:'ACTIVE',paused:'PAUSED',over:'GAME OVER'};
-
   // Dialogs stay in the FIELD ATLAS app compositor (not the browser's
   // top layer). This gives GAME, PAUSE, DISPLAY and HIGH SCORES the exact
   // same *single* screen-space CRT/scanline/vignette/colour pass.
   const modalPanels=[options,leaderboard,scoreEntry,restartConfirm];
   const modalFocus=new WeakMap();
   const modalBackground=[...document.querySelectorAll(
-    '#app > header,#app > #console,#app > #stage,#app > #controlDeck,#app > #eventline'
+    '#app > header,#app > #stage,#app > #controlDeck,#app > #eventline'
   )];
   function syncModalState(){
     const opened=modalPanels.some(panel=>panel.open);
@@ -301,7 +299,6 @@
     $('bestScore').textContent=Math.max(highScore,game.score).toLocaleString('en-CA');
     $('pieceCount').textContent=game.pieces;
     $('eventText').textContent=game.lastEvent+' / '+game.dropMs+' MS';
-    $('consoleState').textContent='[ARCADE] TETRIS / '+names[game.status];
     // PAUSE never becomes RESUME: the on-board ▶ RESUME is the only
     // control that can continue a paused game.
     $('pauseButton').disabled=game.status!=='playing';
@@ -399,9 +396,7 @@
     switch(action){
       case 'left':performed=game.move(-1);break;
       case 'right':performed=game.move(1);break;
-      case 'down':performed=game.softDrop();break;
       case 'cw':performed=game.rotate(1);break;
-      case 'ccw':performed=game.rotate(-1);break;
       case 'hard':performed=game.hardDrop();break;
       case 'hold':performed=game.holdPiece();break;
       case 'pause':performed=game.status==='playing'&&game.pause();break;
@@ -411,7 +406,7 @@
       if(beforeStatus==='over'&&game.status==='playing')gameOverHandled=false;
       if(game.lines>beforeLines)playTone(game.lines-beforeLines===4?670:480,.15);
       else if(game.pieces>beforePiece)playTone(175,.035);
-      else if(action==='cw'||action==='ccw')playTone(305,.035);
+      else if(action==='cw')playTone(305,.035);
       else if(action==='hard')playTone(185,.05);
       else if(action==='hold')playTone(265,.045);
       if(beforeStatus!=='over'&&game.status==='over')playTone(100,.25);
@@ -484,7 +479,7 @@
   // movement/down buttons repeats, and release reliably cancels timers.
   for(const button of document.querySelectorAll('[data-action]')){
     const action=button.dataset.action;
-    const repeating=['left','right','down'].includes(action);
+    const repeating=['left','right'].includes(action);
     let startTimer=null,repeatTimer=null,pointer=null;
     const stop=()=>{
       if(startTimer!==null)clearTimeout(startTimer);
@@ -500,7 +495,7 @@
       try{button.setPointerCapture(pointer)}catch(e){}
       perform(action);
       if(repeating)startTimer=setTimeout(()=>{
-        repeatTimer=setInterval(()=>perform(action),action==='down'?65:82);
+        repeatTimer=setInterval(()=>perform(action),82);
       },210);
     });
     for(const evt of ['pointerup','pointercancel','lostpointercapture'])
@@ -511,8 +506,9 @@
     });
   }
   const keyboard={
-    ArrowLeft:'left',ArrowRight:'right',ArrowDown:'down',
-    ArrowUp:'cw',KeyX:'cw',KeyZ:'ccw',Space:'hard',KeyC:'hold',
+    ArrowLeft:'left',ArrowRight:'right',
+    ArrowUp:'cw',KeyX:'cw',
+    ArrowDown:'hard',Space:'hard',KeyC:'hold',
     ShiftLeft:'hold',ShiftRight:'hold',KeyP:'pause',Escape:'pause'
   };
   document.addEventListener('keydown',event=>{
@@ -539,11 +535,7 @@
     else if(ax>ay&&ax>=18){
       const steps=Math.min(5,Math.max(1,Math.round(ax/32)));
       for(let i=0;i<steps;i++)perform(dx>0?'right':'left');
-    }else if(dy< -30)perform('hard');
-    else if(dy>25){
-      const steps=Math.min(8,Math.max(1,Math.round(dy/25)));
-      for(let i=0;i<steps;i++)perform('down');
-    }
+    }else if(dy>25)perform('hard');
   });
   board.addEventListener('pointercancel',()=>drag=null);
   document.addEventListener('visibilitychange',()=>{
