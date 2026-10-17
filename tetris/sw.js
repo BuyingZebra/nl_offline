@@ -1,6 +1,6 @@
 /* FIELD ATLAS Tetris — optional offline app-shell cache (no map data). */
-const CACHE='field-atlas-arcade-v002';
-const APP_SHELL=['./','./index.html','./core.js','./ui.js'];
+const CACHE='field-atlas-arcade-v003';
+const APP_SHELL=['./','./index.html','./core.js','./scores.js','./ui.js'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(APP_SHELL))
     .then(()=>self.skipWaiting()));
