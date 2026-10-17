@@ -1,0 +1,50 @@
+name: Check complete island map byte-range hosting
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/test-map-range-serving.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  range:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Verify remote PMTiles files support HTTP 206 and exact range bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://buyingzebra.github.io/nl_offline"
+          check() {
+            local path="$1"
+            echo "::group::Checking $path"
+            for attempt in $(seq 1 15); do
+              set +e
+              response="$(curl -LSs --max-time 22 --range 0-511 \
+                --max-filesize 4096 -o /tmp/range.body \
+                -w '%{http_code}' "$base/$path")"
+              status=$?
+              set -e
+              size="$(wc -c < /tmp/range.body 2>/dev/null || echo 0)"
+              echo "attempt $attempt: curl=$status, HTTP=$response, bytes=$size"
+              if [ "$status" -eq 0 ] && [ "$response" = 206 ] && [ "$size" -eq 512 ]; then
+                echo "OK: byte-range stream is available"
+                echo "::endgroup::"
+                return 0
+              fi
+              sleep 10
+            done
+            echo "::error::$path does not support reliable byte-range streaming"
+            echo "::endgroup::"
+            return 1
+          }
+          check data/overture/nl_overture_part_0.pmtiles
+          check data/overture/nl_overture_part_1.pmtiles
+          check data/overture/nl_overture_part_2.pmtiles
+          check data/overture/nl_overture_part_3.pmtiles
+          check data/coastline/nl_coastline.pmtiles
