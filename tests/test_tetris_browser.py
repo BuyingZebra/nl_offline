@@ -75,6 +75,12 @@ with sync_playwright() as p:
         # A pending game cannot be reset from the gameplay buttons.
         page.get_by_role("button", name="START GAME").tap()
         page.locator('button[data-action="hard"]').tap()
+        # The game renders its HUD on requestAnimationFrame, not synchronously
+        # inside the button's pointerdown handler.
+        page.wait_for_function(
+            "() => Number(document.querySelector('#scoreValue').textContent)>0",
+            timeout=6000,
+        )
         previous_score = page.locator("#scoreValue").inner_text()
         assert int(previous_score)>0
         assert page.locator('button[data-action="restart"]').count() == 0
