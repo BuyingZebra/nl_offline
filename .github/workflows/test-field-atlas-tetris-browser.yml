@@ -1,0 +1,42 @@
+name: FIELD ATLAS Arcade Mobile Browser QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tetris/**'
+      - 'tests/test_tetris_browser.py'
+      - '.github/workflows/test-field-atlas-tetris-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser
+        run: |
+          python -m pip install 'playwright==1.55.0'
+          python -m playwright install chromium --with-deps
+      - name: Start app server
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 >/tmp/field-atlas-arcade-http.log 2>&1 &
+          for n in $(seq 1 30); do
+            curl --silent --fail http://127.0.0.1:8765/tetris/ >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Verify single screen effects, dialogs, scores and protected restart
+        run: python tests/test_tetris_browser.py
+      - name: Save phone screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: field-atlas-arcade-visual-qa
+          path: work/browser-test/*.png
+          retention-days: 7
+          if-no-files-found: warn
