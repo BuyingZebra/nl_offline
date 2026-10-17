@@ -16,7 +16,7 @@ const js=html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 const shell=html.slice(html.indexOf('</style>')+8,html.indexOf('<script>'));
 // Compare the established v0.30 presentation after subtracting only the
 // explicit v0.31 attribution and experimental protocol import.
-const originalStyle=style.replace(
+const originalStyle=style.replace(/\/\* v0\.31 VFX experiment:[\s\S]*?(?=#mapAttribution\{)/,'').replace(
  '#mapAttribution{font-size:8px;text-align:right;margin-top:3px}\n#mapAttribution a{color:var(--weak);text-decoration:none}\n','');
 const originalShell=shell.replace(
  '    <div id="mapAttribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></div>\n','')
