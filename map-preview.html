@@ -147,6 +147,8 @@ add('labels','place','symbol',{'text-color':'#f4eac0','text-halo-color':'#12241b
   {layout:{'text-field':['coalesce',['get','name:en'],['get','name'],''],
     'text-font':['Open Sans Regular'],'text-size':['interpolate',['linear'],['zoom'],5,10,11,14]}});
 const map = new maplibregl.Map({container:'map',style,center:[-56.3,48.9],zoom:5.4,maxZoom:18,attributionControl:false});
+// Read-only map inspector hook for automated browser QA and reproducible issues.
+window.NL_PREVIEW_DEBUG_MAP=map;
 map.addControl(new maplibregl.NavigationControl(),'top-right');
 map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
 map.on('load',()=>{
