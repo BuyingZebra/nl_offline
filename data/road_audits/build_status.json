@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-10-17T00:39:23.910289+00:00",
+  "generated_utc": "2026-10-17T00:40:53.843977+00:00",
   "repository": "BuyingZebra/nl_offline",
   "workflows": {
     "forest_resource_roads": {
@@ -47,12 +47,12 @@
       "file": "reconcile-nl-roads.yml",
       "runs": [
         {
-          "conclusion": "",
+          "conclusion": "success",
           "createdAt": "2026-10-17T00:38:16Z",
           "databaseId": 38987279599,
           "event": "push",
           "headSha": "7427e680c2ea2a15ea56a6734c8b8f86cbded6c6",
-          "status": "in_progress",
+          "status": "completed",
           "url": "https://github.com/BuyingZebra/nl_offline/actions/runs/38987279599"
         },
         {
