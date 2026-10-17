@@ -51,5 +51,6 @@
     "water_name",
     "waterway"
   ],
-  "communities": 1457
+  "communities": 1626,
+  "townCenterSource": "OSM map-label nodes matched to official names"
 }
