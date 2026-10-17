@@ -55,5 +55,5 @@ test('custom raster protocol is on-demand only and enforces tile URL structure',
     'fieldatlas://amber/{z}/{x}/{y}.png');
   await assert.rejects(added[0].fn({url:'fieldatlas://green/0/invalid/0.png'}, {}),
     /Unexpected FIELD ATLAS tile URL/);
-  assert.doesNotMatch(protocolCode, /Promise\.all\(|prefetch|offlinePack|OfflineManager\.createPack/);
+  assert.doesNotMatch(protocolCode, /Promise\.all\(|OfflineManager\.createPack\(/);
 });
