@@ -169,7 +169,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v004'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v005'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -242,7 +242,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  for(const id of ['glowControl','scanControl','vignetteControl','glowValue',
-  'scanValue','vignetteValue','themeSetting','resetEffects',
+  'scanValue','vignetteValue','themeToggle','closeOptions','resetEffects',
   'screenTopFade','screenBottomFade',
   'fade-screenTop-on','fade-screenBottom-on']) {
   assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
@@ -265,7 +265,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v004'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v005'/);
 });
 
 
@@ -294,11 +294,11 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  const appEnd=html.lastIndexOf('</div>\n<script src="./core.js">');
  const dialogs=html.indexOf('<dialog id="options">');
  assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
- assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:31\}/);
- assert.match(html,/#screenShade\{z-index:32\}/);
- assert.match(html,/#screenScan\{z-index:33;/);
- assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;/);
- assert.match(html,/#sweep\{z-index:35;/);
+ assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:41;/);
+ assert.match(html,/#screenShade\{z-index:42;/);
+ assert.match(html,/#screenScan\{position:absolute;inset:0;z-index:43;/);
+ assert.match(html,/#phosphorFilm\{z-index:44;/);
+ assert.match(html,/#sweep\{z-index:45;/);
  assert.ok(html.includes('mix-blend-mode:color'));
  assert.ok(ui.includes("root.style.setProperty('--screen-top-fade'"));
  assert.ok(ui.includes("root.style.setProperty('--screen-bottom-fade'"));
@@ -309,4 +309,38 @@ test('tile glow follows each tile fill rather than uniform bright tint',()=>{
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
  assert.match(ui,/ctx\.shadowColor=color\(body,/);
  assert.doesNotMatch(ui,/ctx\.shadowColor=color\(palette\.bright,/);
+});
+
+
+test('Fallout-style settings preserve the window size and use square control glyphs',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const js=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ const dialog=html.slice(html.indexOf('<dialog id="options"'),html.indexOf('<dialog id="leaderboard"'));
+ assert.ok(dialog.includes('class="dialog-toolbar"'));
+ assert.ok(dialog.indexOf('id="closeOptions"')<dialog.indexOf('id="ghostControl"'));
+ assert.equal((html.match(/id="closeOptions"/g)||[]).length,1);
+ assert.doesNotMatch(dialog,/id="themeSetting"/);
+ assert.doesNotMatch(js,/themeSetting/);
+ assert.ok(html.includes('id="themeToggle"'));
+ assert.ok(html.includes('#app input[type="checkbox"]:checked{'));
+ assert.match(html,/#app input\[type="checkbox"\][\s\S]*?border-radius:0/);
+ assert.match(html,/#app input\.effect-slider::-webkit-slider-thumb\{[\s\S]*?border-radius:0/);
+ assert.match(html,/#app input\.effect-slider::-moz-range-thumb\{[\s\S]*?border-radius:0/);
+ assert.ok(html.includes('--terminal-font:'));
+ assert.match(html,/#app dialog\{position:absolute;/);
+ assert.doesNotMatch(dialog,/height="[0-9]+"/);
+});
+
+test('the exact map CRT scanline pattern stays over menus without duplicate passes',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const map=fs.readFileSync(path.join(__dirname,'../preview-v033/index.html'),'utf8');
+ const black='rgba(0,0,0,.59) 3px,rgba(0,0,0,.59) 4px';
+ assert.ok(html.includes('rgba(var(--phosphor-rgb),.15) 0px'));
+ assert.ok(html.includes(black));
+ assert.ok(map.includes('rgba(var(--phosphor-rgb),.15) 0px'));
+ assert.ok(map.includes(black));
+ assert.ok(html.includes('#screenScan{position:absolute;inset:0;z-index:43;pointer-events:none;'));
+ assert.ok(html.includes('#app dialog[open]{display:block}'));
+ assert.doesNotMatch(html,/modal-camera-fx/);
 });
