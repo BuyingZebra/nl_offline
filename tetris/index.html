@@ -10,12 +10,12 @@
 <title>FIELD ATLAS — Arcade / Tetris</title>
 <style>
 :root{
- --bg:#04120b;--panel:color-mix(in srgb,var(--bg) 65%,black);--card-bg:var(--panel);--solid:#102719;--ink:#b4ffce;
+ --bg:#04120b;--panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);--solid:#102719;--ink:#b4ffce;
  --bright:#77ffa5;--weak:#8fc19d;--border:#3f8254;--shadow:#020905;
  --grid:#163724;--phosphor:108,255,156;--glow:8px;--scan:0.28;
 }
 :root[data-theme="amber"]{
- --bg:#100904;--panel:color-mix(in srgb,var(--bg) 65%,black);--card-bg:var(--panel);--solid:#301f0c;--ink:#ffe79a;
+ --bg:#100904;--panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);--solid:#301f0c;--ink:#ffe79a;
  --bright:#f5b661;--weak:#d19e58;--border:#8e5f24;--shadow:#0a0602;
  --grid:#4a2b13;--phosphor:255,196,100;
 }
@@ -420,34 +420,24 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    color-mix(in srgb,var(--bg) 96%,var(--bright) 4%) 0%,
    var(--bg) 75%,var(--bg) 100%);
 }
-/* One phosphor hue with brightness roles, not separately selected colours:
- * BG is the canonical phosphor-dark background. Parent panels are its exact
- * RGB ratios at 65% luminance (mixed with black). Children and unlit buttons
- * match BG pixel-for-pixel; luminous direction controls retain --bright.
- * Green/amber therefore work identically without extra hue variations. */
-#app :is(header.panel,#controlDeck.panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
+/* Same visual layering as the navigation system:
+ * --bg is the app background AND the fill of regular buttons.
+ * Explicit visible cards are darker via luminance only. Layout wrappers
+ * have NO painted surface. Bright action controls stay untouched. */
+#app :is(.panel,.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
  background:var(--card-bg);
 }
-/* The play area is itself a parent. It needs a dark backing between
- * the lighter board/side panels, without altering their flex geometry. */
-#stage{
- background:var(--card-bg);
- border-radius:12px;
-}
-/* Child containers and normal button faces use the SAME computed
- * --bg value as the app's unmodified outer background. */
-#app :is(#boardShell,#side .side-panel,.score-row){
- background:var(--bg);
-}
+#boardShell{background:var(--card-bg)}
+/* The score rows are child cards inside the high-score dialog. */
+#app .score-row{background:var(--bg)}
 #app button:not(:is(#playButton,#confirmRestart,#saveScore,
  [data-action="left"],[data-action="hard"],[data-action="right"])){
  background:var(--bg);
 }
-/* Paused/start/game-over veil stays translucent so the blocks beneath
- * remain subtly visible, but borrows the app background—not the card. */
-#veil{background:color-mix(in srgb,var(--bg) 94%,transparent)}
+/* Menus shade the already-dark game board without repainting its parent. */
+#veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
 :root[data-theme="amber"] #veil{
- background:color-mix(in srgb,var(--bg) 94%,transparent);
+ background:color-mix(in srgb,var(--card-bg) 94%,transparent);
 }
 #crtGlass{position:absolute;inset:0;z-index:46;pointer-events:none;
  border-radius:var(--crt-glass-radius);
