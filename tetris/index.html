@@ -10,7 +10,11 @@
 <title>FIELD ATLAS — Arcade / Tetris</title>
 <style>
 :root{
- --bg:#04120b;--panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);--solid:#102719;--ink:#b4ffce;
+ --bg:#04120b;
+ /* The app's illuminated background face, derived by luminance only.
+    Preserve the RGB proportions of --bg in green and amber themes. */
+ --app-face:rgb(from var(--bg) calc(r * 1.55) calc(g * 1.55) calc(b * 1.55));
+ --panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);--solid:#102719;--ink:#b4ffce;
  --bright:#77ffa5;--weak:#8fc19d;--border:#3f8254;--shadow:#020905;
  --grid:#163724;--phosphor:108,255,156;--glow:8px;--scan:0.28;
 }
@@ -411,13 +415,13 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  --crt-glass-opacity:0;
  --crt-glass-radius:0px;
  background:radial-gradient(ellipse 112% 84% at 50% 49%,
-   color-mix(in srgb,var(--bg) 96%,var(--bright) 4%) 0%,
+   var(--app-face) 0%,
    var(--bg) 75%,var(--bg) 100%);
 }
 /* Same visual layering as the navigation system:
- * --bg is the app background AND the fill of regular buttons.
- * Explicit visible cards are darker via luminance only. Layout wrappers
- * have NO painted surface. Bright action controls stay untouched. */
+ * --app-face matches the brightest point of the app's ambient background
+ * and fills ordinary buttons. --card-bg is a darker luminance of --bg.
+ * Layout wrappers have NO painted surface. The three lit keys are untouched. */
 #app :is(.panel,.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
  background:var(--card-bg);
 }
@@ -425,7 +429,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 /* The score rows are child cards inside the high-score dialog. */
 #app .score-row{background:var(--bg)}
 #app button:not(:is([data-action="left"],[data-action="hard"],[data-action="right"])){
- background:var(--bg);
+ background:var(--app-face);
 }
 /* Menus shade the already-dark game board without repainting its parent. */
 #veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
