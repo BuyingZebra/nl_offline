@@ -1,0 +1,19 @@
+{
+  "generated_utc": "2026-10-17T10:49:38.012264+00:00",
+  "source": "OpenStreetMap / Geofabrik Newfoundland and Labrador PBF",
+  "bbox_wsen": [
+    -53.49,
+    47.56,
+    -53.04,
+    47.91
+  ],
+  "precision": 7,
+  "counts": {
+    "roads": 3065,
+    "water": 1565,
+    "streams": 1498,
+    "buildings": 13156
+  },
+  "notes": "Only closed OSM ways are water/building polygons; relation multipolygons may be absent. Road/stream geometry has no line simplification. Region-only proof of concept.",
+  "license": "\u00a9 OpenStreetMap contributors (ODbL 1.0)"
+}
