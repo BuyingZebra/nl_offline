@@ -31,6 +31,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tiles", type=Path, required=True)
     ap.add_argument("--communities", type=Path, required=True)
+    ap.add_argument("--towns", type=Path, help="Merged official and OSM map-label town centers")
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
     db = sqlite3.connect(f"file:{args.tiles}?mode=ro", uri=True)
@@ -94,6 +95,10 @@ def main():
             features.append({"type":"Feature", "geometry":{"type":"Point","coordinates":[lon,lat]},
                              "properties":{"name":row["name"],"kind":row.get("feature_type",""),
                                            "source_id":row.get("source_id","")}})
+    if args.towns:
+        features = json.loads(args.towns.read_text(encoding="utf-8"))["features"]
+        if len(features) < 500:
+            raise RuntimeError("Merged OSM/official town catalog incomplete")
     metadata = {
         "baseZoom":base_zoom,
         "detailedSamples":{k:{"tileCount":added_sample[k],"center":[v[0],v[1]]} for k,v in SAMPLES.items()},
@@ -101,7 +106,8 @@ def main():
         "tileBytes":total_bytes,
         "inputMBTiles":str(args.tiles.name),
         "sourceLayerNames":[p.get("id") for p in json.loads(meta.get("json","{}")).get("vector_layers",[])],
-        "communities":len(features)
+        "communities":len(features),
+        "townCenterSource":"OSM map-label nodes matched to official names" if args.towns else "Natural Resources Canada"
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as out:
