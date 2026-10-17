@@ -192,7 +192,7 @@ map.on('click',event=>{
   const seen=new Set(),descriptions=[];
   for(const feature of hits) {
     const p=feature.properties||{};
-    const source=feature.source==='provincial-road-source'?'NL Provincial GeoAtlas':feature.source==='federal-road-source'?'Federal National Road Network':'OpenStreetMap';
+    const source=feature.source==='provincial-road-source'?'NL Forestry Resource Roads':feature.source==='federal-road-source'?'Federal National Road Network':'OpenStreetMap';
     const desc=[source,p.name||p.ROAD_NAME||p.ref||'Unnamed road',p.class||p.road_class||p.highway||'',
       p.audit_status||'',p.osm_cover!==undefined?'OSM overlap: '+Math.round(Number(p.osm_cover)*100)+'%':''].filter(Boolean).join(' · ');
     const fingerprint=[source,p.name||'',p.class||'',p.audit_status||'',p.source_id||''].join('/');
