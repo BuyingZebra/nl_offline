@@ -177,10 +177,6 @@ button .phosphor-hit-layer{
  height:0;pointer-events:none}
 #screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
 #screenBottomFade{bottom:0;background:linear-gradient(to top,#000,transparent)}
-#playfieldTopFade,#playfieldBottomFade{position:absolute;left:0;right:0;z-index:1;
- pointer-events:none;height:0}
-#playfieldTopFade{top:0;background:linear-gradient(to bottom,var(--bg),transparent)}
-#playfieldBottomFade{bottom:0;background:linear-gradient(to top,var(--bg),transparent)}
 header h1{letter-spacing:.13em}
 .header-tools button{min-width:44px}
 #pausedScoresButton{width:100%;font-size:11px}
@@ -243,6 +239,69 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  #extras{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 
+
+/* Camera post-effects are transparent overlays, never baked into panel colours.
+   Each modal is a browser top-layer element, so it gets its own identical
+   viewport-wide overlays. They are pointer-transparent and don't block menus. */
+#app{--fx-ink:var(--ink)}
+#screenScan{background:repeating-linear-gradient(to bottom,
+ rgba(0,0,0,.03) 0,rgba(0,0,0,.03) 1px,
+ transparent 1px,transparent 3px,rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
+#sweep{background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09))}
+#screenScan,#screenShade,#sweep,#screenTopFade,#screenBottomFade{
+ pointer-events:none}
+#screenScan,#screenShade,#screenTopFade,#screenBottomFade{z-index:11}
+#sweep{z-index:12}
+#app :is(header h1,header small,#console,#consoleState,#eventline,#scoreStrip strong,
+ #scoreStrip small,.side-label,.mini-stat b,.score-row,.entry-label,
+ button,.setting-line,.effect-head,.effect-note){
+ text-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+#app :is(.panel,#boardShell,.side-panel,button){
+ box-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--border) var(--glow-strength),transparent)}
+#app :is(.panel,#boardShell,.side-panel,button){
+ border-color:var(--border)}
+button .phosphor-hit-layer{
+ border-color:color-mix(in srgb,currentColor var(--glow-strength),transparent);
+ background:radial-gradient(ellipse at center,
+ color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
+ box-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+/* The modal top layer sits above #app; duplicate the camera filters there. */
+dialog .modal-camera-fx{
+ position:fixed;inset:0;pointer-events:none;z-index:2147483646;
+ overflow:hidden;isolation:isolate}
+dialog .modal-camera-fx .fx-scan,
+dialog .modal-camera-fx .fx-vignette,
+dialog .modal-camera-fx .fx-fade-top,
+dialog .modal-camera-fx .fx-fade-bottom{
+ position:absolute;pointer-events:none;left:0;right:0}
+dialog .modal-camera-fx .fx-scan{
+ inset:0;opacity:var(--scan-intensity);
+ background:repeating-linear-gradient(to bottom,
+ rgba(0,0,0,.03) 0,rgba(0,0,0,.03) 1px,
+ transparent 1px,transparent 3px,rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
+dialog .modal-camera-fx .fx-vignette{
+ inset:0;opacity:var(--vignette-intensity);
+ background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
+ rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,#000 100%)}
+dialog .modal-camera-fx .fx-fade-top{
+ top:0;height:var(--screen-top-fade,0px);
+ background:linear-gradient(to bottom,#000,transparent)}
+dialog .modal-camera-fx .fx-fade-bottom{
+ bottom:0;height:var(--screen-bottom-fade,0px);
+ background:linear-gradient(to top,#000,transparent)}
+dialog :is(h2,p,label,b,output,button,.score-row,.record,.player,.points){
+ text-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+dialog :is(button,.score-row){
+ box-shadow:0 0 var(--glow-radius)
+ color-mix(in srgb,currentColor var(--border) var(--glow-strength),transparent)}
+@media(prefers-reduced-motion:reduce){
+ .phosphor-hit-layer{animation:none!important}
+}
+
 </style>
 </head>
 <body>
@@ -259,8 +318,6 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  <main id="stage">
   <div id="boardShell">
    <canvas id="board" width="300" height="600" aria-label="Tetris game board, 10 columns by 20 rows"></canvas>
-   <div id="playfieldTopFade" aria-hidden="true"></div>
-   <div id="playfieldBottomFade" aria-hidden="true"></div>
    <div id="veil">
     <h2 id="veilTitle">TETRIS</h2>
     <p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>
@@ -311,9 +368,7 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  <div class="settings-heading">GRADIENT LENGTH / CSS PIXELS</div>
  <div class="gradient-row"><label for="fade-screenTop-on"><input id="fade-screenTop-on" type="checkbox" checked> SCREEN TOP</label><input id="fade-screenTop" class="effect-slider" type="range" min="0" max="420" step="5" value="165"><output id="fade-screenTop-value">165px</output></div>
  <div class="gradient-row"><label for="fade-screenBottom-on"><input id="fade-screenBottom-on" type="checkbox"> SCREEN BOTTOM</label><input id="fade-screenBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="110"><output id="fade-screenBottom-value">110px</output></div>
- <div class="gradient-row"><label for="fade-playfieldTop-on"><input id="fade-playfieldTop-on" type="checkbox"> PLAYFIELD TOP</label><input id="fade-playfieldTop" class="effect-slider" type="range" min="0" max="420" step="5" value="110"><output id="fade-playfieldTop-value">110px</output></div>
- <div class="gradient-row"><label for="fade-playfieldBottom-on"><input id="fade-playfieldBottom-on" type="checkbox"> PLAYFIELD BOTTOM</label><input id="fade-playfieldBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="100"><output id="fade-playfieldBottom-value">100px</output></div>
- <p class="setting-copy">Screen fades paint black over the full display. Playfield fades are independent and can be disabled for unobstructed gameplay.</p>
+ <p class="setting-copy">Screen top and bottom fades overlay the entire display, including the playfield and menus.</p>
  <div class="settings-divider"></div>
  <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">65%</output></div><p class="effect-note">Same bloom spread for all luminous content, derived from its colour.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
  <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">26%</output></div><p class="effect-note">Covers board, menus and controls.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="26"></div>
