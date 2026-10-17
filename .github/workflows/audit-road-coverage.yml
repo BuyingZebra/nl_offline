@@ -1,0 +1,78 @@
+name: Audit NL road coverage across provincial sources
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/audit-road-coverage.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nl-road-comparison
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GIS dependencies
+        run: python -m pip install "geopandas==1.1.1" "shapely==2.1.2" "pyogrio==0.11.1"
+      - name: Find completed source-data builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF_RUN="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nl-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          PROV_RUN="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow download-provincial-roads.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          if [ -z "$REF_RUN" ] || [ "$REF_RUN" = null ] || [ -z "$PROV_RUN" ] || [ "$PROV_RUN" = null ]; then
+            echo "The reference and provincial resource-road builds must both succeed first."
+            exit 1
+          fi
+          echo "REF_RUN=$REF_RUN" >> "$GITHUB_ENV"
+          echo "PROV_RUN=$PROV_RUN" >> "$GITHUB_ENV"
+      - name: Download processed map datasets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/reference work/provincial work/comparison
+          gh run download "$REF_RUN" --repo "$GITHUB_REPOSITORY" --name nl-reference-data --dir work/reference
+          gh run download "$PROV_RUN" --repo "$GITHUB_REPOSITORY" --name nl-provincial-resource-roads --dir work/provincial
+          test -s work/reference/nl_reference.gpkg
+          test -s work/provincial/nl_resource_access_roads.gpkg
+      - name: Compare road geometry across the province
+        run: |
+          python tools/audit_road_sources.py --federal work/reference/nl_reference.gpkg --provincial work/provincial/nl_resource_access_roads.gpkg --output work/comparison
+      - name: Upload editable source comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-combined-road-source-audit
+          path: work/comparison/*
+          retention-days: 14
+          compression-level: 6
+          if-no-files-found: error
+      - name: Publish source overlap statistics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data/road_audits
+          cp work/comparison/road_comparison_report.json data/road_audits/road_comparison_report.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/road_audits/road_comparison_report.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish NL road source overlap coverage statistics [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
