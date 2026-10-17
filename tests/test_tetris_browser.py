@@ -46,6 +46,13 @@ with sync_playwright() as p:
         # app's background. Verify even the canvas's underlying pixels.
         colours=page.evaluate("""() => {
           const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
+          const pixels=id=>{
+            const sample=document.createElement('canvas');
+            sample.width=1;sample.height=1;
+            const ctx=sample.getContext('2d');
+            ctx.fillStyle=color(id);ctx.fillRect(0,0,1,1);
+            return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3);
+          };
           const vars=getComputedStyle(document.documentElement);
           return {
             base:vars.getPropertyValue('--bg').trim().toLowerCase(),
@@ -56,13 +63,17 @@ with sync_playwright() as p:
             hold:color('#side .side-panel'),
             miniCard:color('#side #sideStats'),
             shell:color('#boardShell'),
+            parentPixel:pixels('header'),
+            childPixel:pixels('#side .side-panel'),
             veil:color('#veil'),
             boardPixel:Array.from(document.querySelector('#board')
               .getContext('2d').getImageData(15,15,1,1).data)
           };
         }""")
         assert colours["base"] == "#04120b", colours
-        assert colours["card"] == "#010a06", colours
+        assert colours["childPixel"] == [4,18,11], colours
+        assert all(abs(colours["parentPixel"][i]-round(colours["childPixel"][i]*0.65))<=1
+                   for i in range(3)), colours
         assert len({colours[key] for key in ("header","controls","stage")}) == 1, colours
         assert len({colours[key] for key in ("hold","miniCard","shell")}) == 1, colours
         assert colours["header"] != colours["hold"], colours
@@ -274,6 +285,13 @@ with sync_playwright() as p:
         assert page.locator("html").get_attribute("data-theme") == "amber"
         amber_colours=page.evaluate("""() => {
           const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
+          const pixels=id=>{
+            const sample=document.createElement('canvas');
+            sample.width=1;sample.height=1;
+            const ctx=sample.getContext('2d');
+            ctx.fillStyle=color(id);ctx.fillRect(0,0,1,1);
+            return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3);
+          };
           const style=getComputedStyle(document.documentElement);
           return {
             base:style.getPropertyValue('--bg').trim().toLowerCase(),
@@ -284,12 +302,16 @@ with sync_playwright() as p:
             hold:color('#side .side-panel'),
             miniCard:color('#side #sideStats'),
             shell:color('#boardShell'),
+            parentPixel:pixels('header'),
+            childPixel:pixels('#side .side-panel'),
             boardPixel:Array.from(document.querySelector('#board')
               .getContext('2d').getImageData(15,15,1,1).data)
           };
         }""")
         assert amber_colours["base"] == "#100904", amber_colours
-        assert amber_colours["card"] == "#0c0704", amber_colours
+        assert amber_colours["childPixel"] == [16,9,4], amber_colours
+        assert all(abs(amber_colours["parentPixel"][i]-round(amber_colours["childPixel"][i]*0.65))<=1
+                   for i in range(3)), amber_colours
         assert len({amber_colours[key] for key in ("header","controls","stage")}) == 1, amber_colours
         assert len({amber_colours[key] for key in ("hold","miniCard","shell")}) == 1, amber_colours
         assert amber_colours["header"] != amber_colours["hold"], amber_colours
