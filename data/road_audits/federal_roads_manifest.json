@@ -1,0 +1,20 @@
+{
+  "source": "Statistics Canada National Road Network",
+  "features": 44484,
+  "original_geometries": 44484,
+  "visual_simplification_m": 2.0,
+  "class_counts": {
+    "Local / Street": 22774,
+    "Collector": 12984,
+    "Local / Strata": 108,
+    "Local / Unknown": 87,
+    "Expressway / Highway": 7247,
+    "Ramp": 724,
+    "Freeway": 465,
+    "Resource / Recreation": 63,
+    "Arterial": 19,
+    "Alleyway / Lane": 4,
+    "Service Lane": 9
+  },
+  "usage": "visual inspection only, not road routing"
+}
