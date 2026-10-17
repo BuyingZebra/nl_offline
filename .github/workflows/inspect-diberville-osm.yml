@@ -36,7 +36,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/geometry_qa/diberville_osm_way_report.json data/geometry_qa/diberville_osm_way_geometries.geojson
+          git add data/geometry_qa/diberville_osm_way_report.json data/geometry_qa/diberville_osm_way_geometries.geojson data/geometry_qa/diberville_nearby_road_ways.json data/geometry_qa/diberville_nearby_road_geometries.geojson
           git commit -m "Publish raw OSM D'Iberville Street way geometries for accuracy investigation [skip ci]"
           git -c rebase.autoStash=true pull --rebase origin main
           git push origin HEAD:main
