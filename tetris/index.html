@@ -157,8 +157,8 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  padding-top:calc(env(safe-area-inset-top,0px) + 9px)}
 button{border-radius:8px;background:var(--panel)}
 button:not(.primary):active{background:var(--solid)}
-#app button.phosphor-reactive{position:relative;isolation:isolate;overflow:visible}
-#app button .phosphor-hit-layer{
+button.phosphor-reactive{position:relative;isolation:isolate;overflow:visible}
+button .phosphor-hit-layer{
  position:absolute;inset:-2px;pointer-events:none;opacity:0;border-radius:inherit;
  color:inherit;border:1px solid color-mix(in srgb,currentColor var(--glow-strength),transparent);
  background:radial-gradient(ellipse at center,color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
@@ -236,6 +236,8 @@ input.effect-slider::-moz-range-thumb{height:22px;width:22px;border:3px solid va
  font:700 19px ui-monospace,SFMono-Regular,monospace;letter-spacing:.3em}
 #scoreEntry .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 #saveScore{background:var(--bright);border-color:var(--bright);color:var(--shadow)}
+dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
+ text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #guide{padding-top:10px;border-top:1px solid var(--border);margin-top:12px}
 @media(orientation:landscape) and (max-height:600px){
  #extras{grid-template-columns:repeat(3,minmax(0,1fr))}
