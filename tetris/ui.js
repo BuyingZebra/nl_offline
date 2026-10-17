@@ -49,7 +49,8 @@
     panel.removeAttribute('aria-modal');
     syncModalState();
     const returnTo=modalFocus.get(panel);
-    if(returnTo&&returnTo.isConnected&&typeof returnTo.focus==='function'&&!returnTo.closest('[inert]'))
+    if(returnTo&&returnTo.isConnected&&typeof returnTo.focus==='function'&&
+       !modalPanels.some(other=>other.contains(returnTo))&&!returnTo.closest('[inert]'))
       returnTo.focus({preventScroll:true});
     return true;
   }
