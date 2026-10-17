@@ -33,7 +33,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 <label for="scale">Map scale denominator</label><select id="scale"><option value="">All</option><option value="5000">1:5,000 or more detailed</option><option value="12500">1:12,500 or more detailed</option><option value="25000">1:25,000 or more detailed</option><option value="50000">1:50,000 or more detailed</option></select>
 <div id="pager"><button id="back">Previous</button><span id="page"></span><button id="next">Next</button></div>
 <div id="results"></div>
-<h2>ArcGIS map services</h2>
+<h2>Official 1:50,000 topographic PDFs</h2><div id="topos" class="quiet">Loading direct map-sheet PDF links…</div><h2>ArcGIS map services</h2>
 <div id="gis" class="quiet">Discovering provincial service endpoints…</div>
 </aside>
 <section id="viewer">
@@ -47,7 +47,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 <script>
 'use strict';
 const el = id => document.getElementById(id);
-let rows=[],filtered=[],page=0,selected=null;
+let rows=[],filtered=[],page=0,selected=null,topos=[];
 const size=20;
 const root='./data/provincial_maps/';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -59,7 +59,8 @@ function choose(r){
  el('openOriginal').href=r.url;el('openOriginal').hidden=false;
  el('source').textContent=r.filename;
 }
-function draw(){
+function drawTopos(){const q=el('q').value.trim().toLocaleLowerCase();el('topos').replaceChildren();const selected=topos.filter(t=>!q||String(t.sheet).toLocaleLowerCase().includes(q)).slice(0,35);for(const t of selected){const a=document.createElement('a');a.href=t.pdf_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=t.sheet+' — official map PDF ↗';el('topos').appendChild(a);}if(!selected.length)el('topos').textContent='No topographic sheets match this filter.';}
+function draw(){drawTopos();
  const q=el('q').value.trim().toLocaleLowerCase(), mode=el('mode').value, scale=Number(el('scale').value)||0;
  filtered=rows.filter(r=>(!mode||r.photo_type===mode)&&(!scale||r.scale_denominator&&Number(r.scale_denominator)<=scale)
  &&(!q||[r.sheet,r.year,r.region,r.filename].some(v=>String(v??'').toLocaleLowerCase().includes(q))));
@@ -83,6 +84,8 @@ el('back').onclick=()=>{page--;draw();};el('next').onclick=()=>{page++;draw();};
   if(!images.ok||!report.ok)throw Error('Catalog build has not published files yet. Check the GitHub Actions run.');
   rows=await images.json();const s=await report.json();
   el('summary').textContent=rows.length.toLocaleString()+' indexed images across '+s.sheet_count+' map-sheet identifiers. ArcGIS layers discovered: '+s.arcgis_layer_count+'.';
+  const pdf=await fetch(root+'provincial_topographic_pdf_index.json');
+  if(pdf.ok)topos=await pdf.json();
   draw();
   if(filtered.length)choose(filtered[0]);
   const a=await fetch(root+'provincial_arcgis_layers.csv');
