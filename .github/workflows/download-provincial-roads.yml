@@ -8,7 +8,7 @@ on:
       - ".github/workflows/download-provincial-roads.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   resource-roads:
@@ -35,6 +35,20 @@ jobs:
             work/provincial-roads/nl_resource_access_roads.geojson \
             -nln resource_access_roads -t_srs EPSG:4326
           ogrinfo -so work/provincial-roads/nl_resource_access_roads.gpkg resource_access_roads
+      - name: Publish compact provenance and road counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data/road_audits
+          cp work/provincial-roads/provincial_roads_report.json data/road_audits/provincial_roads_report.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/road_audits/provincial_roads_report.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record NL resource roads source quality and coverage [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
       - name: Save downloadable full-province resource-road files
         uses: actions/upload-artifact@v4
         with:
