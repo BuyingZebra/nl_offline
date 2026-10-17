@@ -1,0 +1,89 @@
+name: Reconcile NL roads against real OpenStreetMap geometry
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/reconcile-nl-roads.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: reconcile-nl-roads
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install GIS and OSM libraries
+        run: |
+          python -m pip install "geopandas==1.1.1" "shapely==2.1.2" "pyogrio==0.11.1" "osmium==4.2.0"
+      - name: Find source artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          R="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-nl-map.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          P="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow download-provincial-roads.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          test -n "$R" && test "$R" != null && test -n "$P" && test "$P" != null
+          mkdir -p work/reference work/provincial work/reconcile
+          gh run download "$R" --repo "$GITHUB_REPOSITORY" --name nl-reference-data --dir work/reference
+          gh run download "$P" --repo "$GITHUB_REPOSITORY" --name nl-provincial-resource-roads --dir work/provincial
+          test -s work/reference/nl_reference.gpkg
+          test -s work/provincial/nl_resource_access_roads.gpkg
+      - name: Fetch current NL OpenStreetMap source PBF
+        shell: bash
+        run: |
+          curl -fL --retry 3 --retry-delay 5 --connect-timeout 30 \
+            "https://download.geofabrik.de/north-america/canada/newfoundland-and-labrador-latest.osm.pbf" \
+            -o work/nl.osm.pbf
+          test -s work/nl.osm.pbf
+      - name: Audit overlapping roads, offsets and possible new coverage
+        run: |
+          python tools/reconcile_road_sources.py \
+            --osm-pbf work/nl.osm.pbf \
+            --nrn work/reference/nl_reference.gpkg \
+            --provincial work/provincial/nl_resource_access_roads.gpkg \
+            --output work/reconcile
+      - name: Save complete editable source comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-osm-provincial-road-conflation
+          path: |
+            work/reconcile/nl_road_conflation.gpkg
+            work/reconcile/conflation_report.json
+          retention-days: 14
+          compression-level: 6
+          if-no-files-found: error
+      - name: Publish compressed province-wide visual audit layer
+        shell: bash
+        run: |
+          mkdir -p data/road_audits
+          python tools/publish_road_overlay.py \
+            --input work/reconcile/nl_road_conflation.gpkg \
+            --layer provincial_source_audit \
+            --output data/road_audits/osm_checked_provincial_roads.geojson.gz
+          cp work/reconcile/conflation_report.json data/road_audits/conflation_report.json
+          mv data/road_audits/provincial_road_overlay_manifest.json data/road_audits/osm_checked_road_overlay_manifest.json
+      - name: Commit validated coverage report and browser layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/road_audits/conflation_report.json data/road_audits/osm_checked_provincial_roads.geojson.gz data/road_audits/osm_checked_road_overlay_manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish NL province-wide OSM-federal-resource road conflation results [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
