@@ -72,7 +72,7 @@ with sync_playwright() as p:
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
-            '#resetEffects','#closeOptions','#cancelRestart','#closeLeaderboard'];
+            '#resetEffects','#cancelRestart','#closeLeaderboard'];
           const colours=samples.map(selector=>({
             selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
           }));
@@ -144,6 +144,11 @@ with sync_playwright() as p:
 
         # Menu is in the SAME compositor, below the global overlay stack.
         page.get_by_role("button", name="Display options").tap()
+        # The visible Return button uses the same screen colour as the
+        # play controls; hidden-dialog computed styles can be cached by WebKit.
+        assert page.locator("#closeOptions").evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        ) == "rgb(4, 18, 11)"
         assert page.locator("#options").get_attribute("open") is not None
         assert page.locator("#modalScrim").is_visible()
         assert page.locator("#fade-screenTop-on").count() == 1
@@ -282,7 +287,7 @@ with sync_playwright() as p:
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
-            '#resetEffects','#closeOptions','#cancelRestart','#closeLeaderboard'];
+            '#resetEffects','#cancelRestart','#closeLeaderboard'];
           const colours=samples.map(selector=>({
             selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
           }));
@@ -294,6 +299,9 @@ with sync_playwright() as p:
         assert all(e["background"]==button_surfaces["appRgb"] for e in button_surfaces["colours"]), button_surfaces
         assert all(e["background"]!=button_surfaces["appRgb"] for e in button_surfaces["primary"]), button_surfaces
         page.get_by_role("button", name="Display options").tap()
+        assert page.locator("#closeOptions").evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        ) == "rgb(16, 9, 4)"
         page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
         page.locator("#closeOptions").tap()
 
