@@ -2,7 +2,8 @@
 (function () {
   'use strict';
   const API=window.FieldAtlasBlocks;
-  if(!API)throw Error('FIELD ATLAS arcade core failed to load');
+  const Scores=window.FieldAtlasScores;
+  if(!API||!Scores)throw Error('FIELD ATLAS arcade modules failed to load');
   const game=new API.Game();
   const $=id=>document.getElementById(id);
   const board=$('board'),ctx=board.getContext('2d',{alpha:false});
@@ -11,23 +12,65 @@
   const previewCanvases=[$('next1'),$('next2'),$('next3')];
   const options=$('options');
   const restartConfirm=$('restartConfirm');
+  const leaderboard=$('leaderboard'),scoreEntry=$('scoreEntry');
   const names={ready:'STANDBY',playing:'ACTIVE',paused:'PAUSED',over:'GAME OVER'};
-  let lastFrame=performance.now(),dirty=true,previousPieceCount=0,previousLines=0;
-  let highScore=0,showGhost=true,soundOn=false,glow=45,scan=28,audioCtx=null;
+  let lastFrame=performance.now(),dirty=true;
+  let highScore=0,showGhost=true,soundOn=false,glow=65,scan=26,vignette=30,audioCtx=null;
+  let gameOverHandled=false,highScores=[],storage=null;
+  const fadeKeys=['screenTop','screenBottom','playfieldTop','playfieldBottom'];
+  const defaultGradients={
+    screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
+    playfieldTop:{enabled:false,length:110},playfieldBottom:{enabled:false,length:100}
+  };
+  let gradients=JSON.parse(JSON.stringify(defaultGradients));
   let palette=null;
 
   function read(key,fallback){
     try {const val=localStorage.getItem(key);return val===null?fallback:val;}catch(e){return fallback;}
   }
   function store(key,val){try{localStorage.setItem(key,String(val))}catch(e){}}
-  highScore=Math.max(0,Number(read('fieldAtlasTetrisBest','0'))||0);
+  const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
+  try{storage=window.localStorage;}catch(e){storage=null;}
+  highScores=Scores.read(storage);
+  highScore=highScores[0]?.score||0;
   const theme=read('fieldAtlasThemeV06','green');
   root.dataset.theme=theme==='amber'?'amber':'green';
-  scan=Math.max(0,Math.min(90,Number(read('fieldAtlasTetrisScan','28'))||0));
-  glow=Math.max(0,Math.min(100,Number(read('fieldAtlasTetrisGlow','45'))||0));
+  try{
+    const saved=JSON.parse(read('fieldAtlasEffectsV06','null'));
+    if(saved&&typeof saved==='object'){
+      glow=Number.isFinite(saved.glow)?clamp(Math.round(saved.glow),0,100):glow;
+      scan=Number.isFinite(saved.scanlines)?clamp(Math.round(saved.scanlines),0,100):scan;
+      vignette=Number.isFinite(saved.vignette)?clamp(Math.round(saved.vignette),0,100):vignette;
+    }else{
+      scan=clamp(Number(read('fieldAtlasTetrisScan','26'))||0,0,100);
+      glow=clamp(Number(read('fieldAtlasTetrisGlow','65'))||0,0,100);
+    }
+  }catch(e){}
+  // Map and arcade share screen fades. The playfield fades are independent:
+  // applying map-edge fades directly would obscure falling blocks.
+  try{
+    const mapGradients=JSON.parse(read('fieldAtlasGradientsV20','null'));
+    for(const key of ['screenTop','screenBottom']){
+      if(mapGradients?.[key]&&typeof mapGradients[key]==='object'){
+        if(typeof mapGradients[key].enabled==='boolean')
+          gradients[key].enabled=mapGradients[key].enabled;
+        if(Number.isFinite(mapGradients[key].length))
+          gradients[key].length=clamp(Math.round(mapGradients[key].length/5)*5,0,420);
+      }
+    }
+    const saved=JSON.parse(read('fieldAtlasTetrisGradientsV01','null'));
+    if(saved&&typeof saved==='object'){
+      for(const key of fadeKeys){
+        if(saved[key]&&typeof saved[key]==='object'){
+          if(typeof saved[key].enabled==='boolean')gradients[key].enabled=saved[key].enabled;
+          if(Number.isFinite(saved[key].length))
+            gradients[key].length=clamp(Math.round(saved[key].length/5)*5,0,420);
+        }
+      }
+    }
+  }catch(e){}
   showGhost=read('fieldAtlasTetrisGhost','yes')!=='no';
   soundOn=read('fieldAtlasTetrisSound','no')==='yes';
-  $('scanControl').value=scan;$('glowControl').value=glow;
   $('ghostControl').checked=showGhost;$('soundControl').checked=soundOn;
 
   function css(name){return getComputedStyle(root).getPropertyValue(name).trim();}
@@ -37,12 +80,54 @@
   }
   function color(rgb,a=1){return 'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+a+')';}
   function mix(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t));}
+  function saveEffects(){
+    store('fieldAtlasEffectsV06',JSON.stringify({glow,scanlines:scan,vignette}));
+  }
+  function gradientHeight(key){return gradients[key].enabled?gradients[key].length+'px':'0px';}
+  function applyGradientFades(){
+    $('screenTopFade').style.height=gradientHeight('screenTop');
+    $('screenBottomFade').style.height=gradientHeight('screenBottom');
+    $('playfieldTopFade').style.height=gradientHeight('playfieldTop');
+    $('playfieldBottomFade').style.height=gradientHeight('playfieldBottom');
+  }
+  function saveGradients(){
+    store('fieldAtlasTetrisGradientsV01',JSON.stringify(gradients));
+    // Keep the two shared screen gradients in sync with the map without
+    // touching the map's geographically anchored north/south fade settings.
+    try{
+      const map=JSON.parse(read('fieldAtlasGradientsV20','null'))||{};
+      for(const key of ['screenTop','screenBottom'])map[key]={...gradients[key]};
+      store('fieldAtlasGradientsV20',JSON.stringify(map));
+    }catch(e){}
+  }
+  function rangeDisplay(input,output,value,suffix='%'){
+    input.value=value;
+    input.style.setProperty('--fill',Math.round(value/Number(input.max)*100)+'%');
+    output.textContent=value+suffix;
+  }
+  function updateDisplaySettings(){
+    rangeDisplay($('glowControl'),$('glowValue'),glow);
+    rangeDisplay($('scanControl'),$('scanValue'),scan);
+    rangeDisplay($('vignetteControl'),$('vignetteValue'),vignette);
+    for(const key of fadeKeys){
+      $('fade-'+key+'-on').checked=gradients[key].enabled;
+      rangeDisplay($('fade-'+key),$('fade-'+key+'-value'),gradients[key].length,'px');
+    }
+    $('themeSetting').textContent=root.dataset.theme.toUpperCase();
+  }
   function refreshPalette(){
     palette={bright:hexRgb(css('--bright')),ink:hexRgb(css('--ink')),
       weak:hexRgb(css('--weak')),base:hexRgb(css('--bg')),border:hexRgb(css('--border')),
       grid:hexRgb(css('--grid')),dark:hexRgb(css('--shadow'))};
-    root.style.setProperty('--scan',(scan/100).toFixed(2));
-    root.style.setProperty('--glow',(glow/12).toFixed(1)+'px');
+    const k=glow/100;
+    const app=$('app');
+    app.style.setProperty('--scan-intensity',String(scan/100));
+    app.style.setProperty('--vignette-intensity',String(vignette/100));
+    app.style.setProperty('--glow-level',k.toFixed(3));
+    app.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
+    app.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
+    applyGradientFades();
+    updateDisplaySettings();
     dirty=true;
   }
   refreshPalette();
@@ -140,11 +225,7 @@
     $('scoreValue').textContent=String(game.score).padStart(6,'0');
     $('linesValue').textContent=String(game.lines).padStart(2,'0');
     $('levelValue').textContent=String(game.level).padStart(2,'0');
-    if(game.score>highScore) {
-      highScore=game.score;
-      store('fieldAtlasTetrisBest',highScore);
-    }
-    $('bestScore').textContent=highScore.toLocaleString('en-CA');
+    $('bestScore').textContent=Math.max(highScore,game.score).toLocaleString('en-CA');
     $('pieceCount').textContent=game.pieces;
     $('eventText').textContent=game.lastEvent+' / '+game.dropMs+' MS';
     $('consoleState').textContent='[ARCADE] TETRIS / '+names[game.status];
@@ -155,6 +236,7 @@
     const veil=$('veil');
     veil.classList.toggle('hidden',game.status==='playing');
     $('newGameButton').hidden=game.status!=='paused';
+    $('pausedScoresButton').hidden=game.status!=='paused';
     if(game.status==='ready'){
       $('veilTitle').textContent='TETRIS';
       $('veilText').textContent='FALLING-BLOCK ARCADE / 7 PIECES / 10 × 20';
@@ -169,6 +251,74 @@
       $('playButton').textContent='↻ PLAY AGAIN';
     }
   }
+
+  function renderHighScores(){
+    const container=$('scoreRows');
+    container.replaceChildren();
+    for(let rank=0;rank<Scores.LIMIT;rank++){
+      const entry=highScores[rank];
+      const row=document.createElement('div');
+      row.className='score-row'+(entry?'':' empty');
+      const spans=[
+        ['rank',String(rank+1).padStart(2,'0')],
+        ['player',entry?.name||'---'],
+        ['record',entry?entry.lines+' LINES / LV '+entry.level:'NO RECORD'],
+        ['points',entry?entry.score.toLocaleString('en-CA'):'------']
+      ];
+      for(const [name,value] of spans){
+        const node=document.createElement('span');
+        node.className=name;
+        node.textContent=value;
+        row.append(node);
+      }
+      container.append(row);
+    }
+  }
+  function openHighScores(){
+    if(game.status==='playing')perform('pause');
+    if(options.open)options.close();
+    if(restartConfirm.open||scoreEntry.open)return;
+    renderHighScores();
+    if(!leaderboard.open)leaderboard.showModal();
+    dirty=true;
+  }
+  function offerScoreOnGameOver(){
+    if(game.status!=='over'||gameOverHandled)return;
+    gameOverHandled=true;
+    dirty=true;
+    if(!Scores.qualifies(highScores,game.score))return;
+    $('entryScore').textContent=game.score.toLocaleString('en-CA')+' POINTS';
+    $('initialsEntry').value=read('fieldAtlasTetrisInitials','AAA');
+    if(!scoreEntry.open)scoreEntry.showModal();
+  }
+  function saveQualifyingScore(){
+    if(!scoreEntry.open||game.status!=='over')return;
+    const initials=Scores.initials($('initialsEntry').value);
+    const at=Date.now();
+    highScores=Scores.add(highScores,{name:initials,score:game.score,
+      lines:game.lines,level:game.level,at});
+    highScores=Scores.save(storage,highScores);
+    highScore=highScores[0]?.score||0;
+    store('fieldAtlasTetrisInitials',initials);
+    scoreEntry.close();
+    renderHighScores();
+    leaderboard.showModal();
+    dirty=true;
+  }
+  $('scoresButton').addEventListener('click',openHighScores);
+  $('pausedScoresButton').addEventListener('click',openHighScores);
+  $('closeLeaderboard').addEventListener('click',()=>leaderboard.close());
+  $('saveScore').addEventListener('click',saveQualifyingScore);
+  $('initialsEntry').addEventListener('keydown',event=>{
+    if(event.key==='Enter'){event.preventDefault();saveQualifyingScore();}
+  });
+  $('initialsEntry').addEventListener('input',()=>{
+    const input=$('initialsEntry'),start=input.selectionStart;
+    input.value=input.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
+    try{input.setSelectionRange(Math.min(start,input.value.length),Math.min(start,input.value.length));}catch(e){}
+  });
+  $('skipScore').addEventListener('click',()=>{scoreEntry.close();dirty=true;});
+
   function perform(action){
     const beforePiece=game.pieces,beforeLines=game.lines,beforeStatus=game.status;
     let performed=false;
@@ -184,12 +334,14 @@
       case 'start':performed=game.start();break;
     }
     if(performed) {
+      if(beforeStatus==='over'&&game.status==='playing')gameOverHandled=false;
       if(game.lines>beforeLines)playTone(game.lines-beforeLines===4?670:480,.15);
       else if(game.pieces>beforePiece)playTone(175,.035);
       else if(action==='cw'||action==='ccw')playTone(305,.035);
       else if(action==='hard')playTone(185,.05);
       else if(action==='hold')playTone(265,.045);
       if(beforeStatus!=='over'&&game.status==='over')playTone(100,.25);
+      offerScoreOnGameOver();
       dirty=true;
     }
     return performed;
@@ -206,28 +358,46 @@
     restartConfirm.close();
     game.reset();
     game.start();
+    gameOverHandled=false;
     dirty=true;
   });
   restartConfirm.addEventListener('cancel',()=>{dirty=true;});
-  $('themeToggle').addEventListener('click',()=>{
+  function toggleTheme(){
     const theme=root.dataset.theme==='amber'?'green':'amber';
     root.dataset.theme=theme;store('fieldAtlasThemeV06',theme);
     document.querySelector('meta[name="theme-color"]').content=theme==='amber'?'#140c05':'#06170e';
     refreshPalette();
-  });
+  }
+  $('themeToggle').addEventListener('click',toggleTheme);
+  $('themeSetting').addEventListener('click',toggleTheme);
   $('optionsButton').addEventListener('click',()=>{
     if(game.status==='playing')perform('pause');
     options.showModal();
   });
   $('closeOptions').addEventListener('click',()=>options.close());
   options.addEventListener('cancel',()=>dirty=true);
-  $('scanControl').addEventListener('input',e=>{
-    scan=Math.min(90,Math.max(0,Number(e.target.value)));
-    store('fieldAtlasTetrisScan',scan);refreshPalette();
-  });
-  $('glowControl').addEventListener('input',e=>{
-    glow=Math.min(100,Math.max(0,Number(e.target.value)));
-    store('fieldAtlasTetrisGlow',glow);refreshPalette();
+  for(const [id,key] of [['glowControl','glow'],['scanControl','scan'],['vignetteControl','vignette']]){
+    $(id).addEventListener('input',event=>{
+      const value=clamp(Math.round(Number(event.target.value)),0,100);
+      if(key==='glow')glow=value;
+      else if(key==='scan')scan=value;
+      else vignette=value;
+      saveEffects();
+      refreshPalette();
+    });
+  }
+  for(const key of fadeKeys){
+    $('fade-'+key+'-on').addEventListener('change',event=>{
+      gradients[key].enabled=event.target.checked;
+      saveGradients();refreshPalette();
+    });
+    $('fade-'+key).addEventListener('input',event=>{
+      gradients[key].length=clamp(Math.round(Number(event.target.value)/5)*5,0,420);
+      saveGradients();refreshPalette();
+    });
+  }
+  $('resetEffects').addEventListener('click',()=>{
+    glow=65;scan=26;vignette=30;saveEffects();refreshPalette();
   });
   $('ghostControl').addEventListener('change',e=>{
     showGhost=e.target.checked;store('fieldAtlasTetrisGhost',showGhost?'yes':'no');dirty=true;
@@ -274,7 +444,7 @@
     Enter:'start'
   };
   document.addEventListener('keydown',event=>{
-    if(options.open||restartConfirm.open)return;
+    if(options.open||restartConfirm.open||leaderboard.open||scoreEntry.open)return;
     const action=keyboard[event.code];
     if(!action)return;
     event.preventDefault();
@@ -320,9 +490,45 @@
       else playTone(175,.04);
     }
     if(beforeStatus!=='over'&&game.status==='over')playTone(100,.24);
+    offerScoreOnGameOver();
     if(dirty){paintBoard();updateHUD();dirty=false;}
     requestAnimationFrame(frame);
   }
+
+  // Match the reactive phosphor flare used by FIELD ATLAS map controls.
+  // Direct touchscreen controls act on pointerdown, so use that same event
+  // for immediate visual feedback. A keyboard activation emits a click only.
+  function installPhosphorFeedback(button){
+    button.classList.add('phosphor-reactive');
+    const layer=document.createElement('span');
+    layer.className='phosphor-hit-layer';
+    layer.setAttribute('aria-hidden','true');
+    button.appendChild(layer);
+    let animation=null;
+    function flash(){
+      if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+      if(animation)animation.cancel();
+      if(typeof layer.animate==='function'){
+        animation=layer.animate([{opacity:.95},{opacity:0}],{
+          duration:1050,easing:'linear',iterations:1
+        });
+      }else{
+        layer.style.transition='none';
+        layer.style.opacity='.95';
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          layer.style.transition='opacity 1050ms linear';layer.style.opacity='0';
+        }));
+      }
+    }
+    button.addEventListener('pointerdown',flash);
+    button.addEventListener('click',event=>{if(event.detail===0)flash();});
+  }
+  document.querySelectorAll('button').forEach(installPhosphorFeedback);
+  document.addEventListener('click',event=>{
+    if(event.detail===0)return;
+    const target=event.target.closest?.('button,input[type="checkbox"]');
+    if(target&&document.activeElement===target)target.blur();
+  });
   paintBoard();updateHUD();
   requestAnimationFrame(frame);
 
