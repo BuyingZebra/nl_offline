@@ -25,6 +25,48 @@ with sync_playwright() as p:
         page.goto(URL + "?qa=visual-compositing", wait_until="networkidle", timeout=30000)
         page.locator("#board").wait_for()
         assert page.locator("#scoreValue").inner_text() == "000000"
+        assert page.locator("#console").count() == 0
+        assert page.locator("#consoleState").count() == 0
+        # One large, central drop button replaces two rotation buttons.
+        # Preserve left/right arrows, a single clockwise rotate, and the
+        # already functioning phosphor feedback surface.
+        assert page.locator("#pad button").count() == 4
+        assert page.locator("#extras button").count() == 2
+        assert page.locator("#pad").locator("button").evaluate_all(
+            "els => els.map(el=>el.dataset.action)"
+        ) == ["left", "hard", "right", "cw"]
+        assert page.locator("#extras").locator("button").evaluate_all(
+            "els => els.map(el=>el.dataset.action)"
+        ) == ["hold", "pause"]
+        assert page.locator('[data-action="down"]').count() == 0
+        assert page.locator('[data-action="ccw"]').count() == 0
+        assert page.locator(".drop-arrow").inner_text() == "▼"
+        assert page.locator(".drop-label").inner_text() == "DROP"
+        assert page.locator('button[data-action="cw"]').inner_text() == "↻"
+        positions=page.evaluate("""() => {
+          const selectors=['[data-action="left"]','[data-action="hard"]',
+            '[data-action="right"]','[data-action="cw"]'];
+          return selectors.map(s=>{
+            const r=document.querySelector(s).getBoundingClientRect();
+            return {left:r.left,right:r.right,width:r.width,top:r.top,bottom:r.bottom};
+          });
+        }""")
+        assert all(
+            positions[i]["right"]<=positions[i+1]["left"]+1
+            for i in range(3)
+        ), positions
+        assert positions[1]["width"]>positions[0]["width"]*1.8, positions
+        assert positions[1]["width"]>positions[3]["width"]*1.8, positions
+        assert abs(positions[0]["top"]-positions[3]["top"])<2
+        hold_rect=page.locator('button[data-action="hold"]').bounding_box()
+        pause_rect=page.locator("#pauseButton").bounding_box()
+        deck_rect=page.locator("#controlDeck").bounding_box()
+        assert hold_rect and pause_rect and deck_rect
+        center=(hold_rect["x"]+pause_rect["x"]+pause_rect["width"])/2
+        desired=deck_rect["x"]+deck_rect["width"]/2
+        assert abs(center-desired)<3, (center,desired)
+        board_rect=page.locator("#boardShell").bounding_box()
+        assert board_rect and board_rect["height"]>=300, board_rect
         assert page.locator("#modalScrim").is_hidden()
         assert page.locator("#phosphorFilm").count() == 1
         assert page.locator("#screenScan").count() == 1
