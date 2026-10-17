@@ -16,7 +16,7 @@ with sync_playwright() as p:
         device_scale_factor=2,
         is_mobile=True,
         has_touch=True,
-        reduced_motion="reduce",
+        reduced_motion="no-preference",
     )
     page = context.new_page()
     exceptions = []
@@ -108,17 +108,15 @@ with sync_playwright() as p:
         page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
         page.locator("#closeOptions").tap()
 
-        page.get_by_role("button", name="View top five high scores").tap()
-        assert page.locator("#leaderboard").get_attribute("open") is not None
-        assert page.locator("#scoreRows .score-row").count() == 5
-        page.screenshot(path=str(EVIDENCE/"tetris-high-scores-amber.png"))
-        page.get_by_role("button", name="RETURN", exact=True).tap()
+        # No independent scoreboard shortcut clutters the TETRIS SYSTEM
+        # header. High scores are accessible after pausing the game.
+        assert page.locator("header h1").inner_text() == "TETRIS SYSTEM"
+        assert page.locator("header small").count() == 0
+        assert page.locator("#scoresButton").count() == 0
+        assert page.locator("#buttonFxLayer").count() == 1
 
-        # A pending game cannot be reset from the gameplay buttons.
         page.get_by_role("button", name="START GAME").tap()
         page.locator('button[data-action="hard"]').tap()
-        # The game renders its HUD on requestAnimationFrame, not synchronously
-        # inside the button's pointerdown handler.
         page.wait_for_function(
             "() => Number(document.querySelector('#scoreValue').textContent)>0",
             timeout=6000,
@@ -127,15 +125,42 @@ with sync_playwright() as p:
         assert int(previous_score)>0
         assert page.locator('button[data-action="restart"]').count() == 0
         page.locator("#pauseButton").tap()
-        # Pause menu visibility is committed on the next animation frame.
         page.locator("#newGameButton").wait_for(state="visible", timeout=5000)
+        assert page.locator("#pauseButton").inner_text() == "PAUSE"
+        assert page.locator("#pauseButton").is_disabled()
+        assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
+        # The flash is a separately composited effect, not a child that can
+        # disappear when a button's label or enabled state changes.
+        assert page.locator("#pauseButton .phosphor-hit-layer").count() == 0
+        assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() >= 1
+
+        # P and Escape are one-way pause keys; neither may resume the game.
+        page.keyboard.press("p")
+        assert page.locator("#pauseButton").is_disabled()
+        assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
+
+        page.locator("#pausedScoresButton").tap()
+        assert page.locator("#leaderboard").get_attribute("open") is not None
+        assert page.locator("#scoreRows .score-row").count() == 5
+        page.screenshot(path=str(EVIDENCE/"tetris-high-scores-amber.png"))
+        page.locator("#closeLeaderboard").tap()
+
+        # Starting over still requires confirmation; cancel keeps the score.
         page.locator("#newGameButton").tap()
         assert page.locator("#restartConfirm").get_attribute("open") is not None
         page.locator("#cancelRestart").tap()
         assert page.locator("#scoreValue").inner_text() == previous_score
         assert page.locator("#restartConfirm").get_attribute("open") is None
+        assert page.locator("#pauseButton").is_disabled()
+        page.locator("#playButton").tap()
+        page.wait_for_function(
+            "() => document.querySelector('#pauseButton').disabled===false",
+            timeout=3000,
+        )
+        assert page.locator("#pauseButton").inner_text() == "PAUSE"
+        assert page.locator("#veil").get_attribute("class") == "hidden"
         assert not exceptions, exceptions
-        print("PASS: single global CRT stack, display menu, themes, high scores, protected restart")
+        print("PASS: unified CRT, responsive Tetris header, stable phosphor flash, pause-only scores and confirmed resume")
     finally:
         try:
             page.screenshot(path=str(EVIDENCE/"tetris-final.png"))
