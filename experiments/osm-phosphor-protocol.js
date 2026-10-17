@@ -13,27 +13,21 @@
     green: { bg: [7, 23, 15], ink: [181, 234, 196] },
     amber: { bg: [22, 13, 5], ink: [255, 224, 168] }
   };
-  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
-
-  // Experimental transfer function, NOT a claim that the original OSM
-  // colours survive. The underlying OSM Standard geometry and labels do.
-  // White road interiors and dark lettering become bright phosphor;
-  // beige ground fades into the display background.
+  // Preserve the native pixel-to-pixel contrast of the OSM Standard image:
+  // an invertible, continuous luma transfer, NOT thresholded segmentation.
+  // White map paper/road interiors become the dark phosphor surface; its dark
+  // road outlines and lettering become bright ink. No geometry is inferred,
+  // traced, sharpened, blurred, or discarded by this colour conversion.
   function colorize(imageData, theme) {
     const p = colors[theme];
     const d = imageData.data;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2];
-      const lum = r * .2126 + g * .7152 + b * .0722;
-      const whiteRoad = Math.pow(clamp((lum - 246) / 9, 0, 1), 1.1);
-      const darkInk = Math.pow(clamp((180 - lum) / 180, 0, 1), 1.7) * .84;
-      const midtones = clamp((228 - lum) / 90, 0, 1) * .23;
-      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-      const coloredFeature = clamp((chroma - 19) / 95, 0, 1) * .44;
-      const strength = clamp(Math.max(whiteRoad, darkInk, midtones, coloredFeature), 0, 1);
-      d[i] = p.bg[0] + strength * (p.ink[0] - p.bg[0]);
-      d[i + 1] = p.bg[1] + strength * (p.ink[1] - p.bg[1]);
-      d[i + 2] = p.bg[2] + strength * (p.ink[2] - p.bg[2]);
+      const luminance = (r * .2126 + g * .7152 + b * .0722) / 255;
+      const phosphor = Math.pow(1 - luminance, .68);
+      d[i] = Math.round(p.bg[0] + phosphor * (p.ink[0] - p.bg[0]));
+      d[i + 1] = Math.round(p.bg[1] + phosphor * (p.ink[1] - p.bg[1]));
+      d[i + 2] = Math.round(p.bg[2] + phosphor * (p.ink[2] - p.bg[2]));
     }
     return imageData;
   }
