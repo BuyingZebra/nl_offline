@@ -69,3 +69,48 @@ test('native mode still renders regional details when PMTiles plugin is unavaila
  assert.ok(style.layers.some(l=>l.id==='native-osm-roads'));
  assert.ok(style.layers.some(l=>l.id==='native-osm-water'));
 });
+
+test('map type uses an explicit iOS-accessible selector with every map option',()=>{
+ assert.match(html,/<select id="mapTypeSetting" aria-label="Choose map type">/);
+ assert.match(js,/MAP_RENDERERS\.map\(type=>/);
+ assert.match(js,/\$\('mapTypeSetting'\)\.addEventListener\('change'/);
+ assert.doesNotMatch(js,/\$\('rendererSetting'\)\.onclick/);
+ assert.match(html,/\.\.\/preview-v031\/osm-phosphor-protocol\.js\?v=0312/);
+});
+
+test('all selectable map styles can be constructed without throwing',()=>{
+ for(const mode of ['vector','osm-essentials','osm-native',
+                    'osm-standard','osm-composite','osm-phosphor']){
+  // In raster phosphor mode the live source URL needs the protocol helper.
+  if(mode==='osm-phosphor')continue;
+  assert.doesNotThrow(()=>styleFor(mode,true),mode);
+ }
+});
+
+test('map type changes update map style and report failures instead of silently sticking',()=>{
+ const a=js.indexOf('function selectMapRenderer(mode){');
+ const b=js.indexOf('const EFFECT_OPTIONS',a);
+ assert.ok(a>0&&b>a);
+ const snippet=js.slice(a,b);
+ const state={mapRenderer:'osm-essentials',map:{setStyle(style){this.lastStyle=style;}}};
+ const document={documentElement:{dataset:{renderer:'osm-essentials'}}};
+ const notices=[],cache=[];
+ const helper=new Function('state','document','MAP_RENDERERS','MAP_RENDERER_NAMES',
+  'window','toast','status','makeStyle','isReal','updateReadout','localStorage','console',
+  snippet+' return selectMapRenderer;');
+ let throws=false;
+ const mapTypes=['vector','osm-essentials','osm-native','osm-standard','osm-composite','osm-phosphor'];
+ const names=Object.fromEntries(mapTypes.map(x=>[x,x.toUpperCase()]));
+ const change=helper(state,document,mapTypes,names,{FieldAtlasPhosphor:true},
+  m=>notices.push(m),()=>{},()=>{if(throws)throw Error('Invalid map style');return {version:8}},
+  ()=>true,()=>{}, {setItem:(...x)=>cache.push(x)}, {error:()=>{}});
+ assert.equal(change('osm-native'),true);
+ assert.equal(state.mapRenderer,'osm-native');
+ assert.equal(document.documentElement.dataset.renderer,'osm-native');
+ assert.ok(state.map.lastStyle);
+ throws=true;
+ assert.equal(change('vector'),false);
+ assert.equal(state.mapRenderer,'osm-native');
+ assert.equal(document.documentElement.dataset.renderer,'osm-native');
+ assert.ok(notices.some(x=>x.includes('Unable to load')));
+});
