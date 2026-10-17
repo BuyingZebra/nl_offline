@@ -48,6 +48,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <p>These are coverage footprints showing imagery dates and resolutions—not the photographs. Click a highlighted tile for its survey details.</p>
 <label><input type="checkbox" data-group="terrain" checked> Forests, parks and land use</label>
 <label><input type="checkbox" data-group="water" checked> Water and rivers</label>
+<label><input type="checkbox" id="showDetailedCoast" checked> Detailed natural coastline</label>
 <label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
 <h2>Coverage</h2><div id="stats">Inspecting generated tiles…</div>
 <p><strong>Important:</strong> Island-wide overview tiles and detailed tiles for four test locations use separate, non-overlapping display zoom ranges. Outside those four locations there are no detailed tiles yet, so roads may disappear at high zoom. This is a browser-preview limitation, not evidence of missing geometry. Provincial and federal comparisons are inspection overlays only, not corrected navigation routes.</p>
@@ -345,6 +346,26 @@ function addOvertureLayer(kind,paint,extraMinzoom=0){
 // Whole-island PMTiles: HTTP-range streaming means town searches can request
 // detailed roads anywhere without downloading the entire archive into RAM.
 // Fall back to diagnostic sample tiles if Pages does not support byte ranges.
+let nlPmtilesProtocolPromise=null;
+function sharedPmtilesProtocol(){
+  if(!nlPmtilesProtocolPromise){
+    nlPmtilesProtocolPromise=(async()=>{
+      if(!window.pmtiles){
+        await new Promise((resolve,reject)=>{
+          const script=document.createElement('script');
+          script.src='https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js';
+          script.onload=resolve;
+          script.onerror=()=>reject(Error('PMTiles reader could not load'));
+          document.head.appendChild(script);
+        });
+      }
+      const protocol=new pmtiles.Protocol();
+      maplibregl.addProtocol('pmtiles',protocol.tile);
+      return protocol;
+    })();
+  }
+  return nlPmtilesProtocolPromise;
+}
 async function loadFullOverture(){
   const filename='./data/overture/nl_overture_transportation.pmtiles';
   const fileUrl=new URL(filename,window.location.href).href;
@@ -352,23 +373,12 @@ async function loadFullOverture(){
   try{head=await fetch(fileUrl,{method:'HEAD',cache:'no-cache'});}
   catch{return false;}
   if(!head.ok)return false;
-  if(!window.pmtiles){
-    await new Promise((resolve,reject)=>{
-      const script=document.createElement('script');
-      script.src='https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js';
-      script.onload=resolve;script.onerror=()=>reject(Error('PMTiles browser reader not available'));
-      document.head.appendChild(script);
-    });
-  }
-  if(!window.pmtiles) return false;
+  const protocol=await sharedPmtilesProtocol();
   const archive=new pmtiles.PMTiles(fileUrl);
-  // Fails if byte-range serving is broken rather than downloading a huge
-  // single archive in full on a phone.
+  // Verify that HTTP byte-range serving can access the archive's header.
   const info=await archive.getHeader();
   if(!info || info.maxZoom<12)throw Error('PMTiles archive has insufficient detailed zooms');
-  const protocol=new pmtiles.Protocol();
   protocol.add(archive);
-  maplibregl.addProtocol('pmtiles',protocol.tile);
   map.addSource('overture-island',{type:'vector',
     url:'pmtiles://'+fileUrl,
     attribution:'© Overture Maps Foundation and © OpenStreetMap contributors (ODbL)'});
@@ -392,6 +402,48 @@ async function loadFullOverture(){
   status.textContent+=' Whole-island high-detail Overture roads ready (up to zoom '+info.maxZoom+').';
   return true;
 }
+// Overlay high-fidelity genuine shoreline geometry. Does not replace inland
+// lakes or claim filled land polygons are validated. A source zoom 16 coastal
+// line retains far more geographic bends than our small browser sample.
+const showDetailedCoast=document.getElementById('showDetailedCoast');
+let detailedCoastLoading=false;
+let detailedCoastReady=false;
+async function loadDetailedCoast(){
+  if(detailedCoastReady||detailedCoastLoading)return;
+  detailedCoastLoading=true;
+  try{
+    const filename='./data/coastline/nl_coastline.pmtiles';
+    const url=new URL(filename,window.location.href).href;
+    const response=await fetch(url,{method:'HEAD',cache:'no-cache'});
+    if(!response.ok)return;
+    const protocol=await sharedPmtilesProtocol();
+    const archive=new pmtiles.PMTiles(url);
+    const header=await archive.getHeader();
+    if(!header || header.maxZoom<12)return;
+    protocol.add(archive);
+    map.addSource('native-nl-coastline',{type:'vector',url:'pmtiles://'+url,
+      attribution:'Coastline © OpenStreetMap contributors (ODbL)'});
+    const shorelineLayer={id:'natural-shoreline-hires',type:'line',
+      source:'native-nl-coastline','source-layer':'nl_shoreline',minzoom:8,
+      layout:{visibility:showDetailedCoast.checked?'visible':'none',
+        'line-join':'round','line-cap':'round'},
+      paint:{'line-color':'#5b9d9b','line-opacity':.80,
+        'line-width':['interpolate',['linear'],['zoom'],8,.35,12,.65,16,1.25,18,1.6]}};
+    // Keep road geometry legible when it touches or crosses a shoreline.
+    const firstRoad=(layers.roads||[]).find(id=>map.getLayer(id));
+    map.addLayer(shorelineLayer,firstRoad);
+    detailedCoastReady=true;
+  }catch(e){
+    console.warn('Native coastline unavailable; existing land and water unchanged',e);
+  }finally{detailedCoastLoading=false;}
+}
+showDetailedCoast.addEventListener('change',()=>{
+  if(detailedCoastReady && map.getLayer('natural-shoreline-hires')){
+    map.setLayoutProperty('natural-shoreline-hires','visibility',
+      showDetailedCoast.checked?'visible':'none');
+  }else if(showDetailedCoast.checked)loadDetailedCoast();
+});
+map.once('load',()=>{if(showDetailedCoast.checked)loadDetailedCoast();});
 async function loadOvertureRoads(){
   if(overtureLoading||overtureReady)return;
   overtureLoading=true;
