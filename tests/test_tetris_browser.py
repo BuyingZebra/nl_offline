@@ -10,7 +10,11 @@ EVIDENCE = Path("work/browser-test")
 EVIDENCE.mkdir(parents=True, exist_ok=True)
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+    engine = os.environ.get("FIELD_ATLAS_BROWSER", "chromium")
+    assert engine in ("chromium", "webkit")
+    browser_type = getattr(p, engine)
+    launch_args = ["--no-sandbox"] if engine == "chromium" else []
+    browser = browser_type.launch(headless=True, args=launch_args)
     context = browser.new_context(
         viewport={"width": 390, "height": 844},
         device_scale_factor=2,
