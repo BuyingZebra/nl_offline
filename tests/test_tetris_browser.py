@@ -83,11 +83,12 @@ with sync_playwright() as p:
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
+            '#playButton','#confirmRestart','#saveScore',
             '#resetEffects','#cancelRestart','#closeLeaderboard'];
           const colours=samples.map(selector=>({
             selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
           }));
-          const primary=['#playButton','#pad [data-action="left"]',
+          const primary=['#pad [data-action="left"]',
             '#pad [data-action="hard"]','#pad [data-action="right"]']
             .map(selector=>({selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor}));
           return {appRgb,colours,primary};
@@ -315,11 +316,12 @@ with sync_playwright() as p:
           const samples=['#themeToggle','#optionsButton',
             '#pad [data-action="cw"]','#extras [data-action="hold"]',
             '#pauseButton','#newGameButton','#pausedScoresButton',
+            '#playButton','#confirmRestart','#saveScore',
             '#resetEffects','#cancelRestart','#closeLeaderboard'];
           const colours=samples.map(selector=>({
             selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
           }));
-          const primary=['#playButton','#pad [data-action="left"]',
+          const primary=['#pad [data-action="left"]',
             '#pad [data-action="hard"]','#pad [data-action="right"]']
             .map(selector=>({selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor}));
           return {appRgb,colours,primary};
