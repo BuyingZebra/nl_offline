@@ -35,6 +35,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <input id="search" type="text" placeholder="Try Wild Cove or Carbonear…" autocomplete="off">
 <div id="results"></div>
 <h2>Show / hide vector layers</h2>
+<label><input type="checkbox" id="showOvertureRoads"> Overture Maps roads + sidewalks (independent source)</label>
 <label><input type="checkbox" data-group="roads" checked> Roads (OSM)</label>
 <label><input type="checkbox" data-group="paths" checked> Footpaths, sidewalks and trails (thin dashed)</label>
 <label><input type="checkbox" data-group="federal-roads"> Federal National Road Network (blue)</label>
@@ -50,7 +51,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
 <h2>Coverage</h2><div id="stats">Inspecting generated tiles…</div>
 <p><strong>Important:</strong> Island-wide overview tiles and detailed tiles for four test locations use separate, non-overlapping display zoom ranges. Outside those four locations there are no detailed tiles yet, so roads may disappear at high zoom. This is a browser-preview limitation, not evidence of missing geometry. Provincial and federal comparisons are inspection overlays only, not corrected navigation routes.</p>
-<p>Map data © OpenStreetMap contributors (ODbL). Federal road source: Statistics Canada National Road Network. Provincial resource roads and aerial-photo coverage index: Government of Newfoundland and Labrador. Community names © Natural Resources Canada. All source layers are shown for comparison, not verified driving directions. Footpaths and sidewalks are rendered distinctly rather than as roads. The browser viewer still uses online MapLibre code and fonts.</p>
+<p>Map data © OpenStreetMap contributors (ODbL). Federal road source: Statistics Canada National Road Network. Provincial resource roads and aerial-photo coverage index: Government of Newfoundland and Labrador. Community names © Natural Resources Canada. All source layers are shown for comparison, not verified driving directions. Footpaths and sidewalks are rendered distinctly rather than as roads. Independent Overture road geometry is available through a separate toggle when its build finishes. The browser viewer still uses online MapLibre code and fonts.</p>
 </aside>
 <div id="map"></div>
 </main>
@@ -208,14 +209,14 @@ map.on('load',()=>{
 });
 map.on('click',event=>{
   if(!document.getElementById('inspectRoads').checked) return;
-  const candidateIds=[...(layers.roads||[]),...(layers.paths||[]),...(layers['federal-roads']||[]),...(layers['prov-roads']||[]),...(layers['prov-duplicates']||[])]
+  const candidateIds=[...(layers.roads||[]),...(layers.paths||[]),...(layers['overture-lines']||[]),...(layers['federal-roads']||[]),...(layers['prov-roads']||[]),...(layers['prov-duplicates']||[])]
     .filter(id=>map.getLayer(id) && map.getLayoutProperty(id,'visibility')!=='none');
   const hits=candidateIds.length?map.queryRenderedFeatures(event.point,{layers:candidateIds}):[];
   const seen=new Set(),descriptions=[];
   for(const feature of hits) {
     const p=feature.properties||{};
-    const source=feature.source==='provincial-road-source'?'NL Forestry Resource Roads':feature.source==='federal-road-source'?'Federal National Road Network':'OpenStreetMap';
-    const desc=[source,p.name||p.ROAD_NAME||p.ref||'Unnamed road',p.class||p.road_class||p.highway||'',
+    const source=feature.source==='provincial-road-source'?'NL Forestry Resource Roads':feature.source==='federal-road-source'?'Federal National Road Network':String(feature.source||'').startsWith('overture-')?'Overture Maps':'OpenStreetMap';
+    const desc=[source,p.name||p.ROAD_NAME||p.ref||'Unnamed road',p.kind||p.class||p.road_class||p.highway||'',
       p.audit_status||'',p.osm_cover!==undefined?'OSM overlap: '+Math.round(Number(p.osm_cover)*100)+'%':''].filter(Boolean).join(' · ');
     const fingerprint=[source,p.name||'',p.class||'',p.audit_status||'',p.source_id||''].join('/');
     if(seen.has(fingerprint)) continue;
@@ -304,6 +305,95 @@ orthoToggle.addEventListener('change',()=>{
   if(orthoLoaded){
     for(const layerId of ['orthophoto-coverage-fill','orthophoto-coverage-outline'])
       if(map.getLayer(layerId))map.setLayoutProperty(layerId,'visibility',orthoToggle.checked?'visible':'none');
+  }
+});
+
+// Independent Overture Maps geometry. Loaded only on request; this changes
+// displayed roads, not the OSM database or navigation graph. Tiles came from
+// Overture's original GeoParquet roads and retain provenance/GERS IDs.
+const overtureToggle=document.getElementById('showOvertureRoads');
+let overtureLoading=false, overtureReady=false;
+function setDisplayGroup(name,visible){
+  for(const id of layers[name]||[]){
+    if(map.getLayer(id))map.setLayoutProperty(id,'visibility',visible?'visible':'none');
+  }
+}
+function addOvertureLayer(kind,paint,extraMinzoom=0){
+  const meta=window.OVERTURE_PREVIEW_META;
+  const minDetail=meta.baseZoom+1;
+  const pedestrian=['in',['get','kind'],['literal',['pedestrian','track']]];
+  const filter=kind==='motor'?['!',pedestrian]:pedestrian;
+  for(const source of ['overture-base','overture-sample']){
+    if(source==='overture-base' && extraMinzoom>=minDetail)continue;
+    const id=source+'-'+kind+'-line';
+    map.addLayer({id,type:'line',source,'source-layer':'overture_transportation',
+      minzoom:source==='overture-base'?extraMinzoom:Math.max(minDetail,extraMinzoom),
+      ...(source==='overture-base'?{maxzoom:minDetail}:{}),
+      filter,layout:{visibility:overtureToggle.checked?'visible':'none','line-join':'round','line-cap':'round'},
+      paint});
+    (layers['overture-lines'] ||= []).push(id);
+  }
+}
+async function loadOvertureRoads(){
+  if(overtureLoading||overtureReady)return;
+  overtureLoading=true;
+  try{
+    if(!window.OVERTURE_PREVIEW_TILES){
+      await new Promise((resolve,reject)=>{
+        const script=document.createElement('script');
+        script.src='./overture-preview-data.js';
+        script.onload=resolve;script.onerror=()=>reject(Error('Overture source build not yet published'));
+        document.head.appendChild(script);
+      });
+    }
+    const meta=window.OVERTURE_PREVIEW_META,tiles=window.OVERTURE_PREVIEW_TILES;
+    if(!meta||!tiles)throw Error('Overture preview data missing');
+    maplibregl.addProtocol('overturepreview',async(req)=>{
+      const match=req.url.match(/(\d+)\/(\d+)\/(\d+)(?:[?#].*)?$/);
+      if(!match)throw Error('Bad Overture tile URL');
+      const b64=tiles[match.slice(1).join('/')];
+      if(!b64)return {data:new Uint8Array(0)};
+      const raw=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+      return {data:raw[0]===31&&raw[1]===139?
+        await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
+        :raw.buffer};
+    });
+    map.addSource('overture-base',{type:'vector',tiles:['overturepreview://tiles/{z}/{x}/{y}'],
+      minzoom:0,maxzoom:meta.baseZoom});
+    map.addSource('overture-sample',{type:'vector',tiles:['overturepreview://tiles/{z}/{x}/{y}'],
+      minzoom:meta.baseZoom+1,maxzoom:15});
+    addOvertureLayer('motor',
+      {'line-color':['match',['get','class'],'motorway','#f0c584','primary','#e4d59b',
+        'secondary','#cce2a4','tertiary','#a7d8b0','residential','#92c8b2','#7eb9a8'],
+       'line-width':['interpolate',['linear'],['zoom'],6,.6,11,1.4,15,3.4],'line-opacity':.94});
+    addOvertureLayer('pedestrian',
+      {'line-color':'#70b4a4','line-width':['interpolate',['linear'],['zoom'],10,.5,15,1.1,18,1.5],
+       'line-dasharray':[1.4,2],'line-opacity':.76},10);
+    overtureReady=true;
+    status.textContent+=' Overture transportation tiles available ('+meta.tileCount.toLocaleString()+' preview tiles).';
+  }catch(error){
+    overtureToggle.checked=false;
+    console.warn('Overture geometry build:',error);
+    status.textContent+=' Overture map build is not ready; using OSM roads.';
+  }finally{overtureLoading=false;}
+}
+overtureToggle.addEventListener('change',async()=>{
+  if(overtureToggle.checked){
+    document.querySelector('[data-group="roads"]').checked=false;
+    document.querySelector('[data-group="paths"]').checked=false;
+    setDisplayGroup('roads',false);setDisplayGroup('paths',false);
+    await loadOvertureRoads();
+    setDisplayGroup('overture-lines',overtureToggle.checked);
+    if(!overtureToggle.checked){
+      document.querySelector('[data-group="roads"]').checked=true;
+      document.querySelector('[data-group="paths"]').checked=true;
+      setDisplayGroup('roads',true);setDisplayGroup('paths',true);
+    }
+  }else{
+    setDisplayGroup('overture-lines',false);
+    document.querySelector('[data-group="roads"]').checked=true;
+    document.querySelector('[data-group="paths"]').checked=true;
+    setDisplayGroup('roads',true);setDisplayGroup('paths',true);
   }
 });
 
