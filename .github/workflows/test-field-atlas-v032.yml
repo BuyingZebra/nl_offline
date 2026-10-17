@@ -1,0 +1,23 @@
+name: FIELD ATLAS v0.32 Native OSM Preview Tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'preview-v032/**'
+      - 'tests/native-osm-v032.test.mjs'
+      - '.github/workflows/test-field-atlas-v032.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate native-data layers and fallback on both map renderers
+        run: node --test tests/native-osm-v032.test.mjs
