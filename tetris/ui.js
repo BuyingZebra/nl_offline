@@ -454,8 +454,13 @@
   function toggleTheme(){
     const theme=root.dataset.theme==='amber'?'green':'amber';
     root.dataset.theme=theme;store('fieldAtlasThemeV06',theme);
-    document.querySelector('meta[name="theme-color"]').content=theme==='amber'?'#140c05':'#06170e';
+    document.querySelector('meta[name="theme-color"]').content=theme==='amber'?'#100904':'#04120b';
     refreshPalette();
+    // Canvas is a separate paint surface. Redraw synchronously when the
+    // phosphor theme changes so pixels share the new --bg immediately.
+    paintBoard();
+    updateHUD();
+    dirty=false;
   }
   $('themeToggle').addEventListener('click',toggleTheme);
   $('optionsButton').addEventListener('click',()=>{
