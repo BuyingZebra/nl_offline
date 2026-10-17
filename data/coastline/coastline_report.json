@@ -1,0 +1,16 @@
+{
+  "generated_utc": "2026-10-17T01:30:17.953494+00:00",
+  "source": "Natural coastline OSM ways; Geofabrik NL province extract",
+  "way_count": 24146,
+  "total_coast_vertices": 664949,
+  "bbox": [
+    -59.95,
+    46.2,
+    -52.35,
+    51.85
+  ],
+  "land_polygons": 6574,
+  "land_validation": "Validated 6574 complete polygons; total 111299.6 km\u00b2",
+  "data_use": "Real geographic vertices, no artificial jitter. Coastal detail limited by mapped source vertices and tile encoding precision.",
+  "license": "\u00a9 OpenStreetMap contributors (ODbL)"
+}
