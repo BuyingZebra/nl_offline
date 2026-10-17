@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/catalog-provincial-maps.yml"
+      - "tools/catalog_provincial_maps.py"
 
 permissions:
   contents: write
