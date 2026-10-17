@@ -1,0 +1,95 @@
+name: Build native-detail Newfoundland coastline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-nl-coastline.yml"
+      - "tools/build_nl_coastline.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-nl-coastline
+  cancel-in-progress: true
+
+jobs:
+  coastline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install high-precision OSM geometry reader
+        run: python -m pip install "osmium>=4,<5" "shapely>=2.1,<3" "pyproj>=3.7,<4"
+      - name: Download official open OSM source for Newfoundland
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/out data/coastline
+          curl -fL --retry 3 --connect-timeout 30 \
+            https://download.geofabrik.de/north-america/canada/newfoundland-and-labrador-latest.osm.pbf \
+            -o work/source/nl.osm.pbf
+      - name: Extract complete-resolution coast edges and validate land rings
+        run: |
+          python tools/build_nl_coastline.py \
+            --osm-pbf work/source/nl.osm.pbf \
+            --lines work/out/coastlines.geojsonseq \
+            --land work/out/land_polygon_candidate.geojsonseq \
+            --report work/out/coastline_report.json
+      - name: Build high-resolution coastline vector tile pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends git g++ make libsqlite3-dev zlib1g-dev
+          git clone --quiet --depth 1 https://github.com/felt/tippecanoe.git /tmp/tippecanoe
+          make -C /tmp/tippecanoe -j2
+          /tmp/tippecanoe/tippecanoe -f -Z0 -z16 \
+            --simplify-only-low-zooms --no-feature-limit --no-tile-size-limit \
+            -l nl_shoreline -o work/out/shoreline.pmtiles work/out/coastlines.geojsonseq
+          if [ -s work/out/land_polygon_candidate.geojsonseq ]; then
+            /tmp/tippecanoe/tippecanoe -f -Z0 -z16 \
+              --simplify-only-low-zooms --no-feature-limit --no-tile-size-limit \
+              -l nl_land -o work/out/land.pmtiles work/out/land_polygon_candidate.geojsonseq
+            /tmp/tippecanoe/tile-join -f --no-tile-size-limit \
+              -o work/out/nl_coastline.pmtiles work/out/shoreline.pmtiles work/out/land.pmtiles
+          else
+            cp work/out/shoreline.pmtiles work/out/nl_coastline.pmtiles
+          fi
+          test -s work/out/nl_coastline.pmtiles
+          stat -c '%s bytes: %n' work/out/nl_coastline.pmtiles
+      - name: Upload original coastline and complete offline detail artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nl-native-detail-coastline
+          path: |
+            work/out/nl_coastline.pmtiles
+            work/out/coastline_report.json
+            work/out/coastlines.geojsonseq
+            work/out/land_polygon_candidate.geojsonseq
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
+      - name: Publish shoreline overlay to browser when archive fits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data/coastline
+          cp work/out/coastline_report.json data/coastline/coastline_report.json
+          if [ "$(stat -c %s work/out/nl_coastline.pmtiles)" -lt 75000000 ]; then
+            cp work/out/nl_coastline.pmtiles data/coastline/nl_coastline.pmtiles
+          else
+            echo "Coastline archive too large for website Git publishing; keep as downloadable full-resolution artifact."
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/coastline/
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish validated detailed NL OSM shoreline source [skip ci]"
+            git -c rebase.autoStash=true pull --rebase origin main
+            git push origin HEAD:main
+          fi
