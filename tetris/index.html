@@ -85,14 +85,16 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #pad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 #pad button{min-width:0;padding:7px 0;height:53px;font-size:18px;user-select:none;-webkit-user-select:none;
  touch-action:none}
+/* Left, DROP, and right share the same fully lit phosphor key face. */
+#pad button:is([data-action="left"],[data-action="hard"],[data-action="right"]){
+ background:var(--bright);color:var(--shadow);border-color:var(--bright);
+ text-shadow:none;
+ box-shadow:0 0 var(--glow-radius)
+  color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+#pad button:is([data-action="left"],[data-action="hard"],[data-action="right"]):active{
+ background:var(--bright);color:var(--shadow)}
 #pad button[data-action="hard"]{
- grid-column:span 2;
- display:flex;flex-direction:row;justify-content:center;align-items:center;gap:9px;
- font-size:14px;letter-spacing:.11em;
- background:color-mix(in srgb,var(--panel) 70%,var(--bright) 30%);
- border-color:color-mix(in srgb,var(--border) 65%,var(--bright) 35%)}
-#pad button[data-action="hard"] .drop-arrow{font-size:24px;line-height:1}
-#pad button[data-action="hard"] .drop-label{font-size:12px;line-height:1;white-space:nowrap}
+ grid-column:span 2;font-size:14px;letter-spacing:.11em}
 #pad button[data-action="cw"]{font-size:22px}
 #extras{display:flex;justify-content:center;align-items:center;gap:8px}
 #extras button{flex:0 1 40%;max-width:180px;min-width:0;
@@ -147,9 +149,7 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  #controlDeck{grid-column:3;grid-row:1 / 4;align-self:center}
  #scoreStrip{grid-template-columns:1fr 1fr}#scoreStrip div:last-child{display:none}
  #pad{grid-template-columns:repeat(5,minmax(0,1fr))}
- #pad button[data-action="hard"]{gap:4px}
- #pad button[data-action="hard"] .drop-arrow{font-size:16px}
- #pad button[data-action="hard"] .drop-label{font-size:10px}
+ #pad button[data-action="hard"]{font-size:12px}
  #extras button{flex-basis:48%}
  #eventline{grid-column:1;grid-row:3;overflow:hidden}
 }
@@ -444,7 +444,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   </div>
   <div id="pad" aria-label="Movement controls">
    <button data-action="left" aria-label="Move left">◀</button>
-   <button data-action="hard" aria-label="Hard drop"><span class="drop-arrow" aria-hidden="true">▼</span><span class="drop-label">DROP</span></button>
+   <button data-action="hard" aria-label="Hard drop">DROP</button>
    <button data-action="right" aria-label="Move right">▶</button>
    <button data-action="cw" aria-label="Rotate clockwise">↻</button>
   </div>
