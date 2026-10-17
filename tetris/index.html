@@ -3,35 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<meta name="theme-color" content="#06170e">
+<meta name="theme-color" content="#151515">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="color-scheme" content="dark">
 <title>FIELD ATLAS — Arcade / Tetris</title>
 <style>
 :root{
- --bg:#04120b;
- /* The app's illuminated background face, derived by luminance only.
-    Preserve the RGB proportions of --bg in green and amber themes. */
- --app-face:rgb(from var(--bg) calc(r * 1.55) calc(g * 1.55) calc(b * 1.55));
- --panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);--solid:#102719;--ink:#b4ffce;
- --bright:#77ffa5;--weak:#8fc19d;--border:#3f8254;--shadow:#020905;
- --grid:#163724;--phosphor:108,255,156;--glow:8px;--scan:0.28;
-}
-:root[data-theme="amber"]{
- --bg:#100904;--panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);--solid:#301f0c;--ink:#ffe79a;
- --bright:#f5b661;--weak:#d19e58;--border:#8e5f24;--shadow:#0a0602;
- --grid:#4a2b13;--phosphor:255,196,100;
+ /* One grayscale luminance palette. Hue is applied by #phosphorFilm. */
+ --bg:#151515;--app-face:var(--bg);
+ --panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);
+ --solid:#303030;--ink:#e3e3e3;--bright:#cecece;
+ --weak:#aeaeae;--border:#6a6a6a;--shadow:#060606;
+ --grid:#292929;--phosphor:255,255,255;--glow:8px;--scan:0.28;
 }
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020603;
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050505;
  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
 button,input{font:inherit}
 button{appearance:none;-webkit-appearance:none;-webkit-tap-highlight-color:transparent;
  cursor:pointer;touch-action:manipulation;border:1px solid var(--border);border-radius:11px;
- background:rgba(5,20,12,.8);color:var(--ink);font-weight:800;letter-spacing:.08em;
+ background:var(--bg);color:var(--ink);font-weight:800;letter-spacing:.08em;
  min-height:44px;padding:9px 10px}
-:root[data-theme="amber"] button{background:rgba(24,14,6,.8)}
 button:active{background:var(--solid);transform:translateY(1px)}
 button:disabled{opacity:.35;cursor:default}
 button:focus-visible,input:focus-visible{outline:2px solid var(--bright);outline-offset:2px}
@@ -39,12 +32,10 @@ a{color:var(--weak)}
 #app{position:relative;display:flex;flex-direction:column;gap:9px;
  margin:auto;padding:calc(env(safe-area-inset-top,0px) + 9px) 11px
  calc(env(safe-area-inset-bottom,0px) + 8px);
- max-width:520px;height:100dvh;min-height:0;background:
- radial-gradient(ellipse at 50% 58%,rgba(var(--phosphor),.075),transparent 65%),var(--bg);
+ max-width:520px;height:100dvh;min-height:0;background:var(--bg);
  overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate}
-.panel{border:1px solid var(--border);background:rgba(3,14,8,.86);
+.panel{border:1px solid var(--border);background:var(--card-bg);
  border-radius:12px;box-shadow:0 0 var(--glow) rgba(var(--phosphor),.13)}
-:root[data-theme="amber"] .panel{background:rgba(14,8,3,.86)}
 header{flex:none;display:flex;align-items:center;gap:12px;padding:12px 13px;min-height:65px}
 header .heading{flex:1;min-width:0}
 header small{display:block;color:var(--weak);font-size:9px;letter-spacing:.17em}
@@ -55,12 +46,11 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #stage{min-height:0;flex:1;display:flex;justify-content:center;align-items:center;gap:10px}
 #boardShell{height:100%;max-height:610px;max-width:calc(100% - 103px);aspect-ratio:1/2;
  flex:none;position:relative;overflow:hidden;border:1px solid var(--border);
- border-radius:7px;background:#020a06;box-shadow:inset 0 0 35px #000,0 0 var(--glow) rgba(var(--phosphor),.16)}
+ border-radius:7px;background:var(--card-bg);box-shadow:inset 0 0 35px #000,0 0 var(--glow) rgba(var(--phosphor),.16)}
 #board{display:block;width:100%;height:100%;touch-action:none}
-#veil{position:absolute;inset:0;z-index:2;background:rgba(0,8,4,.81);
+#veil{position:absolute;inset:0;z-index:2;background:rgba(0,0,0,.81);
  display:flex;flex-direction:column;align-items:center;justify-content:center;
  padding:15px;text-align:center;gap:10px;backdrop-filter:blur(3px)}
-:root[data-theme="amber"] #veil{background:rgba(11,6,1,.86)}
 #veil.hidden{display:none}
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
  color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
@@ -71,7 +61,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #side{display:flex;flex-direction:column;align-self:stretch;justify-content:space-between;
  gap:6px;min-width:0;width:93px}
 .side-panel{display:flex;flex-direction:column;align-items:center;gap:3px;
- border:1px solid var(--border);border-radius:9px;background:rgba(0,9,4,.65);padding:6px 3px}
+ border:1px solid var(--border);border-radius:9px;background:var(--card-bg);padding:6px 3px}
 .side-label{font-size:9px;color:var(--weak);letter-spacing:.12em;white-space:nowrap}
 .side-panel canvas{display:block;width:80px;max-width:100%;height:60px}
 #queue{display:flex;flex-direction:column;align-items:center;gap:1px}
@@ -170,7 +160,7 @@ button.phosphor-reactive{position:relative;isolation:isolate;overflow:visible}
 button .phosphor-hit-layer{
  position:absolute;inset:-2px;pointer-events:none;opacity:0;border-radius:inherit;
  color:inherit;border:1px solid color-mix(in srgb,currentColor var(--glow-strength),transparent);
- background:radial-gradient(ellipse at center,color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
+ background:transparent;
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent),
  inset 0 0 calc(var(--glow-radius) * .6) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app :is(button,h1,b,strong,small,output,label,#console,#eventline,canvas+div,.side-panel){
@@ -271,10 +261,10 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  rgba(0,0,0,.03) 0,rgba(0,0,0,.03) 1px,
  transparent 1px,transparent 3px,
  rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
-/* A screen-space colour grade, not a flat coloured glow. The 'color'
-   blend mode inherits pixel luminance: dark elements remain dark. */
+/* The sole hue source: COLOR blending preserves gray scene luminosity.
+   Both game and menus receive the same phosphor film. */
 #phosphorFilm{position:absolute;inset:0;z-index:34;pointer-events:none;
- background:rgb(var(--phosphor-rgb));mix-blend-mode:color;opacity:.17}
+ background:rgb(var(--phosphor-rgb));mix-blend-mode:color;opacity:1}
 #sweep{z-index:35;mix-blend-mode:screen;
  background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09))}
 #screenTopFade,#screenBottomFade,#screenScan,#screenShade,#sweep{pointer-events:none}
@@ -298,8 +288,7 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app button .phosphor-hit-layer{
  border-color:color-mix(in srgb,currentColor var(--glow-strength),transparent);
- background:radial-gradient(ellipse at center,
- color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
+ background:transparent;
  box-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 @media(prefers-reduced-motion:reduce){.phosphor-hit-layer{animation:none!important}}
@@ -372,14 +361,14 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #screenScan{position:absolute;inset:0;z-index:43;pointer-events:none;
  opacity:var(--scan-intensity);
  background:repeating-linear-gradient(to bottom,
- rgba(var(--phosphor-rgb),.15) 0px,
- rgba(var(--phosphor-rgb),.15) 1px,
+ rgba(255,255,255,.15) 0px,
+  rgba(255,255,255,.15) 1px,
  transparent 1px,transparent 3px,
  rgba(0,0,0,.59) 3px,rgba(0,0,0,.59) 4px)}
 #screenTopFade,#screenBottomFade{z-index:41;pointer-events:none}
 #screenShade{z-index:42;pointer-events:none}
 #phosphorFilm{z-index:44;pointer-events:none}
-#sweep{z-index:45;pointer-events:none}
+#sweep{z-index:40;pointer-events:none}
 
 
 /* A reusable phosphor *overlay*, not a button child:
@@ -393,9 +382,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  box-sizing:border-box;opacity:0;
  border:1px solid var(--flash-color);
  border-radius:var(--flash-radius,8px);
- background:radial-gradient(ellipse at center,
-  color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent),
-  transparent 88%);
+ background:transparent;
  box-shadow:0 0 var(--glow-radius)
   color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent),
   inset 0 0 calc(var(--glow-radius) * .6)
@@ -411,26 +398,26 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    applied to the full composited app by JS, NOT just the board. The
    (unfiltered) iPhone touch targets stay native and responsive.
    At curvature 0 the #app filter is literally 'none'. */
-#app{
- --crt-glass-opacity:0;
- --crt-glass-radius:0px;
- background:radial-gradient(ellipse 112% 84% at 50% 49%,
-   var(--app-face) 0%,
-   var(--bg) 75%,var(--bg) 100%);
-}
-/* Same visual layering as the navigation system:
- * --app-face matches the brightest point of the app's ambient background
- * and fills ordinary buttons. --card-bg is a darker luminance of --bg.
- * Layout wrappers have NO painted surface. The three lit keys are untouched. */
+#app{--crt-glass-opacity:0;--crt-glass-radius:0px;
+ background:var(--bg)}
+/* Flat app and ordinary buttons share one luminance; visible cards
+   darken that value. Technical layout wrappers remain transparent. */
 #app :is(.panel,.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
  background:var(--card-bg);
 }
 #boardShell{background:var(--card-bg)}
 /* Child cards use the same illuminated surface as ordinary buttons. */
 #app .score-row{background:var(--app-face)}
-#app button:not(:is([data-action="left"],[data-action="hard"],[data-action="right"])){
+#app button:not(:is(#playButton,[data-action="left"],[data-action="hard"],[data-action="right"])){
  background:var(--app-face);
 }
+/* Bright START/RESUME shares the exact face of LEFT, DROP and RIGHT. */
+#app #playButton{
+ background:var(--bright);color:var(--shadow);border-color:var(--bright);
+ box-shadow:0 0 var(--glow-radius)
+  color-mix(in srgb,var(--bright) var(--glow-strength),transparent);
+}
+#app #playButton:active{background:var(--bright);color:var(--shadow)}
 /* Menus shade the already-dark game board without repainting its parent. */
 #veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
 :root[data-theme="amber"] #veil{
@@ -439,8 +426,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #crtGlass{position:absolute;inset:0;z-index:46;pointer-events:none;
  border-radius:var(--crt-glass-radius);
  opacity:var(--crt-glass-opacity);
- background:radial-gradient(ellipse 92% 88% at 50% 50%,
- transparent 57%,rgba(0,0,0,.13) 75%,rgba(0,0,0,.46) 100%);
+ background:transparent;
  box-shadow:inset 0 0 36px rgba(0,0,0,.3),
  inset 0 0 2px color-mix(in srgb,var(--border) 50%,transparent)}
 
@@ -479,8 +465,8 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
     <h2 id="veilTitle">TETRIS</h2>
     <p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>
     <button id="playButton">▶ START GAME</button>
-    <button id="newGameButton" hidden>↻ NEW GAME</button>
-    <button id="pausedScoresButton" hidden>★ TOP 5 SCORES</button>
+    <button id="newGameButton" hidden>NEW GAME</button>
+    <button id="pausedScoresButton" hidden>HIGH SCORE</button>
    </div>
   </div>
   <aside id="side" aria-label="Game preview panels">
