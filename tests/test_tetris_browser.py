@@ -41,9 +41,9 @@ with sync_playwright() as p:
         )
         assert page.locator("#console").count() == 0
         assert page.locator("#consoleState").count() == 0
-        # Both green and amber keep the playfield/card backgrounds in the
-        # same family, a little darker than the outer glass. The paused
-        # playfield uses that same surface with 94% opacity.
+        # Exact two-level hierarchy, not just CSS variables:
+        # PARENT surfaces are darker; every nested child uses the
+        # app's background. Verify even the canvas's underlying pixels.
         colours=page.evaluate("""() => {
           const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
           const vars=getComputedStyle(document.documentElement);
@@ -52,14 +52,23 @@ with sync_playwright() as p:
             card:vars.getPropertyValue('--card-bg').trim().toLowerCase(),
             header:color('header'),
             controls:color('#controlDeck'),
+            stage:color('#stage'),
             hold:color('#side .side-panel'),
+            next:color('#side #queue .side-label') ,
+            miniCard:color('#side #sideStats'),
             shell:color('#boardShell'),
-            veil:color('#veil')
+            veil:color('#veil'),
+            boardPixel:Array.from(document.querySelector('#board')
+              .getContext('2d').getImageData(15,15,1,1).data)
           };
         }""")
         assert colours["base"] == "#04120b", colours
         assert colours["card"] == "#010a06", colours
-        assert len({colours[key] for key in ("header","controls","hold","shell")}) == 1, colours
+        assert len({colours[key] for key in ("header","controls","stage")}) == 1, colours
+        assert len({colours[key] for key in ("hold","miniCard","shell")}) == 1, colours
+        assert colours["header"] != colours["hold"], colours
+        assert colours["boardPixel"][:3] == [4,18,11], colours
+        assert colours["boardPixel"][3] == 255, colours
         assert colours["veil"].startswith(("color(","rgba(")), colours
 
         # Muted buttons borrow the EXACT app background, rather than a
@@ -265,17 +274,28 @@ with sync_playwright() as p:
         page.locator("#themeToggle").tap()
         assert page.locator("html").get_attribute("data-theme") == "amber"
         amber_colours=page.evaluate("""() => {
+          const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
           const style=getComputedStyle(document.documentElement);
           return {
             base:style.getPropertyValue('--bg').trim().toLowerCase(),
             card:style.getPropertyValue('--card-bg').trim().toLowerCase(),
-            header:getComputedStyle(document.querySelector('header')).backgroundColor,
-            hold:getComputedStyle(document.querySelector('#side .side-panel')).backgroundColor
+            header:color('header'),
+            controls:color('#controlDeck'),
+            stage:color('#stage'),
+            hold:color('#side .side-panel'),
+            miniCard:color('#side #sideStats'),
+            shell:color('#boardShell'),
+            boardPixel:Array.from(document.querySelector('#board')
+              .getContext('2d').getImageData(15,15,1,1).data)
           };
         }""")
         assert amber_colours["base"] == "#100904", amber_colours
         assert amber_colours["card"] == "#0c0704", amber_colours
-        assert amber_colours["header"] == amber_colours["hold"], amber_colours
+        assert len({amber_colours[key] for key in ("header","controls","stage")}) == 1, amber_colours
+        assert len({amber_colours[key] for key in ("hold","miniCard","shell")}) == 1, amber_colours
+        assert amber_colours["header"] != amber_colours["hold"], amber_colours
+        assert amber_colours["boardPixel"][:3] == [16,9,4], amber_colours
+        assert amber_colours["boardPixel"][3] == 255, amber_colours
 
         # Muted buttons borrow the EXACT app background, rather than a
         # separately chosen shade. This applies to header, play controls,
@@ -349,6 +369,12 @@ with sync_playwright() as p:
         page.locator("#pausedScoresButton").tap()
         assert page.locator("#leaderboard").get_attribute("open") is not None
         assert page.locator("#scoreRows .score-row").count() == 5
+        # Even nested high-score rows must contrast with the dialog parent.
+        assert page.locator("#scoreRows .score-row").first.evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        ) == page.locator("#extras [data-action='hold']").evaluate(
+            "el => getComputedStyle(el).backgroundColor"
+        )
         page.screenshot(path=str(EVIDENCE/"tetris-high-scores-amber.png"))
         page.locator("#closeLeaderboard").tap()
 
