@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v008'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v009'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v008'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v009'/);
 });
 
 
@@ -364,7 +364,8 @@ test('PAUSE is permanently labeled and cannot resume the game from screen contro
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  assert.ok(html.includes('data-action="pause" id="pauseButton">PAUSE</button>'));
- assert.match(ui,/pauseButton'\)\.disabled=game\.status!=='playing'/);
+ assert.doesNotMatch(ui,/pauseButton'\)\.disabled/);
+ assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break/);
  assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break/);
  assert.ok(html.includes('<button id="playButton">▶ START GAME</button>'));
  assert.ok(ui.includes("$('playButton').textContent='▶ RESUME'"));
@@ -402,8 +403,8 @@ test('phone controls use the requested four-button layout and centered secondary
   ['left','hard','right','cw']);
  assert.deepEqual([...extras.matchAll(/data-action="([^"]+)"/g)].map(m=>m[1]),
   ['hold','pause']);
- assert.ok(pad.includes('class="drop-arrow" aria-hidden="true">▼</span>'));
- assert.ok(pad.includes('class="drop-label">DROP</span>'));
+ assert.ok(pad.includes('data-action="hard" aria-label="Hard drop">DROP</button>'));
+ assert.doesNotMatch(pad,/drop-arrow|drop-label|▼/);
  assert.ok(pad.includes('data-action="cw" aria-label="Rotate clockwise">↻</button>'));
  assert.doesNotMatch(html,/data-action="ccw"|data-action="down"/);
  assert.doesNotMatch(ui,/case 'ccw':|case 'down':|KeyZ:'ccw'|ArrowDown:'down'/);
@@ -425,4 +426,28 @@ test('removing the console leaves stage space available without damaging overlay
  assert.ok(html.includes('id="pauseButton">PAUSE</button>'));
  assert.ok(ui.includes("case 'pause':performed=game.status==='playing'&&game.pause();break;"));
  assert.ok(ui.includes("$('playButton').textContent='▶ RESUME'"));
+});
+
+
+test('all three direction keys share a solid phosphor face, and ready instructions are practical',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.match(html,/#pad button:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\{\s*background:var\(--bright\);color:var\(--shadow\);border-color:var\(--bright\)/);
+ const pad=html.match(/<div id="pad"[\s\S]*?<\/div>/)?.[0];
+ assert.ok(pad);
+ assert.match(pad,/<button data-action="hard" aria-label="Hard drop">DROP<\/button>/);
+ assert.doesNotMatch(pad,/<span|drop-arrow|drop-label|▼/);
+ assert.match(html,/#pad button\[data-action="hard"\]\{\s*grid-column:span 2;/);
+ assert.ok(ui.includes("      $('veilText').textContent='Stack the blocks. Clear complete rows. Keep the board from filling up.';"));
+ assert.ok(html.includes('<p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>'));
+ assert.doesNotMatch(ui,/FALLING-BLOCK ARCADE/);
+});
+
+test('PAUSE stays visually active in READY and PAUSED but cannot start or resume gameplay',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.match(html,/<button data-action="pause" id="pauseButton">PAUSE<\/button>/);
+ assert.doesNotMatch(ui,/\$\('pauseButton'\)\.disabled\s*=/);
+ assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break;/);
+ assert.match(ui,/\$\('playButton'\)\.textContent='▶ RESUME';/);
 });
