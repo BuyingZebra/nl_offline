@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v012'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v013'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v012'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v013'/);
 });
 
 
@@ -538,30 +538,33 @@ test('CRT curvature is a real post-composite SVG warp over game, menus and scanl
  assert.match(ui,/curvature=CRT\.DEFAULT_CURVATURE;/);
  assert.match(ui,/window\.addEventListener\('resize',\(\)=>\{/);
  assert.ok(sw.includes("'./crt-curve.js'"));
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v012'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v013'"));
  assert.ok(html.includes('background:radial-gradient(ellipse 112% 84%'));
  assert.ok(html.includes('background:var(--card-bg)'));
- assert.ok(html.includes('color-mix(in srgb,var(--card-bg) 94%,transparent)'));
+ assert.ok(html.includes('color-mix(in srgb,var(--bg) 94%,transparent)'));
 });
 
 
-test('cards and paused game board share a dark nonblack surface for both themes',()=>{
+test('nested panels and buttons use the outer app background while parents remain dark',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const js=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
  assert.match(html,/--bg:#04120b;--panel:#010a06;--card-bg:#010a06/);
  assert.match(html,/--bg:#100904;--panel:#0c0704;--card-bg:#0c0704/);
- assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
- assert.match(html,/#boardShell\{background:var\(--card-bg\)\}/);
- assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 94%,transparent\)/);
- assert.match(html,/:root\[data-theme="amber"\] #veil\{\s*background:color-mix\(in srgb,var\(--card-bg\) 94%,transparent\)/);
+ assert.match(html,/#app :is\(header\.panel,#controlDeck\.panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\);/);
+ assert.match(html,/#stage\{\s*background:var\(--card-bg\);\s*border-radius:12px;/);
+ assert.match(html,/#app :is\(#boardShell,#side \.side-panel,\.score-row\)\{\s*background:var\(--bg\);/);
+ assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--bg\) 94%,transparent\)/);
+ assert.match(html,/:root\[data-theme="amber"\] #veil\{\s*background:color-mix\(in srgb,var\(--bg\) 94%,transparent\)/);
+ assert.match(js,/c\.fillStyle=color\(palette\.base\);\s*c\.fillRect\(0,0,BOARD_W,BOARD_H\)/);
+ assert.doesNotMatch(js,/c\.fillStyle=color\(mix\(palette\.dark,palette\.base,.55\)\)/);
  assert.ok(html.includes('color-mix(in srgb,var(--bg) 96%,var(--bright) 4%)'));
- assert.doesNotMatch(html,/color-mix\(in srgb,var\(--panel\) 68%,var\(--shadow\) 32%\)/);
 });
-
 
 test('every unlit button inherits the app background, with dark cards and bright actions preserved',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  assert.match(html,/#app button:not\(:is\(#playButton,#confirmRestart,#saveScore,\s*\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\)\{\s*background:var\(--bg\);/);
- assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
+ assert.match(html,/#app :is\(header\.panel,#controlDeck\.panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
+ assert.match(html,/#app :is\(#boardShell,#side \.side-panel,\.score-row\)\{\s*background:var\(--bg\)/);
  assert.match(html,/#pad button:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\{\s*background:var\(--bright\)/);
  assert.ok(html.includes('--bg:#04120b;--panel:#010a06;--card-bg:#010a06'));
  assert.ok(html.includes('--bg:#100904;--panel:#0c0704;--card-bg:#0c0704'));
