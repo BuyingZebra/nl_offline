@@ -31,7 +31,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <button data-place="Baie Verte">Baie Verte</button><button data-place="St. John's">St. John's</button>
 <button id="island">Whole island</button>
 </div>
-<h2>Official community search</h2>
+<h2>Find a Newfoundland town</h2>
 <input id="search" type="text" placeholder="Try Wild Cove or Carbonear…" autocomplete="off">
 <div id="results"></div>
 <h2>Show / hide vector layers</h2>
@@ -464,9 +464,28 @@ map.on('error',e=>{ console.warn('Map preview:',e.error||e); });
 document.querySelectorAll('[data-group]').forEach(input=>input.addEventListener('change',()=>{
   for(const id of layers[input.dataset.group]||[]) if(map.getLayer(id)) map.setLayoutProperty(id,'visibility',input.checked?'visible':'none');
 }));
+// Match a selected town's map-label point, not a hard-coded town centre.
+function chooseTown(feature){
+  const center=feature.geometry.coordinates;
+  const region=feature.properties.region_hint||'';
+  const name=feature.properties.name;
+  const withinSample=Object.values(meta.detailedSamples||{}).some(v=>
+    Math.abs(center[0]-v.center[0])<.045 && Math.abs(center[1]-v.center[1])<.035);
+  const hasIslandOverture=!!map.getSource('overture-island');
+  const zoom=(hasIslandOverture || withinSample)?13.1:Math.min(meta.baseZoom+0.5,9.5);
+  map.flyTo({center,zoom,essential:true});
+  input.value=name;
+  results.replaceChildren();
+  if(!hasIslandOverture && !withinSample)
+    status.textContent='Town located: '+name+'. This website has overview-only road tiles here. The offline Overture archive contains detailed island-wide roads; enable it when available.';
+  else
+    status.textContent='Town selected: '+name+(region?' ('+region+')':'')+'.';
+}
 document.querySelectorAll('[data-place]').forEach(button=>button.addEventListener('click',()=>{
- const c=meta.detailedSamples[button.dataset.place].center;
- map.flyTo({center:c,zoom:13,essential:true});
+  const requested=button.dataset.place;
+  const found=(window.NL_PREVIEW_PLACES?.features||[]).find(f=>f.properties.name.toLowerCase()===requested.toLowerCase());
+  if(found)chooseTown(found);
+  else map.flyTo({center:meta.detailedSamples[requested].center,zoom:13,essential:true});
 }));
 document.getElementById('island').addEventListener('click',()=>map.fitBounds([[-59.65,46.5],[-52.4,51.25]],{padding:35,duration:800}));
 const allPlaces=(window.NL_PREVIEW_PLACES?.features||[]).slice().sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
@@ -480,12 +499,24 @@ input.addEventListener('input',()=>{
   for(const f of found){
     const button=document.createElement('button');
     const coords=f.geometry.coordinates;
-    button.textContent=f.properties.name + '  (' + coords[1].toFixed(3)+', '+coords[0].toFixed(3)+')';
-    button.onclick=()=>{map.flyTo({center:coords,zoom:12});input.value=f.properties.name;results.replaceChildren();};
+    const region=f.properties.region_hint||'';
+    button.textContent=f.properties.name + (region?' · '+region:'') +
+      '  (' + coords[1].toFixed(3)+', '+coords[0].toFixed(3)+')';
+    button.onclick=()=>chooseTown(f);
     results.appendChild(button);
   }
   if(!found.length)results.textContent='No matching official populated-place record.';
 });
+map.on('click','government-labels',e=>{
+  const f=e.features?.[0];
+  if(f && f.properties?.name)chooseTown(f);
+});
+map.on('click','government-dots',e=>{
+  const f=e.features?.[0];
+  if(f && f.properties?.name)chooseTown(f);
+});
+map.on('mouseenter','government-labels',()=>{map.getCanvas().style.cursor='pointer';});
+map.on('mouseleave','government-labels',()=>{map.getCanvas().style.cursor='';});
 const locs=Object.entries(meta.detailedSamples).map(([k,v])=>k+': '+v.tileCount.toLocaleString()+' tiles').join('\n');
 document.getElementById('stats').textContent=
   meta.tileCount.toLocaleString()+' stored tiles\n'+
