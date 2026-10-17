@@ -8,6 +8,7 @@ on:
       - ".github/workflows/build-overture-nl.yml"
       - "tools/prepare_overture_segments.py"
       - "tools/build_overture_preview.py"
+      - "tools/build_overture_shards.py"
 
 permissions:
   contents: write
@@ -85,6 +86,35 @@ jobs:
             echo "PUBLISH_ISLAND_PMTILES=false" >> "$GITHUB_ENV"
             echo "PMTiles too large for our current GitHub Pages approach; artifact only."
           fi
+      - name: Build four complete island road archives for HTTP-range town zoom
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/shards
+          python tools/build_overture_shards.py \
+            --input work/output/overture_roads.geojsonseq \
+            --output-dir work/shards --parts 4
+          for i in 0 1 2 3; do
+            /tmp/tippecanoe/tippecanoe -f -Z0 -z16 \
+              --no-feature-limit --no-tile-size-limit \
+              -l overture_transportation \
+              -o "work/shards/nl_overture_part_${i}.pmtiles" \
+              "work/shards/roads_part_${i}.geojsonseq"
+            test -s "work/shards/nl_overture_part_${i}.pmtiles"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path("work/shards/shard_manifest.json")
+          data=json.loads(path.read_text())
+          for record in data["parts"]:
+              filename=Path("work/shards")/record["filename"]
+              record["tile_archive_bytes"]=filename.stat().st_size
+              print(filename,filename.stat().st_size)
+          if max(item["tile_archive_bytes"] for item in data["parts"])>=75000000:
+              raise RuntimeError("One Overture geography shard exceeds safe Pages file size: split into 6 or 8 parts")
+          path.write_text(json.dumps(data,indent=2)+"\n")
+          PY
       - name: Generate lightweight preview from own Overture tiles
         run: |
           python tools/build_overture_preview.py \
@@ -109,6 +139,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p data/overture
+          cp work/shards/shard_manifest.json data/overture/shard_manifest.json
+          cp work/shards/nl_overture_part_*.pmtiles data/overture/
           cp work/output/overture_source_report.json data/overture/source_report.json
           if [ "${PUBLISH_ISLAND_PMTILES:-false}" = true ]; then
             cp work/output/nl_overture_transportation.pmtiles data/overture/nl_overture_transportation.pmtiles
@@ -118,7 +150,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add overture-preview-data.js overture-preview-metadata.json \
-            data/overture/source_report.json data/overture/carbonear_streets.geojson
+            data/overture/source_report.json data/overture/carbonear_streets.geojson \
+            data/overture/shard_manifest.json data/overture/nl_overture_part_*.pmtiles
           if ! git diff --cached --quiet; then
             git commit -m "Publish independent Overture NL offline transportation map preview [skip ci]"
             git -c rebase.autoStash=true pull --rebase origin main
