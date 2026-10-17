@@ -169,7 +169,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v005'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v006'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -265,7 +265,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v005'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v006'/);
 });
 
 
@@ -312,13 +312,22 @@ test('tile glow follows each tile fill rather than uniform bright tint',()=>{
 });
 
 
-test('Fallout-style settings preserve the window size and use square control glyphs',()=>{
+test('Fallout-style settings cap display height, restore original font, and preserve square icons',()=>{
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const js=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  const dialog=html.slice(html.indexOf('<dialog id="options"'),html.indexOf('<dialog id="leaderboard"'));
  assert.ok(dialog.includes('class="dialog-toolbar"'));
  assert.ok(dialog.indexOf('id="closeOptions"')<dialog.indexOf('id="ghostControl"'));
+ assert.ok(dialog.includes('aria-label="FIELD ATLAS display settings"'));
+ assert.doesNotMatch(dialog,/id="displayTitle"|<h2|Screen-wide effects shared with FIELD ATLAS/);
+ assert.ok(html.includes('#app #options{max-height:66.6667%;'));
+ assert.ok(html.includes('max-height:min(66.6667%,66.6667dvh)'));
+ assert.ok(html.includes('--terminal-font:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'));
+ assert.doesNotMatch(html,/Courier New/);
+ assert.ok(html.includes('#app #closeOptions{'));
+ assert.ok(html.includes('display:block;width:100%;max-width:none;'));
+ assert.ok(html.includes('border-bottom:1px solid var(--border)'));
  assert.equal((html.match(/id="closeOptions"/g)||[]).length,1);
  assert.doesNotMatch(dialog,/id="themeSetting"/);
  assert.doesNotMatch(js,/themeSetting/);
