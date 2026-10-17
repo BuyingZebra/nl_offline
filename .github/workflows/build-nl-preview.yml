@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-nl-preview.yml"
+      - "tools/build_nl_preview.py"
+      - "tools/build_nl_town_centers.py"
 
 permissions:
   contents: write
@@ -50,9 +52,22 @@ jobs:
           test -s work/source-map/nl_osm.mbtiles
           test -s work/reference/nl_communities.csv
           ls -lh work/source-map/nl_osm.mbtiles work/reference/nl_communities.csv
+      - name: Build complete island town label-point catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "osmium>=4.0,<5"
+          mkdir -p work/raw
+          curl -fL --retry 3 --connect-timeout 30 \
+            https://download.geofabrik.de/north-america/canada/newfoundland-and-labrador-latest.osm.pbf \
+            -o work/raw/nl.osm.pbf
+          python tools/build_nl_town_centers.py \
+            --communities work/reference/nl_communities.csv \
+            --osm-pbf work/raw/nl.osm.pbf \
+            --output work/reference/nl_town_centers.geojson
       - name: Generate lightweight island vector preview
         run: |
-          python tools/build_nl_preview.py --tiles work/source-map/nl_osm.mbtiles --communities work/reference/nl_communities.csv --output map-preview-data.js
+          python tools/build_nl_preview.py --tiles work/source-map/nl_osm.mbtiles --communities work/reference/nl_communities.csv --towns work/reference/nl_town_centers.geojson --output map-preview-data.js
           test -s map-preview-data.js
           test -s map-preview-metadata.json
           ls -lh map-preview-data.js
@@ -78,6 +93,7 @@ jobs:
             echo "No changes to generated preview"
           else
             git commit -m "Update NL map browser preview data [skip ci]"
+            git -c rebase.autoStash=true pull --rebase origin main
             git push origin HEAD:main
           fi
           echo "Preview page: https://buyingzebra.github.io/nl_offline/map-preview.html"
