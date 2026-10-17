@@ -1,0 +1,61 @@
+name: Report NL map pipeline status
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/report-map-pipeline-status.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect recent GitHub Actions runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data/road_audits
+          python - <<'PY'
+          import datetime,json,os,subprocess
+          checks=[
+           ("forest_resource_roads","download-provincial-roads.yml"),
+           ("osm_road_reconciliation","reconcile-nl-roads.yml"),
+           ("federal_road_overlay","publish-federal-roads.yml"),
+           ("government_orthophotos","catalog-orthophoto-coverage.yml"),
+           ("older_federal_comparison","audit-road-coverage.yml"),
+          ]
+          output={"generated_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                  "repository":os.environ["GITHUB_REPOSITORY"],"workflows":{}}
+          for key,file in checks:
+            command=["gh","run","list","--repo",os.environ["GITHUB_REPOSITORY"],
+                     "--workflow",file,"--limit","4","--json",
+                     "databaseId,status,conclusion,createdAt,url,headSha,event"]
+            p=subprocess.run(command,text=True,capture_output=True,timeout=45)
+            if p.returncode:
+              output["workflows"][key]={"error":p.stderr.strip()[:300],"file":file}
+            else:
+              output["workflows"][key]={"file":file,"runs":json.loads(p.stdout)}
+          with open("data/road_audits/build_status.json","w") as f:
+            json.dump(output,f,indent=2)
+            f.write("\n")
+          print(json.dumps(output,indent=2))
+          PY
+      - name: Commit pipeline health summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/road_audits/build_status.json
+          git commit -m "Report current NL GIS workflow statuses [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
