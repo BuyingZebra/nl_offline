@@ -1,0 +1,49 @@
+{
+  "timestamp_utc": "2026-10-17T00:40:38.220472+00:00",
+  "osm_way_count": 103864,
+  "nrn_segment_count": 44484,
+  "osm_self_overlap_review_pairs": 1,
+  "provincial_road_features": 12431,
+  "tolerance_m": 12.0,
+  "statuses": {
+    "alignment_review": {
+      "features": 916,
+      "km": 2769.38
+    },
+    "candidate_addition": {
+      "features": 5942,
+      "km": 8996.85
+    },
+    "duplicate_osm": {
+      "features": 5070,
+      "km": 10113.02
+    },
+    "name_conflict": {
+      "features": 452,
+      "km": 3566.35
+    },
+    "nrn_only": {
+      "features": 47,
+      "km": 78.59
+    },
+    "short_review": {
+      "features": 4,
+      "km": 0.09
+    }
+  },
+  "method": "Near-line buffer overlap in EPSG:3347, with OSM name conflict checks",
+  "sources": [
+    {
+      "dataset": "OpenStreetMap Geofabrik Newfoundland and Labrador extract",
+      "attribution": "\u00a9 OpenStreetMap contributors",
+      "licence": "ODbL"
+    },
+    {
+      "dataset": "Statistics Canada National Road Network"
+    },
+    {
+      "dataset": "NL Forestry Resource Roads - Newfoundland (direct FFA FeatureServer)"
+    }
+  ],
+  "limits": "No auto-merge, snapping, rerouting or road deletion. Candidate additions require imagery/field review. Parallel carriageways, bridges, ramps and name conflicts require special care."
+}

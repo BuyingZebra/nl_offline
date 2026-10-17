@@ -1,0 +1,7 @@
+{
+  "suspected_pairs": 1,
+  "classifications": {
+    "parallel_oneway_review": 1
+  },
+  "important": "Same-named lines are review candidates, not confirmed duplicates; no geometry was deleted or connected."
+}

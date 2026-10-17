@@ -1,0 +1,14 @@
+{
+  "features": 12431,
+  "by_status": {
+    "alignment_review": 916,
+    "duplicate_osm": 5070,
+    "candidate_addition": 5942,
+    "nrn_only": 47,
+    "name_conflict": 452,
+    "short_review": 4
+  },
+  "path": "osm_checked_provincial_roads.geojson.gz",
+  "purpose": "Visual-only source comparison, not a validated road network",
+  "geometry_simplification_m": 25
+}
