@@ -148,7 +148,7 @@ test('restart is only offered in the pause menu and never beside DROP',()=>{
  assert.ok(html.includes('<button id="newGameButton" hidden>↻ NEW GAME</button>'));
  assert.ok(html.indexOf('id="newGameButton"')<html.indexOf('id="boardShell"')+500);
  assert.match(ui,/newGameButton'\)\.hidden=game\.status!=='paused'/);
- assert.match(ui,/if\(game\.status==='paused'&&!restartConfirm\.open\)restartConfirm\.showModal\(\)/);
+ assert.match(ui,/if\(game\.status==='paused'&&!restartConfirm\.open\)openPanel\(restartConfirm\)/);
  assert.doesNotMatch(ui,/case 'restart':|KeyR:'restart'/);
 });
 
@@ -160,16 +160,16 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
  assert.ok(html.includes('Your current game and score will be lost. Are you sure?'));
  assert.ok(html.includes('<button id="cancelRestart">CANCEL</button>'));
  assert.ok(html.includes('<button id="confirmRestart">YES, RESTART</button>'));
- assert.match(ui,/\$\('cancelRestart'\)\.addEventListener\('click',\(\)=>restartConfirm\.close\(\)\)/);
+ assert.match(ui,/\$\('cancelRestart'\)\.addEventListener\('click',\(\)=>closePanel\(restartConfirm\)\)/);
  assert.match(ui,/\$\('confirmRestart'\)\.addEventListener\('click',\(\)=>\{/);
- assert.match(ui,/if\(game\.status!=='paused'\)\{restartConfirm\.close\(\);return;\}/);
- assert.match(ui,/restartConfirm\.close\(\);\s*game\.reset\(\);\s*game\.start\(\);/);
+ assert.match(ui,/if\(game\.status!=='paused'\)\{closePanel\(restartConfirm\);return;\}/);
+ assert.match(ui,/closePanel\(restartConfirm\);\s*game\.reset\(\);\s*game\.start\(\);/);
  assert.match(ui,/if\(options\.open\|\|restartConfirm\.open\|\|leaderboard\.open\|\|scoreEntry\.open\)return/);
 });
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v003'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v004'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -265,27 +265,41 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v003'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v004'/);
 });
 
 
-test('CRT camera filters cover game and modal top-layer; no board-specific fades',()=>{
+test('one screen-wide compositor covers game and every menu with only two fades',()=>{
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
- for(const id of ['screenTopFade','screenBottomFade','fade-screenTop','fade-screenBottom']){
-  assert.ok(html.includes('id="'+id+'"'));
+ for(const id of ['screenTopFade','screenBottomFade','fade-screenTop','fade-screenBottom',
+  'screenShade','screenScan','sweep','phosphorFilm','modalScrim']){
+  assert.ok(html.includes('id="'+id+'"'),'Missing overlay/control '+id);
  }
  for(const id of ['playfieldTopFade','playfieldBottomFade','fade-playfieldTop','fade-playfieldBottom']){
-  assert.ok(!html.includes('id="'+id+'"'),'Legacy board fade '+id);
+  assert.ok(!html.includes('id="'+id+'"'),'Unexpected board-only fade '+id);
  }
  assert.match(ui,/const fadeKeys=\['screenTop','screenBottom'\]/);
- assert.ok(ui.includes("dialog.appendChild(overlay)"));
- assert.ok(ui.includes("overlay.className='modal-camera-fx'"));
- assert.ok(html.includes('dialog .modal-camera-fx .fx-scan'));
- assert.ok(html.includes('dialog .modal-camera-fx .fx-vignette'));
- assert.ok(html.includes('dialog .modal-camera-fx .fx-fade-top'));
- assert.ok(html.includes('dialog .modal-camera-fx .fx-fade-bottom'));
+ assert.doesNotMatch(ui,/\.showModal\(/);
+ assert.doesNotMatch(ui,/modal-camera-fx/);
+ assert.doesNotMatch(html,/modal-camera-fx/);
+ assert.ok(ui.includes('panel.show()'));
+ assert.ok(ui.includes('panel.close()'));
+ assert.ok(ui.includes("element.inert=opened"));
+ assert.ok(ui.includes("if(event.key==='Tab')")===false); // explicit not-equal guard is used
+ assert.ok(ui.includes("if(event.key!=='Tab')return"));
+ assert.ok(html.includes('#app dialog[open]{display:block}'));
+ const appStart=html.indexOf('<div id="app">');
+ const appEnd=html.lastIndexOf('</div>\n<script src="./core.js">');
+ const dialogs=html.indexOf('<dialog id="options">');
+ assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
+ assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:31\}/);
+ assert.match(html,/#screenShade\{z-index:32\}/);
+ assert.match(html,/#screenScan\{z-index:33;/);
+ assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;/);
+ assert.match(html,/#sweep\{z-index:35;/);
+ assert.ok(html.includes('mix-blend-mode:color'));
  assert.ok(ui.includes("root.style.setProperty('--screen-top-fade'"));
  assert.ok(ui.includes("root.style.setProperty('--screen-bottom-fade'"));
  assert.ok(html.includes('pointer-events:none'));
