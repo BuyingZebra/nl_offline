@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/test-pipboy-mobile.yml"
+      - "tests/e2e_pipboy_towns.py"
 
 permissions:
   contents: read
