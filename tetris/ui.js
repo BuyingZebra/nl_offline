@@ -10,6 +10,7 @@
   const BOARD_SIZE=30,BOARD_W=300,BOARD_H=600;
   const previewCanvases=[$('next1'),$('next2'),$('next3')];
   const options=$('options');
+  const restartConfirm=$('restartConfirm');
   const names={ready:'STANDBY',playing:'ACTIVE',paused:'PAUSED',over:'GAME OVER'};
   let lastFrame=performance.now(),dirty=true,previousPieceCount=0,previousLines=0;
   let highScore=0,showGhost=true,soundOn=false,glow=45,scan=28,audioCtx=null;
@@ -153,6 +154,7 @@
     previewCanvases.forEach((c,i)=>renderMini(c,game.queue[i]));
     const veil=$('veil');
     veil.classList.toggle('hidden',game.status==='playing');
+    $('newGameButton').hidden=game.status!=='paused';
     if(game.status==='ready'){
       $('veilTitle').textContent='TETRIS';
       $('veilText').textContent='FALLING-BLOCK ARCADE / 7 PIECES / 10 × 20';
@@ -179,7 +181,6 @@
       case 'hard':performed=game.hardDrop();break;
       case 'hold':performed=game.holdPiece();break;
       case 'pause':performed=game.pause();break;
-      case 'restart':game.reset();game.start();performed=true;break;
       case 'start':performed=game.start();break;
     }
     if(performed) {
@@ -194,6 +195,20 @@
     return performed;
   }
   $('playButton').addEventListener('click',()=>perform('start'));
+  // Starting over is only available from the PAUSED menu and always requires
+  // an explicit second tap. Cancel retains the board and score unchanged.
+  $('newGameButton').addEventListener('click',()=>{
+    if(game.status==='paused'&&!restartConfirm.open)restartConfirm.showModal();
+  });
+  $('cancelRestart').addEventListener('click',()=>restartConfirm.close());
+  $('confirmRestart').addEventListener('click',()=>{
+    if(game.status!=='paused'){restartConfirm.close();return;}
+    restartConfirm.close();
+    game.reset();
+    game.start();
+    dirty=true;
+  });
+  restartConfirm.addEventListener('cancel',()=>{dirty=true;});
   $('themeToggle').addEventListener('click',()=>{
     const theme=root.dataset.theme==='amber'?'green':'amber';
     root.dataset.theme=theme;store('fieldAtlasThemeV06',theme);
@@ -256,14 +271,14 @@
     ArrowLeft:'left',ArrowRight:'right',ArrowDown:'down',
     ArrowUp:'cw',KeyX:'cw',KeyZ:'ccw',Space:'hard',KeyC:'hold',
     ShiftLeft:'hold',ShiftRight:'hold',KeyP:'pause',Escape:'pause',
-    KeyR:'restart',Enter:'start'
+    Enter:'start'
   };
   document.addEventListener('keydown',event=>{
-    if(options.open)return;
+    if(options.open||restartConfirm.open)return;
     const action=keyboard[event.code];
     if(!action)return;
     event.preventDefault();
-    if(event.repeat&&['hard','hold','pause','restart','start'].includes(action))return;
+    if(event.repeat&&['hard','hold','pause','start'].includes(action))return;
     perform(action);
   });
   // Gesture shortcuts on the board; on-screen buttons remain the primary path.
