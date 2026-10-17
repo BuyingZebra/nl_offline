@@ -342,10 +342,65 @@ function addOvertureLayer(kind,paint,extraMinzoom=0){
     (layers['overture-lines'] ||= []).push(id);
   }
 }
+// Whole-island PMTiles: HTTP-range streaming means town searches can request
+// detailed roads anywhere without downloading the entire archive into RAM.
+// Fall back to diagnostic sample tiles if Pages does not support byte ranges.
+async function loadFullOverture(){
+  const filename='./data/overture/nl_overture_transportation.pmtiles';
+  const fileUrl=new URL(filename,window.location.href).href;
+  let head;
+  try{head=await fetch(fileUrl,{method:'HEAD',cache:'no-cache'});}
+  catch{return false;}
+  if(!head.ok)return false;
+  if(!window.pmtiles){
+    await new Promise((resolve,reject)=>{
+      const script=document.createElement('script');
+      script.src='https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js';
+      script.onload=resolve;script.onerror=()=>reject(Error('PMTiles browser reader not available'));
+      document.head.appendChild(script);
+    });
+  }
+  if(!window.pmtiles) return false;
+  const archive=new pmtiles.PMTiles(fileUrl);
+  // Fails if byte-range serving is broken rather than downloading a huge
+  // single archive in full on a phone.
+  const info=await archive.getHeader();
+  if(!info || info.maxZoom<12)throw Error('PMTiles archive has insufficient detailed zooms');
+  const protocol=new pmtiles.Protocol();
+  protocol.add(archive);
+  maplibregl.addProtocol('pmtiles',protocol.tile);
+  map.addSource('overture-island',{type:'vector',
+    url:'pmtiles://'+fileUrl,
+    attribution:'© Overture Maps Foundation and © OpenStreetMap contributors (ODbL)'});
+  const common={source:'overture-island','source-layer':'overture_transportation',
+    layout:{visibility:overtureToggle.checked?'visible':'none',
+      'line-join':'round','line-cap':'round'}};
+  map.addLayer({...common,id:'island-overture-roads',type:'line',
+    filter:['==',['get','kind'],'motor_candidate'],
+    paint:{'line-color':['match',['get','class'],
+      'motorway','#f0c584','trunk','#e8ca8f','primary','#dcd59c',
+      'secondary','#c0d5a9','tertiary','#95ccaa','#86bd9b'],
+      'line-width':['interpolate',['linear'],['zoom'],5,.55,10,1.15,14,2.6,16,3.7,18,5],
+      'line-opacity':.95}});
+  map.addLayer({...common,id:'island-overture-trails',type:'line',minzoom:10,
+    filter:['==',['get','kind'],'trail'],
+    paint:{'line-color':'#72b5a5',
+      'line-width':['interpolate',['linear'],['zoom'],10,.45,14,1.05,17,1.6],
+      'line-dasharray':[1.4,2],'line-opacity':.79}});
+  (layers['overture-lines'] ||= []).push('island-overture-roads','island-overture-trails');
+  overtureReady=true;
+  status.textContent+=' Whole-island high-detail Overture roads ready (up to zoom '+info.maxZoom+').';
+  return true;
+}
 async function loadOvertureRoads(){
   if(overtureLoading||overtureReady)return;
   overtureLoading=true;
   try{
+    try{
+      if(await loadFullOverture())return;
+    }catch(fullError){
+      console.warn('Full Overture PMTiles unavailable, trying limited preview:',fullError);
+    }
     if(!window.OVERTURE_PREVIEW_TILES){
       await new Promise((resolve,reject)=>{
         const script=document.createElement('script');
@@ -378,7 +433,7 @@ async function loadOvertureRoads(){
       {'line-color':'#70b4a4','line-width':['interpolate',['linear'],['zoom'],10,.5,15,1.1,18,1.5],
        'line-dasharray':[1.4,2],'line-opacity':.76},10);
     overtureReady=true;
-    status.textContent+=' Overture transportation tiles available ('+meta.tileCount.toLocaleString()+' preview tiles).';
+    status.textContent+=' Overture sample tiles available ('+meta.tileCount.toLocaleString()+' tiles); full-island archive not yet accessible.';
   }catch(error){
     overtureToggle.checked=false;
     console.warn('Overture geometry build:',error);
