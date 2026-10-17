@@ -42,6 +42,8 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <label><input type="checkbox" id="inspectRoads"> Inspect roads when clicking the map</label>
 <p id="road-audit-note">Loading provincial road comparison…</p>
 <label><input type="checkbox" data-group="buildings" checked> Building footprints</label>
+<label><input type="checkbox" id="showOrthoCoverage"> Official aerial-photo tile coverage</label>
+<p>These are coverage footprints showing imagery dates and resolutions—not the photographs. Click a highlighted tile for its survey details.</p>
 <label><input type="checkbox" data-group="terrain" checked> Forests, parks and land use</label>
 <label><input type="checkbox" data-group="water" checked> Water and rivers</label>
 <label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
@@ -234,6 +236,54 @@ async function loadFederalRoads() {
   }
 }
 federalToggle.addEventListener('change',()=>{if(federalToggle.checked)loadFederalRoads();});
+
+// Accurate province-wide orthophoto footprint polygons, not copied Google imagery.
+// Download only when requested to avoid burdening mobile/browser users.
+const orthoToggle=document.getElementById('showOrthoCoverage');
+let orthoLoading=false,orthoLoaded=false;
+async function showOrthophotoCoverage(){
+  if(orthoLoading||orthoLoaded) return;
+  orthoLoading=true;
+  try{
+    const res=await fetch('./data/imagery/orthophoto_coverage.geojson',{cache:'no-cache'});
+    if(!res.ok)throw Error('Orthophoto index not yet built: '+res.status);
+    const geodata=await res.json();
+    map.addSource('orthophoto-footprints',{type:'geojson',data:geodata});
+    const color=['step',['to-number',['get','year'],0],
+      '#9b9f95',2000,'#a8b4cf',2010,'#ffd589',2020,'#76ddc8'];
+    map.addLayer({id:'orthophoto-coverage-fill',source:'orthophoto-footprints',type:'fill',minzoom:4,
+      layout:{visibility:orthoToggle.checked?'visible':'none'},
+      paint:{'fill-color':color,'fill-opacity':.16}});
+    map.addLayer({id:'orthophoto-coverage-outline',source:'orthophoto-footprints',type:'line',minzoom:4,
+      layout:{visibility:orthoToggle.checked?'visible':'none'},
+      paint:{'line-color':color,'line-width':['interpolate',['linear'],['zoom'],6,.5,12,1.6],
+      'line-opacity':.8}});
+    map.on('click','orthophoto-coverage-fill',event=>{
+      if(!orthoToggle.checked) return;
+      const p=event.features?.[0]?.properties;
+      if(!p) return;
+      const tile=String(p.tile||'Unnamed');
+      const year=String(p.year||'Unknown');
+      const resolution=String(p.resolution_m||'Unreported');
+      new maplibregl.Popup({maxWidth:'320px'}).setLngLat(event.lngLat)
+        .setText('NL aerial photo survey coverage · tile '+tile+
+          ' · latest year '+year+' · resolution '+resolution+
+          ' · Zone '+p.zone+'. Coverage index, not an aerial photograph.').addTo(map);
+    });
+    orthoLoaded=true;
+    status.textContent+=' Official imagery coverage available ('+geodata.features.length.toLocaleString()+' tiles).';
+  }catch(error){
+    console.warn('Provincial orthophoto coverage:',error);
+    status.textContent+=' Imagery-coverage index not ready; check GitHub builds.';
+  }finally{orthoLoading=false;}
+}
+orthoToggle.addEventListener('change',()=>{
+  if(orthoToggle.checked)showOrthophotoCoverage();
+  if(orthoLoaded){
+    for(const layerId of ['orthophoto-coverage-fill','orthophoto-coverage-outline'])
+      if(map.getLayer(layerId))map.setLayoutProperty(layerId,'visibility',orthoToggle.checked?'visible':'none');
+  }
+});
 
 map.on('error',e=>{ console.warn('Map preview:',e.error||e); });
 document.querySelectorAll('[data-group]').forEach(input=>input.addEventListener('change',()=>{
