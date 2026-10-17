@@ -367,39 +367,56 @@ function sharedPmtilesProtocol(){
   return nlPmtilesProtocolPromise;
 }
 async function loadFullOverture(){
-  const filename='./data/overture/nl_overture_transportation.pmtiles';
-  const fileUrl=new URL(filename,window.location.href).href;
-  let head;
-  try{head=await fetch(fileUrl,{method:'HEAD',cache:'no-cache'});}
+  // Each full-resolution island segment is present in exactly one of four
+  // small PMTiles archives. Never download one massive GeoJSON into the phone.
+  const base=new URL('./data/overture/',window.location.href);
+  const manifestUrl=new URL('shard_manifest.json',base).href;
+  let response;
+  try{response=await fetch(manifestUrl,{cache:'no-cache'});}
   catch{return false;}
-  if(!head.ok)return false;
+  if(!response.ok)return false;
+  const manifest=await response.json();
+  if(manifest.part_count!==4 || !Array.isArray(manifest.parts) || manifest.parts.length!==4)
+    throw Error('Invalid complete-island Overture archive manifest');
   const protocol=await sharedPmtilesProtocol();
-  const archive=new pmtiles.PMTiles(fileUrl);
-  // Verify that HTTP byte-range serving can access the archive's header.
-  const info=await archive.getHeader();
-  if(!info || info.maxZoom<12)throw Error('PMTiles archive has insufficient detailed zooms');
-  protocol.add(archive);
-  map.addSource('overture-island',{type:'vector',
-    url:'pmtiles://'+fileUrl,
-    attribution:'© Overture Maps Foundation and © OpenStreetMap contributors (ODbL)'});
-  const common={source:'overture-island','source-layer':'overture_transportation',
-    layout:{visibility:overtureToggle.checked?'visible':'none',
-      'line-join':'round','line-cap':'round'}};
-  map.addLayer({...common,id:'island-overture-roads',type:'line',
-    filter:['==',['get','kind'],'motor_candidate'],
-    paint:{'line-color':['match',['get','class'],
-      'motorway','#f0c584','trunk','#e8ca8f','primary','#dcd59c',
-      'secondary','#c0d5a9','tertiary','#95ccaa','#86bd9b'],
-      'line-width':['interpolate',['linear'],['zoom'],5,.55,10,1.15,14,2.6,16,3.7,18,5],
-      'line-opacity':.95}});
-  map.addLayer({...common,id:'island-overture-trails',type:'line',minzoom:10,
-    filter:['==',['get','kind'],'trail'],
-    paint:{'line-color':'#72b5a5',
-      'line-width':['interpolate',['linear'],['zoom'],10,.45,14,1.05,17,1.6],
-      'line-dasharray':[1.4,2],'line-opacity':.79}});
-  (layers['overture-lines'] ||= []).push('island-overture-roads','island-overture-trails');
+  const archives=[];
+  for(const [index,part] of manifest.parts.entries()){
+    if(!/^nl_overture_part_[0-3]\.pmtiles$/.test(part.filename))
+      throw Error('Unexpected Overture archive filename');
+    const fileUrl=new URL(part.filename,base).href;
+    const archive=new pmtiles.PMTiles(fileUrl);
+    const header=await archive.getHeader();
+    if(!header || header.maxZoom<15)
+      throw Error('A Newfoundland road shard has insufficient resolution');
+    archives.push({index,archive,fileUrl,header});
+  }
+  const firstLabel=(layers.labels||[]).find(id=>map.getLayer(id));
+  for(const {index,archive,fileUrl} of archives){
+    const sourceName='overture-island-'+index;
+    protocol.add(archive);
+    map.addSource(sourceName,{type:'vector',url:'pmtiles://'+fileUrl,
+      attribution:'© Overture Maps Foundation and © OpenStreetMap contributors (ODbL)'});
+    const common={type:'line',source:sourceName,'source-layer':'overture_transportation',
+      layout:{visibility:overtureToggle.checked?'visible':'none',
+        'line-join':'round','line-cap':'round'}};
+    const idRoad='island-overture-road-'+index;
+    const idTrail='island-overture-trail-'+index;
+    map.addLayer({...common,id:idRoad,
+      filter:['==',['get','kind'],'motor_candidate'],
+      paint:{'line-color':['match',['get','class'],
+        'motorway','#f0c584','trunk','#e8ca8f','primary','#dcd59c',
+        'secondary','#c0d5a9','tertiary','#95ccaa','#86bd9b'],
+        'line-width':['interpolate',['linear'],['zoom'],5,.55,10,1.15,14,2.6,16,3.7,18,5],
+        'line-opacity':.96}},firstLabel);
+    map.addLayer({...common,id:idTrail,minzoom:10,
+      filter:['==',['get','kind'],'trail'],
+      paint:{'line-color':'#72b5a5',
+        'line-width':['interpolate',['linear'],['zoom'],10,.45,14,1.05,17,1.6],
+        'line-dasharray':[1.4,2],'line-opacity':.79}},firstLabel);
+    (layers['overture-lines'] ||= []).push(idRoad,idTrail);
+  }
   overtureReady=true;
-  status.textContent+=' Whole-island high-detail Overture roads ready (up to zoom '+info.maxZoom+').';
+  status.textContent+=' Whole-island Overture road network loaded from '+manifest.part_count+' detailed PMTiles archives.';
   return true;
 }
 // Overlay high-fidelity genuine shoreline geometry. Does not replace inland
@@ -523,7 +540,7 @@ function chooseTown(feature){
   const name=feature.properties.name;
   const withinSample=Object.values(meta.detailedSamples||{}).some(v=>
     Math.abs(center[0]-v.center[0])<.045 && Math.abs(center[1]-v.center[1])<.035);
-  const hasIslandOverture=!!map.getSource('overture-island');
+  const hasIslandOverture=!!map.getSource('overture-island-0');
   const zoom=(hasIslandOverture || withinSample)?13.1:Math.min(meta.baseZoom+0.5,9.5);
   map.flyTo({center,zoom,essential:true});
   input.value=name;
