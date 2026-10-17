@@ -376,14 +376,38 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #phosphorFilm{z-index:44;pointer-events:none}
 #sweep{z-index:45;pointer-events:none}
 
+
+/* A reusable phosphor *overlay*, not a button child:
+ * It is screen-space, so PAUSE can become disabled and UI labels can change
+ * without destroying an in-flight phosphor flash. All button sizes share it. */
+#app header .heading h1{margin:0;line-height:1.25;
+ font-size:clamp(18px,5.6vw,23px);letter-spacing:.11em}
+#buttonFxLayer{position:absolute;inset:0;z-index:39;
+ overflow:hidden;pointer-events:none;isolation:isolate}
+#buttonFxLayer .phosphor-hit-layer{position:absolute;pointer-events:none;
+ box-sizing:border-box;opacity:0;
+ border:1px solid var(--flash-color);
+ border-radius:var(--flash-radius,8px);
+ background:radial-gradient(ellipse at center,
+  color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent),
+  transparent 88%);
+ box-shadow:0 0 var(--glow-radius)
+  color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent),
+  inset 0 0 calc(var(--glow-radius) * .6)
+  color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent);
+ animation:phosphor-flash 1050ms linear forwards}
+@keyframes phosphor-flash{
+ 0%{opacity:.95}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){
+ #buttonFxLayer .phosphor-hit-layer{animation-duration:1ms}}
+
 </style>
 </head>
 <body>
 <div id="app">
  <header class="panel">
-  <div class="heading"><small>FIELD ATLAS / NEWFOUNDLAND</small><h1>ARCADE SYSTEM</h1></div>
+  <div class="heading"><h1>TETRIS SYSTEM</h1></div>
   <div class="header-tools">
-   <button id="scoresButton" aria-label="View top five high scores" title="High scores">★</button>
    <button id="themeToggle" aria-label="Switch green or amber phosphor" title="Change phosphor">◐</button>
    <button id="optionsButton" aria-label="Display options" title="Options">☷</button>
   </div>
@@ -426,6 +450,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   </div>
  </section>
  <div id="eventline"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE</span></div>
+ <div id="buttonFxLayer" aria-hidden="true"></div>
  <div id="screenTopFade" aria-hidden="true"></div>
  <div id="screenBottomFade" aria-hidden="true"></div>
  <div id="screenShade" aria-hidden="true"></div>
