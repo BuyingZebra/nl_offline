@@ -36,6 +36,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <div id="results"></div>
 <h2>Show / hide vector layers</h2>
 <label><input type="checkbox" data-group="roads" checked> Roads and paths (OSM)</label>
+<label><input type="checkbox" data-group="federal-roads"> Federal National Road Network (blue)</label>
 <label><input type="checkbox" data-group="prov-roads"> Provincial resource road candidates</label>
 <label><input type="checkbox" data-group="prov-duplicates" disabled> Show duplicate road lines (diagnostics)</label>
 <label><input type="checkbox" id="inspectRoads"> Inspect roads when clicking the map</label>
@@ -183,14 +184,14 @@ map.on('load',()=>{
 });
 map.on('click',event=>{
   if(!document.getElementById('inspectRoads').checked) return;
-  const candidateIds=[...(layers.roads||[]),...(layers['prov-roads']||[]),...(layers['prov-duplicates']||[])]
+  const candidateIds=[...(layers.roads||[]),...(layers['federal-roads']||[]),...(layers['prov-roads']||[]),...(layers['prov-duplicates']||[])]
     .filter(id=>map.getLayer(id) && map.getLayoutProperty(id,'visibility')!=='none');
   const hits=candidateIds.length?map.queryRenderedFeatures(event.point,{layers:candidateIds}):[];
   const seen=new Set(),descriptions=[];
   for(const feature of hits) {
     const p=feature.properties||{};
-    const source=feature.source==='provincial-road-source'?'NL Provincial GeoAtlas':'OpenStreetMap';
-    const desc=[source,p.name||p.ROAD_NAME||p.ref||'Unnamed road',p.class||p.highway||'',
+    const source=feature.source==='provincial-road-source'?'NL Provincial GeoAtlas':feature.source==='federal-road-source'?'Federal National Road Network':'OpenStreetMap';
+    const desc=[source,p.name||p.ROAD_NAME||p.ref||'Unnamed road',p.class||p.road_class||p.highway||'',
       p.audit_status||'',p.osm_cover!==undefined?'OSM overlap: '+Math.round(Number(p.osm_cover)*100)+'%':''].filter(Boolean).join(' · ');
     const fingerprint=[source,p.name||'',p.class||'',p.audit_status||'',p.source_id||''].join('/');
     if(seen.has(fingerprint)) continue;
@@ -201,6 +202,39 @@ map.on('click',event=>{
   const message=descriptions.length?descriptions.join('\n'):'No visible road geometry at this point and zoom level.';
   new maplibregl.Popup({maxWidth:'340px'}).setLngLat(event.lngLat).setText(message).addTo(map);
 });
+// Load the authoritative federal road centrelines only on request.
+// Do not overwrite or silently merge OpenStreetMap or provincial geometry.
+let federalRoadsLoading=false, federalRoadsLoaded=false;
+const federalToggle=document.querySelector('[data-group="federal-roads"]');
+async function loadFederalRoads() {
+  if(federalRoadsLoading || federalRoadsLoaded) return;
+  federalRoadsLoading=true;
+  try {
+    const response=await fetch('./data/road_audits/federal_nrn_roads.geojson.gz',{cache:'no-cache'});
+    if(!response.ok) throw new Error('Federal overlay has not been published yet: '+response.status);
+    const payload=await response.blob();
+    const raw=await new Response(payload.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    const geojson=JSON.parse(raw);
+    if(!map.getSource('federal-road-source')) {
+      map.addSource('federal-road-source',{type:'geojson',data:geojson});
+      map.addLayer({id:'federal-road-lines',type:'line',source:'federal-road-source',minzoom:7,
+        layout:{visibility:federalToggle.checked?'visible':'none','line-cap':'round','line-join':'round'},
+        paint:{'line-color':'#60bdff','line-opacity':.9,
+          'line-width':['interpolate',['linear'],['zoom'],7,1,13,2.4,17,4],
+          'line-dasharray':[2,1.5]}});
+      (layers['federal-roads'] ||= []).push('federal-road-lines');
+    }
+    federalRoadsLoaded=true;
+    status.textContent+=' Federal road layer ready ('+geojson.features.length.toLocaleString()+' segments).';
+  } catch(error) {
+    console.warn('Federal road source:',error);
+    status.textContent+=' Federal road layer unavailable; check build workflow.';
+  } finally {
+    federalRoadsLoading=false;
+  }
+}
+federalToggle.addEventListener('change',()=>{if(federalToggle.checked)loadFederalRoads();});
+
 map.on('error',e=>{ console.warn('Map preview:',e.error||e); });
 document.querySelectorAll('[data-group]').forEach(input=>input.addEventListener('change',()=>{
   for(const id of layers[input.dataset.group]||[]) if(map.getLayer(id)) map.setLayoutProperty(id,'visibility',input.checked?'visible':'none');
