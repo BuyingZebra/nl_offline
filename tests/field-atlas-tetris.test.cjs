@@ -164,7 +164,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
  assert.match(ui,/\$\('confirmRestart'\)\.addEventListener\('click',\(\)=>\{/);
  assert.match(ui,/if\(game\.status!=='paused'\)\{restartConfirm\.close\(\);return;\}/);
  assert.match(ui,/restartConfirm\.close\(\);\s*game\.reset\(\);\s*game\.start\(\);/);
- assert.match(ui,/if\(options\.open\|\|restartConfirm\.open\)return/);
+ assert.match(ui,/if\(options\.open\|\|restartConfirm\.open\|\|leaderboard\.open\|\|scoreEntry\.open\)return/);
 });
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
