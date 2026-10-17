@@ -37,7 +37,12 @@ test('raster source uses the actual OSM Standard map, not substitute tiles', () 
 test('OSM coastline-clipped water grid and pins survive raster mode', () => {
   assert.ok(js.includes("id:'water-grid',type:'fill'"));
   assert.ok(js.includes("'source-layer':'water'"));
-  assert.ok(js.includes("'fill-pattern':'water-grid-'+state.theme"));
+  assert.ok(js.includes("'fill-pattern':gridPatternId()"));
+  assert.ok(js.includes('function gridOpacity()'));
+  assert.ok(js.includes("state.mapRenderer==='osm-composite'?.56:.32"));
+  assert.ok(js.includes("data[k+3]=composite?(major?188:100):(major?66:30)"));
+  assert.ok(js.includes("state.map.setPaintProperty('water-grid','fill-opacity',gridOpacity())"));
+  assert.ok(js.includes("fieldAtlasWaterGridStrengthV031"));
   for (const layer of ['water-grid','route','saved-pin-glow','saved-pin-points']) {
     assert.ok(js.includes("'" + layer + "'"), layer);
   }
