@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v007'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v008'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v007'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v008'/);
 });
 
 
@@ -389,4 +389,40 @@ test('phosphor flash uses one reusable screen-space surface above controls, belo
  assert.match(ui,/layer\.addEventListener\('animationend',\(\)=>layer\.remove\(\)/);
  assert.doesNotMatch(ui,/button\.appendChild\(layer\)/);
  assert.match(ui,/return brightness\(style\.backgroundColor\)>brightness\(style\.color\)/);
+});
+
+
+test('phone controls use the requested four-button layout and centered secondary pair',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const pad=html.match(/<div id="pad"[\s\S]*?<\/div>/)?.[0];
+ const extras=html.match(/<div id="extras"[\s\S]*?<\/div>/)?.[0];
+ assert.ok(pad&&extras,'game control groups must exist');
+ assert.deepEqual([...pad.matchAll(/data-action="([^"]+)"/g)].map(m=>m[1]),
+  ['left','hard','right','cw']);
+ assert.deepEqual([...extras.matchAll(/data-action="([^"]+)"/g)].map(m=>m[1]),
+  ['hold','pause']);
+ assert.ok(pad.includes('class="drop-arrow" aria-hidden="true">▼</span>'));
+ assert.ok(pad.includes('class="drop-label">DROP</span>'));
+ assert.ok(pad.includes('data-action="cw" aria-label="Rotate clockwise">↻</button>'));
+ assert.doesNotMatch(html,/data-action="ccw"|data-action="down"/);
+ assert.doesNotMatch(ui,/case 'ccw':|case 'down':|KeyZ:'ccw'|ArrowDown:'down'/);
+ assert.match(ui,/ArrowDown:'hard',Space:'hard'/);
+ assert.match(ui,/else if\(dy>25\)perform\('hard'\)/);
+ assert.match(html,/#pad button\[data-action="hard"\]\{\s*grid-column:span 2;/);
+ assert.match(html,/#extras\{display:flex;justify-content:center;align-items:center;/);
+ assert.match(html,/#extras button\{flex:0 1 40%;max-width:180px;/);
+});
+
+test('removing the console leaves stage space available without damaging overlays or pause',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.doesNotMatch(html,/id="console"|id="consoleState"/);
+ assert.doesNotMatch(ui,/consoleState|#console|CONSOLE v0/);
+ assert.ok(html.includes('id="stage"'));
+ assert.ok(html.includes('id="boardShell"'));
+ assert.ok(html.includes('id="buttonFxLayer"'));
+ assert.ok(html.includes('id="pauseButton">PAUSE</button>'));
+ assert.ok(ui.includes("case 'pause':performed=game.status==='playing'&&game.pause();break;"));
+ assert.ok(ui.includes("$('playButton').textContent='▶ RESUME'"));
 });
