@@ -1,0 +1,12 @@
+{
+  "features": 13304,
+  "by_status": {
+    "review_short_segment": 77,
+    "potential_addition": 12202,
+    "needs_review": 965,
+    "probable_overlap": 60
+  },
+  "path": "provincial_road_overlay.geojson.gz",
+  "purpose": "Visual-only source comparison, not a validated road network",
+  "geometry_simplification_m": 25
+}
