@@ -557,7 +557,7 @@ test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',
  assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;pointer-events:none;\s*background:rgb\(var\(--phosphor-rgb\)\);mix-blend-mode:color;opacity:1\}/);
  assert.match(html,/:root\[data-theme="amber"\]\{--phosphor-rgb:255,196,100\}/);
  assert.match(html,/#screenShade\{opacity:var\(--vignette-intensity\);\s*background:radial-gradient\(/);
- assert.equal((html.match(/radial-gradient\(/g)||[]).length,2,'Only the darkening vignette may use radial gradients');
+ assert.equal((html.match(/radial-gradient\(/g)||[]).length,1,'Only the darkening vignette may use a radial gradient');
  assert.ok(html.includes('rgba(255,255,255,.15) 0px'));
  assert.ok(html.includes('#sweep{z-index:40;pointer-events:none}'));
  assert.doesNotMatch(html,/#stage\s*\{\s*background:/);
