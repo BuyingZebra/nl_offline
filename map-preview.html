@@ -48,7 +48,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <label><input type="checkbox" data-group="water" checked> Water and rivers</label>
 <label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
 <h2>Coverage</h2><div id="stats">Inspecting generated tiles…</div>
-<p><strong>Important:</strong> Island-wide overview zooms are stored; more detailed zooms are sampled in four locations to keep the browser preview small. A blank or generalized area outside those samples does not necessarily mean the full 1.09 GB map lacks that detail. The provincial overlay is a simplified visual comparison only; the original editable government geometry remains in the downloadable GeoPackage. This is not a navigation system.</p>
+<p><strong>Important:</strong> Island-wide overview tiles and detailed tiles for four test locations use separate, non-overlapping display zoom ranges. Outside those four locations there are no detailed tiles yet, so roads may disappear at high zoom. This is a browser-preview limitation, not evidence of missing geometry. Provincial and federal comparisons are inspection overlays only, not corrected navigation routes.</p>
 <p>Map data © OpenStreetMap contributors (ODbL). Federal road source: Statistics Canada National Road Network. Provincial resource roads and aerial-photo coverage index: Government of Newfoundland and Labrador. Community names © Natural Resources Canada. All source layers are shown for comparison, not verified driving directions. The browser viewer still uses online MapLibre code and fonts.</p>
 </aside>
 <div id="map"></div>
@@ -88,13 +88,23 @@ const style = {version:8, name:'NL Data Inspector', glyphs:'https://demotiles.ma
 const available = new Set(meta.sourceLayerNames || []);
 function add(group, sourceLayer, type, paint, options={}) {
   if (!available.has(sourceLayer)) return;
+  const detailStartZoom = meta.baseZoom + 1;
   for (const source of ['base','samples']) {
+    // Source maxzoom is a TILE zoom limit: MapLibre still renders/overzooms
+    // those tiles at higher display zooms unless the STYLE LAYER has maxzoom.
+    // Never draw the overview and detailed geometry at the same zoom.
+    const requestedMin = options.minzoom === undefined ? 0 : options.minzoom;
+    if (source === 'base' && requestedMin >= detailStartZoom) continue;
     const id = [source, sourceLayer, type, group, Object.keys(layers).length].join('-');
     const def={id,type,source,'source-layer':sourceLayer,paint};
-    if (source === 'samples') def.minzoom = meta.baseZoom+1;
+    if (source === 'base') {
+      def.minzoom = requestedMin;
+      def.maxzoom = detailStartZoom;
+    } else {
+      def.minzoom = Math.max(detailStartZoom, requestedMin);
+    }
     if (options.layout) def.layout=options.layout;
     if (options.filter) def.filter=options.filter;
-    if (options.minzoom !== undefined) def.minzoom = Math.max(def.minzoom || 0, options.minzoom);
     style.layers.push(def);
     (layers[group] ||= []).push(id);
   }
