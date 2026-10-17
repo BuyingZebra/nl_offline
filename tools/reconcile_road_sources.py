@@ -149,6 +149,60 @@ def reconcile(osm_frame, nrn_frame, provincial_frame, tolerance_m):
     return provincial.to_crs("EPSG:4326"), len(osm_index.geometry), len(nrn_index.geometry)
 
 
+
+def audit_osm_self_overlaps(osm_frame, tolerance_m=7.):
+    """Find same-named OSM centreline overlaps without altering road topology.
+
+    Endpoint-sharing segmented streets are normal: the test requires substantial
+    overlap across BOTH lines. Divided one-way and grade-separated roads are
+    reported separately or skipped instead of being silently collapsed.
+    """
+    metric = only_lines(osm_frame).to_crs(METRIC_CRS).reset_index(drop=True)
+    geoms = np.asarray(metric.geometry.values, dtype=object)
+    indexed = STRtree(geoms)
+    names = [normalized_name(name) for name in metric["name"]]
+    records = []
+    for i, g in enumerate(geoms):
+        if not names[i] or g.length < 35:
+            continue
+        for j in indexed.query(g, predicate="dwithin", distance=tolerance_m):
+            j = int(j)
+            if j <= i or names[i] != names[j] or geoms[j].length < 35:
+                continue
+            # Flyovers, bridges, tunnels and explicit different layers are not
+            # equivalent road intersections and must never be conflated.
+            if any(str(metric.iloc[i][k] or "") != str(metric.iloc[j][k] or "")
+                   for k in ("bridge", "tunnel", "layer")):
+                continue
+            other = geoms[j]
+            try:
+                a = min(1., float(intersection(g, buffer(other, tolerance_m, cap_style="flat")).length / g.length))
+                b = min(1., float(intersection(other, buffer(g, tolerance_m, cap_style="flat")).length / other.length))
+            except (ValueError, RuntimeError):
+                continue
+            if min(a, b) < .78:
+                continue
+            oneway_a = str(metric.iloc[i].get("oneway") or "").lower()
+            oneway_b = str(metric.iloc[j].get("oneway") or "").lower()
+            kind = "parallel_oneway_review" if oneway_a in ("yes", "1", "true", "-1") or oneway_b in ("yes", "1", "true", "-1") else "possible_duplicate_osm"
+            records.append({
+                "osm_id_a": int(metric.iloc[i]["osm_id"]),
+                "osm_id_b": int(metric.iloc[j]["osm_id"]),
+                "road_name": str(metric.iloc[i]["name"] or ""),
+                "assessment": kind,
+                "overlap_a": round(a, 3),
+                "overlap_b": round(b, 3),
+                "geometry": g,
+            })
+        if (i + 1) % 25000 == 0:
+            print(f"Checked {i+1:,}/{len(geoms):,} OpenStreetMap road ways for internal overlaps", flush=True)
+    if not records:
+        return gpd.GeoDataFrame(columns=["osm_id_a", "osm_id_b", "road_name", "assessment",
+                                          "overlap_a", "overlap_b", "geometry"],
+                                geometry="geometry", crs=METRIC_CRS).to_crs("EPSG:4326")
+    return gpd.GeoDataFrame(records, geometry="geometry", crs=METRIC_CRS).to_crs("EPSG:4326")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--osm-pbf", type=Path, required=True)
@@ -171,6 +225,16 @@ def main():
     nrn = gpd.read_file(args.nrn, layer="road_segments")
     provincial = gpd.read_file(args.provincial, layer="resource_access_roads")
     print(f"Loaded {len(osm):,} OSM ways, {len(nrn):,} federal roads, {len(provincial):,} provincial road features")
+    osm_suspects = audit_osm_self_overlaps(osm)
+    if len(osm_suspects):
+        osm_suspects.to_file(args.output / "osm_overlap_review.gpkg",
+                            layer="osm_source_conflicts", driver="GPKG")
+    osm_counts = dict(Counter(osm_suspects["assessment"]))
+    (args.output / "osm_self_overlap_report.json").write_text(
+        json.dumps({"suspected_pairs": len(osm_suspects), "classifications": osm_counts,
+            "important": "Same-named lines are review candidates, not confirmed duplicates; no geometry was deleted or connected."},
+            indent=2) + "\n"
+    )
     merged, osm_count, nrn_count = reconcile(osm, nrn, provincial, args.tolerance_m)
     merged.to_file(args.output / "nl_road_conflation.gpkg",
                    layer="provincial_source_audit", driver="GPKG")
@@ -183,6 +247,7 @@ def main():
     report = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "osm_way_count": osm_count, "nrn_segment_count": nrn_count,
+        "osm_self_overlap_review_pairs": int(len(osm_suspects)),
         "provincial_road_features": len(merged),
         "tolerance_m": args.tolerance_m,
         "statuses": counts,
