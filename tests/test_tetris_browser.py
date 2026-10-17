@@ -41,45 +41,37 @@ with sync_playwright() as p:
         )
         assert page.locator("#console").count() == 0
         assert page.locator("#consoleState").count() == 0
-        # Exact two-level hierarchy, not just CSS variables:
-        # PARENT surfaces are darker; every nested child uses the
-        # app's background. Verify even the canvas's underlying pixels.
+        # Navigation-style layering: no painted stage wrapper. Dark actual
+        # cards, with brighter buttons from the actual app background.
         colours=page.evaluate("""() => {
           const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
-          const pixels=id=>{
-            const sample=document.createElement('canvas');
-            sample.width=1;sample.height=1;
-            const ctx=sample.getContext('2d');
-            ctx.fillStyle=color(id);ctx.fillRect(0,0,1,1);
+          const rgb=value=>{
+            const c=document.createElement('canvas');c.width=c.height=1;
+            const ctx=c.getContext('2d');ctx.fillStyle=value;
+            ctx.fillRect(0,0,1,1);
             return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3);
           };
-          const vars=getComputedStyle(document.documentElement);
           return {
-            base:vars.getPropertyValue('--bg').trim().toLowerCase(),
-            card:vars.getPropertyValue('--card-bg').trim().toLowerCase(),
-            header:color('header'),
-            controls:color('#controlDeck'),
+            base:getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+            header:rgb(color('header')),
+            controls:rgb(color('#controlDeck')),
+            hold:rgb(color('#side .side-panel')),
+            shell:rgb(color('#boardShell')),
             stage:color('#stage'),
-            hold:color('#side .side-panel'),
-            miniCard:color('#side #sideStats'),
-            shell:color('#boardShell'),
-            parentPixel:pixels('header'),
-            childPixel:pixels('#side .side-panel'),
-            veil:color('#veil'),
             boardPixel:Array.from(document.querySelector('#board')
-              .getContext('2d').getImageData(15,15,1,1).data)
+              .getContext('2d').getImageData(15,15,1,1).data).slice(0,3),
+            normalButton:rgb(color('#pauseButton')),
+            brightButton:rgb(color('#pad [data-action="hard"]'))
           };
         }""")
-        assert colours["base"] == "#04120b", colours
-        assert colours["childPixel"] == [4,18,11], colours
-        assert all(abs(colours["parentPixel"][i]-round(colours["childPixel"][i]*0.65))<=1
+        assert colours["base"].lower() == "#04120b", colours
+        assert colours["stage"] in ("rgba(0, 0, 0, 0)", "transparent"), colours
+        assert colours["header"] == colours["controls"] == colours["hold"] == colours["shell"], colours
+        assert colours["normalButton"] == [4, 18, 11], colours
+        assert all(abs(colours["header"][i] - round(colours["normalButton"][i]*.4)) <= 1
                    for i in range(3)), colours
-        assert len({colours[key] for key in ("header","controls","stage")}) == 1, colours
-        assert len({colours[key] for key in ("hold","miniCard","shell")}) == 1, colours
-        assert colours["header"] != colours["hold"], colours
-        assert colours["boardPixel"][:3] == [4,18,11], colours
-        assert colours["boardPixel"][3] == 255, colours
-        assert colours["veil"].startswith(("color(","rgba(")), colours
+        assert colours["brightButton"][1] > colours["normalButton"][1], colours
+        assert colours["boardPixel"][1] < colours["normalButton"][1], colours
 
         # Muted buttons borrow the EXACT app background, rather than a
         # separately chosen shade. This applies to header, play controls,
@@ -285,38 +277,33 @@ with sync_playwright() as p:
         assert page.locator("html").get_attribute("data-theme") == "amber"
         amber_colours=page.evaluate("""() => {
           const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
-          const pixels=id=>{
-            const sample=document.createElement('canvas');
-            sample.width=1;sample.height=1;
-            const ctx=sample.getContext('2d');
-            ctx.fillStyle=color(id);ctx.fillRect(0,0,1,1);
+          const rgb=value=>{
+            const c=document.createElement('canvas');c.width=c.height=1;
+            const ctx=c.getContext('2d');ctx.fillStyle=value;
+            ctx.fillRect(0,0,1,1);
             return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3);
           };
-          const style=getComputedStyle(document.documentElement);
           return {
-            base:style.getPropertyValue('--bg').trim().toLowerCase(),
-            card:style.getPropertyValue('--card-bg').trim().toLowerCase(),
-            header:color('header'),
-            controls:color('#controlDeck'),
+            base:getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+            header:rgb(color('header')),
+            controls:rgb(color('#controlDeck')),
+            hold:rgb(color('#side .side-panel')),
+            shell:rgb(color('#boardShell')),
             stage:color('#stage'),
-            hold:color('#side .side-panel'),
-            miniCard:color('#side #sideStats'),
-            shell:color('#boardShell'),
-            parentPixel:pixels('header'),
-            childPixel:pixels('#side .side-panel'),
             boardPixel:Array.from(document.querySelector('#board')
-              .getContext('2d').getImageData(15,15,1,1).data)
+              .getContext('2d').getImageData(15,15,1,1).data).slice(0,3),
+            normalButton:rgb(color('#pauseButton')),
+            brightButton:rgb(color('#pad [data-action="hard"]'))
           };
         }""")
-        assert amber_colours["base"] == "#100904", amber_colours
-        assert amber_colours["childPixel"] == [16,9,4], amber_colours
-        assert all(abs(amber_colours["parentPixel"][i]-round(amber_colours["childPixel"][i]*0.65))<=1
+        assert amber_colours["base"].lower() == "#100904", amber_colours
+        assert amber_colours["stage"] in ("rgba(0, 0, 0, 0)", "transparent"), amber_colours
+        assert amber_colours["header"] == amber_colours["controls"] == amber_colours["hold"] == amber_colours["shell"], amber_colours
+        assert amber_colours["normalButton"] == [16, 9, 4], amber_colours
+        assert all(abs(amber_colours["header"][i] - round(amber_colours["normalButton"][i]*.4)) <= 1
                    for i in range(3)), amber_colours
-        assert len({amber_colours[key] for key in ("header","controls","stage")}) == 1, amber_colours
-        assert len({amber_colours[key] for key in ("hold","miniCard","shell")}) == 1, amber_colours
-        assert amber_colours["header"] != amber_colours["hold"], amber_colours
-        assert amber_colours["boardPixel"][:3] == [16,9,4], amber_colours
-        assert amber_colours["boardPixel"][3] == 255, amber_colours
+        assert amber_colours["brightButton"][0] > amber_colours["normalButton"][0], amber_colours
+        assert amber_colours["boardPixel"][0] < amber_colours["normalButton"][0], amber_colours
 
         # Muted buttons borrow the EXACT app background, rather than a
         # separately chosen shade. This applies to header, play controls,
