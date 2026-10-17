@@ -1,0 +1,36 @@
+name: Verify Pip-Boy map on a phone browser
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/test-pipboy-mobile.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test runtime
+        run: |
+          python -m pip install "playwright==1.55.0"
+          python -m playwright install chromium --with-deps
+      - name: Validate live map tiles and two same-named Wild Cove towns
+        run: |
+          python tests/e2e_pipboy_towns.py
+      - name: Preserve screenshot and QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipboy-mobile-map-browser-qa
+          path: work/browser-test/*
+          retention-days: 7
+          if-no-files-found: warn
