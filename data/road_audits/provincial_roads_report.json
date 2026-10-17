@@ -1,0 +1,36 @@
+{
+  "source": "https://dnrmaps.gov.nl.ca/arcgis/rest/services/GeoAtlas/Map_Layers/MapServer/14",
+  "download_utc": "2026-10-17T00:08:04.061450+00:00",
+  "layer_name": "Resource Access Roads",
+  "expected_count": 13304,
+  "queried_ids": 13304,
+  "features_written": 13304,
+  "access_classes": {
+    "6_Unknown": 10769,
+    "1_Open": 1964,
+    "2_Limited": 315,
+    "4_NotPassable": 65,
+    "3_ATV": 185,
+    "5_TRailway": 5,
+    "Unknown": 1
+  },
+  "attributes_preserved": [
+    "AUTHORITY",
+    "COMMENTS",
+    "DRIVE_SPEED",
+    "MAINTENANCE",
+    "OBJECTID",
+    "OPER_END",
+    "ROAD_ACCESS",
+    "ROAD_CLASS",
+    "ROAD_NAME",
+    "ROAD_NETWORK",
+    "ROAD_SPEC",
+    "ROAD_SURFACE",
+    "ROAD_TYPE",
+    "Shape"
+  ],
+  "coordinate_system": "EPSG:4326",
+  "important_warning": "This provincial GeoAtlas layer is illustrative and may be outdated. Do not infer roads are open, safe, or currently passable. Compare with authoritative source and latest imagery before routing.",
+  "attribution": "Newfoundland and Labrador Department of Fisheries, Forestry and Agriculture / GeoAtlas"
+}
