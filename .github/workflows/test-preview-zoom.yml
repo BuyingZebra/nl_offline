@@ -1,0 +1,25 @@
+name: Test preview for doubled road layers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "map-preview.html"
+      - "tests/test_preview_zoom_ranges.mjs"
+      - ".github/workflows/test-preview-zoom.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  zoom-ranges:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify no generalized and detailed roads render together
+        run: node tests/test_preview_zoom_ranges.mjs
