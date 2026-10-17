@@ -15,7 +15,11 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-LAYER = "https://dnrmaps.gov.nl.ca/arcgis/rest/services/GeoAtlas/Map_Layers/MapServer/14"
+SOURCES = {
+    "ffa-island": "https://services8.arcgis.com/aCyQID5qQcyrJMm2/ArcGIS/rest/services/FFA_ResourceRoads_NF/FeatureServer/2",
+    "ffa-labrador": "https://services8.arcgis.com/aCyQID5qQcyrJMm2/ArcGIS/rest/services/FFA_ResourceRoads_LB/FeatureServer/0",
+    "geoatlas-legacy": "https://dnrmaps.gov.nl.ca/arcgis/rest/services/GeoAtlas/Map_Layers/MapServer/14",
+}
 
 
 def get(session, url, params, attempts=4):
@@ -36,6 +40,7 @@ def get(session, url, params, attempts=4):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source", choices=tuple(SOURCES), default="ffa-island")
     parser.add_argument("--batch", type=int, default=200)
     args=parser.parse_args()
     if not 1<=args.batch<=500:
@@ -45,10 +50,11 @@ def main():
     s.headers["User-Agent"]="NL-Map-Data-Research/1.0 (+https://github.com/BuyingZebra/nl_offline)"
     s.mount("https://",HTTPAdapter(max_retries=Retry(total=2,backoff_factor=1,status_forcelist=[429,500,502,503,504])))
 
-    meta=get(s,LAYER,{"f":"json"})
+    layer = SOURCES[args.source]
+    meta=get(s,layer,{"f":"json"})
     if meta.get("geometryType")!="esriGeometryPolyline":
         raise RuntimeError("Unexpected non-line road layer")
-    count=get(s,LAYER+"/query",{"f":"json","where":"1=1","returnCountOnly":"true"}).get("count")
+    count=get(s,layer+"/query",{"f":"json","where":"1=1","returnCountOnly":"true"}).get("count")
     identifiers=get(s,LAYER+"/query",{"f":"json","where":"1=1","returnIdsOnly":"true"})
     ids=sorted(identifiers.get("objectIds") or [])
     if not ids:
@@ -87,7 +93,8 @@ def main():
     if features<100:
         raise RuntimeError(f"Insufficient road geometry: {features}")
     report={
-        "source":LAYER,
+        "source":layer,
+        "source_key":args.source,
         "download_utc":datetime.now(timezone.utc).isoformat(),
         "layer_name":meta.get("name"),
         "expected_count":count,
@@ -96,8 +103,8 @@ def main():
         "access_classes":dict(counts),
         "attributes_preserved":sorted(f["name"] for f in meta.get("fields",[])),
         "coordinate_system":"EPSG:4326",
-        "important_warning":"This provincial GeoAtlas layer is illustrative and may be outdated. Do not infer roads are open, safe, or currently passable. Compare with authoritative source and latest imagery before routing.",
-        "attribution":"Newfoundland and Labrador Department of Fisheries, Forestry and Agriculture / GeoAtlas"
+        "important_warning":"These forestry resource-road attributes are not a guarantee that roads are currently open or safe. Preserve the access codes and verify availability before any routing.",
+        "attribution":"Newfoundland and Labrador Department of Fisheries, Forestry and Agriculture / FFA GeoHub" if args.source.startswith("ffa-") else "Newfoundland and Labrador GeoAtlas (historical copy)"
     }
     (args.output/"provincial_roads_report.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
     print(json.dumps(report,indent=2))
