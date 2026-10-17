@@ -7,6 +7,7 @@ on:
     paths:
       - "map-preview.html"
       - "tests/test_preview_zoom_ranges.mjs"
+      - "tests/test_pipboy_core_map.mjs"
       - ".github/workflows/test-preview-zoom.yml"
 
 permissions:
@@ -22,4 +23,6 @@ jobs:
         with:
           node-version: "22"
       - name: Verify no generalized and detailed roads render together
-        run: node tests/test_preview_zoom_ranges.mjs
+        run: |
+          node tests/test_preview_zoom_ranges.mjs
+          node tests/test_pipboy_core_map.mjs
