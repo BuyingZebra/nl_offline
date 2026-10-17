@@ -48,6 +48,82 @@ class MatchedRoads(osmium.SimpleHandler):
         })
 
 
+
+class NearbyHighways(osmium.SimpleHandler):
+    def __init__(self, bbox):
+        super().__init__()
+        self.bbox=bbox
+        self.records=[]
+    def way(self,way):
+        highway=way.tags.get("highway")
+        if not highway or len(way.nodes)<2:
+            return
+        nodes=[]
+        for node in way.nodes:
+            if not node.location.valid(): return
+            nodes.append([node.lon,node.lat])
+        west,south,east,north=self.bbox
+        if not any(west<=lon<=east and south<=lat<=north for lon,lat in nodes):
+            return
+        self.records.append({
+            "way_id":int(way.id),
+            "tags":dict(way.tags),
+            "coordinates":[[round(lon,8),round(lat,8)] for lon,lat in nodes]
+        })
+
+def examine_nearby_highways(pbf, matched, project, output):
+    coords=[pos for item in matched for pos in item["coordinates"]]
+    west=min(pt[0] for pt in coords)-.002
+    east=max(pt[0] for pt in coords)+.002
+    south=min(pt[1] for pt in coords)-.0015
+    north=max(pt[1] for pt in coords)+.0015
+    nearby=NearbyHighways((west,south,east,north))
+    nearby.apply_file(str(pbf),locations=True)
+    base_lines=[transform(project,LineString(w["coordinates"])) for w in matched]
+    rows=[]
+    features=[]
+    for item in nearby.records:
+        line=LineString(item["coordinates"])
+        metric=transform(project,line)
+        if metric.length <= 2:continue
+        near=min(metric.distance(base) for base in base_lines)
+        if near>35: continue
+        ratios=[
+            metric.intersection(base.buffer(12,cap_style=2)).length/metric.length
+            for base in base_lines
+        ]
+        percent=max(ratios)
+        result={
+            "way_id":item["way_id"],
+            "tags":item["tags"],
+            "length_m":round(metric.length,1),
+            "closest_m":round(near,1),
+            "parallel_coverage_fraction":round(percent,3)
+        }
+        rows.append(result)
+        features.append({
+            "type":"Feature",
+            "geometry":mapping(line),
+            "properties":{
+                "way_id":item["way_id"],
+                "highway":item["tags"].get("highway",""),
+                "name":item["tags"].get("name",""),
+                "service":item["tags"].get("service",""),
+                "closest_m":round(near,1),
+                "parallel_coverage_fraction":round(percent,3)
+            }
+        })
+    rows.sort(key=lambda x:(-x["parallel_coverage_fraction"], x["closest_m"]))
+    (output/"diberville_nearby_road_ways.json").write_text(
+        json.dumps({"bounds":[west,south,east,north],
+                    "results":rows,
+                    "interpretation":"Compare actual tags and paths; close or parallel roads are not necessarily duplicates."},indent=2)+"\n")
+    (output/"diberville_nearby_road_geometries.geojson").write_text(
+        json.dumps({"type":"FeatureCollection","features":features})+"\n")
+    print(json.dumps({"nearby_count":len(rows),
+                      "highest_overlap":rows[:25]},indent=2),flush=True)
+
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--osm-pbf", type=Path, required=True)
@@ -106,6 +182,7 @@ def main():
     }
     (args.output/"diberville_osm_way_report.json").write_text(json.dumps(audit,indent=2)+"\n")
     (args.output/"diberville_osm_way_geometries.geojson").write_text(json.dumps({"type":"FeatureCollection","features":features})+"\n")
+    examine_nearby_highways(args.osm_pbf, matcher.ways, project, args.output)
     print(f"Matched {len(matcher.ways)} ways named {args.name}")
     print(json.dumps({"ids":[w["id"] for w in matcher.ways],
                       "highway_types":{str(w["id"]):w["tags"].get("highway","") for w in matcher.ways},
