@@ -123,8 +123,9 @@ test('browser assets are local, parse cleanly, and expose iPhone controls',()=>{
  const {Script}=require('node:vm');
  assert.doesNotThrow(()=>new Script(ui));
  assert.doesNotThrow(()=>new Script(sw));
- assert.ok(html.includes('FIELD ATLAS / NEWFOUNDLAND'));
- assert.ok(html.includes('ARCADE SYSTEM'));
+ assert.ok(html.includes('<h1>TETRIS SYSTEM</h1>'));
+ assert.doesNotMatch(html,/<small>FIELD ATLAS \/ NEWFOUNDLAND<\/small>/);
+ assert.doesNotMatch(html,/<h1>ARCADE SYSTEM<\/h1>/);
  assert.ok(html.includes('data-action="hard"'));
  assert.ok(html.includes('data-action="hold"'));
  assert.ok(html.includes('id="options"'));
@@ -169,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v006'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v007'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -223,7 +224,8 @@ test('the high score feature is game-over-only, with visible five-slot board and
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  assert.ok(html.includes('<script src="./scores.js"></script>'));
- assert.ok(html.includes('id="scoresButton"'));
+ assert.ok(html.includes('id="pausedScoresButton"'));
+ assert.doesNotMatch(html,/id="scoresButton"/);
  assert.ok(html.includes('id="scoreEntry"'));
  assert.ok(html.includes('id="leaderboard"'));
  assert.ok(html.includes('id="initialsEntry" maxlength="3"'));
@@ -251,10 +253,12 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
  assert.ok(ui.includes("store('fieldAtlasEffectsV06'"));
  assert.ok(ui.includes("read('fieldAtlasGradientsV20','null')"));
  assert.ok(ui.includes("store('fieldAtlasGradientsV20'"));
- assert.ok(html.includes('phosphor-hit-layer'));
+ assert.ok(html.includes('id="buttonFxLayer"'));
+ assert.ok(html.includes('#buttonFxLayer .phosphor-hit-layer'));
  assert.ok(ui.includes("installPhosphorFeedback(button)"));
- assert.ok(ui.includes("button.addEventListener('pointerdown',flash)"));
- assert.ok(ui.includes("button.addEventListener('click',event=>{if(event.detail===0)flash();})"));
+ assert.ok(ui.includes("button.addEventListener('pointerdown',()=>flashPhosphor(button))"));
+ assert.ok(ui.includes('buttonFxLayer.appendChild(layer)'));
+ assert.doesNotMatch(ui,/button\.appendChild\(layer\)/);
  assert.ok(html.includes('opacity:var(--vignette-intensity)'));
  assert.ok(html.includes('opacity:var(--scan-intensity)'));
  assert.ok(ui.includes("app.style.setProperty('--glow-strength'"));
@@ -265,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v006'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v007'/);
 });
 
 
@@ -352,4 +356,37 @@ test('the exact map CRT scanline pattern stays over menus without duplicate pass
  assert.ok(html.includes('#screenScan{position:absolute;inset:0;z-index:43;pointer-events:none;'));
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  assert.doesNotMatch(html,/modal-camera-fx/);
+});
+
+
+test('PAUSE is permanently labeled and cannot resume the game from screen controls or key P',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ assert.ok(html.includes('data-action="pause" id="pauseButton">PAUSE</button>'));
+ assert.match(ui,/pauseButton'\)\.disabled=game\.status!=='playing'/);
+ assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break/);
+ assert.ok(html.includes('<button id="playButton">▶ START GAME</button>'));
+ assert.ok(ui.includes("$('playButton').textContent='▶ RESUME'"));
+ assert.doesNotMatch(ui,/pauseButton'\)\.textContent=/);
+ assert.doesNotMatch(ui,/Enter:'start'/);
+ assert.ok(html.includes('id="newGameButton" hidden'));
+ assert.ok(html.includes('id="pausedScoresButton" hidden'));
+});
+
+test('phosphor flash uses one reusable screen-space surface above controls, below CRT',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ assert.equal((html.match(/id="buttonFxLayer"/g)||[]).length,1);
+ assert.match(html,/#buttonFxLayer\{position:absolute;inset:0;z-index:39;/);
+ assert.match(html,/#buttonFxLayer \.phosphor-hit-layer\{position:absolute;/);
+ assert.ok(html.includes('animation:phosphor-flash 1050ms linear forwards'));
+ assert.ok(ui.includes("const buttonFxLayer=$('buttonFxLayer')"));
+ assert.match(ui,/buttonFxLayer\.appendChild\(layer\)/);
+ assert.match(ui,/layer\.style\.width=bounds\.width\+'px'/);
+ assert.match(ui,/layer\.style\.height=bounds\.height\+'px'/);
+ assert.match(ui,/layer\.addEventListener\('animationend',\(\)=>layer\.remove\(\)/);
+ assert.doesNotMatch(ui,/button\.appendChild\(layer\)/);
+ assert.match(ui,/return brightness\(style\.backgroundColor\)>brightness\(style\.color\)/);
 });
