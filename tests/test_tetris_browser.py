@@ -59,12 +59,27 @@ with sync_playwright() as p:
         assert abs(opacity-0.75)<0.01, opacity
         page.screenshot(path=str(EVIDENCE/"tetris-menu-green.png"))
 
-        page.locator("#themeSetting").tap()
-        assert page.locator("html").get_attribute("data-theme") == "amber"
-        page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
-        page.get_by_role("button", name="RETURN TO GAME").tap()
+        # Theme toggle lives on the main screen. Return is at the top.
+        assert page.locator("#themeSetting").count() == 0
+        assert page.locator("#closeOptions").is_visible()
+        assert page.evaluate("""() => (
+          document.querySelector('#closeOptions').getBoundingClientRect().top <
+          document.querySelector('#ghostControl').getBoundingClientRect().top
+        )""")
+        assert page.locator('#options input[type="checkbox"]').evaluate_all(
+          """els => els.every(el => getComputedStyle(el).borderTopLeftRadius==='0px')"""
+        )
+        assert page.locator('#screenScan').evaluate(
+          """el => getComputedStyle(el).backgroundImage.includes('repeating-linear-gradient')"""
+        )
+        page.locator("#closeOptions").tap()
         assert page.locator("#options").get_attribute("open") is None
         assert page.locator("#modalScrim").is_hidden()
+        page.locator("#themeToggle").tap()
+        assert page.locator("html").get_attribute("data-theme") == "amber"
+        page.get_by_role("button", name="Display options").tap()
+        page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
+        page.locator("#closeOptions").tap()
 
         page.get_by_role("button", name="View top five high scores").tap()
         assert page.locator("#leaderboard").get_attribute("open") is not None
