@@ -1,0 +1,22 @@
+{
+  "generated_utc": "2026-10-17T00:32:04.005617+00:00",
+  "source": "https://services8.arcgis.com/aCyQID5qQcyrJMm2/arcgis/rest/services/Orthorectified_Index/FeatureServer",
+  "image_tiles_indexed": 1548,
+  "zones": {
+    "3": {
+      "expected": 288,
+      "indexed": 288
+    },
+    "2": {
+      "expected": 909,
+      "indexed": 909
+    },
+    "1": {
+      "expected": 351,
+      "indexed": 351
+    }
+  },
+  "meaning": "INDEX ONLY: these are footprints of available orthophoto tiles, not the aerial photographs themselves.",
+  "data_license": "Open Government Licence - Newfoundland and Labrador (see service description)",
+  "do_not_assume": "Tile coverage doesn't imply images are freely downloadable, recent, or suitable for feature extraction."
+}
