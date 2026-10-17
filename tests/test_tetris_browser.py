@@ -61,6 +61,28 @@ with sync_playwright() as p:
         assert colours["card"] == "#010a06", colours
         assert len({colours[key] for key in ("header","controls","hold","shell")}) == 1, colours
         assert colours["veil"].startswith(("color(","rgba(")), colours
+
+        # Muted buttons borrow the EXACT app background, rather than a
+        # separately chosen shade. This applies to header, play controls,
+        # pause menu, scores and settings. Filled keys remain luminous.
+        button_surfaces=page.evaluate("""() => {
+          const style=getComputedStyle(document.documentElement);
+          const hex=style.getPropertyValue('--bg').trim();
+          const appRgb='rgb('+[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(', ')+')';
+          const samples=['#themeToggle','#optionsButton',
+            '#pad [data-action="cw"]','#extras [data-action="hold"]',
+            '#pauseButton','#newGameButton','#pausedScoresButton',
+            '#resetEffects','#closeOptions','#cancelRestart','#closeLeaderboard'];
+          const colours=samples.map(selector=>({
+            selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
+          }));
+          const primary=['#playButton','#pad [data-action="left"]',
+            '#pad [data-action="hard"]','#pad [data-action="right"]']
+            .map(selector=>({selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor}));
+          return {appRgb,colours,primary};
+        }""")
+        assert all(e["background"]==button_surfaces["appRgb"] for e in button_surfaces["colours"]), button_surfaces
+        assert all(e["background"]!=button_surfaces["appRgb"] for e in button_surfaces["primary"]), button_surfaces
         # One large, central drop button replaces two rotation buttons.
         # Preserve left/right arrows, a single clockwise rotate, and the
         # already functioning phosphor feedback surface.
@@ -249,6 +271,28 @@ with sync_playwright() as p:
         assert amber_colours["base"] == "#100904", amber_colours
         assert amber_colours["card"] == "#0c0704", amber_colours
         assert amber_colours["header"] == amber_colours["hold"], amber_colours
+
+        # Muted buttons borrow the EXACT app background, rather than a
+        # separately chosen shade. This applies to header, play controls,
+        # pause menu, scores and settings. Filled keys remain luminous.
+        button_surfaces=page.evaluate("""() => {
+          const style=getComputedStyle(document.documentElement);
+          const hex=style.getPropertyValue('--bg').trim();
+          const appRgb='rgb('+[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)).join(', ')+')';
+          const samples=['#themeToggle','#optionsButton',
+            '#pad [data-action="cw"]','#extras [data-action="hold"]',
+            '#pauseButton','#newGameButton','#pausedScoresButton',
+            '#resetEffects','#closeOptions','#cancelRestart','#closeLeaderboard'];
+          const colours=samples.map(selector=>({
+            selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor
+          }));
+          const primary=['#playButton','#pad [data-action="left"]',
+            '#pad [data-action="hard"]','#pad [data-action="right"]']
+            .map(selector=>({selector,background:getComputedStyle(document.querySelector(selector)).backgroundColor}));
+          return {appRgb,colours,primary};
+        }""")
+        assert all(e["background"]==button_surfaces["appRgb"] for e in button_surfaces["colours"]), button_surfaces
+        assert all(e["background"]!=button_surfaces["appRgb"] for e in button_surfaces["primary"]), button_surfaces
         page.get_by_role("button", name="Display options").tap()
         page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
         page.locator("#closeOptions").tap()
