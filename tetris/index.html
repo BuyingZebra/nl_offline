@@ -147,6 +147,100 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  #eventline{grid-column:1;grid-row:3;overflow:hidden}
 }
 @media(prefers-reduced-motion:reduce){#sweep{display:none}button:active{transform:none}}
+
+
+/* FIELD ATLAS parity: use the same geometry, colour and phosphor feedback as map controls. */
+:root{--glow-radius:11.05px;--glow-strength:57.2%;--glow-level:.65;
+ --scan-intensity:.26;--vignette-intensity:.30;--phosphor-rgb:108,255,156}
+:root[data-theme="amber"]{--phosphor-rgb:255,196,100}
+#app{--glow:var(--glow-radius);--scan:var(--scan-intensity);
+ padding-top:calc(env(safe-area-inset-top,0px) + 9px)}
+button{border-radius:8px;background:var(--panel)}
+button:not(.primary):active{background:var(--solid)}
+#app button.phosphor-reactive{position:relative;isolation:isolate;overflow:visible}
+#app button .phosphor-hit-layer{
+ position:absolute;inset:-2px;pointer-events:none;opacity:0;border-radius:inherit;
+ color:inherit;border:1px solid color-mix(in srgb,currentColor var(--glow-strength),transparent);
+ background:radial-gradient(ellipse at center,color-mix(in srgb,currentColor var(--glow-strength),transparent),transparent 88%);
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent),
+ inset 0 0 calc(var(--glow-radius) * .6) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+#app :is(button,h1,b,strong,small,output,label,#console,#eventline,canvas+div,.side-panel){
+ text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+#app :is(.panel,button,#boardShell,.side-panel){
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
+#screenScan{opacity:var(--scan-intensity)}
+#screenShade{opacity:var(--vignette-intensity);
+ background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
+ rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%)}
+#sweep{opacity:var(--glow-level)}
+#screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;z-index:6;
+ height:0;pointer-events:none}
+#screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
+#screenBottomFade{bottom:0;background:linear-gradient(to top,#000,transparent)}
+#playfieldTopFade,#playfieldBottomFade{position:absolute;left:0;right:0;z-index:1;
+ pointer-events:none;height:0}
+#playfieldTopFade{top:0;background:linear-gradient(to bottom,var(--bg),transparent)}
+#playfieldBottomFade{bottom:0;background:linear-gradient(to top,var(--bg),transparent)}
+header h1{letter-spacing:.13em}
+.header-tools button{min-width:44px}
+#pausedScoresButton{width:100%;font-size:11px}
+#pausedScoresButton[hidden]{display:none}
+#veil button{min-height:44px}
+dialog{max-height:min(86dvh,850px);overflow-y:auto}
+dialog .setting-copy{font-size:10px;line-height:1.55;color:var(--weak);margin:6px 0 13px}
+.settings-divider{height:1px;background:var(--border);margin:14px 0}
+.settings-heading{font-size:10px;color:var(--weak);letter-spacing:.1em;margin:6px 0 10px}
+.setting-line{display:flex;align-items:center;justify-content:space-between;
+ min-height:44px;gap:10px;font-size:11px;font-weight:700;letter-spacing:.05em}
+.setting-line input[type=checkbox]{width:22px;height:22px;accent-color:var(--bright)}
+.setting-line button{min-width:96px}
+.effect-head{display:flex;justify-content:space-between;align-items:center;gap:9px;font-size:11px;font-weight:700}
+.effect-note{color:var(--weak);font-size:10px;line-height:1.4;margin:4px 0}
+.effect-row{margin:12px 0 15px}
+input.effect-slider{display:block;width:100%;height:44px;min-height:44px;margin:2px 0 0;padding:0;
+ border:0;background:transparent;appearance:none;-webkit-appearance:none;
+ accent-color:var(--bright);touch-action:pan-x}
+input.effect-slider::-webkit-slider-runnable-track{
+ height:7px;border-radius:20px;background:linear-gradient(to right,
+ var(--bright) 0%,var(--bright) var(--fill,50%),var(--border) var(--fill,50%),var(--border) 100%);
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+input.effect-slider::-webkit-slider-thumb{
+ appearance:none;-webkit-appearance:none;height:24px;width:24px;margin-top:-8.5px;
+ background:var(--bright);border:3px solid var(--solid);border-radius:50%;
+ box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+input.effect-slider::-moz-range-track{height:7px;border-radius:20px;background:var(--border)}
+input.effect-slider::-moz-range-progress{height:7px;border-radius:20px;background:var(--bright)}
+input.effect-slider::-moz-range-thumb{height:22px;width:22px;border:3px solid var(--solid);
+ border-radius:50%;background:var(--bright)}
+.gradient-row{display:grid;grid-template-columns:minmax(104px,1.1fr) minmax(80px,1fr) 42px;
+ align-items:center;gap:7px;min-height:48px}
+.gradient-row label{display:flex;align-items:center;gap:7px;font-size:10px;
+ white-space:nowrap;cursor:pointer}
+.gradient-row label input{width:18px;height:18px;flex:none;accent-color:var(--bright)}
+.gradient-row output{text-align:right;font-size:10px;font-variant-numeric:tabular-nums}
+#resetEffects,#closeLeaderboard{width:100%;margin-top:10px}
+#scoreRows{display:flex;flex-direction:column;gap:7px;margin:13px 0}
+.score-row{display:grid;grid-template-columns:24px 43px 1fr 63px;gap:7px;
+ padding:9px 7px;background:var(--panel);border:1px solid var(--border);border-radius:7px;
+ font-size:12px;align-items:center}
+.score-row .rank{color:var(--weak)}
+.score-row .player{font-weight:800;letter-spacing:.1em}
+.score-row .points{text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.score-row .record{font-size:9px;color:var(--weak);text-align:right;white-space:nowrap}
+.score-row.empty{opacity:.58}
+#entryScore{font-size:24px;font-weight:800;margin:14px 0;
+ text-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+.entry-label{display:block;color:var(--weak);font-size:10px;margin:12px 0 6px;letter-spacing:.08em}
+#initialsEntry{width:100%;min-height:48px;background:var(--panel);color:var(--ink);
+ border:1px solid var(--border);border-radius:8px;padding:12px;
+ font:700 19px ui-monospace,SFMono-Regular,monospace;letter-spacing:.3em}
+#scoreEntry .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+#saveScore{background:var(--bright);border-color:var(--bright);color:var(--shadow)}
+#guide{padding-top:10px;border-top:1px solid var(--border);margin-top:12px}
+@media(orientation:landscape) and (max-height:600px){
+ #extras{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
 </style>
 </head>
 <body>
@@ -154,6 +248,7 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  <header class="panel">
   <div class="heading"><small>FIELD ATLAS / NEWFOUNDLAND</small><h1>ARCADE SYSTEM</h1></div>
   <div class="header-tools">
+   <button id="scoresButton" aria-label="View top five high scores" title="High scores">★</button>
    <button id="themeToggle" aria-label="Switch green or amber phosphor" title="Change phosphor">◐</button>
    <button id="optionsButton" aria-label="Display options" title="Options">☷</button>
   </div>
@@ -162,11 +257,14 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  <main id="stage">
   <div id="boardShell">
    <canvas id="board" width="300" height="600" aria-label="Tetris game board, 10 columns by 20 rows"></canvas>
+   <div id="playfieldTopFade" aria-hidden="true"></div>
+   <div id="playfieldBottomFade" aria-hidden="true"></div>
    <div id="veil">
     <h2 id="veilTitle">TETRIS</h2>
     <p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>
     <button id="playButton">▶ START GAME</button>
     <button id="newGameButton" hidden>↻ NEW GAME</button>
+    <button id="pausedScoresButton" hidden>★ TOP 5 SCORES</button>
    </div>
   </div>
   <aside id="side" aria-label="Game preview panels">
@@ -195,18 +293,46 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
   </div>
  </section>
  <div id="eventline"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE</span></div>
+ <div id="screenTopFade" aria-hidden="true"></div>
+ <div id="screenBottomFade" aria-hidden="true"></div>
  <div id="screenShade" aria-hidden="true"></div>
  <div id="screenScan" aria-hidden="true"></div>
  <div id="sweep" aria-hidden="true"></div>
 </div>
 <dialog id="options">
  <h2>FIELD ATLAS / DISPLAY</h2>
+ <p class="setting-copy">The same phosphor, CRT and vignette controls as FIELD ATLAS navigation. Display effects are saved on this device.</p>
+ <div class="setting-line"><b>PHOSPHOR COLOUR</b><button id="themeSetting">GREEN</button></div>
+ <div class="setting-line"><b>GHOST PIECE</b><input id="ghostControl" type="checkbox" checked aria-label="Show ghost piece"></div>
+ <div class="setting-line"><b>SOUND</b><input id="soundControl" type="checkbox" aria-label="Enable sound"></div>
+ <div class="settings-divider"></div>
+ <div class="settings-heading">GRADIENT LENGTH / CSS PIXELS</div>
+ <div class="gradient-row"><label for="fade-screenTop-on"><input id="fade-screenTop-on" type="checkbox" checked> SCREEN TOP</label><input id="fade-screenTop" class="effect-slider" type="range" min="0" max="420" step="5" value="165"><output id="fade-screenTop-value">165px</output></div>
+ <div class="gradient-row"><label for="fade-screenBottom-on"><input id="fade-screenBottom-on" type="checkbox"> SCREEN BOTTOM</label><input id="fade-screenBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="110"><output id="fade-screenBottom-value">110px</output></div>
+ <div class="gradient-row"><label for="fade-playfieldTop-on"><input id="fade-playfieldTop-on" type="checkbox"> PLAYFIELD TOP</label><input id="fade-playfieldTop" class="effect-slider" type="range" min="0" max="420" step="5" value="110"><output id="fade-playfieldTop-value">110px</output></div>
+ <div class="gradient-row"><label for="fade-playfieldBottom-on"><input id="fade-playfieldBottom-on" type="checkbox"> PLAYFIELD BOTTOM</label><input id="fade-playfieldBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="100"><output id="fade-playfieldBottom-value">100px</output></div>
+ <p class="setting-copy">Screen fades paint black over the full display. Playfield fades are independent and can be disabled for unobstructed gameplay.</p>
+ <div class="settings-divider"></div>
+ <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">65%</output></div><p class="effect-note">Same bloom spread for all luminous content, derived from its colour.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
+ <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">26%</output></div><p class="effect-note">Covers board, menus and controls.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="26"></div>
+ <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">30%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="30"></div>
+ <button id="resetEffects">RESET DISPLAY EFFECTS</button>
  <p id="guide">ARROW KEYS: MOVE / SOFT DROP. UP OR X: ROTATE. Z: REVERSE. SPACE: DROP. C: HOLD. P: PAUSE. Touch the board to rotate, swipe to move or drop.</p>
- <label class="options-row">SCANLINES <input id="scanControl" type="range" min="0" max="90" value="28"></label>
- <label class="options-row">PHOSPHOR GLOW <input id="glowControl" type="range" min="0" max="100" value="45"></label>
- <label class="options-row">GHOST PIECE <input id="ghostControl" type="checkbox" checked></label>
- <label class="options-row">SOUND <input id="soundControl" type="checkbox"></label>
  <button id="closeOptions">RETURN TO GAME</button>
+</dialog>
+<dialog id="leaderboard" aria-labelledby="leaderboardTitle">
+ <h2 id="leaderboardTitle">FIELD ATLAS / TOP FIVE</h2>
+ <div id="scoreRows" aria-live="polite"></div>
+ <p class="setting-copy">High scores are stored locally on this device. No online leaderboard or account is required.</p>
+ <button id="closeLeaderboard">RETURN</button>
+</dialog>
+<dialog id="scoreEntry" aria-labelledby="scoreEntryTitle" aria-describedby="scoreEntryCopy">
+ <h2 id="scoreEntryTitle">NEW HIGH SCORE</h2>
+ <p id="scoreEntryCopy" class="setting-copy">You reached the top five. Enter your initials to save this score.</p>
+ <div id="entryScore"></div>
+ <label class="entry-label" for="initialsEntry">INITIALS / UP TO 3</label>
+ <input id="initialsEntry" maxlength="3" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" placeholder="AAA">
+ <div class="decision"><button id="skipScore">SKIP</button><button id="saveScore">SAVE SCORE</button></div>
 </dialog>
 <dialog id="restartConfirm" aria-labelledby="restartConfirmTitle" aria-describedby="restartConfirmText">
  <h2 id="restartConfirmTitle">START NEW GAME?</h2>
@@ -217,6 +343,7 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  </div>
 </dialog>
 <script src="./core.js"></script>
+<script src="./scores.js"></script>
 <script src="./ui.js"></script>
 </body>
 </html>
