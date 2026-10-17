@@ -236,7 +236,7 @@ try{
 try{const t=localStorage.getItem('fieldAtlasThemeV06');if(t==='green'||t==='amber')state.theme=t;}catch(e){}
 try{
  const r=localStorage.getItem('fieldAtlasRendererV031');
- if(['vector','osm-standard','osm-composite','osm-phosphor'].includes(r))state.mapRenderer=r;
+ if(['vector','osm-essentials','osm-standard','osm-composite','osm-phosphor'].includes(r))state.mapRenderer=r;
 }catch(e){}
 document.documentElement.dataset.theme=state.theme;
 document.documentElement.dataset.renderer=state.mapRenderer;
@@ -257,8 +257,8 @@ function gridOpacity(){
 }
 function gridPatternId(){return 'water-grid-'+state.theme+'-'+state.mapRenderer;}
 function isReal(){return !!(state.real&&state.map)}
-const MAP_RENDERERS=['vector','osm-standard','osm-composite','osm-phosphor'];
-const MAP_RENDERER_NAMES={vector:'CURRENT VECTOR','osm-standard':'OSM STANDARD','osm-composite':'OSM COMPOSITE','osm-phosphor':'OSM PHOSPHOR'};
+const MAP_RENDERERS=['vector','osm-essentials','osm-standard','osm-composite','osm-phosphor'];
+const MAP_RENDERER_NAMES={vector:'CURRENT VECTOR','osm-essentials':'OSM ESSENTIALS','osm-standard':'OSM STANDARD','osm-composite':'OSM COMPOSITE','osm-phosphor':'OSM PHOSPHOR'};
 function selectMapRenderer(mode){
  if(!MAP_RENDERERS.includes(mode))return;
  if(mode==='osm-phosphor'&&!window.FieldAtlasPhosphor){toast('Phosphor tile processor unavailable.');return;}
@@ -756,8 +756,8 @@ function openMenu(){
  <p class="sheetText">One glow setting across luminous content, with independent full-screen CRT and vignette overlays. Preferences are saved on this phone.</p>
  <div class="line"></div><div class="setting"><b>PHOSPHOR COLOUR</b><button id="themeSetting">${state.theme.toUpperCase()}</button></div>
  <div class="setting"><b>MAP RENDERER</b><button id="rendererSetting">${MAP_RENDERER_NAMES[state.mapRenderer]}</button></div>
- <p class="sheetText">v0.31 test: current vector / OSM Standard / OSM Composite (live GPU colour filter) / old CPU phosphor. The water grid, HUD and camera stay in place.</p>
- ${state.mapRenderer==='vector'
+ <p class="sheetText">OSM ESSENTIALS is a clean vector map showing mapped land, water, roads and buildings with crisp road/town labels. Compare with CURRENT VECTOR and OSM STANDARD. All map views are online.</p>
+ ${['vector','osm-essentials'].includes(state.mapRenderer)
   ? `<div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>`
   : '<p class="sheetText">In raster modes, buildings are part of the OSM map image and cannot be hidden individually.</p>'}
  <div class="setting"><b>WATER GRID</b><button id="waterGridSetting">${state.showWaterGrid?'ON':'OFF'}</button></div>
@@ -987,7 +987,75 @@ function makeStyle(){
         paint:{'text-color':p.route,'text-halo-color':p.bg,'text-halo-width':1.5}}
     ]
   };
-  if(state.mapRenderer!=='vector'){
+  // Clean, OSM-only cartography: preserve actual geographic geometry and
+  // omit POIs, parks, footways, service clutter and decorative road glow.
+  // This live prototype uses OpenFreeMap's OSM-derived vector tile schema.
+  // It does not increase the geometry resolution contained in those tiles.
+  if(state.mapRenderer==='osm-essentials'){
+   const q=amber
+    ? {land:'#21180c',water:'#261a0e',shore:'#77542d',stream:'#654923',
+       building:'#50371e',local:'#b5884d',tertiary:'#c69c61',
+       secondary:'#ddb577',major:'#ffe2a5',name:'#ffdfab'}
+    : {land:'#10251a',water:'#0d2a26',shore:'#3a745a',stream:'#3e705d',
+       building:'#2c513b',local:'#79af8c',tertiary:'#91c4a0',
+       secondary:'#aed9b7',major:'#d3f5d7',name:'#c5edd0'};
+   const keep=new Set(['background','land','water','water-grid','streams',
+     'buildings','local-roads','tertiary-roads','major-casing',
+     'secondary-roads','primary-roads','street-labels','places',
+     'route-glow','route','saved-pin-glow','saved-pin-points','saved-pin-labels']);
+   style.layers=style.layers.filter(layer=>keep.has(layer.id));
+   for(const layer of style.layers){
+    switch(layer.id){
+     case 'background':layer.paint['background-color']=p.bg;break;
+     case 'land':
+      layer.paint={'fill-color':q.land,'fill-opacity':.32};
+      break;
+     case 'water':layer.paint={'fill-color':q.water};break;
+     case 'streams':
+      layer.minzoom=10;
+      layer.paint={'line-color':q.stream,'line-width':w(.45,.75,1.1,1.6),
+       'line-opacity':.9};
+      break;
+     case 'buildings':
+      layer.minzoom=13.2;
+      layer.paint={'fill-color':q.building,'fill-opacity':.85};
+      break;
+     case 'local-roads':
+      layer.minzoom=10.8;
+      layer.paint={'line-color':q.local,'line-width':w(.55,1.4,2.3,3.0),'line-opacity':.95};
+      // OSM service driveway tagging is retained where present by provider.
+      // Avoid deleting geometry or guessing whether an access way is public.
+      break;
+     case 'tertiary-roads':
+      layer.paint={'line-color':q.tertiary,'line-width':w(.8,1.9,2.9,3.7),'line-opacity':.97};
+      break;
+     case 'secondary-roads':
+      layer.paint={'line-color':q.secondary,'line-width':w(1.4,2.7,3.9,4.9),'line-opacity':.97};
+      break;
+     case 'primary-roads':
+      layer.paint={'line-color':q.major,'line-width':w(1.9,3.25,4.8,5.7),'line-opacity':.98};
+      break;
+     case 'street-labels':
+      layer.minzoom=13;
+      layer.paint={'text-color':q.name,'text-opacity':1,
+        'text-halo-color':p.bg,'text-halo-width':1.3,'text-halo-blur':.15};
+      break;
+     case 'places':
+      layer.paint={'text-color':q.name,'text-opacity':1,
+        'text-halo-color':p.bg,'text-halo-width':1.7,'text-halo-blur':.2};
+      break;
+    }
+   }
+   // The OSM water polygon outlines expose native shore, bay and lake
+   // geometry at each source zoom without introducing invented noise.
+   const waterIndex=style.layers.findIndex(layer=>layer.id==='water');
+   if(waterIndex>=0)style.layers.splice(waterIndex+1,0,{
+    id:'water-boundaries',type:'line',source:src,'source-layer':'water',
+    layout:join,paint:{'line-color':q.shore,'line-width':w(.35,.65,.85,1.1),
+     'line-opacity':.78}
+   });
+  }
+  if(!['vector','osm-essentials'].includes(state.mapRenderer)){
    const url=state.mapRenderer==='osm-phosphor'
      ? window.FieldAtlasPhosphor.tileTemplate(state.theme)
      : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
