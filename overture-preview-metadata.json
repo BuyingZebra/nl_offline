@@ -1,0 +1,39 @@
+{
+  "baseZoom": 7,
+  "tileCount": 412,
+  "tileBytes": 19147036,
+  "detailedSamples": {
+    "Carbonear": {
+      "center": [
+        -53.235,
+        47.735
+      ],
+      "tileCount": 154
+    },
+    "Twillingate": {
+      "center": [
+        -54.766,
+        49.663
+      ],
+      "tileCount": 110
+    },
+    "Baie Verte": {
+      "center": [
+        -56.19,
+        49.929
+      ],
+      "tileCount": 110
+    },
+    "St. John's": {
+      "center": [
+        -52.709,
+        47.565
+      ],
+      "tileCount": 13
+    }
+  },
+  "sourceLayerNames": [
+    "overture_transportation"
+  ],
+  "scope": "Overture island-covering bbox; visual preview only"
+}

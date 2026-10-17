@@ -1,0 +1,45 @@
+{
+  "generated_utc": "2026-10-17T01:14:01.861453+00:00",
+  "source": "Overture Maps transportation/segment",
+  "source_file": "overture_nl_segments.parquet",
+  "bounding_box_note": "This is a Newfoundland island-covering bbox; there may be bordering mainland/coastal features.",
+  "feature_count": 107379,
+  "kinds": {
+    "motor_candidate": 79550,
+    "pedestrian": 15862,
+    "track": 11967
+  },
+  "source_combinations": {
+    "OpenStreetMap": 106006,
+    "TomTom": 1373
+  },
+  "diberville_named_features": [
+    {
+      "id": "9340b6a2-41d3-483a-bc88-b80a2f1c1bee",
+      "name": "D'Iberville Street",
+      "class": "residential",
+      "subclass": "",
+      "kind": "motor_candidate",
+      "origin": "OpenStreetMap"
+    },
+    {
+      "id": "636159c6-745e-4f79-98c4-e6e5f4d9b719",
+      "name": "D'Iberville Street",
+      "class": "residential",
+      "subclass": "",
+      "kind": "motor_candidate",
+      "origin": "OpenStreetMap"
+    },
+    {
+      "id": "4b259966-6235-4bd5-bab9-84bc4be01913",
+      "name": "D'Iberville Street",
+      "class": "residential",
+      "subclass": "",
+      "kind": "motor_candidate",
+      "origin": "OpenStreetMap"
+    }
+  ],
+  "diberville_nearby_segment_count": 56,
+  "important": "Unlike the geometry preview, the original Overture segments and connectors are needed for a navigable topology. Footways are NOT motor roads. No geometries are automatically merged or discarded.",
+  "license": "Overture transportation ODbL 1.0, includes OpenStreetMap contributors"
+}
