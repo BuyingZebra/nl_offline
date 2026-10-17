@@ -2,6 +2,9 @@ name: Report NL map pipeline status
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Download NL provincial resource roads", "Reconcile NL roads against real OpenStreetMap geometry"]
+    types: [completed]
   push:
     branches: [main]
     paths:
