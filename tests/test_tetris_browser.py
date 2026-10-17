@@ -41,6 +41,26 @@ with sync_playwright() as p:
         )
         assert page.locator("#console").count() == 0
         assert page.locator("#consoleState").count() == 0
+        # Both green and amber keep the playfield/card backgrounds in the
+        # same family, a little darker than the outer glass. The paused
+        # playfield uses that same surface with 94% opacity.
+        colours=page.evaluate("""() => {
+          const color=id=>getComputedStyle(document.querySelector(id)).backgroundColor;
+          const vars=getComputedStyle(document.documentElement);
+          return {
+            base:vars.getPropertyValue('--bg').trim().toLowerCase(),
+            card:vars.getPropertyValue('--card-bg').trim().toLowerCase(),
+            header:color('header'),
+            controls:color('#controlDeck'),
+            hold:color('#side .side-panel'),
+            shell:color('#boardShell'),
+            veil:color('#veil')
+          };
+        }""")
+        assert colours["base"] == "#04120b", colours
+        assert colours["card"] == "#010a06", colours
+        assert len({colours[key] for key in ("header","controls","hold","shell")}) == 1, colours
+        assert colours["veil"].startswith(("color(","rgba(")), colours
         # One large, central drop button replaces two rotation buttons.
         # Preserve left/right arrows, a single clockwise rotate, and the
         # already functioning phosphor feedback surface.
@@ -217,6 +237,18 @@ with sync_playwright() as p:
         }""")
         page.locator("#themeToggle").tap()
         assert page.locator("html").get_attribute("data-theme") == "amber"
+        amber_colours=page.evaluate("""() => {
+          const style=getComputedStyle(document.documentElement);
+          return {
+            base:style.getPropertyValue('--bg').trim().toLowerCase(),
+            card:style.getPropertyValue('--card-bg').trim().toLowerCase(),
+            header:getComputedStyle(document.querySelector('header')).backgroundColor,
+            hold:getComputedStyle(document.querySelector('#side .side-panel')).backgroundColor
+          };
+        }""")
+        assert amber_colours["base"] == "#100904", amber_colours
+        assert amber_colours["card"] == "#0c0704", amber_colours
+        assert amber_colours["header"] == amber_colours["hold"], amber_colours
         page.get_by_role("button", name="Display options").tap()
         page.screenshot(path=str(EVIDENCE/"tetris-menu-amber.png"))
         page.locator("#closeOptions").tap()
