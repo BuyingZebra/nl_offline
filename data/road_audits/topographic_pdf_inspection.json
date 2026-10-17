@@ -1,0 +1,96 @@
+{
+  "url": "https://www.gov.nl.ca/landuseatlas/documents/topo/50000/012B09.pdf",
+  "bytes": 4252038,
+  "pages": [
+    {
+      "page_index": 0,
+      "dimensions_points": [
+        0.0,
+        0.0,
+        2880.0,
+        2016.0
+      ],
+      "vector_drawing_paths": 13550,
+      "stroked_paths": 8392,
+      "filled_paths": 5945,
+      "embedded_image_objects": 0,
+      "text_blocks": 7221,
+      "top_vector_stroke_colors": [
+        [
+          "(0.0, 0.48, 0.76)",
+          2874
+        ],
+        [
+          "(0.0, 0.0, 0.0)",
+          2299
+        ],
+        [
+          "(0.51, 0.51, 0.51)",
+          1024
+        ],
+        [
+          "(0.72, 0.46, 0.15)",
+          681
+        ],
+        [
+          "(0.88, 0.96, 0.99)",
+          366
+        ],
+        [
+          "(1.0, 1.0, 1.0)",
+          255
+        ],
+        [
+          "(0.55, 0.15, 0.11)",
+          221
+        ],
+        [
+          "(0.1, 0.09, 0.09)",
+          182
+        ],
+        [
+          "(0.31, 0.31, 0.31)",
+          168
+        ],
+        [
+          "(0.6, 0.86, 0.96)",
+          106
+        ],
+        [
+          "(0.64, 0.64, 0.88)",
+          70
+        ],
+        [
+          "(0.0, 0.42, 0.67)",
+          52
+        ],
+        [
+          "(0.0, 0.13, 0.16)",
+          12
+        ],
+        [
+          "(0.54, 0.08, 0.08)",
+          12
+        ],
+        [
+          "(0.47, 0.53, 0.76)",
+          11
+        ]
+      ]
+    }
+  ],
+  "document_metadata": {
+    "format": "PDF 1.5",
+    "title": "",
+    "author": "",
+    "subject": "",
+    "keywords": "",
+    "creator": "ESRI ArcMap 9.2.6.1500",
+    "producer": "",
+    "creationDate": "D:20100107120821-05",
+    "modDate": "",
+    "trapped": "",
+    "encryption": null
+  },
+  "interpretation": "Vector paths, if present, are PDF drawing commands, not yet attributed GIS road segments. Precise georeferencing and road-class separation are mandatory before use."
+}
