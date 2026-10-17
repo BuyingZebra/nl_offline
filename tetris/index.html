@@ -10,12 +10,12 @@
 <title>FIELD ATLAS — Arcade / Tetris</title>
 <style>
 :root{
- --bg:#06170e;--panel:#0a2115;--solid:#102719;--ink:#b4ffce;
+ --bg:#04120b;--panel:#010a06;--card-bg:#010a06;--solid:#102719;--ink:#b4ffce;
  --bright:#77ffa5;--weak:#8fc19d;--border:#3f8254;--shadow:#020905;
  --grid:#163724;--phosphor:108,255,156;--glow:8px;--scan:0.28;
 }
 :root[data-theme="amber"]{
- --bg:#140c05;--panel:#271806;--solid:#301f0c;--ink:#ffe79a;
+ --bg:#100904;--panel:#0c0704;--card-bg:#0c0704;--solid:#301f0c;--ink:#ffe79a;
  --bright:#f5b661;--weak:#d19e58;--border:#8e5f24;--shadow:#0a0602;
  --grid:#4a2b13;--phosphor:255,196,100;
 }
@@ -417,12 +417,20 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  --crt-glass-opacity:0;
  --crt-glass-radius:0px;
  background:radial-gradient(ellipse 112% 84% at 50% 49%,
-   color-mix(in srgb,var(--bg) 90%,var(--bright) 10%) 0%,
+   color-mix(in srgb,var(--bg) 96%,var(--bright) 4%) 0%,
    var(--bg) 75%,var(--bg) 100%);
 }
-/* Subtly darken containers, keeping them green/amber toned, not black. */
-#app :is(.panel,.side-panel){
- background:color-mix(in srgb,var(--panel) 68%,var(--shadow) 32%);
+/* Shared paused-board/card luminance.
+ * Every container takes its interior from the same dark (but not black)
+ * phosphor-tinted surface. The paused playfield uses the identical colour
+ * with mild translucency to retain a hint of the locked tiles below it. */
+#app :is(.panel,.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
+ background:var(--card-bg);
+}
+#boardShell{background:var(--card-bg)}
+#veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
+:root[data-theme="amber"] #veil{
+ background:color-mix(in srgb,var(--card-bg) 94%,transparent);
 }
 #crtGlass{position:absolute;inset:0;z-index:46;pointer-events:none;
  border-radius:var(--crt-glass-radius);
