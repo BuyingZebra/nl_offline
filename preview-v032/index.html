@@ -190,7 +190,7 @@ input[type=range].effect-slider::-moz-range-thumb{
   <div id="phosphorSweep" aria-hidden="true"></div><div id="mapgrid" aria-hidden="true"></div><div id="mapfx" aria-hidden="true"></div>
 </div>
 <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
-<script src="./osm-phosphor-protocol.js?v=0312"></script>
+<script src="../preview-v031/osm-phosphor-protocol.js?v=0312"></script>
 <script>
 'use strict';
 // Release identifier displayed continuously in the compact console header.
@@ -261,17 +261,32 @@ function isReal(){return !!(state.real&&state.map)}
 const MAP_RENDERERS=['vector','osm-essentials','osm-native','osm-standard','osm-composite','osm-phosphor'];
 const MAP_RENDERER_NAMES={vector:'CURRENT VECTOR','osm-essentials':'OSM ESSENTIALS','osm-native':'OSM NATIVE DETAIL','osm-standard':'OSM STANDARD','osm-composite':'OSM COMPOSITE','osm-phosphor':'OSM PHOSPHOR'};
 function selectMapRenderer(mode){
- if(!MAP_RENDERERS.includes(mode))return;
- if(mode==='osm-phosphor'&&!window.FieldAtlasPhosphor){toast('Phosphor tile processor unavailable.');return;}
+ if(!MAP_RENDERERS.includes(mode))return false;
+ if(mode==='osm-phosphor'&&!window.FieldAtlasPhosphor){
+  toast('Phosphor tile processor unavailable.');return false;
+ }
+ const previous=state.mapRenderer;
+ if(mode===previous)return true;
  state.mapRenderer=mode;
+ try{
+  const nextStyle=makeStyle();
+  if(isReal())state.map.setStyle(nextStyle);
+ }catch(e){
+  state.mapRenderer=previous;
+  document.documentElement.dataset.renderer=previous;
+  console.error('FIELD ATLAS map-type change failed',e);
+  status('MAP TYPE CHANGE FAILED / '+MAP_RENDERER_NAMES[previous],true,'MAP');
+  toast('Unable to load '+MAP_RENDERER_NAMES[mode]+'. Previous map retained.');
+  return false;
+ }
  document.documentElement.dataset.renderer=mode;
  try{localStorage.setItem('fieldAtlasRendererV032',mode)}catch(e){}
  if(isReal()){
-  state.map.setStyle(makeStyle());
   status(MAP_RENDERER_NAMES[mode]+' / ONLINE',false,'MAP');
   updateReadout();
  }
- toast('MAP RENDERER / '+MAP_RENDERER_NAMES[mode]);
+ toast('MAP TYPE / '+MAP_RENDERER_NAMES[mode]);
+ return true;
 }
 const EFFECT_OPTIONS=[
  {key:'glow',name:'PHOSPHOR GLOW',note:'Same bloom spread for all elements, derived from their colour.'},
@@ -756,7 +771,10 @@ function openMenu(){
  openSheet('FIELD ATLAS / DISPLAY',`
  <p class="sheetText">One glow setting across luminous content, with independent full-screen CRT and vignette overlays. Preferences are saved on this phone.</p>
  <div class="line"></div><div class="setting"><b>PHOSPHOR COLOUR</b><button id="themeSetting">${state.theme.toUpperCase()}</button></div>
- <div class="setting"><b>MAP RENDERER</b><button id="rendererSetting">${MAP_RENDERER_NAMES[state.mapRenderer]}</button></div>
+ <div class="setting"><label for="mapTypeSetting" style="font-weight:700">MAP TYPE</label>
+ <select id="mapTypeSetting" aria-label="Choose map type">
+ ${MAP_RENDERERS.map(type=>`<option value="${type}" ${type===state.mapRenderer?'selected':''}>${MAP_RENDERER_NAMES[type]}</option>`).join('')}
+ </select></div>
  <p class="sheetText">v0.32: OSM NATIVE DETAIL adds original high-resolution OSM shoreline, plus unsimplified Carbonear-region roads, buildings and inland water. Outside the trial region, OSM Essentials remains available. Online test only.</p>
  ${['vector','osm-essentials','osm-native'].includes(state.mapRenderer)
   ? `<div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>`
@@ -773,10 +791,11 @@ function openMenu(){
  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
  <p class="sheetText warning">This experiment is online only. OSMF Standard tiles cannot be prefetched or redistributed offline; a future offline map must be rendered independently from OSM source data.</p>`);
  $('themeSetting').onclick=()=>{theme();openMenu()};
- $('rendererSetting').onclick=()=>{
-  selectMapRenderer(MAP_RENDERERS[(MAP_RENDERERS.indexOf(state.mapRenderer)+1)%MAP_RENDERERS.length]);
-  openMenu();
- };
+ $('mapTypeSetting').addEventListener('change',e=>{
+  const desired=e.target.value;
+  if(selectMapRenderer(desired))openMenu();
+  else e.target.value=state.mapRenderer;
+ });
  if($('buildingSetting'))$('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
    if(isReal()){
     for(const layer of ['buildings','native-osm-buildings']){
