@@ -559,7 +559,9 @@ test('only visually apparent cards are tinted, never the technical #stage layout
 });
 test('ordinary button fills match the app background, brighter than the cards exactly like the map',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
- assert.match(html,/#app button:not\(:is\(#playButton,#confirmRestart,#saveScore,\s*\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\)\{\s*background:var\(--bg\);/);
+ assert.match(html,/#app button:not\(:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\)\{\s*background:var\(--bg\);/);
+ assert.doesNotMatch(html,/#(?:playButton|confirmRestart|saveScore)\{[^}]*background:var\(--bright\)/);
+ assert.doesNotMatch(html,/#app :is\(#playButton,#confirmRestart,#saveScore\)/);
  assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
  assert.match(html,/#pad button:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\{\s*background:var\(--bright\)/);
  assert.match(html,/--panel:color-mix\(in srgb,var\(--bg\) 40%,black\)/);
