@@ -145,6 +145,8 @@ input[type=range].effect-slider::-moz-range-thumb{
 .saved-row button:last-child{font-size:12px;padding:0}
 @media (orientation:landscape) and (max-height:550px){#pinTray{left:270px;right:10px;bottom:12px}}
 #footer{bottom:calc(env(safe-area-inset-bottom,0px) + 10px);left:10px;right:10px;padding:11px}#readout{display:grid;grid-template-columns:1fr 1fr 65px;gap:10px}#readout small{display:block;font-size:9px;color:var(--weak);letter-spacing:.13em}#readout b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:5px}#nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:11px}#nav button{font-size:10px;padding:7px 3px;white-space:nowrap}#footnote{border-top:1px solid var(--line);margin-top:10px;padding-top:9px;color:var(--weak);font-size:9px;display:flex;justify-content:space-between;gap:8px}
+#mapAttribution{font-size:8px;text-align:right;margin-top:3px}
+#mapAttribution a{color:var(--weak);text-decoration:none}
 #toast{position:absolute;z-index:8;left:10px;right:10px;bottom:207px;text-align:center;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:7px;padding:10px;color:var(--accent);font-size:11px;display:none}#toast.show{display:block}#sheetShade{position:absolute;z-index:10;inset:0;background:rgba(0,0,0,.64);display:none;align-items:flex-end;padding:10px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}#sheetShade.open{display:flex}#sheet{width:100%;max-height:76vh;overflow:auto;background:var(--surface-map-overlay);border:1px solid var(--line);border-radius:12px;padding:15px;box-shadow:0 -7px 35px #0008}#sheethead{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px}#sheetTitle{font-weight:800;letter-spacing:.1em;font-size:14px}#sheetClose{font-size:19px;min-width:43px;min-height:43px;padding:0}.sheetText{color:var(--weak);font-size:11px;line-height:1.6}.line{height:1px;background:var(--line);margin:12px 0}.field{display:block;margin:10px 0 4px;color:var(--weak);font-size:10px;letter-spacing:.1em}input,select{width:100%;background:var(--panel);color:var(--accent);border:1px solid var(--line);padding:12px;border-radius:7px;min-height:44px}.list{display:grid;gap:6px;margin-top:10px}.list button{text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.list button small{font-size:9px;color:var(--weak);font-weight:400}.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);width:100%;margin-top:12px}.setting{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.setting b{font-size:11px}.setting button{min-width:85px}.warning{color:#ffd18b}.hint{font-size:10px;color:var(--weak)}
 @media (orientation:landscape) and (max-height:550px){#app{max-width:100%}#head{top:7px;left:8px;right:auto;width:245px;padding:6px 10px;min-height:50px}#wordmark b{font-size:13px}#wordmark small{font-size:8px}#status{top:62px;left:8px;right:auto;width:245px;font-size:8px}#footer{left:8px;right:auto;width:245px;bottom:7px;padding:8px}#controls{right:7px;top:7px;gap:6px;flex-direction:row}#controls button{width:43px;height:43px}#compass{left:auto;right:213px;top:7px;
  width:45px;height:45px;min-width:45px;min-height:45px}
@@ -171,16 +173,18 @@ input[type=range].effect-slider::-moz-range-thumb{
     <div id="readout"><div><small>LATITUDE</small><b id="latitude">—</b></div><div><small>LONGITUDE</small><b id="longitude">—</b></div><div><small>ZOOM</small><b id="zoomvalue">14.2</b></div></div>
     <div id="nav"><button id="searchBtn">⌕ SEARCH</button><button id="routeBtn">↗ ROUTE</button><button id="pinBtn">⌖ PIN</button><button id="menuBtn">☷ MENU</button></div>
     <div id="footnote"><span id="modeText">BROWSER PREVIEW</span><span id="gpsText">GPS ● OFF</span></div>
+    <div id="mapAttribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></div>
   </div>
   <div id="toast" aria-live="polite"></div>
   <div id="sheetShade"><div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div id="sheethead"><div id="sheetTitle"></div><button id="sheetClose" aria-label="Close">×</button></div><div id="sheetContent"></div></div></div>
   <!-- Full-app noninteractive display overlays, above every control and dialog. -->
   <div id="phosphorSweep" aria-hidden="true"></div><div id="mapgrid" aria-hidden="true"></div><div id="mapfx" aria-hidden="true"></div>
 </div>
+<script src="./experiments/osm-phosphor-protocol.js"></script>
 <script>
 'use strict';
 // Release identifier displayed continuously in the compact console header.
-const APP_VERSION='0.30';
+const APP_VERSION='0.31';
 const PLACES=[
   {name:'Carbonear',region:'Conception Bay North',lng:-53.2270,lat:47.7350,zoom:14.2},
   {name:'Harbour Grace',region:'Conception Bay North',lng:-53.2110,lat:47.6925,zoom:13.8},
@@ -195,7 +199,7 @@ let officialPlaces=[];
 let placesIndexState='loading';
 const $=id=>document.getElementById(id);
 $('consolePrefix').textContent='CONSOLE v'+APP_VERSION+':';
-const state={theme:'green',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,gradients:{
+const state={theme:'green',mapRenderer:'vector',real:false,map:null,zoom:14.2,panX:0,panY:0,showBuildings:true,showWaterGrid:true,gradients:{
  screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110},
  mapTop:{enabled:true,length:110},mapBottom:{enabled:false,length:100}
 },effects:{glow:65,vignette:30,scanlines:26},pin:false,pinAt:null,route:null,center:PLACES[0],saved:[],loadMessage:'',gpsLocation:null};
@@ -221,6 +225,10 @@ try{
  }
 }catch(e){}
 try{const t=localStorage.getItem('fieldAtlasThemeV06');if(t==='green'||t==='amber')state.theme=t;}catch(e){}
+try{
+ const r=localStorage.getItem('fieldAtlasRendererV031');
+ if(['vector','osm-standard','osm-phosphor'].includes(r))state.mapRenderer=r;
+}catch(e){}
 document.documentElement.dataset.theme=state.theme;
 // Sun denotes the selected green/day phosphor; crescent denotes amber/night.
 // The icon reflects the CURRENT theme, not an automatic time-of-day setting.
@@ -233,6 +241,20 @@ function syncThemeButton(){
 syncThemeButton();
 try{const saved=localStorage.getItem('fieldAtlasWaterGridV09');if(saved!==null)state.showWaterGrid=saved==='true'}catch(e){}
 function isReal(){return !!(state.real&&state.map)}
+const MAP_RENDERERS=['vector','osm-standard','osm-phosphor'];
+const MAP_RENDERER_NAMES={vector:'CURRENT VECTOR','osm-standard':'OSM STANDARD','osm-phosphor':'OSM PHOSPHOR'};
+function selectMapRenderer(mode){
+ if(!MAP_RENDERERS.includes(mode))return;
+ if(mode==='osm-phosphor'&&!window.FieldAtlasPhosphor){toast('Phosphor tile processor unavailable.');return;}
+ state.mapRenderer=mode;
+ try{localStorage.setItem('fieldAtlasRendererV031',mode)}catch(e){}
+ if(isReal()){
+  state.map.setStyle(makeStyle());
+  status(MAP_RENDERER_NAMES[mode]+' / ONLINE',false,'MAP');
+  updateReadout();
+ }
+ toast('MAP RENDERER / '+MAP_RENDERER_NAMES[mode]);
+}
 const EFFECT_OPTIONS=[
  {key:'glow',name:'PHOSPHOR GLOW',note:'Same bloom spread for all elements, derived from their colour.'},
  {key:'scanlines',name:'CRT SCANLINES',note:'Covers map, menus and controls.'},
@@ -320,7 +342,9 @@ function status(message,warning=false,channel='SYS'){
  if(consoleHistory.length>50)consoleHistory.shift();
  $('statusMessage').textContent='> ['+entry.channel+'] '+entry.message;
  $('status').dataset.type=warning?'warning':'ok';
- $('modeText').textContent=state.real?'LIVE OPENSTREETMAP / ONLINE':'INTERACTIVE DEMO / NOT GEOGRAPHIC';
+ $('modeText').textContent=state.real
+  ? MAP_RENDERER_NAMES[state.mapRenderer]+' / ONLINE'
+  : 'INTERACTIVE DEMO / NOT GEOGRAPHIC';
  positionMapTools();
  return entry;
 }
@@ -714,7 +738,11 @@ function openMenu(){
  openSheet('FIELD ATLAS / DISPLAY',`
  <p class="sheetText">One glow setting across luminous content, with independent full-screen CRT and vignette overlays. Preferences are saved on this phone.</p>
  <div class="line"></div><div class="setting"><b>PHOSPHOR COLOUR</b><button id="themeSetting">${state.theme.toUpperCase()}</button></div>
- <div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>
+ <div class="setting"><b>MAP RENDERER</b><button id="rendererSetting">${MAP_RENDERER_NAMES[state.mapRenderer]}</button></div>
+ <p class="sheetText">v0.31 test: current vector map / untouched OSM Standard / recoloured OSM Standard. All options remain online and preserve the water grid.</p>
+ ${state.mapRenderer==='vector'
+  ? `<div class="setting"><b>BUILDINGS</b><button id="buildingSetting">${state.showBuildings?'ON':'OFF'}</button></div>`
+  : '<p class="sheetText">In raster modes, buildings are part of the OSM map image and cannot be hidden individually.</p>'}
  <div class="setting"><b>WATER GRID</b><button id="waterGridSetting">${state.showWaterGrid?'ON':'OFF'}</button></div>
  <p class="sheetText">Two-finger tilt stays manual and independent of zoom.</p>
  <div class="line"></div>
@@ -723,9 +751,13 @@ function openMenu(){
  <p class="sheetText">Screen fades are fixed black overlays. Map fades follow the geographical north and south boundaries, transitioning from the map background to transparency. Lengths are fixed in pixels and never depend on zoom.</p>
  <div class="line"></div>${effectMarkup()}
  <button id="resetEffects" style="width:100%;margin:3px 0 8px">RESET DISPLAY EFFECTS</button>
- <p class="sheetText warning">The browser preview still streams vector tiles online; this is not an offline navigation app yet.</p>`);
+ <p class="sheetText warning">This experiment is online only. OSMF Standard tiles cannot be prefetched or redistributed offline; a future offline map must be rendered independently from OSM source data.</p>`);
  $('themeSetting').onclick=()=>{theme();openMenu()};
- $('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
+ $('rendererSetting').onclick=()=>{
+  selectMapRenderer(MAP_RENDERERS[(MAP_RENDERERS.indexOf(state.mapRenderer)+1)%MAP_RENDERERS.length]);
+  openMenu();
+ };
+ if($('buildingSetting'))$('buildingSetting').onclick=()=>{state.showBuildings=!state.showBuildings;
    if(isReal()&&state.map.getLayer('buildings'))state.map.setLayoutProperty('buildings','visibility',state.showBuildings?'visible':'none');
    drawFallback();openMenu();};
  for(const item of GRADIENTS){
@@ -842,7 +874,7 @@ function makeStyle(){
     id,type:'line',...roadSource,minzoom,filter:klass(types),layout:join,
     paint:{'line-color':color,'line-width':width,'line-opacity':0.92,...extra}
   });
-  return {
+  const style={
     version:8,
     glyphs:'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources:{
@@ -923,8 +955,28 @@ function makeStyle(){
         paint:{'text-color':p.route,'text-halo-color':p.bg,'text-halo-width':1.5}}
     ]
   };
+  if(state.mapRenderer!=='vector'){
+   const url=state.mapRenderer==='osm-phosphor'
+     ? window.FieldAtlasPhosphor.tileTemplate(state.theme)
+     : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+   style.sources['osm-standard']={type:'raster',tiles:[url],tileSize:256,maxzoom:19,
+     attribution:'© OpenStreetMap contributors'};
+   // OSM-derived water geometry still clips the existing phosphor grid.
+   // Route and saved-pin overlays remain interactive above raster imagery.
+   const keep=new Set(['water-grid','route-glow','route',
+     'saved-pin-glow','saved-pin-points','saved-pin-labels']);
+   style.layers=[
+    style.layers[0],
+    {id:'osm-standard-raster',type:'raster',source:'osm-standard',
+      paint:{'raster-fade-duration':0}},
+    ...style.layers.filter(layer=>keep.has(layer.id))
+   ];
+  }
+  return style;
 }
-function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('DEMO / MAP LIBRARY BLOCKED',true,'MAP');return}try{const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,minZoom:MAP_MIN_ZOOM,maxZoom:19,pitch:0,renderWorldCopies:true,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
+function startLiveMap(){if(typeof window.maplibregl==='undefined'){status('DEMO / MAP LIBRARY BLOCKED',true,'MAP');return}try{
+ if(window.FieldAtlasPhosphor)window.FieldAtlasPhosphor.install(maplibregl);
+ const m=new maplibregl.Map({container:'maplibre',style:makeStyle(),center:[PLACES[0].lng,PLACES[0].lat],zoom:14.2,minZoom:MAP_MIN_ZOOM,maxZoom:19,pitch:0,renderWorldCopies:true,attributionControl:false,dragRotate:false,touchPitch:true,touchZoomRotate:true,maxPitch:60,trackResize:true});state.map=m;
 // Mercator intentionally remains flat. Native world copies repeat east/west.
 // Only reload route/glow when a theme changes; don't alter camera from this hook.
 m.on('style.load',()=>{if(state.real){setRouteGeoJSON();setSavedPinsGeoJSON();applyEffects();}});
@@ -934,7 +986,7 @@ m.on('styleimagemissing',e=>{
  if(e.id===expected&&!m.hasImage(expected))
    m.addImage(expected,makeWaterGridTexture(state.theme),{pixelRatio:1});
 });
-m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();setSavedPinsGeoJSON();status('VECTOR DATA / ONLINE',false,'MAP');m.resize()});
+m.on('load',()=>{state.real=true;canvas.style.display='none';applyEffects();updateReadout();setRouteGeoJSON();setSavedPinsGeoJSON();status(MAP_RENDERER_NAMES[state.mapRenderer]+' / ONLINE',false,'MAP');m.resize()});
 m.on('click','saved-pin-points',event=>{
  if(state.pin)return;
  const n=Number(event.features?.[0]?.properties?.pinIndex);
