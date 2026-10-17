@@ -14,6 +14,71 @@
   const restartConfirm=$('restartConfirm');
   const leaderboard=$('leaderboard'),scoreEntry=$('scoreEntry');
   const names={ready:'STANDBY',playing:'ACTIVE',paused:'PAUSED',over:'GAME OVER'};
+
+  // Dialogs stay in the FIELD ATLAS app compositor (not the browser's
+  // top layer). This gives GAME, PAUSE, DISPLAY and HIGH SCORES the exact
+  // same *single* screen-space CRT/scanline/vignette/colour pass.
+  const modalPanels=[options,leaderboard,scoreEntry,restartConfirm];
+  const modalFocus=new WeakMap();
+  const modalBackground=[...document.querySelectorAll(
+    '#app > header,#app > #console,#app > #stage,#app > #controlDeck,#app > #eventline'
+  )];
+  function syncModalState(){
+    const opened=modalPanels.some(panel=>panel.open);
+    $('modalScrim').hidden=!opened;
+    for(const element of modalBackground)element.inert=opened;
+    dirty=true;
+  }
+  function openPanel(panel){
+    if(panel.open)return true;
+    if(modalPanels.some(other=>other.open))return false;
+    modalFocus.set(panel,document.activeElement);
+    panel.show(); // nonmodal DOM layer, manually guarded as a modal
+    panel.setAttribute('aria-modal','true');
+    syncModalState();
+    const focusable=panel.querySelector(
+      panel===scoreEntry?'#initialsEntry':
+      'button:not([disabled]):not([hidden]),input:not([disabled]):not([hidden])'
+    );
+    focusable?.focus({preventScroll:true});
+    return true;
+  }
+  function closePanel(panel){
+    if(!panel.open)return false;
+    panel.close();
+    panel.removeAttribute('aria-modal');
+    syncModalState();
+    const returnTo=modalFocus.get(panel);
+    if(returnTo&&returnTo.isConnected&&typeof returnTo.focus==='function'&&!returnTo.closest('[inert]'))
+      returnTo.focus({preventScroll:true});
+    return true;
+  }
+  // Match the native modal's keyboard behavior without elevating the dialog
+  // above our screen overlay. Escape cancels; Tab cannot escape the menu.
+  document.addEventListener('keydown',event=>{
+    const active=modalPanels.find(panel=>panel.open);
+    if(!active)return;
+    if(event.key==='Escape'){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closePanel(active);
+      return;
+    }
+    if(event.key!=='Tab')return;
+    const controls=[...active.querySelectorAll(
+      'button:not([disabled]):not([hidden]),input:not([disabled]):not([hidden])'
+    )].filter(node=>node.getClientRects().length);
+    if(!controls.length){event.preventDefault();return;}
+    const first=controls[0],last=controls.at(-1);
+    if(event.shiftKey){
+      if(document.activeElement===first||!active.contains(document.activeElement)){
+        event.preventDefault();last.focus();
+      }
+    }else if(document.activeElement===last||!active.contains(document.activeElement)){
+      event.preventDefault();first.focus();
+    }
+  },true);
+
   let lastFrame=performance.now(),dirty=true;
   let highScore=0,showGhost=true,soundOn=false,glow=65,scan=26,vignette=30,audioCtx=null;
   let gameOverHandled=false,highScores=[],storage=null;
@@ -164,8 +229,11 @@
     ctx.save();
     if(glow>0){
       // Bloom follows each tile's actual fill, not a uniform phosphor tint.
-      ctx.shadowColor=color(body,Math.min(1,glow/100));
-      ctx.shadowBlur=glow/6;
+      const emission=glow/100;
+      // Physically darker tiles emit less; luminous bloom inherits the
+      // computed cell fill, never the palette's uniform highlight colour.
+      ctx.shadowColor=color(body,emission*(.18+.55*k));
+      ctx.shadowBlur=17*emission*(.3+.7*k);
     }
     ctx.fillStyle=color(body,.98);
     ctx.fillRect(cx+1,cy+1,size-2,size-2);
@@ -281,10 +349,10 @@
   }
   function openHighScores(){
     if(game.status==='playing')perform('pause');
-    if(options.open)options.close();
+    if(options.open)closePanel(options);
     if(restartConfirm.open||scoreEntry.open)return;
     renderHighScores();
-    if(!leaderboard.open)leaderboard.showModal();
+    if(!leaderboard.open)openPanel(leaderboard);
     dirty=true;
   }
   function offerScoreOnGameOver(){
@@ -294,7 +362,7 @@
     if(!Scores.qualifies(highScores,game.score))return;
     $('entryScore').textContent=game.score.toLocaleString('en-CA')+' POINTS';
     $('initialsEntry').value=read('fieldAtlasTetrisInitials','AAA');
-    if(!scoreEntry.open)scoreEntry.showModal();
+    if(!scoreEntry.open)openPanel(scoreEntry);
   }
   function saveQualifyingScore(){
     if(!scoreEntry.open||game.status!=='over')return;
@@ -305,14 +373,14 @@
     highScores=Scores.save(storage,highScores);
     highScore=highScores[0]?.score||0;
     store('fieldAtlasTetrisInitials',initials);
-    scoreEntry.close();
+    closePanel(scoreEntry);
     renderHighScores();
-    leaderboard.showModal();
+    openPanel(leaderboard);
     dirty=true;
   }
   $('scoresButton').addEventListener('click',openHighScores);
   $('pausedScoresButton').addEventListener('click',openHighScores);
-  $('closeLeaderboard').addEventListener('click',()=>leaderboard.close());
+  $('closeLeaderboard').addEventListener('click',()=>closePanel(leaderboard));
   $('saveScore').addEventListener('click',saveQualifyingScore);
   $('initialsEntry').addEventListener('keydown',event=>{
     if(event.key==='Enter'){event.preventDefault();saveQualifyingScore();}
@@ -322,7 +390,7 @@
     input.value=input.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
     try{input.setSelectionRange(Math.min(start,input.value.length),Math.min(start,input.value.length));}catch(e){}
   });
-  $('skipScore').addEventListener('click',()=>{scoreEntry.close();dirty=true;});
+  $('skipScore').addEventListener('click',()=>{closePanel(scoreEntry);dirty=true;});
 
   function perform(action){
     const beforePiece=game.pieces,beforeLines=game.lines,beforeStatus=game.status;
@@ -355,12 +423,12 @@
   // Starting over is only available from the PAUSED menu and always requires
   // an explicit second tap. Cancel retains the board and score unchanged.
   $('newGameButton').addEventListener('click',()=>{
-    if(game.status==='paused'&&!restartConfirm.open)restartConfirm.showModal();
+    if(game.status==='paused'&&!restartConfirm.open)openPanel(restartConfirm);
   });
-  $('cancelRestart').addEventListener('click',()=>restartConfirm.close());
+  $('cancelRestart').addEventListener('click',()=>closePanel(restartConfirm));
   $('confirmRestart').addEventListener('click',()=>{
-    if(game.status!=='paused'){restartConfirm.close();return;}
-    restartConfirm.close();
+    if(game.status!=='paused'){closePanel(restartConfirm);return;}
+    closePanel(restartConfirm);
     game.reset();
     game.start();
     gameOverHandled=false;
@@ -377,9 +445,9 @@
   $('themeSetting').addEventListener('click',toggleTheme);
   $('optionsButton').addEventListener('click',()=>{
     if(game.status==='playing')perform('pause');
-    options.showModal();
+    openPanel(options);
   });
-  $('closeOptions').addEventListener('click',()=>options.close());
+  $('closeOptions').addEventListener('click',()=>closePanel(options));
   options.addEventListener('cancel',()=>dirty=true);
   for(const [id,key] of [['glowControl','glow'],['scanControl','scan'],['vignetteControl','vignette']]){
     $(id).addEventListener('input',event=>{
@@ -528,19 +596,7 @@
     button.addEventListener('pointerdown',flash);
     button.addEventListener('click',event=>{if(event.detail===0)flash();});
   }
-  // Modal dialogs are promoted above #app by showModal(). Mirror the same
-  // screen-space CRT, vignette and gradient filters in that top layer.
-  for(const dialog of document.querySelectorAll('dialog')){
-    const overlay=document.createElement('div');
-    overlay.className='modal-camera-fx';
-    overlay.setAttribute('aria-hidden','true');
-    for(const name of ['scan','vignette','fade-top','fade-bottom']){
-      const layer=document.createElement('span');
-      layer.className='fx-'+name;
-      overlay.appendChild(layer);
-    }
-    dialog.appendChild(overlay);
-  }
+  // The CRT overlays are in #app, above every dialog: no duplicated pass.
   document.querySelectorAll('button').forEach(installPhosphorFeedback);
   document.addEventListener('click',event=>{
     if(event.detail===0)return;
