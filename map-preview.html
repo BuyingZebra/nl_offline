@@ -35,9 +35,9 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <input id="search" type="text" placeholder="Try Wild Cove or Carbonear…" autocomplete="off">
 <div id="results"></div>
 <h2>Show / hide vector layers</h2>
-<label><input type="checkbox" id="showOvertureRoads"> Overture Maps roads + sidewalks (independent source)</label>
+<label><input type="checkbox" id="showOvertureRoads"> Overture Maps roads and trails (independent source)</label>
 <label><input type="checkbox" data-group="roads" checked> Roads (OSM)</label>
-<label><input type="checkbox" data-group="paths" checked> Footpaths, sidewalks and trails (thin dashed)</label>
+<label><input type="checkbox" data-group="paths" checked> Trails and backcountry tracks</label>
 <label><input type="checkbox" data-group="federal-roads"> Federal National Road Network (blue)</label>
 <label><input type="checkbox" data-group="prov-roads"> Provincial resource road candidates</label>
 <label><input type="checkbox" data-group="prov-duplicates" disabled> Show duplicate road lines (diagnostics)</label>
@@ -51,7 +51,7 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
 <h2>Coverage</h2><div id="stats">Inspecting generated tiles…</div>
 <p><strong>Important:</strong> Island-wide overview tiles and detailed tiles for four test locations use separate, non-overlapping display zoom ranges. Outside those four locations there are no detailed tiles yet, so roads may disappear at high zoom. This is a browser-preview limitation, not evidence of missing geometry. Provincial and federal comparisons are inspection overlays only, not corrected navigation routes.</p>
-<p>Map data © OpenStreetMap contributors (ODbL). Federal road source: Statistics Canada National Road Network. Provincial resource roads and aerial-photo coverage index: Government of Newfoundland and Labrador. Community names © Natural Resources Canada. All source layers are shown for comparison, not verified driving directions. Footpaths and sidewalks are rendered distinctly rather than as roads. Independent Overture road geometry is available through a separate toggle when its build finishes. The browser viewer still uses online MapLibre code and fonts.</p>
+<p>Map data © OpenStreetMap contributors (ODbL). Federal road source: Statistics Canada National Road Network. Provincial resource roads and aerial-photo coverage index: Government of Newfoundland and Labrador. Community names © Natural Resources Canada. All source layers are shown for comparison, not verified driving directions. Sidewalks are suppressed in the main view; real trails remain distinct from roads. Independent Overture road geometry is available through a separate toggle when its build finishes. The browser viewer still uses online MapLibre code and fonts.</p>
 </aside>
 <div id="map"></div>
 </main>
@@ -118,18 +118,26 @@ add('water','water','fill',{'fill-color':'#245b63'});
 add('water','waterway','line',{'line-color':'#328b9c','line-width':['interpolate',['linear'],['zoom'],4,.3,14,1.6]});
 // Motor roads and pedestrian paths are distinct features. Never render a
 // sidewalk as another full-width street or silently discard its geometry.
-const pedestrianFilter=['any',
+// Core map: NO SIDEWALKS. Preserve them in the source, but only expose
+// actual backcountry trails and tracks. Generic footways can be sidewalks.
+const nonRoadFilter=['any',
   ['in',['get','class'],['literal',['path','pedestrian','footway','cycleway','steps','bridleway','track']]],
   ['in',['get','subclass'],['literal',['sidewalk','footway','pedestrian','cycleway','steps','bridleway','path']]]];
+const trailFilter=['any',
+  ['in',['get','class'],['literal',['track','bridleway']]],
+  ['all',['==',['get','class'],'path'],
+   ['in',['get','subclass'],['literal',['path','track','bridleway']]]]];
 add('roads','transportation','line',
-  {'line-color':['match',['get','class'],'motorway','#f0c584','trunk','#e8ca8f','primary','#dcd59c','secondary','#c0d5a9','tertiary','#95ccaa','#76ab96'],
-   'line-width':['interpolate',['linear'],['zoom'],5,.5,10,1.2,14,2.6,16,3.2],'line-opacity':.9},
-  {filter:['!',pedestrianFilter]});
+  {'line-color':['match',['get','class'],'motorway','#f0c584','trunk','#e8ca8f',
+    'primary','#dcd59c','secondary','#c0d5a9','tertiary','#95ccaa','#76ab96'],
+   'line-width':['interpolate',['linear'],['zoom'],5,.5,10,1.2,14,2.5,16,3.7,18,5],
+   'line-opacity':.95},
+  {filter:['!',nonRoadFilter],layout:{'line-join':'round','line-cap':'round'}});
 add('paths','transportation','line',
   {'line-color':'#72b5a5',
-   'line-width':['interpolate',['linear'],['zoom'],8,.3,12,.65,15,1.1,18,1.5],
-   'line-opacity':.74,'line-dasharray':[1.4,2]},
-  {filter:pedestrianFilter,minzoom:10});
+   'line-width':['interpolate',['linear'],['zoom'],8,.35,12,.75,15,1.25,18,1.7],
+   'line-opacity':.78,'line-dasharray':[1.4,1.9]},
+  {filter:trailFilter,minzoom:10,layout:{'line-join':'round','line-cap':'round'}});
 add('buildings','building','fill',{'fill-color':'#87af87','fill-outline-color':'#497e68','fill-opacity':.75},{minzoom:12});
 add('labels','transportation_name','symbol',{'text-color':'#d9e9d4','text-halo-color':'#102019','text-halo-width':1.5},
   {minzoom:11,layout:{'symbol-placement':'line','text-field':['coalesce',['get','name'],['get','ref'],''],
@@ -321,8 +329,8 @@ function setDisplayGroup(name,visible){
 function addOvertureLayer(kind,paint,extraMinzoom=0){
   const meta=window.OVERTURE_PREVIEW_META;
   const minDetail=meta.baseZoom+1;
-  const pedestrian=['in',['get','kind'],['literal',['pedestrian','track']]];
-  const filter=kind==='motor'?['!',pedestrian]:pedestrian;
+  const filter=kind==='motor' ? ['==',['get','kind'],'motor_candidate'] :
+    ['==',['get','kind'],'trail'];
   for(const source of ['overture-base','overture-sample']){
     if(source==='overture-base' && extraMinzoom>=minDetail)continue;
     const id=source+'-'+kind+'-line';
@@ -365,8 +373,8 @@ async function loadOvertureRoads(){
     addOvertureLayer('motor',
       {'line-color':['match',['get','class'],'motorway','#f0c584','primary','#e4d59b',
         'secondary','#cce2a4','tertiary','#a7d8b0','residential','#92c8b2','#7eb9a8'],
-       'line-width':['interpolate',['linear'],['zoom'],6,.6,11,1.4,15,3.4],'line-opacity':.94});
-    addOvertureLayer('pedestrian',
+       'line-width':['interpolate',['linear'],['zoom'],6,.6,11,1.4,15,3.2,17,4.8],'line-opacity':.96});
+    addOvertureLayer('trail',
       {'line-color':'#70b4a4','line-width':['interpolate',['linear'],['zoom'],10,.5,15,1.1,18,1.5],
        'line-dasharray':[1.4,2],'line-opacity':.76},10);
     overtureReady=true;
