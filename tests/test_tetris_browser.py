@@ -85,7 +85,8 @@ with sync_playwright() as p:
         assert int(previous_score)>0
         assert page.locator('button[data-action="restart"]').count() == 0
         page.locator("#pauseButton").tap()
-        assert page.locator("#newGameButton").is_visible()
+        # Pause menu visibility is committed on the next animation frame.
+        page.locator("#newGameButton").wait_for(state="visible", timeout=5000)
         page.locator("#newGameButton").tap()
         assert page.locator("#restartConfirm").get_attribute("open") is not None
         page.locator("#cancelRestart").tap()
