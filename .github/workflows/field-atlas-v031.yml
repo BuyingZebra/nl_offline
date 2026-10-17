@@ -1,0 +1,21 @@
+name: FIELD ATLAS v0.31 Renderer Tests
+on:
+  push:
+    branches: ['feature/field-atlas-v0-31-map-rendering']
+    paths:
+      - 'index.html'
+      - 'experiments/**'
+      - 'tests/**'
+      - '.github/workflows/field-atlas-v031.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify browser renderer and existing community search
+        run: node --test tests/*.test.mjs
