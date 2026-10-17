@@ -35,13 +35,15 @@ label{display:block;font-size:13px;margin:10px 0}label input{margin-right:8px;ac
 <input id="search" type="text" placeholder="Try Wild Cove or Carbonear…" autocomplete="off">
 <div id="results"></div>
 <h2>Show / hide vector layers</h2>
-<label><input type="checkbox" data-group="roads" checked> Roads and paths</label>
+<label><input type="checkbox" data-group="roads" checked> Roads and paths (OSM)</label>
+<label><input type="checkbox" data-group="prov-roads"> Extra provincial resource roads</label>
+<p><strong>Road comparison:</strong> Orange = possible addition to the federal road network; yellow = uncertain overlap. These are not confirmed passable roads.</p>
 <label><input type="checkbox" data-group="buildings" checked> Building footprints</label>
 <label><input type="checkbox" data-group="terrain" checked> Forests, parks and land use</label>
 <label><input type="checkbox" data-group="water" checked> Water and rivers</label>
 <label><input type="checkbox" data-group="labels" checked> Names and official communities</label>
 <h2>Coverage</h2><div id="stats">Inspecting generated tiles…</div>
-<p><strong>Important:</strong> Island-wide overview zooms are stored; more detailed zooms are sampled in four locations to keep the browser preview small. A blank or generalized area outside those samples does not necessarily mean the full 1.09 GB map lacks that detail. The government's road network remains in the separate GeoPackage, and this is not a navigation system.</p>
+<p><strong>Important:</strong> Island-wide overview zooms are stored; more detailed zooms are sampled in four locations to keep the browser preview small. A blank or generalized area outside those samples does not necessarily mean the full 1.09 GB map lacks that detail. The provincial overlay is a simplified visual comparison only; the original editable government geometry remains in the downloadable GeoPackage. This is not a navigation system.</p>
 <p>Map data © OpenStreetMap contributors (ODbL). Community locations © Natural Resources Canada. Online access is required for the MapLibre viewer library and label fonts; geographic tiles in this preview are ours.</p>
 </aside>
 <div id="map"></div>
@@ -119,6 +121,37 @@ map.on('load',()=>{
     paint:{'text-color':'#f8eebc','text-halo-color':'#092117','text-halo-width':1}});
   (layers.labels ||= []).push('government-dots','government-labels');
   status.textContent='Using ' + meta.tileCount.toLocaleString() + ' map tiles from our own build.';
+  // Province-wide visual-only overlay, generated from the provincial GeoAtlas and NRN.
+  // Loaded independently so original map styling and geographic data stay unchanged.
+  fetch('./data/road_audits/provincial_road_overlay.geojson.gz').then(async response => {
+    if (!response.ok) throw Error('provincial overlay not published yet ('+response.status+')');
+    const blob = await response.blob();
+    const text = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    return JSON.parse(text);
+  }).then(data => {
+    if (!map.getSource('provincial-road-source')) map.addSource('provincial-road-source', {type:'geojson',data});
+    map.addLayer({id:'provincial-road-candidates',type:'line',source:'provincial-road-source',
+      minzoom:7,
+      filter:['in',['get','audit_status'],['literal',['potential_addition','needs_review']]],
+      layout:{visibility:document.querySelector('[data-group="prov-roads"]').checked?'visible':'none',
+        'line-join':'round','line-cap':'round'},
+      paint:{'line-color':['match',['get','audit_status'],'potential_addition','#ffac74','needs_review','#fbe49c','#8ba7a0'],
+        'line-width':['interpolate',['linear'],['zoom'],7,.6,11,1.5,15,2.7],
+        'line-opacity':.90, 'line-dasharray':[2.5,1.8]}});
+    (layers['prov-roads'] ||= []).push('provincial-road-candidates');
+    map.on('click','provincial-road-candidates',event=>{
+      const p=event.features && event.features[0] && event.features[0].properties;
+      if(!p) return;
+      const name=p.name && p.name!=='nan' ? p.name : 'Unnamed resource road';
+      new maplibregl.Popup({closeButton:true}).setLngLat(event.lngLat)
+        .setText(name+' · '+(p.access||'Unknown access')+' · '+(p.audit_status||'Unverified')).addTo(map);
+    });
+    status.textContent += ' Provincial road comparison ready ('+data.features.length.toLocaleString()+' features).';
+    document.getElementById('stats').textContent += '\n'+data.features.length.toLocaleString()+' provincial resource-road features (toggle to inspect)';
+  }).catch(error=>{
+    console.warn('Provincial resource roads:',error);
+    status.textContent += ' Provincial road overlay not available yet.';
+  });
 });
 map.on('error',e=>{ console.warn('Map preview:',e.error||e); });
 document.querySelectorAll('[data-group]').forEach(input=>input.addEventListener('change',()=>{
