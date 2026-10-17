@@ -453,10 +453,10 @@
   function toggleTheme(){
     const theme=root.dataset.theme==='amber'?'green':'amber';
     root.dataset.theme=theme;store('fieldAtlasThemeV06',theme);
-    document.querySelector('meta[name="theme-color"]').content=theme==='amber'?'#100904':'#04120b';
+    document.querySelector('meta[name="theme-color"]').content='#151515';
     refreshPalette();
     // Canvas is a separate paint surface. Redraw synchronously when the
-    // phosphor theme changes so pixels share the new --bg immediately.
+    // phosphor theme changes; hue is applied by the screen film, not the canvas.
     paintBoard();
     updateHUD();
     dirty=false;
