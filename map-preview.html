@@ -529,12 +529,32 @@ overtureToggle.addEventListener('change',async()=>{
   }
 });
 
+// The functioning Pip-Boy defaults to the complete island road dataset when
+// available. Diagnostic OSM/federal overlays remain optional, not the core.
+map.once('load',async()=>{
+  try{
+    const complete=await loadFullOverture();
+    if(!complete)return;
+    overtureToggle.checked=true;
+    for(const group of ['roads','paths']){
+      document.querySelector('[data-group="'+group+'"]').checked=false;
+      setDisplayGroup(group,false);
+    }
+    setDisplayGroup('overture-lines',true);
+    if(activeSelectedTown)
+      map.flyTo({center:activeSelectedTown.geometry.coordinates,zoom:13.1,essential:true});
+  }catch(error){
+    console.warn('Full island road source failed; retaining existing OSM preview',error);
+  }
+});
 map.on('error',e=>{ console.warn('Map preview:',e.error||e); });
 document.querySelectorAll('[data-group]').forEach(input=>input.addEventListener('change',()=>{
   for(const id of layers[input.dataset.group]||[]) if(map.getLayer(id)) map.setLayoutProperty(id,'visibility',input.checked?'visible':'none');
 }));
 // Match a selected town's map-label point, not a hard-coded town centre.
+let activeSelectedTown=null;
 function chooseTown(feature){
+  activeSelectedTown=feature;
   const center=feature.geometry.coordinates;
   const region=feature.properties.region_hint||'';
   const name=feature.properties.name;
