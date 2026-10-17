@@ -552,7 +552,7 @@ test('only visually apparent cards are tinted, never the technical #stage layout
  assert.match(html,/--bg:#100904;--panel:color-mix\(in srgb,var\(--bg\) 40%,black\);--card-bg:var\(--panel\)/);
  assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
  assert.match(html,/#boardShell\{background:var\(--card-bg\)\}/);
- assert.match(html,/#app \.score-row\{background:var\(--bg\)\}/);
+ assert.match(html,/#app \.score-row\{background:var\(--app-face\)\}/);
  assert.doesNotMatch(html,/#stage\s*\{\s*background:/);
  assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 94%,transparent\)/);
  assert.match(js,/c\.fillStyle=color\(mix\(palette\.dark,palette\.base,.55\)\);\s*c\.fillRect\(0,0,BOARD_W,BOARD_H\)/);
