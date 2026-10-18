@@ -9,6 +9,7 @@
  if(!P)return;
  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
  const VERTEX=String.raw`
+ precision highp float;
  in vec2 aPosition;
  out vec2 vTextureCoord;
  uniform vec4 uInputSize, uOutputFrame, uOutputTexture;
@@ -19,7 +20,7 @@
   gl_Position=vec4(p,0.0,1.0);
   vTextureCoord=aPosition*(uOutputFrame.zw*uInputSize.zw);
  }`;
- const HEADER='in vec2 vTextureCoord;out vec4 finalColor;uniform sampler2D uTexture;uniform vec4 uInputSize;';
+ const HEADER='precision highp float;in vec2 vTextureCoord;out vec4 finalColor;uniform sampler2D uTexture;uniform vec4 uInputSize;';
  const snippets={
   glow:{
    body: `uniform float uStrength,uThreshold,uRadius;
