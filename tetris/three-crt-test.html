@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111"><title>FIELD ATLAS — Three.js CRT Test</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#101010;color:#e6e6e6;font-family:system-ui,-apple-system,sans-serif;color-scheme:dark}
+main{max-width:520px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 12px 24px}
+h1{font-size:14px;letter-spacing:1px;margin:3px 0 5px}.intro{font-size:11px;color:#a9a9a9;margin:0 0 13px}
+#frame{height:min(52dvh,420px);min-height:315px;background:#050505;border:1px solid #616161;border-radius:12px;overflow:hidden;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
+#loading{position:absolute;inset:0;display:grid;place-items:center;background:#070707;color:#aaa;font-size:12px}
+#loading[hidden]{display:none}
+.panel{background:#1c1c1c;border:1px solid #545454;border-radius:12px;margin-top:12px;padding:12px}
+.switches{display:flex;gap:8px}.switches label{flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:#2a2a2a;border:1px solid #595959;border-radius:8px;padding:12px 5px;font-size:12px;font-weight:700}
+.switches input{height:18px;width:18px;accent-color:#89df9d}
+.slider{display:grid;grid-template-columns:105px 1fr 37px;align-items:center;gap:9px;margin-top:15px;font-size:11px}.slider input{width:100%;accent-color:#bababa}.slider output{text-align:right;font-variant-numeric:tabular-nums}
+.note{border-top:1px solid #444;margin:14px 0 0;padding-top:10px;color:#aaa;font-size:11px;line-height:1.5}
+#status{font-size:10px;color:#a3a3a3;margin:10px 0 0}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+</head>
+<body><main>
+<h1>THREE.JS · CRT COMPOSITOR TEST</h1>
+<p class="intro">Grayscale controls → luminance bloom → phosphor colour</p>
+<div id="frame"><canvas id="screen"></canvas><div id="loading">Loading Three.js…</div></div>
+<div class="panel">
+<div class="switches">
+<label><input id="phosphor" type="checkbox">Phosphor</label>
+<label><input id="bloom" type="checkbox">Bloom</label>
+</div>
+<label class="slider">Bloom cutoff<input id="threshold" type="range" min="0" max="1" step=".01" value=".55"><output id="thresholdOut">0.55</output></label>
+<label class="slider">Bloom strength<input id="strength" type="range" min="0" max="3" step=".05" value="1.50"><output id="strengthOut">1.50</output></label>
+<p class="note">Both effects begin <strong>OFF</strong>. Three.js draws the grayscale controls at device pixel density. UnrealBloomPass extracts pixels above the luminance threshold and blurs them in GPU render targets; a separate shader converts final grayscale luminance to green phosphor. No SVG, CSS shadows, or duplicated HTML.</p>
+<p id="status">Waiting for renderer…</p>
+</div></main>
+<script type="module">
+import * as THREE from 'three';
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
+import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
+import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+
+const get=id=>document.getElementById(id);
+const frame=get('frame'),canvas=get('screen'),note=get('status');
+const phosphor=get('phosphor'),bloom=get('bloom'),threshold=get('threshold'),strength=get('strength');
+try{
+ const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+ renderer.outputColorSpace=THREE.SRGBColorSpace;
+ renderer.toneMapping=THREE.NoToneMapping;
+ renderer.setClearColor(0x050505,1);
+ const scene=new THREE.Scene();
+ scene.background=new THREE.Color().setRGB(.007,.007,.007);
+ const camera=new THREE.OrthographicCamera(0,1,0,1,.01,100);
+ camera.position.z=10;
+ const rt=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4});
+ const composer=new EffectComposer(renderer,rt);
+ composer.addPass(new RenderPass(scene,camera));
+ const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.50,.42,.55);
+ glow.enabled=false;
+ composer.addPass(glow);
+ const phosphorPass=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uColor:{value:new THREE.Vector3(.28,1,.46)}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uColor;void main(){vec3 src=texture2D(tDiffuse,vUv).rgb;float lum=dot(src,vec3(.2126,.7152,.0722));vec3 col=mix(src,vec3(lum)*uColor,uEnabled);gl_FragColor=vec4(col,1.0);}'
+ });
+ composer.addPass(phosphorPass);
+ composer.addPass(new OutputPass());
+ let W=0,H=0,DPR=1,needsDraw=false;
+ const objects=[],colors=new Map();
+ const gray=l=>new THREE.Color().setRGB(l,l,l);
+ function mat(l){if(!colors.has(l))colors.set(l,new THREE.MeshBasicMaterial({color:gray(l),depthWrite:false}));return colors.get(l);}
+ function rounded(x,y,w,h,r,l){
+  r=Math.min(r,w/2,h/2);
+  const p=new THREE.Shape();
+  p.moveTo(x+r,y);p.lineTo(x+w-r,y);p.quadraticCurveTo(x+w,y,x+w,y+r);
+  p.lineTo(x+w,y+h-r);p.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  p.lineTo(x+r,y+h);p.quadraticCurveTo(x,y+h,x,y+h-r);
+  p.lineTo(x,y+r);p.quadraticCurveTo(x,y,x+r,y);
+  const m=new THREE.Mesh(new THREE.ShapeGeometry(p,10),mat(l));
+  scene.add(m);objects.push(m);
+ }
+ function label(word,x,y,w,h,size,l=.9){
+  const cv=document.createElement('canvas');
+  cv.width=Math.ceil(w*DPR);cv.height=Math.ceil(h*DPR);
+  const cx=cv.getContext('2d');
+  cx.scale(DPR,DPR);
+  cx.font='700 '+size+'px system-ui,-apple-system,sans-serif';
+  cx.textAlign='center';cx.textBaseline='middle';
+  const n=Math.round(Math.pow(l,1/2.2)*255);
+  cx.fillStyle='rgb('+n+','+n+','+n+')';
+  cx.fillText(word,w/2,h/2,w-2);
+  const t=new THREE.CanvasTexture(cv);
+  t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=false;
+  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false}));
+  m.position.set(x+w/2,y+h/2,1);
+  scene.add(m);objects.push(m);
+ }
+ function rebuild(){
+  for(const o of objects){scene.remove(o);o.geometry.dispose();if(o.material.map){o.material.map.dispose();o.material.dispose();}}
+  objects.length=0;
+  const w=Math.min(W-22,430),x=(W-w)/2,hy=25;
+  rounded(x,hy,w,65,12,.11);
+  rounded(x+2,hy+2,w-4,1,0,.46);
+  label('TETRIS SYSTEM',x,hy+10,w,24,17,.97);
+  label('NATIVE RESOLUTION · GRAYSCALE SOURCE',x,hy+37,w,16,9,.52);
+  const dy=114,dh=H-dy-23;
+  rounded(x,dy,w,dh,12,.095);
+  const gap=6,pad=10,bw=(w-pad*2-gap*4)/5,by=dy+24,bh=Math.min(78,Math.max(58,dh*.37));
+  const buttons=[['◀','LEFT'],['▶','RIGHT'],['↻','ROTATE'],['▼','DOWN'],['⇣','DROP']];
+  for(let i=0;i<5;i++){
+   const bx=x+pad+i*(bw+gap);
+   rounded(bx,by,bw,bh,9,.40);
+   rounded(bx+1,by+1,bw-2,bh-2,8,.16);
+   label(buttons[i][0],bx,by+7,bw,36,25,.99);
+   label(buttons[i][1],bx,by+bh-24,bw,17,9,.58);
+  }
+  const rowY=by+bh+10,rowH=Math.max(31,Math.min(40,dy+dh-rowY-40));
+  for(let i=0;i<3;i++){
+   const b2=(w-2*pad-2*gap)/3,bx=x+pad+i*(b2+gap);
+   rounded(bx,rowY,b2,rowH,8,.32);
+   rounded(bx+1,rowY+1,b2-2,rowH-2,7,.14);
+   label(['HOLD','PAUSE','NEW GAME'][i],bx,rowY,b2,rowH,11,.87);
+  }
+  const rw=(w-2*pad-5*5)/6,rampY=dy+dh-23;
+  [.10,.25,.40,.60,.80,1].forEach((l,i)=>rounded(x+pad+i*(rw+5),rampY,rw,11,2,l));
+ }
+ function draw(){
+  needsDraw=false;
+  glow.enabled=bloom.checked;
+  glow.threshold=Number(threshold.value);
+  glow.strength=Number(strength.value);
+  phosphorPass.uniforms.uEnabled.value=phosphor.checked?1:0;
+  composer.render();
+ }
+ function schedule(){if(needsDraw)return;needsDraw=true;requestAnimationFrame(draw);}
+ function resize(){
+  const r=frame.getBoundingClientRect();
+  const w=Math.max(1,Math.round(r.width-2)),h=Math.max(1,Math.round(r.height-2));
+  const d=window.devicePixelRatio||1;
+  if(w===W&&h===H&&d===DPR)return;
+  W=w;H=h;DPR=d;
+  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
+  composer.setPixelRatio(DPR);composer.setSize(W,H);
+  camera.left=0;camera.right=W;camera.top=0;camera.bottom=H;camera.updateProjectionMatrix();
+  rebuild();schedule();
+  note.textContent='WebGL · device pixel ratio '+DPR+' · '+Math.round(W*DPR)+' × '+Math.round(H*DPR)+' render target';
+ }
+ for(const el of [phosphor,bloom,threshold,strength])el.addEventListener('input',()=>{
+  get('thresholdOut').textContent=Number(threshold.value).toFixed(2);
+  get('strengthOut').textContent=Number(strength.value).toFixed(2);
+  schedule();
+ });
+ new ResizeObserver(resize).observe(frame);
+ resize();get('loading').hidden=true;
+}catch(error){
+ get('loading').textContent='Renderer failed: '+String(error?.message||error);
+ note.textContent=String(error);console.error(error);
+}
+</script></body></html>
