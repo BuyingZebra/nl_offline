@@ -35,6 +35,7 @@ let soundOn=load('fieldAtlasTetrisSound','yes')!=='no';
 let theme=load('fieldAtlasThemeV06','green')==='amber'?'amber':'green';
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0,pressed=null,repeatDelay=null,repeatInterval=null;
+let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,queued=false,lastTime=performance.now(),lastDraw=0,rollPhase=0,audioCtx=null,gamepadDrag=null;
 const input=document.createElement('canvas'),g=input.getContext('2d',{alpha:false});
 if(!g){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
@@ -191,7 +192,7 @@ function tone(freq=240,len=.04){
  }catch(e){}
 }
 function invalidate(){dirty=true;requestFrame();}
-function openModal(name){modal=name;modalView=null;optionsScroll=0;invalidate();}
+function openModal(name){modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;stopRepeat();pressed=null;invalidate();}
 function onOver(){
  if(game.status!=='over'||overOffered)return;
  overOffered=true;
@@ -587,42 +588,85 @@ function setSlider(r,x){
  const stepped=Math.round(v/r.step)*r.step;
  setSetting(r.field,Number(stepped.toFixed(4)));
 }
+// One pointer recognizer for the entire grayscale display. Menus defer activation
+// until touch-up; axis-aware intent makes scroll work from sliders and switches.
+const DRAG_DEADZONE=8;
+const optionPoint=p=>modal==='options'&&modalView&&
+ p.x>=modalView.x&&p.x<=modalView.x+modalView.w&&
+ p.y>=modalView.y&&p.y<=modalView.y+modalView.h;
+const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
 screen.addEventListener('pointerdown',e=>{
  if(e.pointerType==='mouse'&&e.button!==0)return;
  e.preventDefault();
- const p=eventPoint(e),r=regionAt(p);
- stopRepeat();
- pressed={id:e.pointerId,region:r,start:p,action:r?.act,box:r,scroll:optionsScroll};
+ if(pressed)return; // One active touch: prevents accidental multi-touch changes.
+ const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
+ stopRepeat();scrollVelocity=0;
+ pressed={
+  id:e.pointerId,region:r,start:p,last:p,action:r?.act,
+  box:r,scroll:optionsScroll,mode:modal?'pending':'game',
+  inOptions,time:eventStamp(e),velocity:0
+ };
  try{screen.setPointerCapture(e.pointerId)}catch(err){}
- if(!r)return;
- if(r.slider){setSlider(r,p.x);return;}
- if(r.act==='toggle'){setSetting(r.field,!settingValue(r.field));return;}
- if(r.act==='scroll'||r.act==='board'){invalidate();return;}
- handleAction(r.act);
- if(r.repeat){
-  repeatDelay=setTimeout(()=>{repeatInterval=setInterval(()=>handleAction(r.act),82);},210);
+ // Game buttons stay immediate, including auto-repeat movement.
+ if(!modal&&r&&!r.board){
+  handleAction(r.act);
+  if(r.repeat)repeatDelay=setTimeout(()=>{
+   repeatInterval=setInterval(()=>handleAction(r.act),82);
+  },210);
  }
  invalidate();
 });
 screen.addEventListener('pointermove',e=>{
  if(!pressed||pressed.id!==e.pointerId)return;
- const p=eventPoint(e),r=pressed.region;
- if(r?.slider){setSlider(r,p.x);return;}
- if(modal==='options'&&pressed.action==='scroll'){
-  optionsScroll=clamp(pressed.scroll+pressed.start.y-p.y,0,optionsMaxScroll);
-  invalidate();
+ const p=eventPoint(e),r=pressed.region,touch=pressed;
+ if(!modal)return;
+ const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
+ const ax=Math.abs(dx),ay=Math.abs(dy);
+ if(touch.mode==='pending'&&(ax>DRAG_DEADZONE||ay>DRAG_DEADZONE)){
+  if(touch.inOptions&&ay>DRAG_DEADZONE&&ay>ax*.78)touch.mode='scroll';
+  else if(r?.slider&&ax>DRAG_DEADZONE&&ax>=ay*.78)touch.mode='slider';
+  else touch.mode='cancelled';
  }
+ if(touch.mode==='scroll'){
+  optionsScroll=clamp(touch.scroll-dy,0,optionsMaxScroll);
+  const dt=Math.max(1,eventStamp(e)-touch.time);
+  const v=clamp((touch.last.y-p.y)/dt,-2.3,2.3);
+  touch.velocity=touch.velocity*.5+v*.5;
+  invalidate();
+ }else if(touch.mode==='slider'){
+  setSlider(r,p.x);
+ }
+ touch.last=p;touch.time=eventStamp(e);
 });
 function releaseTouch(e){
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
- const was=pressed,p=eventPoint(e);pressed=null;
+ const touch=pressed,p=eventPoint(e);pressed=null;
  try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(err){}
- if(was.action==='board'&&e.type==='pointerup'){
-  const dx=p.x-was.start.x,dy=p.y-was.start.y;
+ if(modal){
+  if(e.type==='pointerup'){
+   if(touch.mode==='scroll'){
+    const elapsed=Math.max(0,eventStamp(e)-touch.time);
+    if(elapsed<105&&optionsMaxScroll>0)scrollVelocity=touch.velocity;
+   }else if(touch.mode==='pending'&&touch.region){
+    const dy=p.y-touch.start.y,dx=p.x-touch.start.x;
+    const same=Math.abs(dx)<=DRAG_DEADZONE&&Math.abs(dy)<=DRAG_DEADZONE;
+    if(same){
+     const r=touch.region;
+     if(r.slider)setSlider(r,p.x);
+     else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
+     else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
+    }
+   }else if(touch.mode==='slider'&&touch.region?.slider){
+    setSlider(touch.region,p.x);
+   }
+  }
+ }else if(touch.action==='board'&&e.type==='pointerup'){
+  const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
   if(Math.abs(dx)<16&&Math.abs(dy)<16)perform('cw');
   else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
-   for(let i=0;i<clamp(Math.round(Math.abs(dx)/32),1,5);i++)perform(dx>0?'right':'left');
+   for(let i=0;i<clamp(Math.round(Math.abs(dx)/32),1,5);i++)
+    perform(dx>0?'right':'left');
   }else if(dy>25)perform('hard');
  }
  invalidate();
@@ -700,6 +744,13 @@ function frame(now){
   const animateRoll=FX.roll&&FX.rollSpeed!==0;
   const animated=animateNoise||animateRoll;
   const frameInterval=animateNoise?Math.max(16,1000/FX.noiseRate):30;
+  if(modal==='options'&&Math.abs(scrollVelocity)>.015){
+   const before=optionsScroll;
+   optionsScroll=clamp(optionsScroll+scrollVelocity*dt,0,optionsMaxScroll);
+   scrollVelocity*=Math.exp(-dt/190);
+   if(optionsScroll===before||optionsScroll===0||optionsScroll===optionsMaxScroll)scrollVelocity=0;
+   else dirty=true;
+  }else scrollVelocity=0;
   const update=dirty||(animated&&now-lastDraw>=frameInterval);
   if(update){
    if(dirty)paintGame();
@@ -707,7 +758,7 @@ function frame(now){
    composer.render();
    lastDraw=now;
   }
-  if(game.status==='playing'||animated||dirty)requestFrame();
+  if(game.status==='playing'||animated||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
