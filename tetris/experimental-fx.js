@@ -8,28 +8,21 @@
   const DEFAULTS=Object.freeze({
     noiseEnabled:false,noiseAmount:18,noiseSpeed:12,
     persistenceEnabled:false,persistenceAmount:35,persistenceDecay:450,
-    softnessEnabled:false,softnessAmount:25,
-    interferenceEnabled:false,interferenceAmount:20,interferenceRate:6,
-    glitchEnabled:false,glitchAmount:20,glitchRate:3
+    softnessEnabled:false,softnessAmount:25
   });
   const CONTROLS={
     noiseAmount:[100,'%'],noiseSpeed:[24,' FPS'],
     persistenceAmount:[100,'%'],persistenceDecay:[1200,' MS'],
-    softnessAmount:[100,'%'],
-    interferenceAmount:[100,'%'],interferenceRate:[20,'/MIN'],
-    glitchAmount:[100,'%'],glitchRate:[20,'/MIN']
+    softnessAmount:[100,'%']
   };
-  const ENABLES=['noiseEnabled','persistenceEnabled','softnessEnabled',
-    'interferenceEnabled','glitchEnabled'];
+  const ENABLES=['noiseEnabled','persistenceEnabled','softnessEnabled'];
 
   function create(doc) {
     const app=doc.getElementById('app');
     const canvas=doc.getElementById('fxNoise');
     const softness=doc.getElementById('fxSoftness');
-    const interference=doc.getElementById('fxInterference');
-    const glitch=doc.getElementById('fxGlitch');
     const buttonLayer=doc.getElementById('buttonFxLayer');
-    if(!app||!canvas||!softness||!interference||!glitch||!buttonLayer)
+    if(!app||!canvas||!softness||!buttonLayer)
       throw Error('Tetris experimental compositor layers are missing');
     const ctx=canvas.getContext('2d',{alpha:true});
     if(!ctx)throw Error('Tetris experimental noise canvas is unavailable');
@@ -49,9 +42,6 @@
     }catch(e){/* Private browsing may block storage. */}
     const reduced=win.matchMedia('(prefers-reduced-motion: reduce)');
     let noiseFrame=0,noisePrevious=0,noisePixels=null;
-    const pulseTimers={interference:0,glitch:0};
-    const hideTimers={interference:0,glitch:0};
-    const bands={interference,glitch};
     const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
     const motionAllowed=()=>!reduced.matches&&!doc.hidden;
 
@@ -94,36 +84,6 @@
         noiseFrame=win.requestAnimationFrame(noiseTick);
       }
     }
-    function stopBand(type){
-      win.clearTimeout(pulseTimers[type]);win.clearTimeout(hideTimers[type]);
-      pulseTimers[type]=0;hideTimers[type]=0;
-      bands[type].style.opacity='0';
-      bands[type].style.display='none';
-    }
-    function scheduleBand(type){
-      stopBand(type);
-      const on=values[type+'Enabled'],amount=values[type+'Amount'];
-      const rate=values[type+'Rate'];
-      if(!on||amount===0||rate===0||!motionAllowed())return;
-      const el=bands[type];
-      el.style.display='block';
-      function pulse(){
-        if(!values[type+'Enabled']||!motionAllowed())return;
-        const area=Math.max(30,app.clientHeight);
-        el.style.top=Math.floor(Math.random()*area)+'px';
-        el.style.height=(type==='glitch'?2+Math.floor(Math.random()*9):8)+'px';
-        el.style.left=(type==='glitch'?Math.floor(Math.random()*16):0)+'%';
-        el.style.width=(type==='glitch'?70+Math.floor(Math.random()*30):100)+'%';
-        el.style.opacity=String(amount/100*(type==='glitch'?.75:.55));
-        hideTimers[type]=win.setTimeout(()=>{el.style.opacity='0';},type==='glitch'?75:130);
-        queue();
-      }
-      function queue(){
-        const delay=clamp((60000/Math.max(1,rate))*(.7+Math.random()*.6),750,100000);
-        pulseTimers[type]=win.setTimeout(pulse,delay);
-      }
-      queue();
-    }
     function sync(){
       const blur=(values.softnessAmount/100*1.6).toFixed(2);
       const softened=values.softnessEnabled&&values.softnessAmount>0;
@@ -131,8 +91,6 @@
       softness.style.backdropFilter='blur('+blur+'px)';
       softness.style.webkitBackdropFilter='blur('+blur+'px)';
       syncNoise();
-      scheduleBand('interference');
-      scheduleBand('glitch');
     }
     function paintControls(){
       for(const name of ENABLES)doc.getElementById('fx'+name[0].toUpperCase()+name.slice(1)).checked=values[name];
@@ -147,7 +105,11 @@
     for(const name of ENABLES){
       const input=doc.getElementById('fx'+name[0].toUpperCase()+name.slice(1));
       input.addEventListener('change',()=>{
-        values[name]=input.checked;save();sync();
+        values[name]=input.checked;
+        // Toggling persistence off removes its existing afterimages immediately.
+        if(name==='persistenceEnabled'&&!values[name])
+          buttonLayer.querySelectorAll('.fx-persistence-ghost').forEach(el=>el.remove());
+        save();sync();
       });
     }
     for(const [name,[max,suffix]] of Object.entries(CONTROLS)){
