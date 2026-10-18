@@ -52,15 +52,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 <label class="slider">Tear frequency<input id="tearFrequency" type="range" min="1" max="30" step="1" value="8"><output id="tearFrequencyOut">8/min</output></label>
 <label class="slider">Roll speed<input id="rollSpeed" type="range" min="-100" max="100" step="1" value="20"><output id="rollSpeedOut">20%/s</output></label>
 <label class="slider">Roll offset<input id="rollOffset" type="range" min="0" max="100" step="1" value="0"><output id="rollOffsetOut">0%</output></label>
-<div class="subhead">EXISTING TEMPORAL EFFECTS</div>
-<div class="switches">
-<label><input id="raster" type="checkbox">Raster sweep</label>
-<label><input id="persistence" type="checkbox">Persistence</label>
-</div>
-<label class="slider">Refresh cycle<input id="rasterPeriod" type="range" min=".3" max="8" step=".1" value="2.5"><output id="rasterPeriodOut">2.5s</output></label>
-<label class="slider">Raster intensity<input id="rasterAmount" type="range" min="0" max="1" step=".01" value=".65"><output id="rasterAmountOut">0.65</output></label>
-<label class="slider">Afterglow decay<input id="decay" type="range" min="60" max="1200" step="20" value="380"><output id="decayOut">380ms</output></label>
-<p class="note">All effects start <strong>OFF</strong>. This isolated test now supports independent vignette, edge blur, moving grayscale noise, occasional horizontal tearing, and seamless whole-image vertical roll. The original scanline and flicker effects are removed. Rolling and tearing currently displace the image without moving touch targets. The main Tetris app is unchanged.</p>
+<p class="note">Every effect begins <strong>OFF</strong>. Edge softness now uses a real 7×7 Gaussian blur, blended gradually toward the screen edges; noise adds moving grayscale grain even over dark areas and receives phosphor colouring naturally. Vignette, horizontal tearing and vertical roll remain separate. Scanlines, flicker, raster sweep and persistence are fully removed. Roll/tear currently do not move touch targets.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -70,12 +62,10 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
-import {AfterimagePass} from 'three/addons/postprocessing/AfterimagePass.js';
 
 const get=id=>document.getElementById(id);
 const frame=get('frame'),screen=get('screen'),status=get('status'),loading=get('loading');
 const phosphor=get('phosphor'),bloom=get('bloom'),cutoff=get('threshold'),strength=get('strength');
-const raster=get('raster'),persistence=get('persistence'),rasterPeriod=get('rasterPeriod'),rasterAmount=get('rasterAmount'),decay=get('decay');
 const vignette=get('vignette'),vignetteAmount=get('vignetteAmount'),vignetteSpread=get('vignetteSpread');
 const softness=get('softness'),softnessAmount=get('softnessAmount'),softnessRadius=get('softnessRadius');
 const noise=get('noise'),noiseAmount=get('noiseAmount'),noiseSpeed=get('noiseSpeed');
@@ -139,51 +129,35 @@ try {
  horizontalTear.enabled=false;
  composer.addPass(horizontalTear);
 
+
+ // Additive grayscale signal noise BEFORE tint, visible even on near-black areas.
+ const grain=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.12},uTick:{value:0}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;
+   uniform float uAmount,uTick;
+   float random(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+   void main(){
+    vec3 src=texture2D(tDiffuse,vUv).rgb;
+    vec2 block=floor(gl_FragCoord.xy/2.0);
+    float n=random(block+vec2(uTick*13.0,uTick*29.0));
+    float detail=random(block*2.23+vec2(uTick*43.0,uTick*7.0));
+    float analog=(n-.40)*.90+(detail-.50)*.25+step(.985,n)*.65;
+    gl_FragColor=vec4(clamp(src+vec3(analog*uAmount*.65),0.0,1.0),1.0);
+   }`
+ });
+ grain.enabled=false;
+ composer.addPass(grain);
+
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.28,1,.46)}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
  composer.addPass(tint);
- // The travelling raster head follows real scan order:
- // x increases across each row, then y increases down the display.
- // Rows are grouped for an artistically readable refresh, not a literal 15 kHz trace.
- const refresh=new ShaderPass({
-  uniforms:{
-   tDiffuse:{value:null},
-   uTime:{value:0},
-   uPeriod:{value:2.5},
-   uRaster:{value:0},
-   uRows:{value:24}
-  },
-  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-  fragmentShader:`
-   varying vec2 vUv;
-   uniform sampler2D tDiffuse;
-   uniform float uTime,uPeriod,uRaster,uRows;
-   void main(){
-    vec3 src=texture2D(tDiffuse,vUv).rgb;
-    float rows=max(1.0,uRows);
-    float row=floor(clamp(1.0-vUv.y,0.0,0.999999)*rows);
-    float order=(row+vUv.x)/rows;
-    float point=fract(uTime/max(uPeriod,0.01));
-    float behind=fract(point-order+1.0);
-    float head=exp(-behind*rows*5.0);
-    float trailing=exp(-behind*rows*1.4);
-    float brightness=1.0+uRaster*(head*.85+trailing*.2);
-    gl_FragColor=vec4(src*brightness,1.0);
-   }`
- });
- refresh.enabled=false;
- composer.addPass(refresh);
- // Built-in GPU feedback: retains bright pixels from PREVIOUS frames,
- // with a time-adjusted decay coefficient. Kept before the bloom pass.
- const afterglow=new AfterimagePass(.90);
- afterglow.enabled=false;
- composer.addPass(afterglow);
- composer.addPass(glow);
 
- // Lens softness: nine pixel taps, blended ONLY near display edges.
+ // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
  const edgeSoftness=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uAmount:{value:.65},uRadius:{value:4},uSize:{value:new THREE.Vector2(1,1)}},
   vertexShader:passVertex,
@@ -192,15 +166,22 @@ try {
    uniform float uAmount,uRadius;uniform vec2 uSize;
    void main(){
     vec4 sharp=texture2D(tDiffuse,vUv);
-    vec2 edge=min(vUv,1.0-vUv)*uSize;
-    float d=min(edge.x,edge.y);
-    float a=uAmount*(1.0-smoothstep(0.0,min(uSize.x,uSize.y)*.30,d));
-    vec2 dx=vec2(uRadius/max(1.0,uSize.x),0.0);
-    vec2 dy=vec2(0.0,uRadius/max(1.0,uSize.y));
-    vec4 smoothColor=sharp*.20;
-    smoothColor+=(texture2D(tDiffuse,vUv+dx)+texture2D(tDiffuse,vUv-dx)+texture2D(tDiffuse,vUv+dy)+texture2D(tDiffuse,vUv-dy))*.13;
-    smoothColor+=(texture2D(tDiffuse,vUv+dx+dy)+texture2D(tDiffuse,vUv+dx-dy)+texture2D(tDiffuse,vUv-dx+dy)+texture2D(tDiffuse,vUv-dx-dy))*.07;
-    gl_FragColor=mix(sharp,smoothColor,clamp(a,0.0,1.0));
+    vec2 distPx=min(vUv,1.0-vUv)*uSize;
+    float d=min(distPx.x,distPx.y);
+    float amount=clamp(uAmount*(1.0-smoothstep(0.0,min(uSize.x,uSize.y)*.36,d)),0.0,1.0);
+    if(amount<.001||uRadius<.001){gl_FragColor=sharp;return;}
+    vec2 pixel=1.0/max(vec2(1.0),uSize);
+    float interval=max(.001,uRadius)/3.0;
+    vec4 sum=vec4(0.0);float weights=0.0;
+    for(int y=-3;y<=3;y++){
+     for(int x=-3;x<=3;x++){
+      vec2 offset=vec2(float(x),float(y));
+      float weight=exp(-dot(offset,offset)/(2.0*1.25*1.25));
+      sum+=texture2D(tDiffuse,clamp(vUv+offset*interval*pixel,vec2(0.0),vec2(1.0)))*weight;
+      weights+=weight;
+     }
+    }
+    gl_FragColor=mix(sharp,sum/max(.001,weights),amount);
    }`
  });
  edgeSoftness.enabled=false;
@@ -220,27 +201,10 @@ try {
    }`
  });
  edgeVignette.enabled=false;
- // Small fluctuating luminance variation without introducing RGB color noise.
- const grain=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uAmount:{value:.12},uTick:{value:0}},
-  vertexShader:passVertex,
-  fragmentShader:`
-   varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uAmount,uTick;
-   float random(vec2 v){return fract(sin(dot(v,vec2(127.1,311.7)))*43758.5453);}
-   void main(){
-    vec3 src=texture2D(tDiffuse,vUv).rgb;
-    float n=random(floor(gl_FragCoord.xy)+vec2(uTick*13.0,uTick*29.0))-.5;
-    gl_FragColor=vec4(clamp(src*(1.0+uAmount*n*2.0),0.0,1.0),1.0);
-   }`
- });
- grain.enabled=false;
-
  composer.addPass(edgeSoftness);
  composer.addPass(edgeVignette);
- composer.addPass(grain);
  composer.addPass(new OutputPass());
- let pending=false,hitBoxes=[],lastTime=0,lastDraw=0,forceDraw=true,trailUntil=0;
+ let pending=false,hitBoxes=[],lastTime=0,lastDraw=0,forceDraw=true;
  // Video artifacts are deliberately periodic only when their own layer is enabled.
  let rollPhase=0,tearNext=0,tearEnd=0,tearStart=0,tearY=.5,tearDirection=1;
  function stepTear(now){
@@ -311,35 +275,9 @@ try {
   lum.forEach((v,i)=>fill(bx+pad+i*(sw+5),swY,sw,12,2,v));
   texture.needsUpdate=true;
  }
- function clearAfterglow(){
-  // Three.js r180 exposes the AfterimagePass buffers as _textureOld/_textureComp.
-  // Older builds used textureOld/textureComp. Never pass undefined to setRenderTarget.
-  const buffers=[
-   afterglow._textureOld ?? afterglow.textureOld,
-   afterglow._textureComp ?? afterglow.textureComp
-  ].filter(rt=>rt?.isWebGLRenderTarget);
-  if(buffers.length!==2){
-   console.warn('Afterimage history buffers unavailable; skip history clear.');
-   return;
-  }
-  const previous=renderer.getRenderTarget();
-  const color=renderer.getClearColor(new THREE.Color()).clone();
-  const alpha=renderer.getClearAlpha();
-  try{
-   renderer.setClearColor(0x000000,0);
-   for(const rt of buffers){
-    renderer.setRenderTarget(rt);
-    renderer.clear(true,true,true);
-   }
-  }finally{
-   renderer.setRenderTarget(previous);
-   renderer.setClearColor(color,alpha);
-  }
- }
  function draw(now){
   pending=false;
-  const animated=raster.checked||noise.checked||tear.checked||
-   (roll.checked&&Number(rollSpeed.value)!==0)||(persistence.checked&&now<trailUntil);
+  const animated=noise.checked||tear.checked||(roll.checked&&Number(rollSpeed.value)!==0);
   if(animated&&!forceDraw&&now-lastDraw<33){schedule(false);return;}
   const dt=lastTime?Math.min(.2,Math.max(.001,(now-lastTime)/1000)):1/30;
   lastTime=now;lastDraw=now;forceDraw=false;
@@ -356,12 +294,6 @@ try {
   glow.threshold=Number(cutoff.value);
   glow.strength=Number(strength.value);
   tint.uniforms.uEnabled.value=phosphor.checked?1:0;
-  refresh.enabled=raster.checked;
-  refresh.uniforms.uTime.value=now/1000;
-  refresh.uniforms.uPeriod.value=Number(rasterPeriod.value);
-  refresh.uniforms.uRaster.value=raster.checked?Number(rasterAmount.value):0;
-  afterglow.enabled=persistence.checked;
-  afterglow.uniforms.damp.value=Math.exp(-dt/(Number(decay.value)/1000));
   edgeSoftness.enabled=softness.checked;
   edgeSoftness.uniforms.uAmount.value=Number(softnessAmount.value);
   edgeSoftness.uniforms.uRadius.value=Number(softnessRadius.value);
@@ -387,18 +319,15 @@ try {
   composer.setPixelRatio(d);composer.setSize(w,h);
   edgeSoftness.uniforms.uSize.value.set(w,h);
   horizontalTear.uniforms.uSize.value.set(w,h);
-  clearAfterglow();lastTime=0;
+  lastTime=0;
   paintSource();schedule();
   status.textContent='Canvas source → Three.js GPU | DPR '+d+' | '+Math.round(w*d)+' × '+Math.round(h*d)+' pixels';
  }
- for(const el of [phosphor,bloom,cutoff,strength,raster,persistence,rasterPeriod,rasterAmount,decay,
+ for(const el of [phosphor,bloom,cutoff,strength,
   vignette,vignetteAmount,vignetteSpread,softness,softnessAmount,softnessRadius,
   noise,noiseAmount,noiseSpeed,tear,tearAmount,tearFrequency,roll,rollSpeed,rollOffset])el.addEventListener('input',()=>{
   get('thresholdOut').textContent=Number(cutoff.value).toFixed(2);
   get('strengthOut').textContent=Number(strength.value).toFixed(2);
-  get('rasterPeriodOut').textContent=Number(rasterPeriod.value).toFixed(1)+'s';
-  get('rasterAmountOut').textContent=Number(rasterAmount.value).toFixed(2);
-  get('decayOut').textContent=Number(decay.value)+'ms';
   get('vignetteAmountOut').textContent=Number(vignetteAmount.value).toFixed(2);
   get('vignetteSpreadOut').textContent=Number(vignetteSpread.value).toFixed(2);
   get('softnessAmountOut').textContent=Number(softnessAmount.value).toFixed(2);
@@ -409,9 +338,7 @@ try {
   get('tearFrequencyOut').textContent=Number(tearFrequency.value)+'/min';
   get('rollSpeedOut').textContent=Number(rollSpeed.value)+'%/s';
   get('rollOffsetOut').textContent=Number(rollOffset.value)+'%';
-  if(el===persistence){clearAfterglow();lastTime=0;}
   if(el===tear){tearNext=0;tearEnd=0;}
-  if(persistence.checked)trailUntil=performance.now()+Number(decay.value)*7;
   schedule();
  });
  screen.addEventListener('pointerdown',event=>{
@@ -419,13 +346,12 @@ try {
   const hit=hitBoxes.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
   if(hit){
    selected=hit.id;paintSource();
-   if(persistence.checked)trailUntil=performance.now()+Number(decay.value)*7;
-   schedule();
+    schedule();
   }
  });
  document.addEventListener('visibilitychange',()=>{
   lastTime=0;tearNext=0;tearEnd=0;
-  if(!document.hidden){clearAfterglow();schedule();}
+  if(!document.hidden)schedule();
  });
  new ResizeObserver(resize).observe(frame);
  resize();loading.hidden=true;
