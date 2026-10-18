@@ -51,7 +51,8 @@ with sync_playwright() as p:
     page.wait_for_timeout(850)
     page.screenshot(path=str(output/(browser_name+'-options.png')))
     img=Image.open(output/(browser_name+'-options.png')).convert('RGB')
-    sample=img.crop((45,170,340,218))
+    scale=img.width/390
+    sample=img.crop(tuple(round(v*scale) for v in (45,170,340,218)))
     assert max(max(rgb) for rgb in sample.getdata())>40,'Settings panel did not render'
     page.evaluate("window.FieldAtlasTetris.closeModal()")
     if browser_name=='webkit':
