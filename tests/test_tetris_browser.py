@@ -48,10 +48,13 @@ with sync_playwright() as p:
           const app=rect('#app'),board=rect('#boardShell'),
                 stage=rect('#stage'),deck=rect('#controlDeck'),
                 footer=rect('#eventline');
+          const scan=rect('#screenScan');
           return {appHeight:app.height,viewport:innerHeight,stageHeight:stage.height,
             boardHeight:board.height,boardWidth:board.width,
-            deckTop:deck.top,stageBottom:stage.bottom,
+            deckTop:deck.top,deckBottom:deck.bottom,
+            stageBottom:stage.bottom,footerTop:footer.top,
             footerBottom:footer.bottom,appBottom:app.bottom,
+            scanBottom:scan.bottom,
             bodyColor:getComputedStyle(document.body).backgroundColor,
             appColor:getComputedStyle(document.querySelector('#app')).backgroundColor};
         }""")
@@ -64,6 +67,11 @@ with sync_playwright() as p:
         assert geometry["stageHeight"]>=geometry["boardHeight"]-2, geometry
         assert geometry["stageBottom"]<=geometry["deckTop"]+2, geometry
         assert geometry["footerBottom"]<=geometry["appBottom"], geometry
+        # Map-style bottom anchoring: the footer sits against the safe area,
+        # immediately below controls. Screen-wide scanlines reach the same edge.
+        assert abs(geometry["appBottom"]-geometry["scanBottom"])<2,geometry
+        assert 5 <= geometry["appBottom"]-geometry["footerBottom"] <= 60,geometry
+        assert 2 <= geometry["footerTop"]-geometry["deckBottom"] <= 15,geometry
 
         # No geometric warping or curve settings survive.
         for obsolete in ("#crtFilterDefs", "#crtDisplacementMap",
