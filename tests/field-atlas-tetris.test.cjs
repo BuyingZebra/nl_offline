@@ -481,7 +481,7 @@ test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',
   assert.ok(html.includes(gray),'Missing grayscale luminance step '+gray);
  assert.doesNotMatch(html,/:root\[data-theme="amber"\]\{\s*--bg:/);
  assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?height:100dvh;min-height:0;background:var\(--bg\)/);
- assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;pointer-events:none;\s*background:rgb\(var\(--phosphor-rgb\)\);mix-blend-mode:color;opacity:1\}/);
+ assert.match(html,/#phosphorFilm\{position:absolute;inset:0;pointer-events:none;\s*background:rgb\(var\(--phosphor-rgb\)\);mix-blend-mode:color;opacity:1\}/);
  assert.match(html,/:root\[data-theme="amber"\]\{--phosphor-rgb:255,196,100\}/);
  assert.match(html,/#screenShade\{opacity:var\(--vignette-intensity\);\s*background:radial-gradient\(/);
  assert.equal((html.match(/radial-gradient\(/g)||[]).length,1,'Only the darkening vignette may use a radial gradient');
@@ -516,8 +516,8 @@ test('the refresh sweep has independent luminance control and saved strength',()
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
  assert.match(html,/#sweep\{opacity:var\(--sweep-intensity,var\(--glow-level\)\)\}/);
- assert.match(html,/id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"/);
- assert.ok(html.includes('id="sweepValue">65%'));
+ assert.match(html,/id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="57"/);
+ assert.ok(html.includes('id="sweepValue">57%'));
  assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep))"));
  assert.ok(ui.includes("store('fieldAtlasTetrisSweepV01',sweep)"));
  assert.ok(ui.includes("app.style.setProperty('--sweep-intensity'"));
@@ -547,9 +547,9 @@ test('experimental effects use isolated grayscale compositor layers and offline 
  assert.doesNotMatch(fx,/interference|glitch/i);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
  assert.ok(fx.includes("fieldAtlasTetrisExperimentalV01"));
- assert.ok(fx.includes("noiseEnabled:false"));
- assert.ok(fx.includes("softnessEnabled:false"));
- assert.ok(fx.includes("persistenceEnabled:false"));
+ assert.ok(fx.includes("noiseEnabled:true"));
+ assert.ok(fx.includes("softnessEnabled:true"));
+ assert.ok(fx.includes("persistenceEnabled:true"));
  assert.match(ui,/experimental\.onButton\(button,bounds,appBounds\)/);
  assert.doesNotMatch(fx,/\.style\.filter\s*=|\.style\.backgroundColor\s*=\s*['"](?:green|amber)/);
 });
@@ -590,9 +590,9 @@ test('experimental controller toggles, saves, renders interaction ghosts and res
  };
  runInNewContext(script,{window:win});
  const fx=win.FieldAtlasExperimentalFX.create(doc);
- assert.equal(fx.getValues().noiseEnabled,false);
- assert.equal(element('fxNoise').style.display,'none');
- assert.equal(element('fxSoftness').style.display,'none');
+ assert.equal(fx.getValues().noiseEnabled,true);
+ assert.equal(element('fxNoise').style.display,'block');
+ assert.equal(element('fxSoftness').style.display,'block');
  element('fxNoiseEnabled').checked=true;element('fxNoiseEnabled').fire('change');
  assert.equal(element('fxNoise').style.display,'block');
  assert.ok(frameCount>0);
@@ -614,13 +614,13 @@ test('experimental controller toggles, saves, renders interaction ghosts and res
  assert.equal(element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost').length,0);
  assert.ok(saved.has('fieldAtlasTetrisExperimentalV01'));
  element('resetExperimental').fire('click');
- assert.equal(fx.getValues().noiseEnabled,false);
- assert.equal(fx.getValues().persistenceEnabled,false);
- assert.equal(element('fxSoftness').style.display,'none');
- assert.equal(element('fxNoise').style.display,'none');
+ assert.equal(fx.getValues().noiseEnabled,true);
+ assert.equal(fx.getValues().persistenceEnabled,true);
+ assert.equal(element('fxSoftness').style.display,'block');
+ assert.equal(element('fxNoise').style.display,'block');
  assert.equal(element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost').length,0);
- assert.equal(element('fxNoiseEnabled').checked,false);
- assert.equal(element('fxNoiseAmountValue').textContent,'18%');
+ assert.equal(element('fxNoiseEnabled').checked,true);
+ assert.equal(element('fxNoiseAmountValue').textContent,'8%');
 });
 
 test('HUD level, score and lines display in left-center-right order',()=>{
@@ -703,18 +703,18 @@ test('Tetris bundle is cache coherent and visible score changes trigger feedback
 });
 
 
-test('default values remain unchanged and user-specific settings remain authoritative',()=>{
+test('approved CRT defaults and saved settings remain authoritative',()=>{
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
  const fx=fs.readFileSync(path.join(__dirname,'../tetris/experimental-fx.js'),'utf8');
- assert.match(ui,/const DISPLAY_DEFAULTS=Object\.freeze\(\{\s*glow:65,scan:26,vignette:30,sweep:65,showGhost:true,soundOn:false,/);
- assert.ok(ui.includes('screenTop:Object.freeze({enabled:true,length:165})'));
- assert.ok(ui.includes('screenBottom:Object.freeze({enabled:false,length:110})'));
+ assert.match(ui,/const DISPLAY_DEFAULTS=Object\.freeze\(\{\s*glow:83,scan:51,vignette:49,sweep:57,showGhost:true,soundOn:true,/);
+ assert.ok(ui.includes('screenTop:Object.freeze({enabled:true,length:135})'));
+ assert.ok(ui.includes('screenBottom:Object.freeze({enabled:true,length:135})'));
  assert.ok(ui.includes('({glow,scan,vignette,sweep}=DISPLAY_DEFAULTS)'));
  assert.ok(ui.includes("read('fieldAtlasEffectsV06','null')"));
  assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep))"));
- for(const property of ['noiseEnabled:false','noiseAmount:18','noiseSpeed:12',
-    'persistenceEnabled:false','persistenceAmount:35','persistenceDecay:450',
-    'softnessEnabled:false','softnessAmount:25'])
+ for(const property of ['noiseEnabled:true','noiseAmount:8','noiseSpeed:24',
+    'persistenceEnabled:true','persistenceAmount:35','persistenceDecay:765',
+    'softnessEnabled:true','softnessAmount:13'])
    assert.ok(fx.includes(property),'Existing experimental default changed: '+property);
 });
 test('duplicate CSS background aliases removed without touching compositor stack',()=>{
@@ -791,4 +791,45 @@ test('offline worker loads only exact V024 scripts and safely falls back to cano
  assert.equal(requests.size,before,'No new cache entries for query variants');
  assert.equal((await cache.match(scope+'index.html')).content,'network');
  assert.ok(networkCount>=1);
+});
+
+test('sidebar groups HOLD and NEXT above the separate BEST/PIECES panel',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const hold=html.indexOf('id="holdCanvas"'),next=html.indexOf('id="queue"'),
+       best=html.indexOf('id="sideStats"');
+ assert.ok(hold>0&&hold<next&&next<best,'Sidebar order changed');
+ assert.match(html,/#side\{display:flex;flex-direction:column;align-self:stretch;justify-content:flex-start;/);
+ assert.match(html,/#sideStats\{margin-top:auto;/);
+ assert.ok(html.includes('<button id="playButton">▶ START GAME</button>'));
+ assert.ok(ui.includes("$('playButton').textContent='▶ PLAY AGAIN'"));
+ assert.doesNotMatch(ui,/↻ PLAY AGAIN/);
+});
+test('approved settings reflected in control markup and first paint',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ for(const [id,value] of Object.entries({
+  glowControl:83,scanControl:51,vignetteControl:49,sweepControl:57,
+  'fade-screenTop':135,'fade-screenBottom':135,
+  fxNoiseAmount:8,fxNoiseSpeed:24,fxPersistenceAmount:35,
+  fxPersistenceDecay:765,fxSoftnessAmount:13})){
+  assert.match(html,new RegExp('id="'+id+'"[^>]*value="'+value+'"'),'Wrong first paint '+id);
+ }
+ for(const id of ['soundControl','ghostControl','fade-screenTop-on',
+   'fade-screenBottom-on','fxNoiseEnabled','fxPersistenceEnabled','fxSoftnessEnabled']){
+  assert.match(html,new RegExp('id="'+id+'"[^>]*checked'),'Missing first-paint check '+id);
+ }
+ assert.ok(ui.includes('for(const key of fadeKeys)gradients[key]={...DISPLAY_DEFAULTS[key]}'));
+ assert.ok(ui.includes('saveEffects();saveGradients();refreshPalette()'));
+ assert.match(html,/--scan-intensity:.51;--vignette-intensity:.49;--sweep-intensity:.57;/);
+ assert.match(html,/--glow-radius:14.11px;--glow-strength:73.0%;--glow-level:.83;/);
+});
+test('unused settings rows and superseded compositor layers removed',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ assert.doesNotMatch(html,/\.options-row/);
+ assert.doesNotMatch(html,/z-index:(6|7|9|31|32|34|35);/);
+ for(const [id,z] of [['screenTopFade,#screenBottomFade',41],['screenShade',42],
+   ['phosphorFilm',44],['sweep',40]]){
+   assert.ok(html.includes('#'+id+'{z-index:'+z+';'),'Missing layer '+id);
+ }
 });
