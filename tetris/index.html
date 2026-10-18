@@ -64,7 +64,17 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 @media(prefers-reduced-motion:reduce){#readyCursor{animation:none}}
 #newGameButton{width:100%;background:var(--bg);color:var(--ink);font-size:11px}
 #newGameButton[hidden]{display:none}
-#playButton{width:100%}
+/* Independently positioned icon: the caption is centered on the entire key,
+ * not centered in the remaining space after the triangle. Keep both from
+ * overlapping on narrow iPhone screens. */
+#playButton{width:100%;position:relative;text-align:center;padding-inline:33px}
+#playButton .play-arrow,
+#buttonFxLayer .fx-persistence-ghost.play-feedback .play-arrow{
+ position:absolute;left:17px;top:50%;transform:translateY(-50%);
+ pointer-events:none}
+#playButton .play-caption,
+#buttonFxLayer .fx-persistence-ghost.play-feedback .play-caption{
+ display:block;width:100%;text-align:center;white-space:nowrap}
 /* Preview stack stays compact; gameplay statistics sit separately at bottom. */
 #side{display:flex;flex-direction:column;align-self:stretch;justify-content:flex-start;
  gap:6px;min-width:0;width:93px}
@@ -448,7 +458,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    <div id="veil">
     <h2 id="veilTitle">TETRIS</h2>
     <p id="veilText"><span id="readyText">SURVIVE THE SOVIET CHALLENGE</span><span id="readyCursor" aria-hidden="true"></span></p>
-    <button id="playButton">▶ START GAME</button>
+    <button id="playButton"><span class="play-arrow" aria-hidden="true">▶</span><span class="play-caption">START GAME</span></button>
     <button id="newGameButton" hidden>NEW GAME</button>
     <button id="pausedScoresButton" hidden>HIGH SCORE</button>
    </div>
@@ -476,7 +486,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    <button data-action="pause" id="pauseButton">PAUSE</button>
   </div>
  </section>
- <div id="eventline" data-build="v025"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE / V023</span></div>
+ <div id="eventline" data-build="v026"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE / V026</span></div>
  <div id="fxSoftness" aria-hidden="true"></div>
  <canvas id="fxNoise" aria-hidden="true"></canvas>
  <div id="buttonFxLayer" aria-hidden="true"></div>
@@ -553,10 +563,10 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  </div>
 </dialog>
 </div>
-<script src="./core.js?arcade=v025"></script>
-<script src="./scores.js?arcade=v025"></script>
+<script src="./core.js?arcade=v026"></script>
+<script src="./scores.js?arcade=v026"></script>
 
-<script src="./experimental-fx.js?arcade=v025"></script>
-<script src="./ui.js?arcade=v025"></script>
+<script src="./experimental-fx.js?arcade=v026"></script>
+<script src="./ui.js?arcade=v026"></script>
 </body>
 </html>
