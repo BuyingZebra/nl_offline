@@ -65,7 +65,7 @@
  initFX();
  let gameLayer,menuLayer,alertLayer,boardGraphic,boardBg,veilLayer,holdPreview,nextPreviews=[],
      bestLabel,levelLabel,scoreLabel,linesLabel,piecesLabel,eventLabel,veilTitle,veilSub,playLabel,
-     controls={},modals={},currentModal=null,menuScroll=null,menuScrollY=0,menuMaxScroll=0,
+     controls={},modals={},pausedNew=null,pausedScores=null,currentModal=null,menuScroll=null,menuScrollY=0,menuMaxScroll=0,
      keyRegions=[],width=0,height=0,frameNum=0,lastNow=performance.now(),
      gameOverHandled=false,audioCtx=null,entries=[],fps=0,rafCount=0,rafStamp=performance.now(),
      lastFrameMs=0,lastRender=0,lastEffect=0;
@@ -173,7 +173,7 @@
   else if(which==='cw')ok=game.rotate(1);
   else if(which==='hard')ok=game.hardDrop();
   else if(which==='hold')ok=game.holdPiece();
-  else if(which==='pause')ok=game.pause();
+  else if(which==='pause')ok=game.status==='playing'&&game.pause();
   else if(which==='start')ok=game.start();
   if(ok){
    if(status==='over'&&game.status==='playing')gameOverHandled=false;
@@ -245,6 +245,8 @@
   if(eventLabel)eventLabel.text=game.lastEvent+' / '+(game.status==='ready'?'PRESS START':'LOCAL ARCADE ENGINE / V028');
   if(veilLayer){
    veilLayer.visible=game.status!=='playing';
+   if(pausedNew)pausedNew.visible=game.status==='paused';
+   if(pausedScores)pausedScores.visible=game.status==='paused';
    if(game.status==='ready'){veilTitle.text='TETRIS';veilSub.text='SURVIVE THE SOVIET CHALLENGE';playLabel.text='▶  START GAME';}
    else if(game.status==='paused'){veilTitle.text='PAUSED';veilSub.text='YOUR GAME IS SAFE';playLabel.text='▶  RESUME';}
    else if(game.status==='over'){veilTitle.text='GAME OVER';veilSub.text='TRY AGAIN';playLabel.text='▶  AGAIN';}
@@ -323,6 +325,8 @@
   const bw=boardW-32,bh=height<=730?44:50;
   const play=lightButton(veilLayer,'▶  START GAME',14,boardH/2+14,bw,bh,()=>action('start'),{size:Math.min(13,bw*.048)});
   playLabel=play.t;
+  pausedNew=button(veilLayer,'NEW GAME',14,boardH/2+71,bw,40,()=>openModal('restart'),{size:11}).o;
+  pausedScores=button(veilLayer,'HIGH SCORE',14,boardH/2+117,bw,40,()=>openModal('scores'),{size:11}).o;
   if(landscape){
    deckY=8;
   }
@@ -624,7 +628,7 @@
   width=Math.max(1,innerWidth);height=Math.max(1,innerHeight);
   if(gameLayer){base.removeChild(gameLayer);gameLayer.destroy({children:true});}
   if(menuLayer){base.removeChild(menuLayer);menuLayer.destroy({children:true});}
-  gameLayer=null;menuLayer=null;boardGraphic=null;modals={};controls={};
+  gameLayer=null;menuLayer=null;boardGraphic=null;modals={};controls={};pausedNew=null;pausedScores=null;
   const name=currentModal;currentModal=null;
   createGame();
   buildModals();
