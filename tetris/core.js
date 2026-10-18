@@ -203,6 +203,9 @@
         else if(y<ROWS&&x>=0&&x<COLS)this.board[y][x]=kind;
       }
       if(above){this.status='over';this.lastEvent='GAME OVER';return;}
+      // A successful placement scores even when a piece settles by gravity.
+      // This small bonus complements, rather than replaces, drop/line points.
+      this.score+=10*this.level;
       const remaining=this.board.filter(row=>row.some(cell=>!cell));
       const cleared=ROWS-remaining.length;
       while(remaining.length<ROWS)remaining.unshift(Array(COLS).fill(0));
