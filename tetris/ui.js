@@ -652,6 +652,13 @@
   requestAnimationFrame(frame);
 
   if('serviceWorker' in navigator&&location.protocol==='https:'){
-    navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{});
+    // Explicitly check for new SW versions on every online launch. SW V023
+    // uses network-first/no-store and deletes older arcade caches on activate.
+    // Do not forcibly reload while a game is running.
+    navigator.serviceWorker.register('./sw.js',{
+      scope:'./',updateViaCache:'none'
+    }).then(registration=>{
+      if(navigator.onLine)registration.update().catch(()=>{});
+    }).catch(()=>{});
   }
 })();
