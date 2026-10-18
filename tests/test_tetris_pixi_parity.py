@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """GPU renderer migration: compare same live Tetris DOM against Pixi scene in one browser."""
 import io
+import base64
 import os
 from pathlib import Path
 from PIL import Image,ImageChops,ImageStat
@@ -46,6 +47,13 @@ with sync_playwright() as p:
         converted.save(evidence/(engine+'-'+tag+'-pixi.png'))
         dd=ImageChops.difference(original,converted)
         dd.save(evidence/(engine+'-'+tag+'-difference.png'))
+        if engine=='webkit' and tag=='settings':
+            for kind,im in [('native',original),('pixi',converted)]:
+                preview=im.copy()
+                preview.thumbnail((390,844))
+                buff=io.BytesIO()
+                preview.save(buff,format='PNG',optimize=True)
+                print('PIXIVIEW:'+kind+':'+base64.b64encode(buff.getvalue()).decode())
         mae=round(sum(ImageStat.Stat(dd).mean)/3,3)
         changed=sum(any(pix) for pix in dd.getdata())/(original.width*original.height)
         print(engine,tag,'mean absolute RGB error',mae,'changed pixels',round(changed,4))
