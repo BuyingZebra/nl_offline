@@ -301,43 +301,26 @@
       c.lineWidth=1;c.strokeRect(px+1.5,py+1.5,n-3,n-3);
     }
   }
-  const readyMessage="Stack blocks to clear complete rows, and keep the board from filling up";
-  let readyTypingTimer=null,readyIntroActive=false;
-  function endReadyIntro(){
-    if(readyTypingTimer!==null)clearInterval(readyTypingTimer);
-    readyTypingTimer=null;readyIntroActive=false;
-  }
-  function startReadyIntro(){
-    if(readyIntroActive)return;
-    readyIntroActive=true;
+  const readyMessage='SURVIVE THE SOVIET CHALLENGE';
+  function showReadyMessage(){
     const parent=$('veilText');
-    const text=document.createElement('span');
-    text.id='readyText';
-    const cursor=document.createElement('span');
-    cursor.id='readyCursor';
-    cursor.setAttribute('aria-hidden','true');
-    parent.replaceChildren(text,cursor);
-    parent.setAttribute('aria-label',readyMessage);
-    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-      text.textContent=readyMessage;return;
+    let text=$('readyText'),cursor=$('readyCursor');
+    if(!text||!cursor){
+      text=document.createElement('span');
+      text.id='readyText';
+      cursor=document.createElement('span');
+      cursor.id='readyCursor';
+      cursor.setAttribute('aria-hidden','true');
+      parent.replaceChildren(text,cursor);
     }
-    let count=0;
-    const type=()=>{
-      if(game.status!=='ready'){endReadyIntro();return;}
-      text.textContent=readyMessage.slice(0,++count);
-      if(count>=readyMessage.length){
-        clearInterval(readyTypingTimer);
-        readyTypingTimer=null;
-      }
-    };
-    type();
-    readyTypingTimer=setInterval(type,32);
+    // Only the separate terminal block blinks; the tagline never types.
+    text.textContent=readyMessage;
+    parent.setAttribute('aria-label',readyMessage);
   }
-  function showOtherMessage(text){
-    endReadyIntro();
+  function showOtherMessage(message){
     const parent=$('veilText');
     parent.removeAttribute('aria-label');
-    if(parent.textContent!==text)parent.textContent=text;
+    if(parent.textContent!==message)parent.textContent=message;
   }
   function updateHUD(){
     $('scoreValue').textContent=String(game.score).padStart(6,'0');
@@ -354,12 +337,11 @@
     previewCanvases.forEach((c,i)=>renderMini(c,game.queue[i]));
     const veil=$('veil');
     veil.classList.toggle('hidden',game.status==='playing');
-    if(game.status==='playing')endReadyIntro();
     $('newGameButton').hidden=game.status!=='paused';
     $('pausedScoresButton').hidden=game.status!=='paused';
     if(game.status==='ready'){
       $('veilTitle').textContent='TETRIS';
-      startReadyIntro();
+      showReadyMessage();
       $('playButton').textContent='▶ START GAME';
     }else if(game.status==='paused'){
       $('veilTitle').textContent='PAUSED';
