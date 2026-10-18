@@ -387,6 +387,9 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 }
 #fxSoftness{inset:0;z-index:27;background:transparent}
 #fxNoise{inset:0;z-index:28;width:100%;height:100%;image-rendering:pixelated}
+/* Persistence feedback is drawn in its own screen-space surface. */
+#buttonFxLayer{position:absolute;inset:0;z-index:39;
+ overflow:hidden;pointer-events:none;isolation:isolate}
 #buttonFxLayer .fx-persistence-ghost{
  position:absolute;display:flex;align-items:center;justify-content:center;
  box-sizing:border-box;pointer-events:none;white-space:nowrap;overflow:hidden;
