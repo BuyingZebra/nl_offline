@@ -1,0 +1,39 @@
+name: Vendor experimental Tetris DOM capture
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/vendor-tetris-html2canvas.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  vendor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Add MIT-licensed html2canvas 1.4.1 for offline experimental preview
+        run: |
+          mkdir -p tetris/prototypes/vendor /tmp/arcade-vendor
+          cd /tmp/arcade-vendor
+          npm pack html2canvas@1.4.1 --silent
+          tar -xzf html2canvas-1.4.1.tgz
+          cp package/dist/html2canvas.min.js "$GITHUB_WORKSPACE/tetris/prototypes/vendor/html2canvas.min.js"
+          cp package/LICENSE "$GITHUB_WORKSPACE/tetris/prototypes/vendor/html2canvas-LICENSE"
+      - name: Commit vendored files only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tetris/prototypes/vendor/html2canvas.min.js tetris/prototypes/vendor/html2canvas-LICENSE
+          if git diff --cached --quiet; then
+            echo 'Already vendored'
+          else
+            git commit -m 'Vendor offline html2canvas for isolated CRT integration experiment'
+            git push
+          fi
