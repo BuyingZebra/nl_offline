@@ -668,6 +668,7 @@
     firstChild:base.children[0]?.children.slice(0,5).map(x=>({type:x.constructor.name,
       visible:x.visible,renderable:x.renderable,alpha:x.alpha,bounds:x.getBounds()}))
    }),
-  debugForceRender:()=>{renderApp.renderer.render(renderApp.stage);return true;}
+  debugForceRender:()=>{renderApp.renderer.render(renderApp.stage);return true;},
+  debugMarker:()=>{renderApp.stage.addChild(new P.Graphics().rect(30,30,110,110).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;}
  };
 })();
