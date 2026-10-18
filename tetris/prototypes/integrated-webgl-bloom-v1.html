@@ -517,7 +517,9 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div class="effect-row"><div class="effect-head"><label for="gpuLabCut">EMISSION THRESHOLD</label><output id="gpuLabCutValue">58%</output></div><input id="gpuLabCut" class="effect-slider" type="range" min="20" max="95" value="58"></div>
  <div class="effect-row"><div class="effect-head"><label for="gpuLabWidth">WIDE HALO</label><output id="gpuLabWidthValue">7px</output></div><input id="gpuLabWidth" class="effect-slider" type="range" min="1" max="16" value="7"></div>
  <div class="setting-line"><b>OPTIONAL PHOSPHOR ECHO</b><input type="checkbox" id="gpuLabEcho"></div>
- <div class="effect-row"><div class="effect-head"><label for="gpuLabRate">MAX CAPTURE RATE</label><output id="gpuLabRateValue">8/sec</output></div><input id="gpuLabRate" class="effect-slider" type="range" min="2" max="15" value="8"></div>
+ <div class="setting-line"><b>FULL DOM RASTER (SLOW TEST)</b><input type="checkbox" id="gpuLabAccurate"></div>
+ <p class="effect-note">Off by default. Fast mode derives the bloom light mask from live DOM geometry, text, and game canvases. Full reconstruction is more exact but can stall gameplay, especially on iPhone.</p>
+ <div class="effect-row"><div class="effect-head"><label for="gpuLabRate">GPU LIGHT UPDATES</label><output id="gpuLabRateValue">24/sec</output></div><input id="gpuLabRate" class="effect-slider" type="range" min="2" max="30" value="24"></div>
  <div id="gpuLabStatus" aria-live="polite">Initializing GPU layer…</div>
  <div id="gpuLabStats" aria-live="polite"></div>
  <div class="settings-divider"></div>
