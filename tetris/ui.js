@@ -3,8 +3,7 @@
   'use strict';
   const API=window.FieldAtlasBlocks;
   const Scores=window.FieldAtlasScores;
-  const CRT=window.FieldAtlasCRT;
-  if(!API||!Scores||!CRT)throw Error('FIELD ATLAS arcade modules failed to load');
+  if(!API||!Scores)throw Error('FIELD ATLAS arcade modules failed to load');
   const game=new API.Game();
   const $=id=>document.getElementById(id);
   const board=$('board'),ctx=board.getContext('2d',{alpha:false});
@@ -94,21 +93,6 @@
   }
   function store(key,val){try{localStorage.setItem(key,String(val))}catch(e){}}
   const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
-  // CRT barrel strength is a Tetris-only appearance setting. Existing
-  // map glow, gradient, theme and vignette preferences remain untouched.
-  let curvature=CRT.DEFAULT_CURVATURE;
-  const storedCurve=Number(read(CRT.STORAGE_KEY,String(curvature)));
-  if(Number.isFinite(storedCurve))curvature=clamp(Math.round(storedCurve),0,100);
-  let crtController=null;
-  try{crtController=CRT.createController(document);}
-  catch(e){console.warn('CRT barrel effect unavailable; gameplay remains usable',e);}
-  function applyCurvature(){
-    if(crtController)crtController.update(curvature);
-    else {
-      $('app').style.filter='none';
-      $('app').style.setProperty('--crt-glass-opacity',(curvature/100*.35).toFixed(3));
-    }
-  }
   try{storage=window.localStorage;}catch(e){storage=null;}
   highScores=Scores.read(storage);
   highScore=highScores[0]?.score||0;
@@ -188,7 +172,6 @@
     rangeDisplay($('glowControl'),$('glowValue'),glow);
     rangeDisplay($('scanControl'),$('scanValue'),scan);
     rangeDisplay($('vignetteControl'),$('vignetteValue'),vignette);
-    rangeDisplay($('curvatureControl'),$('curvatureValue'),curvature);
     for(const key of fadeKeys){
       $('fade-'+key+'-on').checked=gradients[key].enabled;
       rangeDisplay($('fade-'+key),$('fade-'+key+'-value'),gradients[key].length,'px');
@@ -208,7 +191,6 @@
     app.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
     app.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
     applyGradientFades();
-    applyCurvature();
     updateDisplaySettings();
     dirty=true;
   }
@@ -478,18 +460,8 @@
       refreshPalette();
     });
   }
-  $('curvatureControl').addEventListener('input',event=>{
-    curvature=clamp(Math.round(Number(event.target.value)||0),0,100);
-    store(CRT.STORAGE_KEY,curvature);
-    applyCurvature();
-    rangeDisplay($('curvatureControl'),$('curvatureValue'),curvature);
-  });
-  // The app changes dimensions when the iPhone rotates or its browser
-  // chrome collapses. Keep the displacement texture aligned to its screen.
-  window.addEventListener('resize',()=>{
-    applyCurvature();
-    dirty=true;
-  },{passive:true});
+  // Resize triggers game redraw; the display itself remains unwarped.
+  window.addEventListener('resize',()=>{dirty=true;},{passive:true});
   for(const key of fadeKeys){
     $('fade-'+key+'-on').addEventListener('change',event=>{
       gradients[key].enabled=event.target.checked;
@@ -502,8 +474,6 @@
   }
   $('resetEffects').addEventListener('click',()=>{
     glow=65;scan=26;vignette=30;
-    curvature=CRT.DEFAULT_CURVATURE;
-    store(CRT.STORAGE_KEY,curvature);
     saveEffects();refreshPalette();
   });
   $('ghostControl').addEventListener('change',e=>{
