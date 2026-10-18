@@ -171,7 +171,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v019'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v020'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -270,7 +270,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v019'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v020'/);
 });
 
 
@@ -461,7 +461,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v019'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v020'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{background:var\(--bg\)\}/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
