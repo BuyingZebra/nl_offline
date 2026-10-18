@@ -14,7 +14,7 @@
  --panel:color-mix(in srgb,var(--bg) 40%,black);--card-bg:var(--panel);
  --solid:#303030;--ink:#e3e3e3;--bright:#cecece;
  --weak:#aeaeae;--border:#6a6a6a;--shadow:#060606;
- --grid:#292929;--phosphor:255,255,255;--glow:8px;
+ --grid:#292929;--phosphor:255,255,255;
 }
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100vh;overflow:hidden;background:var(--bg);
@@ -31,27 +31,28 @@ a{color:var(--weak)}
 #app{position:relative;display:flex;flex-direction:column;gap:9px;
  margin:auto;padding:0 11px;
  max-width:520px;height:100dvh;min-height:0;background:var(--bg);
- overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate}
+ overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate;
+ /* One post-process pass for the fully composed screen, not DOM elements. */
+ filter:url("#crtScreenBloom")}
 .panel{border:1px solid var(--border);background:var(--card-bg);
- border-radius:12px;box-shadow:0 0 var(--glow) rgba(var(--phosphor),.13)}
+ border-radius:12px}
 header{flex:none;display:flex;align-items:center;gap:12px;padding:12px 13px;min-height:65px}
 header .heading{flex:1;min-width:0}
 header small{display:block;color:var(--weak);font-size:9px;letter-spacing:.17em}
-header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;letter-spacing:.105em;
- text-shadow:0 0 var(--glow) rgba(var(--phosphor),.44)}
+header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;letter-spacing:.105em}
 .header-tools{display:flex;gap:7px}
 .header-tools button{min-width:46px;height:46px;padding:7px;font-size:17px}
 #stage{min-height:0;flex:1;display:flex;justify-content:center;align-items:center;gap:10px}
 #boardShell{height:100%;max-height:610px;max-width:calc(100% - 103px);aspect-ratio:1/2;
  flex:none;position:relative;overflow:hidden;border:1px solid var(--border);
- border-radius:7px;background:var(--card-bg);box-shadow:inset 0 0 35px #000,0 0 var(--glow) rgba(var(--phosphor),.16)}
+ border-radius:7px;background:var(--card-bg);box-shadow:inset 0 0 35px #000}
 #board{display:block;width:100%;height:100%;touch-action:none}
 #veil{position:absolute;inset:0;z-index:2;background:rgba(0,0,0,.81);
  display:flex;flex-direction:column;align-items:center;justify-content:center;
  padding:15px;text-align:center;gap:12px;backdrop-filter:blur(3px)}
 #veil.hidden{display:none}
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
- color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
+ color:var(--bright)}
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
 #veilText{min-height:0}
 #veilText:has(#readyCursor){display:flex;flex-direction:column;
@@ -95,7 +96,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #scoreStrip div:nth-child(2){align-items:center;text-align:center}
 #scoreStrip div:nth-child(3){align-items:flex-end;text-align:right}
 #scoreStrip small{font-size:9px;color:var(--weak);letter-spacing:.13em}
-#scoreStrip strong{font-size:clamp(13px,4vw,17px);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+#scoreStrip strong{font-size:clamp(13px,4vw,17px);font-variant-numeric:tabular-nums}
 #scoreStrip strong.hud-changed{animation:hud-tick .32s ease-out}
 @keyframes hud-tick{from{opacity:.55}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){#scoreStrip strong.hud-changed{animation:none}}
@@ -104,10 +105,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
  touch-action:none}
 /* Left, DROP, and right share the same fully lit phosphor key face. */
 #pad button:is([data-action="left"],[data-action="hard"],[data-action="right"]){
- background:var(--bright);color:var(--shadow);border-color:var(--bright);
- text-shadow:none;
- box-shadow:0 0 var(--glow-radius)
-  color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+ background:var(--bright);color:var(--shadow);border-color:var(--bright)}
 #pad button:is([data-action="left"],[data-action="hard"],[data-action="right"]):active{
  background:var(--bright);color:var(--shadow)}
 #pad button[data-action="hard"]{
@@ -162,22 +160,16 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
 
 
 /* FIELD ATLAS parity: use the same geometry, colour and phosphor feedback as map controls. */
-:root{--glow-radius:14.11px;--glow-strength:73.0%;--glow-level:.83;
- --scan-intensity:.51;--vignette-intensity:.49;--sweep-intensity:.57;
+:root{--scan-intensity:.51;--vignette-intensity:.49;--sweep-intensity:.57;
  --phosphor-rgb:108,255,156}
 :root[data-theme="amber"]{--phosphor-rgb:255,196,100}
-#app{--glow:var(--glow-radius);
- padding-top:calc(env(safe-area-inset-top,0px) + 9px)}
+#app{padding-top:calc(env(safe-area-inset-top,0px) + 9px)}
 button{border-radius:8px;background:var(--panel)}
 button:not(.primary):active{background:var(--solid)}
-#app :is(button,h1,b,strong,small,output,label,#console,#eventline,canvas+div,.side-panel){
- text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-#app :is(.panel,button,#boardShell,.side-panel){
- box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
 #screenShade{opacity:var(--vignette-intensity);
  background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
  rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%)}
-#sweep{opacity:var(--sweep-intensity,var(--glow-level))}
+#sweep{opacity:var(--sweep-intensity)}
 #screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;
  height:0;pointer-events:none}
 #screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
@@ -204,11 +196,11 @@ input.effect-slider{display:block;width:100%;height:44px;min-height:44px;margin:
 input.effect-slider::-webkit-slider-runnable-track{
  height:7px;border-radius:20px;background:linear-gradient(to right,
  var(--bright) 0%,var(--bright) var(--fill,50%),var(--border) var(--fill,50%),var(--border) 100%);
- box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+ box-shadow:none}
 input.effect-slider::-webkit-slider-thumb{
  appearance:none;-webkit-appearance:none;height:24px;width:24px;margin-top:-8.5px;
  background:var(--bright);border:3px solid var(--solid);border-radius:50%;
- box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+ box-shadow:none}
 input.effect-slider::-moz-range-track{height:7px;border-radius:20px;background:var(--border)}
 input.effect-slider::-moz-range-progress{height:7px;border-radius:20px;background:var(--bright)}
 input.effect-slider::-moz-range-thumb{height:22px;width:22px;border:3px solid var(--solid);
@@ -230,14 +222,14 @@ input.effect-slider::-moz-range-thumb{height:22px;width:22px;border:3px solid va
 .score-row .record{font-size:9px;color:var(--weak);text-align:right;white-space:nowrap}
 .score-row.empty{opacity:.58}
 #entryScore{font-size:24px;font-weight:800;margin:14px 0;
- text-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+ text-shadow:none}
 .entry-label{display:block;color:var(--weak);font-size:10px;margin:12px 0 6px;letter-spacing:.08em}
 #initialsEntry{width:100%;min-height:48px;background:var(--panel);color:var(--ink);
  border:1px solid var(--border);border-radius:8px;padding:12px;
  font:700 19px ui-monospace,SFMono-Regular,monospace;letter-spacing:.3em}
 #scoreEntry .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
- text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+ text-shadow:none}
 #guide{padding-top:10px;border-top:1px solid var(--border);margin-top:12px}
 @media(orientation:landscape) and (max-height:600px){
  #extras{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -253,10 +245,7 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  transform:translate(-50%,-50%);z-index:21;display:none;
  width:min(410px,calc(100% - 22px));max-width:calc(100% - 22px);
  max-height:calc(100% - 28px);overflow-y:auto;overscroll-behavior:contain;
- background:var(--bg);color:var(--ink);
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,var(--border) var(--glow-strength),transparent),
- 0 14px 42px #000a}
+ background:var(--bg);color:var(--ink);box-shadow:0 14px 42px #000a}
 #app dialog[open]{display:block}
 #app dialog::backdrop{display:none}
 /* Compositor ordering is defined once in the final screen-layer rules. */
@@ -267,24 +256,6 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 #sweep{mix-blend-mode:screen;
  background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09))}
 #screenTopFade,#screenBottomFade,#screenScan,#screenShade,#sweep{pointer-events:none}
-/* Element-derived emission: luminous labels use their foreground colour,
-   subdued lines/panels their subdued border, and bright action buttons
-   their actual bright fill colour. No uniform phosphor-colour shadows. */
-#app :is(h1,h2,b,strong,small,output,label,#console,#eventline,.side-panel,
- .setting-copy,.effect-note,.score-row,.hint){
- text-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-#app button{
- text-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--glow-strength),transparent);
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
-#app :is(.panel,.side-panel,#boardShell){
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
-#app :is(header h1,#veil h2,#entryScore){
- text-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 
 
 /* Arcade control icons share the FIELD ATLAS terminal font everywhere.
@@ -317,9 +288,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  display:inline-block;vertical-align:middle;flex:none;
  width:20px;height:20px;min-width:20px;min-height:20px;
  padding:0;margin:0;border:1px solid var(--bright);border-radius:0;
- background:transparent;color:var(--bright);cursor:pointer;
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--glow-strength),transparent)}
+ background:transparent;color:var(--bright);cursor:pointer}
 #app input[type="checkbox"]:checked{
  background:var(--bright);border-color:var(--bright)}
 #app input[type="checkbox"]:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
@@ -339,16 +308,14 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #app input.effect-slider::-webkit-slider-thumb{
  -webkit-appearance:none;appearance:none;width:21px;height:21px;
  margin-top:-7.5px;border:1px solid var(--bright);border-radius:0;
- background:var(--bright);box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+ background:var(--bright)}
 #app input.effect-slider::-moz-range-track{
  height:6px;border:0;border-radius:0;background:var(--border);box-shadow:none}
 #app input.effect-slider::-moz-range-progress{
  height:6px;border:0;border-radius:0;background:var(--bright)}
 #app input.effect-slider::-moz-range-thumb{
  width:21px;height:21px;border:1px solid var(--bright);border-radius:0;
- background:var(--bright);box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
+ background:var(--bright)}
 /* Map-style CRT scanlines: a faint neutral luminance highlight,
  * followed by a dark gap. One screen-wide compositing pass; never a
  * per-button fill. The independent phosphor film supplies green/amber hue. */
@@ -380,8 +347,6 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 /* Bright START/RESUME shares the exact face of LEFT, DROP and RIGHT. */
 #app #playButton{
  background:var(--bright);color:var(--shadow);border-color:var(--bright);
- box-shadow:0 0 var(--glow-radius)
-  color-mix(in srgb,var(--bright) var(--glow-strength),transparent);
 }
 #app #playButton:active{background:var(--bright);color:var(--shadow)}
 /* More transparency reveals the paused board while preserving its 3px blur. */
@@ -401,7 +366,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #buttonFxLayer .fx-persistence-ghost{
  position:absolute;display:flex;align-items:center;justify-content:center;
  box-sizing:border-box;pointer-events:none;white-space:nowrap;overflow:hidden;
- border:1px solid;box-shadow:0 0 11px currentColor;
+ border:1px solid;
  animation:fx-persistence-fade 450ms ease-out forwards;
 }
 @keyframes fx-persistence-fade{
@@ -444,6 +409,29 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 </style>
 </head>
 <body>
+<!-- A single post-processing filter of the complete rendered screen.
+     Brightness controls alpha of emission, then blurs and screen-blends
+     it over SourceGraphic. Dark backgrounds emit effectively nothing.
+     This replaces ALL per-element and per-tile luminous shadows. -->
+<svg id="crtPostprocess" aria-hidden="true" focusable="false" width="0" height="0"
+ style="position:absolute;pointer-events:none;overflow:hidden">
+ <defs><filter id="crtScreenBloom" color-interpolation-filters="sRGB"
+   x="-5%" y="-5%" width="110%" height="110%">
+  <feColorMatrix in="SourceGraphic" type="matrix"
+   values="1 0 0 0 0
+           0 1 0 0 0
+           0 0 1 0 0
+           0.2126 0.7152 0.0722 0 0" result="screenLuminance"/>
+  <feComponentTransfer in="screenLuminance" result="emission">
+   <feFuncA type="linear" slope="1.4" intercept="-0.15"/>
+  </feComponentTransfer>
+  <feGaussianBlur in="emission" stdDeviation="5" result="spread"/>
+  <feComponentTransfer in="spread" result="controlledEmission">
+   <feFuncA id="crtBloomAmount" type="linear" slope="0.83"/>
+  </feComponentTransfer>
+  <feBlend in="controlledEmission" in2="SourceGraphic" mode="screen"/>
+ </filter></defs>
+</svg>
 <div id="app">
  <header class="panel">
   <div class="heading"><h1>TETRIS SYSTEM</h1></div>
@@ -486,7 +474,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    <button data-action="pause" id="pauseButton">PAUSE</button>
   </div>
  </section>
- <div id="eventline" data-build="v026"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE / V026</span></div>
+ <div id="eventline" data-build="v027"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE / V027</span></div>
  <div id="fxSoftness" aria-hidden="true"></div>
  <canvas id="fxNoise" aria-hidden="true"></canvas>
  <div id="buttonFxLayer" aria-hidden="true"></div>
@@ -510,7 +498,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div class="gradient-row"><label for="fade-screenBottom-on"><input id="fade-screenBottom-on" type="checkbox" checked> SCREEN BOTTOM</label><input id="fade-screenBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="135"><output id="fade-screenBottom-value">135px</output></div>
  <p class="setting-copy">Screen top and bottom fades overlay the entire display, including the playfield and menus.</p>
  <div class="settings-divider"></div>
- <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">83%</output></div><p class="effect-note">Glow follows the original brightness and colour of each element.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="83"></div>
+ <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">83%</output></div><p class="effect-note">Screen-wide phosphor bloom responds to the brightness of the composited image.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="83"></div>
  <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">51%</output></div><p class="effect-note">Identical scanline overlay for the entire Pip-Boy display, including menus.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="51"></div>
  <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">49%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="49"></div>
  <div class="effect-row"><div class="effect-head"><label for="sweepControl">REFRESH SWEEP</label><output id="sweepValue">57%</output></div><p class="effect-note">Strength of the traveling refresh line, independent of the phosphor glow.</p><input id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="57"></div>
@@ -563,10 +551,10 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  </div>
 </dialog>
 </div>
-<script src="./core.js?arcade=v026"></script>
-<script src="./scores.js?arcade=v026"></script>
+<script src="./core.js?arcade=v027"></script>
+<script src="./scores.js?arcade=v027"></script>
 
-<script src="./experimental-fx.js?arcade=v026"></script>
-<script src="./ui.js?arcade=v026"></script>
+<script src="./experimental-fx.js?arcade=v027"></script>
+<script src="./ui.js?arcade=v027"></script>
 </body>
 </html>
