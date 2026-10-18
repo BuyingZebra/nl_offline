@@ -247,7 +247,7 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 #app{background:var(--bg)}
 #modalScrim{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.73)}
 #modalScrim[hidden]{display:none}
-#app dialog{position:absolute;top:50%;left:50%;right:auto;bottom:auto;margin:0;
+#app dialog{position:fixed;top:50dvh;left:50%;right:auto;bottom:auto;margin:0;
  transform:translate(-50%,-50%);z-index:21;display:none;
  width:min(410px,calc(100% - 22px));max-width:calc(100% - 22px);
  max-height:calc(100% - 28px);overflow-y:auto;overscroll-behavior:contain;
