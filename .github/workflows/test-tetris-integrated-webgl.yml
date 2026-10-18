@@ -61,12 +61,13 @@ jobs:
               assert page.locator('#optionsButton').count()==1
               assert page.locator('#webglBloom').evaluate('(el) => getComputedStyle(el).pointerEvents')=='none'
               # Actual UI elements receive clicks, not a canvas-based fake menu.
+              output=Path('work/integrated-webgl')
+              output.mkdir(parents=True,exist_ok=True)
+              page.screenshot(path=str(output/(engine+'-real-ui.png')),full_page=True)
               page.locator('#playButton').click()
-              page.wait_for_timeout(100)
-              assert page.locator('#veil').evaluate('(el) => el.classList.contains("hidden")')
+              page.wait_for_function('() => document.getElementById("veil").classList.contains("hidden")',timeout=10000)
               page.locator('#optionsButton').click()
-              page.wait_for_timeout(100)
-              assert page.locator('#options').evaluate('(el) => el.open')
+              page.wait_for_function('() => document.getElementById("options").open',timeout=10000)
               page.locator('#gpuLabEcho').check()
               assert page.evaluate('window.__integratedGpuLab.getState().echo')
               page.locator('#gpuLabOn').uncheck()
@@ -76,9 +77,6 @@ jobs:
               page.locator('#closeOptions').click()
               assert not page.locator('#options').evaluate('(el) => el.open')
               assert not errors,errors
-              output=Path('work/integrated-webgl')
-              output.mkdir(parents=True,exist_ok=True)
-              page.screenshot(path=str(output/(engine+'-real-ui.png')),full_page=True)
               print(engine,'PASS real native game + GPU light layer')
               browser.close()
           PY
