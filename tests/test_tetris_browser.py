@@ -245,10 +245,10 @@ with sync_playwright() as p:
           return {image:s.backgroundImage,opacity:s.opacity,zIndex:s.zIndex};
         }""")
         assert "repeating-linear-gradient" in scan_style["image"], scan_style
+        assert "rgba(255, 255, 255, 0.15)" in scan_style["image"], scan_style
         assert ("transparent" in scan_style["image"] or
                 "rgba(0, 0, 0, 0)" in scan_style["image"]), scan_style
-        assert "rgba(0, 0, 0," in scan_style["image"], scan_style
-        assert "255, 255, 255" not in scan_style["image"], scan_style
+        assert "rgba(0, 0, 0, 0.59)" in scan_style["image"], scan_style
         assert scan_style["zIndex"] == "43", scan_style
         page.locator("#closeOptions").tap()
         assert page.locator("#options").get_attribute("open") is None
