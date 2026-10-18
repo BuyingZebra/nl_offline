@@ -301,6 +301,44 @@
       c.lineWidth=1;c.strokeRect(px+1.5,py+1.5,n-3,n-3);
     }
   }
+  const readyMessage="Stack blocks to clear complete rows, and keep the board from filling up";
+  let readyTypingTimer=null,readyIntroActive=false;
+  function endReadyIntro(){
+    if(readyTypingTimer!==null)clearInterval(readyTypingTimer);
+    readyTypingTimer=null;readyIntroActive=false;
+  }
+  function startReadyIntro(){
+    if(readyIntroActive)return;
+    readyIntroActive=true;
+    const parent=$('veilText');
+    const text=document.createElement('span');
+    text.id='readyText';
+    const cursor=document.createElement('span');
+    cursor.id='readyCursor';
+    cursor.setAttribute('aria-hidden','true');
+    parent.replaceChildren(text,cursor);
+    parent.setAttribute('aria-label',readyMessage);
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      text.textContent=readyMessage;return;
+    }
+    let count=0;
+    const type=()=>{
+      if(game.status!=='ready'){endReadyIntro();return;}
+      text.textContent=readyMessage.slice(0,++count);
+      if(count>=readyMessage.length){
+        clearInterval(readyTypingTimer);
+        readyTypingTimer=null;
+      }
+    };
+    type();
+    readyTypingTimer=setInterval(type,32);
+  }
+  function showOtherMessage(text){
+    endReadyIntro();
+    const parent=$('veilText');
+    parent.removeAttribute('aria-label');
+    if(parent.textContent!==text)parent.textContent=text;
+  }
   function updateHUD(){
     $('scoreValue').textContent=String(game.score).padStart(6,'0');
     $('linesValue').textContent=String(game.lines).padStart(2,'0');
@@ -316,19 +354,20 @@
     previewCanvases.forEach((c,i)=>renderMini(c,game.queue[i]));
     const veil=$('veil');
     veil.classList.toggle('hidden',game.status==='playing');
+    if(game.status==='playing')endReadyIntro();
     $('newGameButton').hidden=game.status!=='paused';
     $('pausedScoresButton').hidden=game.status!=='paused';
     if(game.status==='ready'){
       $('veilTitle').textContent='TETRIS';
-      $('veilText').textContent='Stack the blocks. Clear complete rows. Keep the board from filling up.';
+      startReadyIntro();
       $('playButton').textContent='▶ START GAME';
     }else if(game.status==='paused'){
       $('veilTitle').textContent='PAUSED';
-      $('veilText').textContent='YOUR GAME IS SAFE UNTIL YOU RETURN';
+      showOtherMessage('YOUR GAME IS SAFE UNTIL YOU RETURN');
       $('playButton').textContent='▶ RESUME';
     }else if(game.status==='over'){
       $('veilTitle').textContent='GAME OVER';
-      $('veilText').textContent='SCORE '+game.score.toLocaleString('en-CA')+' / '+game.lines+' LINES';
+      showOtherMessage('SCORE '+game.score.toLocaleString('en-CA')+' / '+game.lines+' LINES');
       $('playButton').textContent='↻ PLAY AGAIN';
     }
   }
@@ -582,46 +621,17 @@
     requestAnimationFrame(frame);
   }
 
-  // FIELD ATLAS / reusable phosphor reaction surface. A flash is positioned
-  // over the *button's original footprint* in one stable screen-space overlay.
-  // It cannot be deleted by button.textContent updates, DOM replacement or
-  // changing PAUSE into an inactive control. All button sizes share this.
-  const buttonFxLayer=$('buttonFxLayer');
+  // The experimental persistence toggle now owns ALL button afterimages.
+  // There is no separate always-on flash that can bypass this setting.
   const appSurface=$('app');
-  function emittedColour(button){
-    const style=getComputedStyle(button);
-    const brightness=value=>{
-      const m=String(value||'').match(/[\d.]+/g);
-      if(!m||m.length<3)return 0;
-      const [r,g,b]=m.slice(0,3).map(Number);
-      return (.2126*r+.7152*g+.0722*b)/255;
-    };
-    // Bright action buttons use their luminous fill; subdued buttons use
-    // their own text colour. No common 'neon green' glow is hardcoded.
-    return brightness(style.backgroundColor)>brightness(style.color)
-      ?style.backgroundColor:style.color;
-  }
   function flashPhosphor(button){
-    if(button.disabled)return;
+    if(button.disabled||!experimental)return;
     const bounds=button.getBoundingClientRect();
     const appBounds=appSurface.getBoundingClientRect();
     if(!bounds.width||!bounds.height)return;
-    experimental?.onButton(button,bounds,appBounds);
-    const layer=document.createElement('span');
-    layer.className='phosphor-hit-layer';
-    layer.style.left=(bounds.left-appBounds.left)+'px';
-    layer.style.top=(bounds.top-appBounds.top)+'px';
-    layer.style.width=bounds.width+'px';
-    layer.style.height=bounds.height+'px';
-    layer.style.setProperty('--flash-color',emittedColour(button));
-    layer.style.setProperty('--flash-radius',getComputedStyle(button).borderRadius);
-    layer.addEventListener('animationend',()=>layer.remove(),{once:true});
-    // A bound also keeps abnormally repeated inputs from accumulating nodes.
-    if(buttonFxLayer.children.length>=20)buttonFxLayer.firstElementChild?.remove();
-    buttonFxLayer.appendChild(layer);
+    experimental.onButton(button,bounds,appBounds);
   }
   function installPhosphorFeedback(button){
-    button.classList.add('phosphor-reactive');
     button.addEventListener('pointerdown',()=>flashPhosphor(button));
     button.addEventListener('click',event=>{
       if(event.detail===0)flashPhosphor(button);
