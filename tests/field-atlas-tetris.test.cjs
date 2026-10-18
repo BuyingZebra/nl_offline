@@ -506,6 +506,18 @@ test('pause actions omit icons and use High Score label',()=>{
 });
 
 
+test('the refresh sweep has independent luminance control and saved strength',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.match(html,/#sweep\{opacity:var\(--sweep-intensity,var\(--glow-level\)\)\}/);
+ assert.match(html,/id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"/);
+ assert.ok(html.includes('id="sweepValue">65%'));
+ assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01','65')"));
+ assert.ok(ui.includes("store('fieldAtlasTetrisSweepV01',sweep)"));
+ assert.ok(ui.includes("app.style.setProperty('--sweep-intensity'"));
+ assert.ok(ui.includes("rangeDisplay($('sweepControl'),$('sweepValue'),sweep)"));
+});
+
 test('experimental effects use isolated grayscale compositor layers and offline module',()=>{
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
