@@ -653,6 +653,21 @@
   action,openModal,closeModal,game,reset:()=>{game.reset();syncGame();},
   debugBypassEffects:(bypass)=>{if(bypass)base.filters=null;else crt.apply();},
   debugSetEffect:(id,v)=>crt.toggle(id,v),
-  debugStage:()=>({children:base.children.length,filters:base.filters?.length||0})
+  debugStage:()=>({
+    stageChildren:renderApp.stage.children.length,
+    children:base.children.length,
+    gameChildren:gameLayer?.children.length,
+    filters:base.filters?.length||0,
+    canvasSize:[renderApp.canvas.width,renderApp.canvas.height],
+    canvasCSS:(()=>{const r=renderApp.canvas.getBoundingClientRect();return [r.x,r.y,r.width,r.height];})(),
+    baseBounds:base.getBounds(),
+    stageVisible:renderApp.stage.visible,
+    stageRenderable:renderApp.stage.renderable,
+    baseAlpha:base.worldAlpha,
+    gameAlpha:gameLayer?.worldAlpha,
+    firstChild:base.children[0]?.children.slice(0,5).map(x=>({type:x.constructor.name,
+      visible:x.visible,renderable:x.renderable,alpha:x.alpha,bounds:x.getBounds()}))
+   }),
+  debugForceRender:()=>{renderApp.renderer.render(renderApp.stage);return true;}
  };
 })();
