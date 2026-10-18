@@ -343,14 +343,14 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  width:21px;height:21px;border:1px solid var(--bright);border-radius:0;
  background:var(--bright);box-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
-/* CRT scanlines are gaps between illuminated phosphor rows, not light sources.
- * A single screen-space mask ONLY dims every fourth row, regardless of
- * which element is underneath. The phosphor film supplies the hue separately.
- * Leave scanline strength under the existing display-control slider. */
+/* Map-style CRT scanlines: a faint neutral luminance highlight,
+ * followed by a dark gap. One screen-wide compositing pass; never a
+ * per-button fill. The independent phosphor film supplies green/amber hue. */
 #screenScan{position:absolute;inset:0;z-index:43;pointer-events:none;
  opacity:var(--scan-intensity);
  background:repeating-linear-gradient(to bottom,
- transparent 0px,transparent 3px,
+ rgba(255,255,255,.15) 0px,rgba(255,255,255,.15) 1px,
+ transparent 1px,transparent 3px,
  rgba(0,0,0,.59) 3px,rgba(0,0,0,.59) 4px)}
 #screenTopFade,#screenBottomFade{z-index:41;pointer-events:none}
 #screenShade{z-index:42;pointer-events:none}
