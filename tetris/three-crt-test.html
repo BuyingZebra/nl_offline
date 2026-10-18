@@ -21,7 +21,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </head>
 <body><main>
 <h1>THREE.JS · CRT COMPOSITOR TEST</h1>
-<p class="intro">Grayscale controls → bloom → phosphor → scanlines</p>
+<p class="intro">Grayscale → beam scanlines → phosphor → bloom</p>
 <div id="frame"><canvas id="screen"></canvas><div id="loading">Loading Three.js…</div></div>
 <div class="panel">
 <div class="switches">
@@ -32,11 +32,11 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 <label class="slider">Bloom cutoff<input id="threshold" type="range" min="0" max="1" step=".01" value=".55"><output id="thresholdOut">0.55</output></label>
 <label class="slider">Bloom strength<input id="strength" type="range" min="0" max="3" step=".05" value="1.50"><output id="strengthOut">1.50</output></label>
 <label class="slider">Line opacity<input id="lineStrength" type="range" min="0" max="1" step=".01" value=".72"><output id="lineStrengthOut">0.72</output></label>
-<label class="slider">Line spacing<input id="lineSpacing" type="range" min="2" max="12" step=".5" value="3"><output id="lineSpacingOut">3.0</output></label>
+<label class="slider">Line spacing<input id="lineSpacing" type="range" min="2" max="12" step=".5" value="4"><output id="lineSpacingOut">4.0</output></label>
 <label class="slider">Beam softness<input id="lineSoftness" type="range" min=".8" max="2.5" step=".05" value="1.35"><output id="lineSoftnessOut">1.35</output></label>
 <label class="slider">Dark beam width<input id="lineThin" type="range" min=".08" max=".4" step=".01" value=".16"><output id="lineThinOut">0.16</output></label>
 <label class="slider">Bright beam width<input id="lineThick" type="range" min=".35" max="1" step=".01" value=".68"><output id="lineThickOut">0.68</output></label>
-<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js applies GPU luminance bloom, phosphor colour, then brightness-dependent soft electron-beam scanlines. No occlusion, SVG, CSS shadows or duplicated HTML.</p>
+<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js shapes the grayscale beam first, applies phosphor colour, then generates GPU luminance bloom from the illuminated lines. Line spacing is measured in screen-independent CSS pixels. No occlusion, SVG, CSS shadows or duplicated HTML.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -79,20 +79,19 @@ try {
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
  const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
- composer.addPass(glow);
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.28,1,.46)}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
- composer.addPass(tint);
- // Physically inspired beam shaping: brightest phosphor widens the beam.
- // Applied after the existing phosphor/bloom passes; no other FX changed.
+ // Physically inspired beam shaping: brightest grayscale source widens the beam.
+ // Applied BEFORE phosphor and bloom, to let light spread into the scanline gaps.
  const lines=new ShaderPass({
   uniforms:{
    tDiffuse:{value:null},
    uOpacity:{value:.72},
-   uSpacing:{value:3.0},
+   uSpacing:{value:4.0},
+   uDpr:{value:1.0},
    uSoftness:{value:1.35},
    uThin:{value:.16},
    uThick:{value:.68}
@@ -101,12 +100,13 @@ try {
   fragmentShader:`
    varying vec2 vUv;
    uniform sampler2D tDiffuse;
-   uniform float uOpacity,uSpacing,uSoftness,uThin,uThick;
+   uniform float uOpacity,uSpacing,uSoftness,uThin,uThick,uDpr;
    void main(){
     vec3 src=texture2D(tDiffuse,vUv).rgb;
     float lum=dot(src,vec3(0.2126,0.7152,0.0722));
     float beamWidth=mix(uThin,uThick,pow(clamp(lum,0.0,1.0),0.85));
-    float phase=fract(gl_FragCoord.y/max(2.0,uSpacing));
+    // Convert device pixels to CSS pixels, so scanline density matches across iPhones.
+    float phase=fract((gl_FragCoord.y/max(1.0,uDpr))/max(2.0,uSpacing));
     float dist=abs(phase-0.5)*2.0;
     float beam=exp(-pow(dist/max(0.001,beamWidth),uSoftness));
     float shaped=mix(1.0-uOpacity,1.0,beam);
@@ -115,6 +115,8 @@ try {
  });
  lines.enabled=false;
  composer.addPass(lines);
+ composer.addPass(tint);
+ composer.addPass(glow);
  composer.addPass(new OutputPass());
  let pending=false,hitBoxes=[];
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
@@ -186,6 +188,7 @@ try {
   W=w;H=h;DPR=d;
   renderer.setPixelRatio(d);renderer.setSize(w,h,false);
   composer.setPixelRatio(d);composer.setSize(w,h);
+  lines.uniforms.uDpr.value=d;
   paintSource();schedule();
   status.textContent='Canvas source → Three.js GPU | DPR '+d+' | '+Math.round(w*d)+' × '+Math.round(h*d)+' pixels';
  }
