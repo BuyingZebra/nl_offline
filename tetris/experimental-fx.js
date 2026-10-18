@@ -132,7 +132,17 @@
       const style=win.getComputedStyle(button);
       const ghost=doc.createElement('span');
       ghost.className='fx-persistence-ghost';
-      ghost.textContent=button.textContent||'';
+      // A button afterimage must preserve its actual icon/caption alignment.
+      // Copy only the fixed, non-interactive visual children for the play key.
+      if(button.id==='playButton'){
+        const arrow=button.querySelector('.play-arrow');
+        const caption=button.querySelector('.play-caption');
+        if(arrow&&caption){
+          ghost.className+=' play-feedback';
+          ghost.appendChild(arrow.cloneNode(true));
+          ghost.appendChild(caption.cloneNode(true));
+        }else ghost.textContent=button.textContent||'';
+      }else ghost.textContent=button.textContent||'';
       ghost.style.left=(bounds.left-appBounds.left)+'px';
       ghost.style.top=(bounds.top-appBounds.top)+'px';
       ghost.style.width=bounds.width+'px';
