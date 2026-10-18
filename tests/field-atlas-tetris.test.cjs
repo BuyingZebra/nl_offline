@@ -264,8 +264,8 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
  assert.doesNotMatch(ui,/button\.appendChild\(layer\)/);
  assert.ok(html.includes('opacity:var(--vignette-intensity)'));
  assert.ok(html.includes('opacity:var(--scan-intensity)'));
- assert.ok(ui.includes("app.style.setProperty('--glow-strength'"));
- assert.ok(ui.includes("app.style.setProperty('--glow-radius'"));
+ assert.ok(ui.includes("$('crtBloomAmount').setAttribute('slope',(glow/100).toFixed(3))"));
+ assert.doesNotMatch(ui,/--glow-strength|--glow-radius/);
  assert.ok(ui.includes("app.style.setProperty('--vignette-intensity'"));
 });
 
@@ -312,10 +312,12 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.ok(html.includes('pointer-events:none'));
 });
 
-test('tile glow follows each tile fill rather than uniform bright tint',()=>{
+test('tile emission derives from the final screen, not per-cell canvas shadows',()=>{
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
- assert.match(ui,/ctx\.shadowColor=color\(body,/);
- assert.doesNotMatch(ui,/ctx\.shadowColor=color\(palette\.bright,/);
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ assert.doesNotMatch(ui,/ctx\.shadowColor|ctx\.shadowBlur/);
+ assert.match(html,/filter:url\("#crtScreenBloom"\)/);
+ assert.match(html,/<feGaussianBlur in="emission" stdDeviation="5" result="spread"\/>/);
 });
 
 
@@ -515,7 +517,7 @@ test('pause actions omit icons and use High Score label',()=>{
 test('the refresh sweep has independent luminance control and saved strength',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
- assert.match(html,/#sweep\{opacity:var\(--sweep-intensity,var\(--glow-level\)\)\}/);
+ assert.match(html,/#sweep\{opacity:var\(--sweep-intensity\)\}/);
  assert.match(html,/id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="57"/);
  assert.ok(html.includes('id="sweepValue">57%'));
  assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep))"));
@@ -822,7 +824,7 @@ test('approved settings reflected in control markup and first paint',()=>{
  assert.ok(ui.includes('for(const key of fadeKeys)gradients[key]={...DISPLAY_DEFAULTS[key]}'));
  assert.ok(ui.includes('saveEffects();saveGradients();refreshPalette()'));
  assert.match(html,/--scan-intensity:.51;--vignette-intensity:.49;--sweep-intensity:.57;/);
- assert.match(html,/--glow-radius:14.11px;--glow-strength:73.0%;--glow-level:.83;/);
+ assert.match(html,/<feFuncA id="crtBloomAmount" type="linear" slope="0.83"\/>/);
 });
 test('unused settings rows and superseded compositor layers removed',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
@@ -860,4 +862,24 @@ test('visible Tetris release number matches cache and all bundled scripts',()=>{
   assert.ok(html.includes('src="./'+name+'.js?arcade=v'+build+'"'));
   assert.ok(sw.includes("'./"+name+".js?arcade=v"+build+"'"));
  }
+});
+
+test('one screen-wide luminance postprocess replaces independent luminous shadows',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ assert.equal((html.match(/id="crtScreenBloom"/g)||[]).length,1);
+ assert.match(html,/<feColorMatrix in="SourceGraphic" type="matrix"[\s\S]*?0\.2126 0\.7152 0\.0722 0 0" result="screenLuminance"\/>/);
+ assert.match(html,/<feFuncA type="linear" slope="1\.4" intercept="-0\.15"\/>/);
+ assert.match(html,/<feGaussianBlur in="emission" stdDeviation="5" result="spread"\/>/);
+ assert.match(html,/<feBlend in="controlledEmission" in2="SourceGraphic" mode="screen"\/>/);
+ assert.ok(html.indexOf('id="crtPostprocess"')<html.indexOf('id="app"'));
+ assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?filter:url\("#crtScreenBloom"\)/);
+ assert.match(ui,/\$\('crtBloomAmount'\)\.setAttribute\('slope',\(glow\/100\)\.toFixed\(3\)\)/);
+ assert.doesNotMatch(html,/--glow-radius|--glow-strength|--glow-level/);
+ assert.doesNotMatch(ui,/ctx\.shadowColor|ctx\.shadowBlur/);
+ assert.doesNotMatch(html,/text-shadow:0 0|box-shadow:0 0 var\(--glow/);
+ assert.doesNotMatch(html,/box-shadow:0 0 11px currentColor/);
+ assert.match(html,/#scoreStrip strong\{font-size:[^}]*font-variant-numeric:tabular-nums\}/);
+ assert.match(html,/#app input\[type="checkbox"\]:checked\{\s*background:var\(--bright\);border-color:var\(--bright\)\}/);
+ assert.match(html,/#app input\.effect-slider::-webkit-slider-runnable-track\{[\s\S]*?background:linear-gradient\(to right,var\(--bright\) 0%/);
 });
