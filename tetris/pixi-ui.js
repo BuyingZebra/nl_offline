@@ -452,9 +452,34 @@
   title('GRADIENT LENGTH / CSS PIXELS');
   for(const k of ['screenTop','screenBottom']){
    const upper=k==='screenTop'?'SCREEN TOP':'SCREEN BOTTOM';
-   check(upper,gradients[k].enabled,v=>{gradients[k].enabled=v;settingSave();syncCRT();});
-   slid(upper+' LENGTH',gradients[k].length,0,420,v=>{
-    gradients[k].length=Math.round(v/5)*5;settingSave();syncCRT();},'px');
+   const rowY=Y,barX=left+143,barW=wide-188;
+   const checkIcon=new P.Graphics();checkIcon.position.set(left,rowY+8);menuScroll.addChild(checkIcon);
+   const redrawCheck=()=>{
+    checkIcon.clear().rect(0,0,18,18).stroke({color:C.bright,width:1});
+    if(gradients[k].enabled)checkIcon.rect(1,1,16,16).fill({color:C.bright});
+   };
+   redrawCheck();checkIcon.eventMode='static';checkIcon.cursor='pointer';
+   checkIcon.hitArea=new P.Rectangle(-4,-8,24,36);
+   checkIcon.on('pointerdown',()=>{gradients[k].enabled=!gradients[k].enabled;
+    redrawCheck();settingSave();syncCRT();});
+   text(menuScroll,upper,left+25,rowY+17,10,C.ink);
+   const g=new P.Graphics();g.position.set(barX,rowY+4);menuScroll.addChild(g);
+   const number=text(menuScroll,String(gradients[k].length)+'px',left+wide,rowY+17,10,C.weak,'right');
+   const paint=()=>{const t=clamp(gradients[k].length/420,0,1);
+    g.clear().rect(0,14,barW,6).fill({color:C.border})
+      .rect(0,14,barW*t,6).fill({color:C.bright})
+      .rect(clamp(t*barW-10.5,0,barW-21),6.5,21,21).fill({color:C.bright});
+    number.text=String(gradients[k].length)+'px';
+   };paint();
+   g.eventMode='static';g.hitArea=new P.Rectangle(0,0,barW,44);
+   let down=false;
+   const update=e=>{const x=g.toLocal(e.global).x;
+    gradients[k].length=Math.round(clamp(x/barW,0,1)*420/5)*5;
+    paint();settingSave();syncCRT();};
+   g.on('pointerdown',e=>{down=true;update(e);e.stopPropagation();});
+   g.on('globalpointermove',e=>{if(down)update(e);});
+   for(const ev of ['pointerup','pointerupoutside','pointercancel'])g.on(ev,()=>down=false);
+   Y+=48;
   }
   paragraph('Screen top and bottom fades overlay the entire display, including gameplay and menus.');
   divider();
