@@ -69,7 +69,6 @@ with sync_playwright() as p:
         assert geometry["footerBottom"]<=geometry["appBottom"], geometry
         sidebar=page.evaluate("""() => {
           const b=selector=>document.querySelector(selector).getBoundingClientRect();
-          const hold=b('#holdCanvas').parentElement;
           const panels=document.querySelectorAll('#side > .side-panel');
           const first=panels[0].getBoundingClientRect();
           const next=panels[1].getBoundingClientRect();
