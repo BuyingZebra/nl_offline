@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v018'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v019'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -254,10 +254,10 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
  assert.ok(ui.includes("read('fieldAtlasGradientsV20','null')"));
  assert.ok(ui.includes("store('fieldAtlasGradientsV20'"));
  assert.ok(html.includes('id="buttonFxLayer"'));
- assert.ok(html.includes('#buttonFxLayer .phosphor-hit-layer'));
+ assert.ok(html.includes('#buttonFxLayer .fx-persistence-ghost'));
  assert.ok(ui.includes("installPhosphorFeedback(button)"));
  assert.ok(ui.includes("button.addEventListener('pointerdown',()=>flashPhosphor(button))"));
- assert.ok(ui.includes('buttonFxLayer.appendChild(layer)'));
+ assert.ok(ui.includes('experimental.onButton(button,bounds,appBounds)'));
  assert.doesNotMatch(ui,/button\.appendChild\(layer\)/);
  assert.ok(html.includes('opacity:var(--vignette-intensity)'));
  assert.ok(html.includes('opacity:var(--scan-intensity)'));
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v018'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v019'/);
 });
 
 
@@ -373,24 +373,20 @@ test('PAUSE is permanently labeled and cannot resume the game from screen contro
  assert.ok(html.includes('id="pausedScoresButton" hidden'));
 });
 
-test('phosphor flash uses one reusable screen-space surface above controls, below CRT',()=>{
- const dir=path.join(__dirname,'../tetris');
- const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
- const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+test('persistence exclusively controls screen-space button afterimages',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const fx=fs.readFileSync(path.join(__dirname,'../tetris/experimental-fx.js'),'utf8');
  assert.equal((html.match(/id="buttonFxLayer"/g)||[]).length,1);
  assert.match(html,/#buttonFxLayer\{position:absolute;inset:0;z-index:39;/);
- assert.match(html,/#buttonFxLayer \.phosphor-hit-layer\{position:absolute;/);
- assert.ok(html.includes('animation:phosphor-flash 1050ms linear forwards'));
- assert.ok(ui.includes("const buttonFxLayer=$('buttonFxLayer')"));
- assert.match(ui,/buttonFxLayer\.appendChild\(layer\)/);
- assert.match(ui,/layer\.style\.width=bounds\.width\+'px'/);
- assert.match(ui,/layer\.style\.height=bounds\.height\+'px'/);
- assert.match(ui,/layer\.addEventListener\('animationend',\(\)=>layer\.remove\(\)/);
- assert.doesNotMatch(ui,/button\.appendChild\(layer\)/);
- assert.match(ui,/return brightness\(style\.backgroundColor\)>brightness\(style\.color\)/);
+ assert.match(html,/#buttonFxLayer \.fx-persistence-ghost\{/);
+ assert.match(ui,/function flashPhosphor\(button\)\{/);
+ assert.match(ui,/experimental\.onButton\(button,bounds,appBounds\)/);
+ assert.doesNotMatch(ui,/buttonFxLayer\.appendChild\(layer\)|emittedColour/);
+ assert.doesNotMatch(html,/phosphor-hit-layer|phosphor-flash/);
+ assert.match(fx,/if\(!values\.persistenceEnabled\|\|values\.persistenceAmount<=0\|\|!motionAllowed\(\)\)return/);
+ assert.match(fx,/if\(name==='persistenceEnabled'&&!values\[name\]\)/);
 });
-
-
 test('phone controls use the requested four-button layout and centered secondary pair',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
@@ -436,8 +432,12 @@ test('all three direction keys share a solid phosphor face, and ready instructio
  assert.match(pad,/<button data-action="hard" aria-label="Hard drop">DROP<\/button>/);
  assert.doesNotMatch(pad,/<span|drop-arrow|drop-label|▼/);
  assert.match(html,/#pad button\[data-action="hard"\]\{\s*grid-column:span 2;/);
- assert.ok(ui.includes("      $('veilText').textContent='Stack the blocks. Clear complete rows. Keep the board from filling up.';"));
- assert.ok(html.includes('<p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>'));
+ assert.ok(ui.includes('Stack blocks to clear complete rows, and keep the board from filling up'));
+ assert.ok(ui.includes('readyTypingTimer=setInterval(type,32)'));
+ assert.ok(ui.includes('startReadyIntro()'));
+ assert.ok(html.includes('<span id="readyText"></span><span id="readyCursor" aria-hidden="true"></span>'));
+ assert.ok(html.includes('@keyframes ready-cursor-blink'));
+ assert.ok(ui.includes("window.matchMedia('(prefers-reduced-motion: reduce)').matches"));
  assert.doesNotMatch(ui,/FALLING-BLOCK ARCADE/);
 });
 
@@ -460,7 +460,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v018'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v019'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{background:var\(--bg\)\}/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
@@ -529,24 +529,22 @@ test('experimental effects use isolated grayscale compositor layers and offline 
  assert.ok(sw.includes("'./experimental-fx.js'"));
  assert.ok(html.includes('<script src="./experimental-fx.js"></script>'));
  assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js">'));
- for(const id of ['fxSoftness','fxNoise','fxInterference','fxGlitch','experimentalFxSection','resetExperimental',
+ for(const id of ['fxSoftness','fxNoise','experimentalFxSection','resetExperimental',
    'fxNoiseEnabled','fxNoiseAmount','fxNoiseSpeed',
    'fxPersistenceEnabled','fxPersistenceAmount','fxPersistenceDecay',
-   'fxSoftnessEnabled','fxSoftnessAmount',
-   'fxInterferenceEnabled','fxInterferenceAmount','fxInterferenceRate',
-   'fxGlitchEnabled','fxGlitchAmount','fxGlitchRate']){
+   'fxSoftnessEnabled','fxSoftnessAmount']){
   assert.ok(html.includes('id="'+id+'"'),'Missing experimental compositor control '+id);
  }
  assert.match(html,/#fxSoftness\{inset:0;z-index:27;background:transparent\}/);
  assert.match(html,/#fxNoise\{inset:0;z-index:28;/);
- assert.match(html,/#fxInterference\{z-index:29;/);
- assert.match(html,/#fxGlitch\{z-index:30;/);
+ assert.doesNotMatch(html,/fxInterference|fxGlitch/);
+ assert.doesNotMatch(fx,/interference|glitch/i);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
  assert.ok(fx.includes("fieldAtlasTetrisExperimentalV01"));
  assert.ok(fx.includes("noiseEnabled:false"));
- assert.ok(fx.includes("glitchEnabled:false"));
+ assert.ok(fx.includes("softnessEnabled:false"));
  assert.ok(fx.includes("persistenceEnabled:false"));
- assert.match(ui,/experimental\?\.onButton\(button,bounds,appBounds\)/);
+ assert.match(ui,/experimental\.onButton\(button,bounds,appBounds\)/);
  assert.doesNotMatch(fx,/\.style\.filter\s*=|\.style\.backgroundColor\s*=\s*['"](?:green|amber)/);
 });
 
@@ -604,6 +602,10 @@ test('experimental controller toggles, saves, renders interaction ghosts and res
  assert.equal(ghosts[0].style.left,'10px');
  assert.equal(ghosts[0].style.top,'25px');
  assert.equal(ghosts[0].textContent,'PAUSE');
+ element('fxPersistenceEnabled').checked=false;element('fxPersistenceEnabled').fire('change');
+ assert.equal(element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost').length,0);
+ fx.onButton({textContent:'PAUSE'}, {left:11,top:30,width:80,height:44},{left:1,top:5});
+ assert.equal(element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost').length,0);
  assert.ok(saved.has('fieldAtlasTetrisExperimentalV01'));
  element('resetExperimental').fire('click');
  assert.equal(fx.getValues().noiseEnabled,false);
@@ -613,4 +615,15 @@ test('experimental controller toggles, saves, renders interaction ghosts and res
  assert.equal(element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost').length,0);
  assert.equal(element('fxNoiseEnabled').checked,false);
  assert.equal(element('fxNoiseAmountValue').textContent,'18%');
+});
+
+test('HUD level, score and lines display in left-center-right order',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const strip=html.match(/<div id="scoreStrip">([\s\S]*?)<\/div>\s*<div id="pad"/)?.[1];
+ assert.ok(strip);
+ assert.deepEqual([...strip.matchAll(/<small>(LEVEL|SCORE|LINES)<\/small>/g)].map(x=>x[1]),['LEVEL','SCORE','LINES']);
+ assert.ok(html.includes('#scoreStrip div:nth-child(1){align-items:flex-start;text-align:left}'));
+ assert.ok(html.includes('#scoreStrip div:nth-child(2){align-items:center;text-align:center}'));
+ assert.ok(html.includes('#scoreStrip div:nth-child(3){align-items:flex-end;text-align:right}'));
+ assert.doesNotMatch(html,/#scoreStrip div:last-child\{display:none\}/);
 });
