@@ -52,7 +52,12 @@ with sync_playwright() as p:
     print(browser_name,'MODAL DIAG',page.evaluate('window.FieldAtlasTetris.debugModal()'))
     page.screenshot(path=str(output/(browser_name+'-options.png')))
     if browser_name=='webkit':
-        for label in ['ready','raw','options']:
+        page.evaluate('window.FieldAtlasTetris.debugBypassEffects(true)')
+        page.wait_for_timeout(350)
+        page.screenshot(path=str(output/(browser_name+'-raw-options.png')))
+        page.evaluate('window.FieldAtlasTetris.debugBypassEffects(false)')
+    if browser_name=='webkit':
+        for label in ['ready','raw','options','raw-options']:
             img=Image.open(output/(browser_name+'-'+label+'.png')).convert('RGB')
             img.thumbnail((390,844))
             data=io.BytesIO();img.save(data,format='JPEG',quality=73)
