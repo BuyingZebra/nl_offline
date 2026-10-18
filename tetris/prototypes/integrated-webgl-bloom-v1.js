@@ -18,7 +18,7 @@
  const out={cut:document.getElementById('gpuLabCutValue'),
   width:document.getElementById('gpuLabWidthValue'),
   rate:document.getElementById('gpuLabRateValue')};
- let active=true,cut=.58,radius=7,maxRate=24,echo=false,captures=0,processed=0,
+ let active=true,cut=.58,radius=7,maxRate=12,echo=false,captures=0,processed=0,
      lastCapture=0,lastReport=performance.now(),frames=0,failures=0,
      busy=false,ready=false,sourceWidth=0,sourceHeight=0,texture=null,gl=null,
      latestError='',captureCost=0,realFPS=0,observed=0;
@@ -32,7 +32,7 @@
  const header='#version 300 es\nprecision highp float;in vec2 uv;out vec4 fragColor;uniform sampler2D t;uniform vec2 resolution;';
  const shader={
  extract:'uniform float cutoff;void main(){vec3 c=texture(t,uv).rgb;float y=dot(c,vec3(.2126,.7152,.0722));float mask=smoothstep(max(0.,cutoff-.10),min(1.,cutoff+.12),y);fragColor=vec4(c*mask,1.);}',
- blur:'uniform vec2 axis;uniform float sigma;void main(){vec3 sum=vec3(0.0);float total=0.0;for(int i=-6;i<=6;i++){float x=float(i);float w=exp(-.5*x*x/max(.1,sigma*sigma));sum+=texture(t,uv+axis*x/resolution).rgb*w;total+=w;}fragColor=vec4(sum/max(.01,total),1.0);}',
+ blur:'uniform vec2 axis;uniform float sigma;void main(){vec3 sum=vec3(0.0);float total=0.0;for(int i=-3;i<=3;i++){float x=float(i);float w=exp(-.5*x*x/max(.1,sigma*sigma));sum+=texture(t,uv+axis*x/resolution).rgb*w;total+=w;}fragColor=vec4(sum/max(.01,total),1.0);}',
  emit:'uniform sampler2D narrow;uniform sampler2D wide;uniform vec3 tint;uniform float strength;uniform float echo;void main(){vec3 n=texture(narrow,uv).rgb,w=texture(wide,uv).rgb;float energy=dot(n*.45+w*.55,vec3(.2126,.7152,.0722));float a=clamp(energy*strength,0.0,.62);float dx=3.0/resolution.x;vec3 echoCol=texture(narrow,uv-vec2(dx,0.)).rgb;float e=clamp(dot(echoCol,vec3(.2126,.7152,.0722))*echo*.36,0.,.18);float alpha=clamp(a+e,0.,.72);fragColor=vec4(tint,alpha);}'
  };
  function compile(type,src){
@@ -72,9 +72,9 @@
   for(const t of targets){gl.deleteFramebuffer(t.fbo);gl.deleteTexture(t.texture);}
   if(texture)gl.deleteTexture(texture);
   // The original DOM stays native at full device resolution; effects masks run at reduced resolution.
-  texture=makeTarget(w,h).texture;
-  targets=[makeTarget(Math.ceil(w/2),Math.ceil(h/2)),makeTarget(Math.ceil(w/2),Math.ceil(h/2)),
-           makeTarget(Math.ceil(w/4),Math.ceil(h/4)),makeTarget(Math.ceil(w/4),Math.ceil(h/4))];
+  const src=makeTarget(w,h);texture=src.texture;gl.deleteFramebuffer(src.fbo);
+  targets=[makeTarget(Math.ceil(w/3),Math.ceil(h/3)),makeTarget(Math.ceil(w/3),Math.ceil(h/3)),
+           makeTarget(Math.ceil(w/6),Math.ceil(h/6)),makeTarget(Math.ceil(w/6),Math.ceil(h/6))];
   canvas.width=w;canvas.height=h;
  };
  function pass(name,input,target,options={}){
@@ -102,7 +102,7 @@
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
   gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,image);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
-  const sigNear=1.35,sigWide=Math.max(.4,radius*(sourceWidth/app.clientWidth)/4);
+  const sigNear=1.3,sigWide=Math.max(.4,radius*(sourceWidth/app.clientWidth)/6);
   pass('extract',texture,targets[0]);
   pass('blur',targets[0].texture,targets[1],{ax:1,sigma:sigNear});
   pass('blur',targets[1].texture,targets[0],{ay:1,sigma:sigNear});
