@@ -3,11 +3,11 @@
  * Navigations with arbitrary URL parameters fall back to the canonical HTML.
  * Never cache unbounded user-generated URLs or obsolete script revisions.
  */
-const CACHE='field-atlas-arcade-v028';
+const CACHE='field-atlas-arcade-v029-raw';
 const APP_SHELL=[
- './','./index.html','./core.js?arcade=v028','./scores.js?arcade=v028',
- './vendor/pixi.min.js?arcade=v028','./pixi-crt.js?arcade=v028',
- './pixi-ui.js?arcade=v028'
+ './','./index.html','./core.js?arcade=v029','./scores.js?arcade=v029',
+ './vendor/pixi.min.js?arcade=v029','./pixi-crt.js?arcade=v029',
+ './pixi-ui.js?arcade=v029'
 ];
 const SCOPE_URL=new URL(self.registration.scope);
 const PAGE_URL=new URL('./index.html',SCOPE_URL).href;
