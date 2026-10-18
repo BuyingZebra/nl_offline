@@ -242,7 +242,7 @@
   if(scoreLabel)scoreLabel.text=fmt(game.score);
   if(linesLabel)linesLabel.text=fmt(game.lines,2);
   if(piecesLabel)piecesLabel.text=String(game.pieces);
-  if(eventLabel)eventLabel.text=game.lastEvent+' / '+(game.status==='ready'?'PRESS START':'LOCAL ARCADE ENGINE / V028');
+  if(eventLabel)eventLabel.text=game.lastEvent+' / '+(game.status==='ready'?'PRESS START':'LOCAL ARCADE ENGINE / V029');
   if(veilLayer){
    veilLayer.visible=game.status!=='playing';
    if(pausedNew)pausedNew.visible=game.status==='paused';
@@ -366,7 +366,7 @@
    {name:'FOOTER',x:offsetX+pad,y:footerY-12,w:inner,h:24}
   ]);
   eventLabel=text(app,'READY / PRESS START',pad,footerY,9,C.weak);
-  text(app,'LOCAL ARCADE ENGINE / V028',maxW-pad,footerY,9,C.weak,'right');
+  text(app,'LOCAL ARCADE ENGINE / V029',maxW-pad,footerY,9,C.weak,'right');
   syncGame();
   return {app,offsetX,safe,inner,headerY:headY,headerH:headH,boardX,boardY,boardW,boardH,deckY,deckH,deckX,deckW};
  };
