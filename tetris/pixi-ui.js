@@ -249,9 +249,9 @@
    veilLayer.visible=game.status!=='playing';
    if(pausedNew)pausedNew.visible=game.status==='paused';
    if(pausedScores)pausedScores.visible=game.status==='paused';
-   if(game.status==='ready'){veilTitle.text='TETRIS';veilSub.text='SURVIVE THE SOVIET CHALLENGE';playLabel.text='▶  START GAME';}
-   else if(game.status==='paused'){veilTitle.text='PAUSED';veilSub.text='YOUR GAME IS SAFE';playLabel.text='▶  RESUME';}
-   else if(game.status==='over'){veilTitle.text='GAME OVER';veilSub.text='TRY AGAIN';playLabel.text='▶  AGAIN';}
+   if(game.status==='ready'){veilTitle.text='TETRIS';veilSub.text='SURVIVE THE SOVIET CHALLENGE';playLabel.text='START GAME';}
+   else if(game.status==='paused'){veilTitle.text='PAUSED';veilSub.text='YOUR GAME IS SAFE';playLabel.text='RESUME';}
+   else if(game.status==='over'){veilTitle.text='GAME OVER';veilSub.text='TRY AGAIN';playLabel.text='AGAIN';}
   }
  }
  const safeArea=()=>{
@@ -325,8 +325,9 @@
   veilTitle=text(veilLayer,'TETRIS',(boardW-4)/2,boardH/2-64,Math.min(21,boardW*.079),C.bright,'center',700,1.4);
   veilSub=text(veilLayer,'SURVIVE THE SOVIET CHALLENGE',(boardW-4)/2,boardH/2-27,Math.min(10,boardW*.033),C.weak,'center');
   const bw=boardW-32,bh=height<=730?44:50;
-  const play=lightButton(veilLayer,'▶  START GAME',14,boardH/2+14,bw,bh,()=>action('start'),{size:Math.min(13,bw*.048)});
+  const play=lightButton(veilLayer,'START GAME',14,boardH/2+14,bw,bh,()=>action('start'),{size:Math.min(13,bw*.048)});
   playLabel=play.t;
+  text(veilLayer,'▶',14+18,boardH/2+14+bh/2,15,C.dark,'center');
   pausedNew=button(veilLayer,'NEW GAME',14,boardH/2+71,bw,40,()=>openModal('restart'),{size:11}).o;
   pausedScores=button(veilLayer,'HIGH SCORE',14,boardH/2+117,bw,40,()=>openModal('scores'),{size:11}).o;
   if(landscape){
