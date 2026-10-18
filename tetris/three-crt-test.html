@@ -13,6 +13,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 .panel{background:#1c1c1c;border:1px solid #545454;border-radius:12px;margin-top:12px;padding:12px}
 .switches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.switches label{flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:#2a2a2a;border:1px solid #595959;border-radius:8px;padding:12px 5px;font-size:12px;font-weight:700}
 .switches input{height:18px;width:18px;accent-color:#89df9d}
+.subhead{font-size:10px;letter-spacing:1.3px;font-weight:750;color:#a6a6a6;margin:17px 0 7px;border-top:1px solid #454545;padding-top:13px}
 .slider{display:grid;grid-template-columns:105px 1fr 37px;align-items:center;gap:9px;margin-top:15px;font-size:11px}.slider input{width:100%;accent-color:#bababa}.slider output{text-align:right;font-variant-numeric:tabular-nums}
 .note{border-top:1px solid #444;margin:14px 0 0;padding-top:10px;color:#aaa;font-size:11px;line-height:1.5}
 #status{font-size:10px;color:#a3a3a3;margin:10px 0 0}
@@ -21,7 +22,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </head>
 <body><main>
 <h1>THREE.JS · CRT COMPOSITOR TEST</h1>
-<p class="intro">Grayscale → beam scanlines → phosphor → bloom</p>
+<p class="intro">Grayscale → beam → phosphor → raster / persistence → bloom</p>
 <div id="frame"><canvas id="screen"></canvas><div id="loading">Loading Three.js…</div></div>
 <div class="panel">
 <div class="switches">
@@ -36,7 +37,17 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 <label class="slider">Beam softness<input id="lineSoftness" type="range" min=".8" max="2.5" step=".05" value="1.35"><output id="lineSoftnessOut">1.35</output></label>
 <label class="slider">Dark beam width<input id="lineThin" type="range" min=".08" max=".4" step=".01" value=".16"><output id="lineThinOut">0.16</output></label>
 <label class="slider">Bright beam width<input id="lineThick" type="range" min=".35" max="1" step=".01" value=".68"><output id="lineThickOut">0.68</output></label>
-<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js shapes the grayscale beam first, applies phosphor colour, then generates GPU luminance bloom from the illuminated lines. Line spacing is measured in screen-independent CSS pixels. No occlusion, SVG, CSS shadows or duplicated HTML.</p>
+<div class="subhead">TEMPORAL CRT EFFECTS · OPTIONAL</div>
+<div class="switches">
+<label><input id="raster" type="checkbox">Raster sweep</label>
+<label><input id="flicker" type="checkbox">Flicker</label>
+<label><input id="persistence" type="checkbox">Persistence</label>
+</div>
+<label class="slider">Refresh cycle<input id="rasterPeriod" type="range" min=".3" max="8" step=".1" value="2.5"><output id="rasterPeriodOut">2.5s</output></label>
+<label class="slider">Raster intensity<input id="rasterAmount" type="range" min="0" max="1" step=".01" value=".65"><output id="rasterAmountOut">0.65</output></label>
+<label class="slider">Flicker amount<input id="flickerAmount" type="range" min="0" max=".25" step=".01" value=".05"><output id="flickerAmountOut">0.05</output></label>
+<label class="slider">Afterglow decay<input id="decay" type="range" min="60" max="1200" step="20" value="380"><output id="decayOut">380ms</output></label>
+<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js shapes the grayscale beam first, applies phosphor colour, then generates GPU luminance bloom from the illuminated lines. Line spacing uses screen-independent CSS pixels. Raster sweep travels left to right, then top to bottom, at an artistically adjustable speed. Persistence uses a real GPU previous-frame buffer; tap different controls to see their afterimages. No occlusion, SVG or CSS shadows.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -46,10 +57,12 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {AfterimagePass} from 'three/addons/postprocessing/AfterimagePass.js';
 
 const get=id=>document.getElementById(id);
 const frame=get('frame'),screen=get('screen'),status=get('status'),loading=get('loading');
 const phosphor=get('phosphor'),bloom=get('bloom'),scanlines=get('scanlines'),cutoff=get('threshold'),strength=get('strength'),lineStrength=get('lineStrength'),lineSpacing=get('lineSpacing'),lineSoftness=get('lineSoftness'),lineThin=get('lineThin'),lineThick=get('lineThick');
+const raster=get('raster'),flicker=get('flicker'),persistence=get('persistence'),rasterPeriod=get('rasterPeriod'),rasterAmount=get('rasterAmount'),flickerAmount=get('flickerAmount'),decay=get('decay');
 let W=0,H=0,DPR=1,selected=-1;
 try {
  // Use the browser's high-quality 2D text/shape rasterization for this source.
@@ -116,9 +129,48 @@ try {
  lines.enabled=false;
  composer.addPass(lines);
  composer.addPass(tint);
+ // The travelling raster head follows real scan order:
+ // x increases across each row, then y increases down the display.
+ // Rows are grouped for an artistically readable refresh, not a literal 15 kHz trace.
+ const refresh=new ShaderPass({
+  uniforms:{
+   tDiffuse:{value:null},
+   uTime:{value:0},
+   uPeriod:{value:2.5},
+   uRaster:{value:0},
+   uFlicker:{value:0},
+   uRows:{value:24}
+  },
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:`
+   varying vec2 vUv;
+   uniform sampler2D tDiffuse;
+   uniform float uTime,uPeriod,uRaster,uFlicker,uRows;
+   void main(){
+    vec3 src=texture2D(tDiffuse,vUv).rgb;
+    float rows=max(1.0,uRows);
+    float row=floor(clamp(1.0-vUv.y,0.0,0.999999)*rows);
+    float order=(row+vUv.x)/rows;
+    float point=fract(uTime/max(uPeriod,0.01));
+    float behind=fract(point-order+1.0);
+    float head=exp(-behind*rows*5.0);
+    float trailing=exp(-behind*rows*1.4);
+    float brightness=1.0+uRaster*(head*.85+trailing*.2);
+    float flutter=.70*sin(uTime*23.0)+.30*sin(uTime*41.7+.35);
+    brightness*=max(.4,1.0+uFlicker*flutter);
+    gl_FragColor=vec4(src*brightness,1.0);
+   }`
+ });
+ refresh.enabled=false;
+ composer.addPass(refresh);
+ // Built-in GPU feedback: retains bright pixels from PREVIOUS frames,
+ // with a time-adjusted decay coefficient. Kept before the bloom pass.
+ const afterglow=new AfterimagePass(.90);
+ afterglow.enabled=false;
+ composer.addPass(afterglow);
  composer.addPass(glow);
  composer.addPass(new OutputPass());
- let pending=false,hitBoxes=[];
+ let pending=false,hitBoxes=[],lastTime=0,lastDraw=0,forceDraw=true,trailUntil=0;
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
  const fill=(x,y,w,h,r,v)=>{
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=c(v);ctx.fill();
@@ -166,8 +218,25 @@ try {
   lum.forEach((v,i)=>fill(bx+pad+i*(sw+5),swY,sw,12,2,v));
   texture.needsUpdate=true;
  }
- function draw(){
+ function clearAfterglow(){
+  const oldTarget=renderer.getRenderTarget();
+  const oldColor=renderer.getClearColor(new THREE.Color()).clone();
+  const oldAlpha=renderer.getClearAlpha();
+  renderer.setClearColor(0x000000,0);
+  for(const rt of [afterglow.textureOld,afterglow.textureComp]){
+   renderer.setRenderTarget(rt);
+   renderer.clear(true,true,true);
+  }
+  renderer.setRenderTarget(oldTarget);
+  renderer.setClearColor(oldColor,oldAlpha);
+ }
+ function draw(now){
   pending=false;
+  const animated=raster.checked||flicker.checked||(persistence.checked&&now<trailUntil);
+  // An animated CRT redraws at at most ~30 fps to limit iPhone GPU load.
+  if(animated&&!forceDraw&&now-lastDraw<33){schedule();return;}
+  const dt=lastTime?Math.min(.2,Math.max(.001,(now-lastTime)/1000)):1/30;
+  lastTime=now;lastDraw=now;forceDraw=false;
   glow.enabled=bloom.checked;
   glow.threshold=Number(cutoff.value);
   glow.strength=Number(strength.value);
@@ -178,9 +247,20 @@ try {
   lines.uniforms.uSoftness.value=Number(lineSoftness.value);
   lines.uniforms.uThin.value=Number(lineThin.value);
   lines.uniforms.uThick.value=Number(lineThick.value);
+  refresh.enabled=raster.checked||flicker.checked;
+  refresh.uniforms.uTime.value=now/1000;
+  refresh.uniforms.uPeriod.value=Number(rasterPeriod.value);
+  refresh.uniforms.uRaster.value=raster.checked?Number(rasterAmount.value):0;
+  refresh.uniforms.uFlicker.value=flicker.checked?Number(flickerAmount.value):0;
+  afterglow.enabled=persistence.checked;
+  afterglow.uniforms.damp.value=Math.exp(-dt/(Number(decay.value)/1000));
   composer.render();
+  if(animated)schedule();
  }
- function schedule(){if(!pending){pending=true;requestAnimationFrame(draw);}}
+ function schedule(force=true){
+  if(force)forceDraw=true;
+  if(!pending&&!document.hidden){pending=true;requestAnimationFrame(draw);}
+ }
  function resize(){
   const rect=frame.getBoundingClientRect();
   const w=Math.max(1,Math.round(rect.width-2)),h=Math.max(1,Math.round(rect.height-2)),d=window.devicePixelRatio||1;
@@ -189,10 +269,11 @@ try {
   renderer.setPixelRatio(d);renderer.setSize(w,h,false);
   composer.setPixelRatio(d);composer.setSize(w,h);
   lines.uniforms.uDpr.value=d;
+  clearAfterglow();lastTime=0;
   paintSource();schedule();
   status.textContent='Canvas source → Three.js GPU | DPR '+d+' | '+Math.round(w*d)+' × '+Math.round(h*d)+' pixels';
  }
- for(const el of [phosphor,bloom,scanlines,cutoff,strength,lineStrength,lineSpacing,lineSoftness,lineThin,lineThick])el.addEventListener('input',()=>{
+ for(const el of [phosphor,bloom,scanlines,cutoff,strength,lineStrength,lineSpacing,lineSoftness,lineThin,lineThick,raster,flicker,persistence,rasterPeriod,rasterAmount,flickerAmount,decay])el.addEventListener('input',()=>{
   get('thresholdOut').textContent=Number(cutoff.value).toFixed(2);
   get('strengthOut').textContent=Number(strength.value).toFixed(2);
   get('lineStrengthOut').textContent=Number(lineStrength.value).toFixed(2);
@@ -200,12 +281,26 @@ try {
   get('lineSoftnessOut').textContent=Number(lineSoftness.value).toFixed(2);
   get('lineThinOut').textContent=Number(lineThin.value).toFixed(2);
   get('lineThickOut').textContent=Number(lineThick.value).toFixed(2);
+  get('rasterPeriodOut').textContent=Number(rasterPeriod.value).toFixed(1)+'s';
+  get('rasterAmountOut').textContent=Number(rasterAmount.value).toFixed(2);
+  get('flickerAmountOut').textContent=Number(flickerAmount.value).toFixed(2);
+  get('decayOut').textContent=Number(decay.value)+'ms';
+  if(el===persistence){clearAfterglow();lastTime=0;}
+  if(persistence.checked)trailUntil=performance.now()+Number(decay.value)*7;
   schedule();
  });
  screen.addEventListener('pointerdown',event=>{
   const r=screen.getBoundingClientRect(),x=event.clientX-r.left,y=event.clientY-r.top;
   const hit=hitBoxes.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
-  if(hit){selected=hit.id;paintSource();schedule();}
+  if(hit){
+   selected=hit.id;paintSource();
+   if(persistence.checked)trailUntil=performance.now()+Number(decay.value)*7;
+   schedule();
+  }
+ });
+ document.addEventListener('visibilitychange',()=>{
+  lastTime=0;
+  if(!document.hidden){clearAfterglow();schedule();}
  });
  new ResizeObserver(resize).observe(frame);
  resize();loading.hidden=true;
