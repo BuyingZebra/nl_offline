@@ -504,11 +504,31 @@ with sync_playwright() as p:
         assert abs(ready_layout["a"]-ready_layout["b"])<3,ready_layout
         assert abs(ready_layout["b"]-ready_layout["c"])<3,ready_layout
         assert abs(ready_layout["lineCenter"]-ready_layout["cursorCenter"])<2,ready_layout
+        # Play labels are centered on the entire button and cannot collide
+        # with the independently positioned triangle on narrow phones.
+        play_geometry=page.evaluate("""() => {
+          const box=id=>document.querySelector(id).getBoundingClientRect();
+          const button=box('#playButton'),arrow=box('#playButton .play-arrow'),
+                label=box('#playButton .play-caption');
+          return {
+            centered:(label.left+label.right-button.left-button.right)/2,
+            arrowInset:arrow.left-button.left,
+            arrowGap:label.left-arrow.right,
+            middleGap:(arrow.top+arrow.bottom-button.top-button.bottom)/2,
+            label:document.querySelector('#playButton .play-caption').textContent};
+        }""")
+        assert play_geometry["label"]=="START GAME",play_geometry
+        assert abs(play_geometry["centered"])<2,play_geometry
+        assert 13<=play_geometry["arrowInset"]<=21,play_geometry
+        assert play_geometry["arrowGap"]>0,play_geometry
+        assert abs(play_geometry["middleGap"])<2,play_geometry
         # PAUSE is always visibly enabled. It does nothing before the
         # game starts but retains its reactive button flash.
         assert page.locator("#pauseButton").is_enabled()
         page.locator("#pauseButton").tap()
-        assert page.locator("#playButton").inner_text().strip() == "▶ START GAME"
+        assert page.locator("#playButton .play-caption").inner_text() == "START GAME"
+        assert page.locator("#playButton .play-arrow").inner_text() == "▶"
+        assert page.locator("#playButton .play-arrow").get_attribute("aria-hidden") == "true"
         assert page.locator("#pauseButton").is_enabled()
         page.get_by_role("button", name="START GAME").tap()
         page.locator('button[data-action="hard"]').tap()
@@ -560,7 +580,14 @@ with sync_playwright() as p:
         assert page.locator("#pausedScoresButton").inner_text().strip() == "HIGH SCORE"
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#pauseButton").is_enabled()
-        assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
+        assert page.locator("#playButton .play-caption").inner_text() == "RESUME"
+        assert page.locator("#playButton .play-arrow").inner_text() == "▶"
+        pause_alignment=page.evaluate("""() => {
+          const b=document.querySelector('#playButton').getBoundingClientRect();
+          const text=document.querySelector('#playButton .play-caption').getBoundingClientRect();
+          return (text.left+text.right-b.left-b.right)/2;
+        }""")
+        assert abs(pause_alignment)<2,pause_alignment
         # Approved persistence default is ON. Pause may leave a transient
         # interaction ghost; no old always-on flash may reappear.
         assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() == 0
@@ -568,7 +595,8 @@ with sync_playwright() as p:
         # P and Escape are one-way pause keys; neither may resume the game.
         page.keyboard.press("p")
         assert page.locator("#pauseButton").is_enabled()
-        assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
+        assert page.locator("#playButton .play-caption").inner_text() == "RESUME"
+        assert page.locator("#playButton .play-arrow").inner_text() == "▶"
 
         page.locator("#pausedScoresButton").tap()
         assert page.locator("#leaderboard").get_attribute("open") is not None
