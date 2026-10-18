@@ -22,7 +22,7 @@
   const srgb=v.match(/^color\((?:srgb|display-p3)\s+([\d.+-]+)\s+([\d.+-]+)\s+([\d.+-]+)(?:\s*\/\s*([\d.+-]+))?\)$/);
   if(srgb)return {color:((clamp(Math.round(+srgb[1]*255),0,255)<<16)
    |(clamp(Math.round(+srgb[2]*255),0,255)<<8)
-   |clamp(Math.round(+srgb[3]*255),0,255))),alpha:srgb[4]===undefined?1:clamp(+srgb[4],0,1)};
+   |clamp(Math.round(+srgb[3]*255),0,255)),alpha:srgb[4]===undefined?1:clamp(+srgb[4],0,1)};
   const hex=v.match(/^#([0-9a-f]{3,8})$/);
   if(hex){
    let h=hex[1];
