@@ -199,16 +199,13 @@
     palette={bright:hexRgb(css('--bright')),ink:hexRgb(css('--ink')),
       weak:hexRgb(css('--weak')),base:hexRgb(css('--bg')),border:hexRgb(css('--border')),
       grid:hexRgb(css('--grid')),dark:hexRgb(css('--shadow'))};
-    const k=glow/100;
-    // CSS properties live on the document root so modal top-layer
-    // buttons and game controls share identical phosphor settings.
-    const app=root;
-    app.style.setProperty('--scan-intensity',String(scan/100));
-    app.style.setProperty('--vignette-intensity',String(vignette/100));
-    app.style.setProperty('--glow-level',k.toFixed(3));
-    app.style.setProperty('--sweep-intensity',(sweep/100).toFixed(3));
-    app.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
-    app.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
+    // The one post-processing SVG filter sees all UI, controls, modals,
+    // canvases and hue as a fully composited image. Only pixel luminance
+    // determines emission; glow strength controls its single alpha ramp.
+    $('crtBloomAmount').setAttribute('slope',(glow/100).toFixed(3));
+    root.style.setProperty('--scan-intensity',String(scan/100));
+    root.style.setProperty('--vignette-intensity',String(vignette/100));
+    root.style.setProperty('--sweep-intensity',(sweep/100).toFixed(3));
     applyGradientFades();
     updateDisplaySettings();
     dirty=true;
@@ -244,17 +241,8 @@
     const body=mix(palette.base,palette.bright,.25+k*.42);
     const edge=mix(palette.base,palette.ink,.30+k*.54);
     ctx.save();
-    if(glow>0){
-      // Bloom follows each tile's actual fill, not a uniform phosphor tint.
-      const emission=glow/100;
-      // Physically darker tiles emit less; luminous bloom inherits the
-      // computed cell fill, never the palette's uniform highlight colour.
-      ctx.shadowColor=color(body,emission*(.18+.55*k));
-      ctx.shadowBlur=17*emission*(.3+.7*k);
-    }
     ctx.fillStyle=color(body,.98);
     ctx.fillRect(cx+1,cy+1,size-2,size-2);
-    ctx.shadowBlur=0;
     ctx.strokeStyle=color(edge,.95);
     ctx.lineWidth=1.4;
     ctx.strokeRect(cx+1.2,cy+1.2,size-2.4,size-2.4);
