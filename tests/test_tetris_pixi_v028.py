@@ -21,6 +21,8 @@ with sync_playwright() as p:
     page.wait_for_timeout(1400)
     state=lambda:page.evaluate('window.FieldAtlasTetris.getState()')
     print(browser_name,'READY STATE',state())
+    print(browser_name,'SCENE DIAG',page.evaluate('window.FieldAtlasTetris.debugStage()'))
+    page.evaluate('window.FieldAtlasTetris.debugForceRender()')
     assert state()['renderer']=='PixiJS'
     assert state()['luminanceOnly'] is True
     assert state()['gameStatus']=='ready'
