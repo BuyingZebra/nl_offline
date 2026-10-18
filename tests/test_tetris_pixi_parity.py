@@ -63,10 +63,4 @@ with sync_playwright() as p:
         mae=round(sum(ImageStat.Stat(image).mean)/3,3)
         different=sum(1 for rgb in image.getdata() if max(rgb)>8)/(image.width*image.height)
         print(engine,label,'MAE',mae,'fraction with per-channel difference > 8',round(different,5))
-        if label=='settings':
-            native.thumbnail((390,844));pixi.thumbnail((390,844))
-            import base64
-            for kind,img in [('dom',native),('pixi',pixi)]:
-                buff=io.BytesIO();img.save(buff,format='PNG',optimize=True)
-                print('PIXIVIEW:'+kind+':'+base64.b64encode(buff.getvalue()).decode())
     browser.close()
