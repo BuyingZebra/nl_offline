@@ -670,7 +670,7 @@
   requestAnimationFrame(frame);
 
   if('serviceWorker' in navigator&&location.protocol==='https:'){
-    // Explicitly check for new SW versions on every online launch. SW V024
+    // Explicitly check for new SW versions on every online launch. SW V025
     // uses network-first/no-store and deletes older arcade caches on activate.
     // Do not forcibly reload while a game is running.
     navigator.serviceWorker.register('./sw.js',{
