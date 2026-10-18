@@ -322,13 +322,24 @@
     parent.removeAttribute('aria-label');
     if(parent.textContent!==message)parent.textContent=message;
   }
+  // Live counters have their own update path. A blocked/offscreen canvas
+  // redraw must never prevent scoring, levels, or lines from reaching the HUD.
+  function syncLiveStats(){
+    const values={
+      scoreValue:String(game.score).padStart(6,'0'),
+      linesValue:String(game.lines).padStart(2,'0'),
+      levelValue:String(game.level).padStart(2,'0'),
+      bestScore:Math.max(highScore,game.score).toLocaleString('en-CA'),
+      pieceCount:String(game.pieces),
+      eventText:game.lastEvent+' / '+game.dropMs+' MS'
+    };
+    for(const [id,value] of Object.entries(values)){
+      const node=$(id);
+      if(node.textContent!==value)node.textContent=value;
+    }
+  }
   function updateHUD(){
-    $('scoreValue').textContent=String(game.score).padStart(6,'0');
-    $('linesValue').textContent=String(game.lines).padStart(2,'0');
-    $('levelValue').textContent=String(game.level).padStart(2,'0');
-    $('bestScore').textContent=Math.max(highScore,game.score).toLocaleString('en-CA');
-    $('pieceCount').textContent=game.pieces;
-    $('eventText').textContent=game.lastEvent+' / '+game.dropMs+' MS';
+    syncLiveStats();
     // PAUSE is a consistently lit, clickable control in every state.
     // The action handler only pauses while playing; ▶ RESUME on the
     // board remains the only way to continue an existing game.
@@ -441,6 +452,7 @@
       else if(action==='hold')playTone(265,.045);
       if(beforeStatus!=='over'&&game.status==='over')playTone(100,.25);
       offerScoreOnGameOver();
+      syncLiveStats();
       dirty=true;
     }
     return performed;
@@ -458,6 +470,7 @@
     game.reset();
     game.start();
     gameOverHandled=false;
+    syncLiveStats();
     dirty=true;
   });
   restartConfirm.addEventListener('cancel',()=>{dirty=true;});
@@ -592,6 +605,8 @@
     lastFrame=t;
     const beforePieces=game.pieces,beforeLines=game.lines,beforeStatus=game.status;
     const changed=game.tick(dt);
+    // Gravity, locks and line clears can change scores without a pointer event.
+    if(game.status==='playing'||changed)syncLiveStats();
     if(changed)dirty=true;
     if(game.pieces>beforePieces){
       if(game.lines>beforeLines)playTone(game.lines-beforeLines===4?670:480,.15);
