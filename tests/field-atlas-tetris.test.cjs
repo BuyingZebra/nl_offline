@@ -342,7 +342,7 @@ test('Fallout-style settings cap display height, restore original font, and pres
  assert.match(html,/#app input\.effect-slider::-webkit-slider-thumb\{[\s\S]*?border-radius:0/);
  assert.match(html,/#app input\.effect-slider::-moz-range-thumb\{[\s\S]*?border-radius:0/);
  assert.ok(html.includes('--terminal-font:'));
- assert.match(html,/#app dialog\{position:absolute;/);
+ assert.match(html,/#app dialog\{position:fixed;top:50dvh;/);
  assert.doesNotMatch(dialog,/height="[0-9]+"/);
 });
 
