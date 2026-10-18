@@ -93,6 +93,11 @@
   }
   function store(key,val){try{localStorage.setItem(key,String(val))}catch(e){}}
   const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
+  // Independent screen-space experimental overlays never modify game cells,
+  // UI surfaces or the phosphor colour pass.
+  let experimental=null;
+  try{experimental=window.FieldAtlasExperimentalFX?.create(document)||null;}
+  catch(e){console.warn('Experimental CRT overlays unavailable; game continues',e);}
   try{storage=window.localStorage;}catch(e){storage=null;}
   highScores=Scores.read(storage);
   highScore=highScores[0]?.score||0;
@@ -592,6 +597,7 @@
     const bounds=button.getBoundingClientRect();
     const appBounds=appSurface.getBoundingClientRect();
     if(!bounds.width||!bounds.height)return;
+    experimental?.onButton(button,bounds,appBounds);
     const layer=document.createElement('span');
     layer.className='phosphor-hit-layer';
     layer.style.left=(bounds.left-appBounds.left)+'px';
