@@ -72,13 +72,13 @@
    defaults:{uStrength:[.13,'f32']}
   },
   noise:{
-   body:`uniform float uStrength,uTime;
+   body:`uniform float uStrength,uTime,uRate;
    float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
    void main(){vec4 c=texture(uTexture,vTextureCoord);
-     float n=hash(floor(vTextureCoord*uInputSize.xy/2.)+floor(uTime*24.));
+     float n=hash(floor(vTextureCoord*uInputSize.xy/2.)+floor(uTime*uRate));
      finalColor=vec4(clamp(c.rgb+(n-.5)*uStrength*.23,0.,1.),c.a);
    }`,
-   defaults:{uStrength:[.08,'f32'],uTime:[0,'f32']}
+   defaults:{uStrength:[.08,'f32'],uTime:[0,'f32'],uRate:[24,'f32']}
   },
   vignette:{
    body:`uniform float uStrength,uTop,uBottom,uSweep,uTime;
@@ -110,7 +110,7 @@
    this.order=['glow','ghost','softness','noise','scanlines','vignette','phosphor'];
    this.enabled={glow:true,ghost:false,softness:true,noise:true,scanlines:true,vignette:true,phosphor:true};
    this.config={glow:68,threshold:56,radius:2.6,ghost:24,ghostDistance:3,
-    softness:13,noise:8,scan:51,vignette:49,sweep:57,top:135,bottom:135,
+    softness:13,noise:8,noiseRate:24,scan:51,vignette:49,sweep:57,top:135,bottom:135,
     theme:'green'};
    this.filters={};this.errors=[];
    for(const [id,spec] of Object.entries(snippets)){
@@ -136,6 +136,7 @@
    this.uniform('ghost','uDistance',clamp(+c.ghostDistance,0,12));
    this.uniform('softness','uStrength',clamp(+c.softness/100,0,1));
    this.uniform('noise','uStrength',clamp(+c.noise/100,0,1));
+   this.uniform('noise','uRate',clamp(+c.noiseRate,1,60));
    this.uniform('scanlines','uStrength',clamp(+c.scan/100,0,1));
    this.uniform('vignette','uStrength',clamp(+c.vignette/100,0,1));
    this.uniform('vignette','uSweep',clamp(+c.sweep/100,0,1));
