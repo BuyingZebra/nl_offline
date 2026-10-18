@@ -45,9 +45,9 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </div>
 <label class="slider">Refresh cycle<input id="rasterPeriod" type="range" min=".3" max="8" step=".1" value="2.5"><output id="rasterPeriodOut">2.5s</output></label>
 <label class="slider">Raster intensity<input id="rasterAmount" type="range" min="0" max="1" step=".01" value=".65"><output id="rasterAmountOut">0.65</output></label>
-<label class="slider">Flicker amount<input id="flickerAmount" type="range" min="0" max=".25" step=".01" value=".05"><output id="flickerAmountOut">0.05</output></label>
+<label class="slider">Random flicker<input id="flickerAmount" type="range" min="0" max=".25" step=".01" value=".05"><output id="flickerAmountOut">0.05</output></label>
 <label class="slider">Afterglow decay<input id="decay" type="range" min="60" max="1200" step="20" value="380"><output id="decayOut">380ms</output></label>
-<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js shapes the grayscale beam first, applies phosphor colour, then generates GPU luminance bloom from the illuminated lines. Line spacing uses screen-independent CSS pixels. Raster sweep travels left to right, then top to bottom, at an artistically adjustable speed. Persistence uses a real GPU previous-frame buffer; tap different controls to see their afterimages. No occlusion, SVG or CSS shadows.</p>
+<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js shapes the grayscale beam first, applies phosphor colour, then generates GPU luminance bloom from the illuminated lines. Line spacing uses screen-independent CSS pixels. Raster sweep travels left to right, then top to bottom, at an artistically adjustable speed. Flicker now occurs as short random impulses separated by quiet intervals. Persistence uses a real GPU previous-frame buffer; tap different controls to see their afterimages. No occlusion, SVG or CSS shadows.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -156,8 +156,8 @@ try {
     float head=exp(-behind*rows*5.0);
     float trailing=exp(-behind*rows*1.4);
     float brightness=1.0+uRaster*(head*.85+trailing*.2);
-    float flutter=.70*sin(uTime*23.0)+.30*sin(uTime*41.7+.35);
-    brightness*=max(.4,1.0+uFlicker*flutter);
+    // uFlicker now arrives as an irregular, brief pulse from JavaScript.
+    brightness*=max(.4,1.0+uFlicker);
     gl_FragColor=vec4(src*brightness,1.0);
    }`
  });
@@ -171,6 +171,39 @@ try {
  composer.addPass(glow);
  composer.addPass(new OutputPass());
  let pending=false,hitBoxes=[],lastTime=0,lastDraw=0,forceDraw=true,trailUntil=0;
+ // Randomized short flicker bursts with long, irregular quiet intervals.
+ // Sampling at display refresh gives brief impulses without continuously
+ // modulating the image with a periodic sine wave.
+ let nextFlicker=0,burstEnd=0,nextStep=0,flickerPulse=0;
+ function tickFlicker(now){
+  if(!flicker.checked){
+   const changed=flickerPulse!==0;
+   nextFlicker=0;burstEnd=0;nextStep=0;flickerPulse=0;
+   return changed;
+  }
+  if(!burstEnd&&!nextFlicker){
+   nextFlicker=now+1100+Math.random()*2800;
+   return false;
+  }
+  if(!burstEnd&&now>=nextFlicker){
+   burstEnd=now+45+Math.random()*110;
+   nextStep=0;nextFlicker=0;
+  }
+  if(burstEnd&&now>=burstEnd){
+   burstEnd=0;nextFlicker=now+2700+Math.random()*8100;
+   const changed=flickerPulse!==0;flickerPulse=0;
+   return changed;
+  }
+  if(burstEnd&&now>=nextStep){
+   nextStep=now+15+Math.random()*26;
+   // Mostly brief dimming, occasionally a subtler bright spark.
+   flickerPulse=Math.random()<.14
+    ? .18+Math.random()*.24
+    : -(.55+Math.random()*.45);
+   return true;
+  }
+  return false;
+ }
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
  const fill=(x,y,w,h,r,v)=>{
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=c(v);ctx.fill();
@@ -245,9 +278,19 @@ try {
  }
  function draw(now){
   pending=false;
-  const animated=raster.checked||flicker.checked||(persistence.checked&&now<trailUntil);
-  // An animated CRT redraws at at most ~30 fps to limit iPhone GPU load.
-  if(animated&&!forceDraw&&now-lastDraw<33){schedule();return;}
+  const flickerChanged=tickFlicker(now);
+  const animated=raster.checked||(persistence.checked&&now<trailUntil);
+  // While flicker is enabled, check for random pulses every frame,
+  // but keep the GPU idle during the long gaps between bursts.
+  if(!animated&&!forceDraw&&!flickerChanged){
+   if(flicker.checked)schedule(false);
+   return;
+  }
+  // The raster/afterimage effects remain capped near 30 FPS on phones.
+  // Flicker impulses aren't restricted to that cap when used alone.
+  if(animated&&!forceDraw&&!flickerChanged&&now-lastDraw<33){
+   schedule(false);return;
+  }
   const dt=lastTime?Math.min(.2,Math.max(.001,(now-lastTime)/1000)):1/30;
   lastTime=now;lastDraw=now;forceDraw=false;
   glow.enabled=bloom.checked;
@@ -264,11 +307,11 @@ try {
   refresh.uniforms.uTime.value=now/1000;
   refresh.uniforms.uPeriod.value=Number(rasterPeriod.value);
   refresh.uniforms.uRaster.value=raster.checked?Number(rasterAmount.value):0;
-  refresh.uniforms.uFlicker.value=flicker.checked?Number(flickerAmount.value):0;
+  refresh.uniforms.uFlicker.value=flicker.checked?flickerPulse*Number(flickerAmount.value):0;
   afterglow.enabled=persistence.checked;
   afterglow.uniforms.damp.value=Math.exp(-dt/(Number(decay.value)/1000));
   composer.render();
-  if(animated)schedule();
+  if(animated||flicker.checked)schedule(false);
  }
  function schedule(force=true){
   if(force)forceDraw=true;
@@ -299,6 +342,7 @@ try {
   get('flickerAmountOut').textContent=Number(flickerAmount.value).toFixed(2);
   get('decayOut').textContent=Number(decay.value)+'ms';
   if(el===persistence){clearAfterglow();lastTime=0;}
+  if(el===flicker){nextFlicker=0;burstEnd=0;nextStep=0;flickerPulse=0;}
   if(persistence.checked)trailUntil=performance.now()+Number(decay.value)*7;
   schedule();
  });
@@ -312,7 +356,7 @@ try {
   }
  });
  document.addEventListener('visibilitychange',()=>{
-  lastTime=0;
+  lastTime=0;nextFlicker=0;burstEnd=0;nextStep=0;flickerPulse=0;
   if(!document.hidden){clearAfterglow();schedule();}
  });
  new ResizeObserver(resize).observe(frame);
