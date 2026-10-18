@@ -404,6 +404,43 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 /* More transparency reveals the paused board while preserving its 3px blur. */
 #veil{background:color-mix(in srgb,var(--card-bg) 82%,transparent)}
 
+/* Experimental effects are strictly grayscale, screen-space overlays.
+ * They sit above UI/dialogs and below scanlines and the phosphor hue pass.
+ * The application and button surfaces never receive these filters. */
+#fxSoftness,#fxNoise,#fxInterference,#fxGlitch{
+ position:absolute;pointer-events:none;display:none;
+}
+#fxSoftness{inset:0;z-index:27;background:transparent}
+#fxNoise{inset:0;z-index:28;width:100%;height:100%;image-rendering:pixelated}
+#fxInterference{z-index:29;left:0;width:100%;height:8px;opacity:0;
+ background:linear-gradient(to bottom,transparent,rgba(0,0,0,.38) 42%,
+ rgba(255,255,255,.12) 63%,transparent)}
+#fxGlitch{z-index:30;left:0;width:100%;height:5px;opacity:0;
+ background:repeating-linear-gradient(to bottom,rgba(255,255,255,.45) 0px,
+ rgba(255,255,255,.45) 1px,transparent 1px,transparent 2px,
+ rgba(0,0,0,.55) 2px,rgba(0,0,0,.55) 4px)}
+#buttonFxLayer .fx-persistence-ghost{
+ position:absolute;display:flex;align-items:center;justify-content:center;
+ box-sizing:border-box;pointer-events:none;white-space:nowrap;overflow:hidden;
+ border:1px solid;box-shadow:0 0 11px currentColor;
+ animation:fx-persistence-fade 450ms ease-out forwards;
+}
+@keyframes fx-persistence-fade{
+ from{opacity:var(--fx-persistence-opacity,.2)}to{opacity:0}
+}
+.experimental-effect{margin:13px 0 17px}
+.experimental-toggle{display:flex;align-items:center;gap:9px;min-height:44px;
+ font-size:11px;font-weight:700;letter-spacing:.08em}
+.experimental-toggle input{width:21px;height:21px;flex:none;accent-color:var(--bright)}
+.experimental-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.experimental-grid .effect-row{min-width:0;margin:4px 0}
+.experimental-grid .effect-head{gap:3px;font-size:9px;letter-spacing:0}
+.experimental-grid .effect-head output{font-variant-numeric:tabular-nums}
+#resetExperimental{width:100%;margin:3px 0 12px}
+@media(prefers-reduced-motion:reduce){
+ #fxNoise,#fxInterference,#fxGlitch{display:none!important}
+}
+
 </style>
 </head>
 <body>
@@ -450,6 +487,10 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   </div>
  </section>
  <div id="eventline"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE</span></div>
+ <div id="fxSoftness" aria-hidden="true"></div>
+ <canvas id="fxNoise" aria-hidden="true"></canvas>
+ <div id="fxInterference" aria-hidden="true"></div>
+ <div id="fxGlitch" aria-hidden="true"></div>
  <div id="buttonFxLayer" aria-hidden="true"></div>
  <div id="screenTopFade" aria-hidden="true"></div>
  <div id="screenBottomFade" aria-hidden="true"></div>
@@ -476,6 +517,38 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">30%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="30"></div>
 
  <button id="resetEffects">RESET DISPLAY EFFECTS</button>
+ <div id="experimentalFxSection">
+  <div class="settings-divider"></div>
+  <div class="settings-heading">EXPERIMENTAL CRT EFFECTS</div>
+  <p class="setting-copy">Independent grayscale compositing overlays. All effects are off by default; settings are saved only on this device. Motion respects Reduce Motion.</p>
+ <div class="experimental-effect">
+  <label class="experimental-toggle"><input id="fxNoiseEnabled" type="checkbox"> NOISE</label>
+  <p class="effect-note">Animated grayscale grain, rendered at low resolution.</p>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxNoiseAmount">AMOUNT</label><output id="fxNoiseAmountValue">18%</output></div><input id="fxNoiseAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="18"></div><div class="effect-row"><div class="effect-head"><label for="fxNoiseSpeed">SPEED</label><output id="fxNoiseSpeedValue">12 FPS</output></div><input id="fxNoiseSpeed" class="effect-slider" type="range" min="1" max="24" step="1" value="12"></div></div>
+ </div>
+ <div class="experimental-effect">
+  <label class="experimental-toggle"><input id="fxPersistenceEnabled" type="checkbox"> PERSISTENCE</label>
+  <p class="effect-note">Only button presses leave a brief fading imprint.</p>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxPersistenceAmount">AMOUNT</label><output id="fxPersistenceAmountValue">35%</output></div><input id="fxPersistenceAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="35"></div><div class="effect-row"><div class="effect-head"><label for="fxPersistenceDecay">DECAY</label><output id="fxPersistenceDecayValue">450 MS</output></div><input id="fxPersistenceDecay" class="effect-slider" type="range" min="100" max="1200" step="1" value="450"></div></div>
+ </div>
+ <div class="experimental-effect">
+  <label class="experimental-toggle"><input id="fxSoftnessEnabled" type="checkbox"> SOFTNESS</label>
+  <p class="effect-note">Optional optical blur of the composed UI; geometry stays fixed.</p>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxSoftnessAmount">AMOUNT</label><output id="fxSoftnessAmountValue">25%</output></div><input id="fxSoftnessAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="25"></div></div>
+ </div>
+ <div class="experimental-effect">
+  <label class="experimental-toggle"><input id="fxInterferenceEnabled" type="checkbox"> INTERFERENCE</label>
+  <p class="effect-note">Occasional faint horizontal luminance disturbance.</p>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxInterferenceAmount">AMOUNT</label><output id="fxInterferenceAmountValue">20%</output></div><input id="fxInterferenceAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="20"></div><div class="effect-row"><div class="effect-head"><label for="fxInterferenceRate">FREQUENCY</label><output id="fxInterferenceRateValue">6/MIN</output></div><input id="fxInterferenceRate" class="effect-slider" type="range" min="1" max="20" step="1" value="6"></div></div>
+ </div>
+ <div class="experimental-effect">
+  <label class="experimental-toggle"><input id="fxGlitchEnabled" type="checkbox"> GLITCH</label>
+  <p class="effect-note">Brief grayscale interference streaks; never moves controls.</p>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxGlitchAmount">AMOUNT</label><output id="fxGlitchAmountValue">20%</output></div><input id="fxGlitchAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="20"></div><div class="effect-row"><div class="effect-head"><label for="fxGlitchRate">FREQUENCY</label><output id="fxGlitchRateValue">3/MIN</output></div><input id="fxGlitchRate" class="effect-slider" type="range" min="1" max="20" step="1" value="3"></div></div>
+ </div>
+  <button id="resetExperimental">RESET EXPERIMENTAL EFFECTS</button>
+ </div>
+
  <p id="guide">LEFT / RIGHT: MOVE. UP OR X: ROTATE. DOWN OR SPACE: DROP. C: HOLD. P: PAUSE. Tap board to rotate; swipe sideways to move or downward to drop.</p>
 </dialog>
 <dialog id="leaderboard" aria-labelledby="leaderboardTitle">
@@ -504,6 +577,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 <script src="./core.js"></script>
 <script src="./scores.js"></script>
 
+<script src="./experimental-fx.js"></script>
 <script src="./ui.js"></script>
 </body>
 </html>
