@@ -646,3 +646,28 @@ test('consecutive normal placements accumulate visible score and preserve level 
  for(let t=0;t<6;t++)g.tick(100);
  assert.ok(g.score>=prev+30);
 });
+
+test('score, level and lines are refreshed independently of canvas redraw',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ assert.match(ui,/function syncLiveStats\(\)\{/);
+ for(const id of ['scoreValue','levelValue','linesValue'])
+   assert.ok(ui.includes(id+':String(game.'),'Missing game-bound live counter '+id);
+ assert.match(ui,/function updateHUD\(\)\{\s*syncLiveStats\(\)/);
+ assert.match(ui,/offerScoreOnGameOver\(\);\s*syncLiveStats\(\);\s*dirty=true/);
+ assert.match(ui,/if\(game.status==='playing'\|\|changed\)syncLiveStats\(\)/);
+ assert.ok(ui.includes('game.reset();'));
+ assert.ok(ui.includes('game.start();'));
+ assert.ok(html.includes('id="scoreValue"'));
+ assert.ok(html.includes('id="linesValue"'));
+ assert.ok(html.includes('id="levelValue"'));
+});
+
+test('portrait CRT uses the large viewport and safe-area bottom for natural stage expansion',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ assert.ok(html.includes('html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);'));
+ assert.match(html,/@supports\(height:100lvh\)\{\s*@media\(orientation:portrait\)\{\s*#app\{height:100lvh;min-height:100dvh\}/);
+ assert.ok(html.includes('calc(env(safe-area-inset-bottom,0px) + 16px)'));
+ assert.ok(html.includes('#stage{min-height:0;flex:1;'));
+ assert.ok(html.includes('aspect-ratio:1/2;'));
+});
