@@ -38,7 +38,13 @@ with sync_playwright() as p:
         page.screenshot(path=str(output/(browser_name+'-raw.png')))
         page.evaluate('window.FieldAtlasTetris.debugBypassEffects(false)')
 
-    page.evaluate("window.FieldAtlasTetris.action('start')")
+    if browser_name=='webkit':
+        # Verify real canvas interactions, not only calls into the game model.
+        page.touchscreen.tap(192,397)
+        page.wait_for_timeout(350)
+        assert state()['gameStatus']=='playing',('START button did not respond',state())
+    else:
+        page.evaluate("window.FieldAtlasTetris.action('start')")
     page.wait_for_timeout(160)
     assert state()['gameStatus']=='playing',state()
     page.evaluate("window.FieldAtlasTetris.action('hard')")
@@ -66,6 +72,11 @@ with sync_playwright() as p:
             data=io.BytesIO();img.save(data,format='JPEG',quality=73)
             print('SCREENSHOT:'+label+':'+base64.b64encode(data.getvalue()).decode())
     page.evaluate("window.FieldAtlasTetris.closeModal()")
+    if browser_name=='webkit':
+        page.touchscreen.tap(351,41)
+        page.wait_for_timeout(400)
+        assert state()['mode']=='options',('SETTINGS button did not respond',state())
+        page.evaluate("window.FieldAtlasTetris.closeModal()")
     page.evaluate("window.FieldAtlasTetris.openModal('scores')")
     assert state()['mode']=='scores'
     page.screenshot(path=str(output/(browser_name+'-scores.png')))
