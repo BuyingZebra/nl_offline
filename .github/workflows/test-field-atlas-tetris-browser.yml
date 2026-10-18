@@ -34,7 +34,7 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Verify real iPhone-style CRT distortion and arcade controls
+      - name: Verify iPhone-style CRT overlays and arcade controls
         env:
           FIELD_ATLAS_BROWSER: ${{ matrix.browser }}
         run: python tests/test_tetris_browser.py
