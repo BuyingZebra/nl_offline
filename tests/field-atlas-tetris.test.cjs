@@ -518,7 +518,7 @@ test('the refresh sweep has independent luminance control and saved strength',()
  assert.match(html,/#sweep\{opacity:var\(--sweep-intensity,var\(--glow-level\)\)\}/);
  assert.match(html,/id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"/);
  assert.ok(html.includes('id="sweepValue">65%'));
- assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01','65')"));
+ assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep))"));
  assert.ok(ui.includes("store('fieldAtlasTetrisSweepV01',sweep)"));
  assert.ok(ui.includes("app.style.setProperty('--sweep-intensity'"));
  assert.ok(ui.includes("rangeDisplay($('sweepControl'),$('sweepValue'),sweep)"));
