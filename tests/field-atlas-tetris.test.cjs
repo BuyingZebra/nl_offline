@@ -740,3 +740,54 @@ test('Tetris checks for current offline shell every launch; no forced gameplay r
  assert.match(html,/#screenScan\{position:absolute;inset:0;/);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
 });
+
+
+test('offline worker loads only exact V024 scripts and safely falls back to canonical HTML',async()=>{
+ const {runInNewContext}=require('node:vm');
+ const script=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
+ const listeners=new Map(),requests=new Map();
+ const scope='https://arcade.example/tetris/';
+ const cache={
+  match:async key=>requests.get(typeof key==='string'?key:key.url),
+  put:async(key,value)=>{requests.set(typeof key==='string'?key:key.url,value)},
+  addAll:async()=>{}
+ };
+ requests.set(scope+'index.html',{ok:true,content:'new-page'});
+ requests.set(scope+'core.js?arcade=v024',{ok:true,content:'new-core'});
+ let isOnline=false,networkCount=0;
+ const sandbox={
+  URL,Set,Promise,
+  self:{registration:{scope},addEventListener:(event,handler)=>listeners.set(event,handler),
+    skipWaiting:async()=>{},clients:{claim:async()=>{}}},
+  caches:{open:async()=>cache,keys:async()=>[],delete:async()=>true},
+  fetch:async(request,init)=>{
+   networkCount++;
+   if(!isOnline)throw Error('offline');
+   assert.equal(init.cache,'no-store');
+   return {ok:true,content:'network',clone(){return {ok:true,content:'network'}}};
+  }
+ };
+ runInNewContext(script,sandbox);
+ const fetchHandler=listeners.get('fetch');
+ assert.equal(typeof fetchHandler,'function');
+ async function fetchEvent(url,mode='same-origin'){
+  let result=null;const pending=[];
+  fetchHandler({request:{method:'GET',url,mode},
+   respondWith:p=>{result=Promise.resolve(p)},
+   waitUntil:p=>{pending.push(Promise.resolve(p))}});
+  const returned=result?await result:null;
+  await Promise.all(pending);
+  return returned;
+ }
+ assert.equal((await fetchEvent(scope+'core.js?arcade=v024')).content,'new-core');
+ // A stale script URL must not silently receive the latest other version.
+ assert.equal(await fetchEvent(scope+'core.js?arcade=v023'),null);
+ // HTML navigations are the sole permitted query-insensitive fallback.
+ assert.equal((await fetchEvent(scope+'?v=023','navigate')).content,'new-page');
+ isOnline=true;
+ const before=requests.size;
+ assert.equal((await fetchEvent(scope+'?arbitrary=123','navigate')).content,'network');
+ assert.equal(requests.size,before,'No new cache entries for query variants');
+ assert.equal((await cache.match(scope+'index.html')).content,'network');
+ assert.ok(networkCount>=1);
+});
