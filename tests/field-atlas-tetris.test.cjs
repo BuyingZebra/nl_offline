@@ -345,12 +345,15 @@ test('Fallout-style settings cap display height, restore original font, and pres
  assert.doesNotMatch(dialog,/height="[0-9]+"/);
 });
 
-test('a single dark-only scanline mask dims the full Tetris compositor',()=>{
+test('map-style scanlines are a single grayscale light/dark overlay beneath phosphor hue',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const map=fs.readFileSync(path.join(__dirname,'../preview-v033/index.html'),'utf8');
  assert.equal((html.match(/#screenScan\{/g)||[]).length,1,'No competing scanline overrides');
- assert.match(html,/#screenScan\{position:absolute;inset:0;z-index:43;pointer-events:none;\s*opacity:var\(--scan-intensity\);\s*background:repeating-linear-gradient\(to bottom,\s*transparent 0px,transparent 3px,\s*rgba\(0,0,0,.59\) 3px,rgba\(0,0,0,.59\) 4px\)\}/);
- assert.doesNotMatch(html,/rgba\(255,255,255,.15\) 0px|rgba\(var\(--phosphor\),.16\) 0/);
+ assert.match(html,/#screenScan\{position:absolute;inset:0;z-index:43;pointer-events:none;\s*opacity:var\(--scan-intensity\);\s*background:repeating-linear-gradient\(to bottom,\s*rgba\(255,255,255,.15\) 0px,rgba\(255,255,255,.15\) 1px,\s*transparent 1px,transparent 3px,\s*rgba\(0,0,0,.59\) 3px,rgba\(0,0,0,.59\) 4px\)\}/);
+ assert.ok(map.includes('rgba(var(--phosphor-rgb),.15) 0px'));
+ assert.ok(map.includes('rgba(0,0,0,.59) 3px'));
  assert.ok(html.includes('#phosphorFilm{z-index:44;pointer-events:none}'));
+ assert.ok(html.includes('mix-blend-mode:color;opacity:1'));
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  assert.doesNotMatch(html,/modal-camera-fx/);
 });
@@ -476,8 +479,8 @@ test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',
  assert.match(html,/:root\[data-theme="amber"\]\{--phosphor-rgb:255,196,100\}/);
  assert.match(html,/#screenShade\{opacity:var\(--vignette-intensity\);\s*background:radial-gradient\(/);
  assert.equal((html.match(/radial-gradient\(/g)||[]).length,1,'Only the darkening vignette may use a radial gradient');
- assert.ok(html.includes('transparent 0px,transparent 3px'));
- assert.doesNotMatch(html,/rgba\(255,255,255,.15\) 0px/);
+ assert.ok(html.includes('rgba(255,255,255,.15) 0px'));
+ assert.ok(html.includes('transparent 1px,transparent 3px'));
  assert.ok(html.includes('#sweep{z-index:40;pointer-events:none}'));
  assert.doesNotMatch(html,/#stage\s*\{\s*background:/);
  assert.ok(ui.includes("document.querySelector('meta[name=\"theme-color\"]').content='#151515'"));
