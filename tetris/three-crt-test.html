@@ -201,6 +201,8 @@ try {
    }`
  });
  edgeVignette.enabled=false;
+ // Bloom remains upstream of screen optics, as in the approved test.
+ composer.addPass(glow);
  composer.addPass(edgeSoftness);
  composer.addPass(edgeVignette);
  composer.addPass(new OutputPass());
