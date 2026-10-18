@@ -8,6 +8,7 @@
  const P=window.PIXI,Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores,FX=window.FieldAtlasGPUCRT;
  const root=document.getElementById('game'),entry=document.getElementById('initialsNative');
  const fail=document.getElementById('fatal');
+ const layoutDebug=window.FieldAtlasLayoutDebug;
  if(!P?.Application||!Core?.Game||!Scores||!FX){
   fail.textContent='Tetris renderer unavailable. Reload to retry.';fail.hidden=false;return;
  }
@@ -353,6 +354,20 @@
   controls.hold=button(app,'HOLD',ex-extraGap/2-extraW,ey,extraW,44,()=>action('hold'),{size:11});
   controls.pause=button(app,'PAUSE',ex+extraGap/2,ey,extraW,44,()=>action('pause'),{size:11});
   const footerY=height-safe.bottom-18;
+  // Developer overlay uses these SAME computed layout rectangles. No parallel
+  // sizing calculations, no changes to the scene, and no GPU composition.
+  layoutDebug?.setLayout([
+   {name:'APP',x:offsetX,y:0,w:maxW,h:height},
+   {name:'HEADER',x:offsetX+headerX,y:headY,w:headerW,h:headH},
+   {name:'STAGE',x:offsetX+stageX,y:stageY,w:stageW,h:stageH},
+   {name:'BOARD',x:offsetX+boardX,y:boardY,w:boardW,h:boardH},
+   {name:'SIDEBAR',x:offsetX+sideX,y:boardY,w:panelWidth,h:boardH},
+   {name:'HOLD',x:offsetX+sideX,y:boardY,w:panelWidth,h:holdH},
+   {name:'NEXT',x:offsetX+sideX,y:queueY,w:panelWidth,h:queueH},
+   {name:'BEST',x:offsetX+sideX,y:statsY,w:panelWidth,h:statsH},
+   {name:'CONTROLS',x:offsetX+deckX,y:deckY,w:deckW,h:deckH},
+   {name:'FOOTER',x:offsetX+pad,y:footerY-12,w:inner,h:24}
+  ]);
   eventLabel=text(app,'READY / PRESS START',pad,footerY,9,C.weak);
   text(app,'LOCAL ARCADE ENGINE / V028',maxW-pad,footerY,9,C.weak,'right');
   syncGame();
@@ -618,6 +633,8 @@
   if(currentModal)return;
   currentModal=name;menuLayer.visible=true;
   for(const [id,v] of Object.entries(modals))v.modal.visible=id===name;
+  const m=modals[name];
+  layoutDebug?.setModal({name:name.toUpperCase(),x:m.x,y:m.y,w:m.w,h:m.h});
   if(name==='options'){if(game.status==='playing'){game.pause();syncGame();}}
   if(name==='scores')modals.scores.refresh();
   if(name==='entry'){modals.entry.score.text=String(game.score);modals.entry.value.text=entry.value;}
@@ -626,6 +643,7 @@
   if(!currentModal)return;
   for(const item of Object.values(modals))item.modal.visible=false;
   currentModal=null;menuLayer.visible=false;
+  layoutDebug?.setModal(null);
  }
  function resize(){
   width=Math.max(1,innerWidth);height=Math.max(1,innerHeight);
@@ -633,6 +651,7 @@
   if(menuLayer){base.removeChild(menuLayer);menuLayer.destroy({children:true});}
   gameLayer=null;menuLayer=null;boardGraphic=null;modals={};controls={};pausedNew=null;pausedScores=null;
   const name=currentModal;currentModal=null;
+  layoutDebug?.setModal(null);
   createGame();
   buildModals();
   if(name)openModal(name);
