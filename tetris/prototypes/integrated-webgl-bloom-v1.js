@@ -12,17 +12,18 @@
  const ctl={
   enabled:document.getElementById('gpuLabOn'), cut:document.getElementById('gpuLabCut'),
   width:document.getElementById('gpuLabWidth'), strength:document.getElementById('glowControl'),
-  capture:document.getElementById('gpuLabRate'), echo:document.getElementById('gpuLabEcho')
+  capture:document.getElementById('gpuLabRate'), echo:document.getElementById('gpuLabEcho'),
+  slow:document.getElementById('gpuLabAccurate')
  };
  const out={cut:document.getElementById('gpuLabCutValue'),
   width:document.getElementById('gpuLabWidthValue'),
   rate:document.getElementById('gpuLabRateValue')};
- let active=true,cut=.58,radius=7,maxRate=8,echo=false,captures=0,processed=0,
+ let active=true,cut=.58,radius=7,maxRate=24,echo=false,captures=0,processed=0,
      lastCapture=0,lastReport=performance.now(),frames=0,failures=0,
      busy=false,ready=false,sourceWidth=0,sourceHeight=0,texture=null,gl=null,
      latestError='',captureCost=0,realFPS=0,observed=0;
  const say=(message)=>{if(info)info.textContent=message;};
- if(!app||!canvas||!window.html2canvas){say('DOM renderer unavailable. Original Tetris remains playable.');return;}
+ if(!app||!canvas){say('Screen source unavailable. Original Tetris remains playable.');return;}
  try{
   gl=canvas.getContext('webgl2',{alpha:true,antialias:false,depth:false,stencil:false,premultipliedAlpha:false});
   if(!gl)throw Error('WebGL2 unavailable');
@@ -111,35 +112,97 @@
   pass('emit',texture,null);
   processed++;
  }
+
+ const lightCanvas=document.createElement('canvas');
+ const lightCtx=lightCanvas.getContext('2d',{alpha:false});
+ const skipNode=new Set(['webglBloom','phosphorFilm','screenScan','screenShade','screenTopFade',
+  'screenBottomFade','sweep','fxSoftness','fxNoise','buttonFxLayer','modalScrim']);
+ // Rendering the actual DOM remains the browser's responsibility.
+ // This fast light-source mask reads the *live* layout/style/text and existing game canvases.
+ // It is not a replacement UI and does not recreate any layout independently.
+ const normalizeColor=(value)=>{
+  if(!value||value==='transparent')return 'rgba(0,0,0,0)';
+  const match=value.match(/^color\((?:srgb|display-p3)\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)(?:\s*\/\s*([\d.eE+-]+))?\)$/);
+  if(match){const rgb=[1,2,3].map(i=>Math.round(Math.max(0,Math.min(1,Number(match[i])))*255));
+   return 'rgba('+rgb.join(',')+','+(match[4]??'1')+')';}
+  return value;
+ };
+ function fastLightSource(){
+  const rect=app.getBoundingClientRect();
+  const scale=Math.min(window.devicePixelRatio||1,1.25);
+  const w=Math.max(1,Math.round(rect.width*scale)),h=Math.max(1,Math.round(rect.height*scale));
+  if(lightCanvas.width!==w||lightCanvas.height!==h){lightCanvas.width=w;lightCanvas.height=h;}
+  const c=lightCtx;c.setTransform(scale,0,0,scale,-rect.left*scale,-rect.top*scale);
+  c.fillStyle='#151515';c.fillRect(rect.left,rect.top,rect.width,rect.height);
+  const range=document.createRange();
+  function drawElement(el){
+   if(skipNode.has(el.id)||el.hidden)return;
+   const cs=getComputedStyle(el);
+   if(cs.display==='none'||cs.visibility==='hidden'||cs.opacity==='0')return;
+   c.save();c.globalAlpha*=Number(cs.opacity||1);
+   const r=el.getBoundingClientRect();
+   // Native panels, bright controls, borders, and overlay coverage create the light-source field.
+   if(r.width>0&&r.height>0){
+    const bg=normalizeColor(cs.backgroundColor);
+    if(bg!=='rgba(0,0,0,0)'&&!/rgba?\(0,\s*0,\s*0,\s*0(?:\.0+)?\)/.test(bg)){
+     c.fillStyle=bg;
+     let rad=parseFloat(cs.borderTopLeftRadius)||0;rad=Math.max(0,Math.min(rad,r.width/2,r.height/2));
+     c.beginPath();c.roundRect(r.left,r.top,r.width,r.height,rad);c.fill();
+    }
+    const borderWidth=parseFloat(cs.borderTopWidth)||0;
+    if(borderWidth>0&&cs.borderTopStyle!=='none'){
+     c.strokeStyle=normalizeColor(cs.borderTopColor);c.lineWidth=borderWidth;
+     let rad=parseFloat(cs.borderTopLeftRadius)||0;rad=Math.max(0,Math.min(rad,r.width/2,r.height/2));
+     c.beginPath();c.roundRect(r.left+borderWidth/2,r.top+borderWidth/2,
+       Math.max(0,r.width-borderWidth),Math.max(0,r.height-borderWidth),rad);c.stroke();
+    }
+    if(el instanceof HTMLCanvasElement){
+     try{c.drawImage(el,r.left,r.top,r.width,r.height);}catch(err){}
+    }
+   }
+   for(const node of el.childNodes){
+    if(node.nodeType===Node.ELEMENT_NODE){drawElement(node);continue;}
+    if(node.nodeType!==Node.TEXT_NODE||!node.textContent?.trim())continue;
+    range.selectNodeContents(node);
+    const textRect=range.getBoundingClientRect();
+    if(textRect.width<=0||textRect.height<=0)continue;
+    c.fillStyle=normalizeColor(cs.color);
+    c.font=cs.fontWeight+' '+cs.fontSize+' '+cs.fontFamily;
+    c.textAlign='left';c.textBaseline='alphabetic';
+    if('letterSpacing' in c)c.letterSpacing=cs.letterSpacing||'0px';
+    // Range geometry is from real browser typesetting, not a duplicate layout calculation.
+    c.fillText(node.textContent,textRect.left,textRect.top+parseFloat(cs.fontSize)*.83);
+   }
+   c.restore();
+  }
+  drawElement(app);
+  return lightCanvas;
+ }
  function snapshotClone(doc){
   const root=doc.getElementById('app');if(!root)return;
   root.style.filter='none';
-  // html2canvas 1.4.1 does not support CSS color-mix() or several modern blend modes.
-  // These overrides apply ONLY to the off-screen clone, never to the actual visible game.
   root.style.setProperty('--panel','#080808');root.style.setProperty('--card-bg','#080808');
   const veil=doc.getElementById('veil');if(veil)veil.style.background='rgba(8,8,8,.82)';
-  // Normalize legacy html2canvas-incompatible color-mix() only in snapshot clone.
-  // The actual game's computed CSS and luminance design remain untouched.
-  for(const id of ['webglBloom','phosphorFilm','screenScan','screenShade','screenTopFade','screenBottomFade','sweep','fxSoftness','fxNoise','buttonFxLayer']){
-   const node=doc.getElementById(id);if(node)node.style.setProperty('display','none','important');
-  }
-  const dialogs=doc.querySelectorAll('dialog');dialogs.forEach(d=>{if(!d.open)d.style.display='none';});
+  for(const id of skipNode){const el=doc.getElementById(id);if(el)el.style.display='none';}
+  doc.querySelectorAll('dialog').forEach(d=>{if(!d.open)d.style.display='none';});
  }
  async function capture(){
   if(busy||!active||document.hidden)return;
   busy=true;
   const t0=performance.now();
   try{
-   const image=await window.html2canvas(app,{
-    backgroundColor:'#151515',scale:Math.min(window.devicePixelRatio||1,1.25),
-    logging:false,removeContainer:true,useCORS:true,
-    onclone:snapshotClone,
-    ignoreElements:el=>el.id==='webglBloom'||el.id==='gpuLabStatus'||el.id==='gpuLabStats'
-   });
+   const image=ctl.slow?.checked&&window.html2canvas
+     ? await window.html2canvas(app,{
+       backgroundColor:'#151515',scale:Math.min(window.devicePixelRatio||1,1.25),
+       logging:false,removeContainer:true,useCORS:true,onclone:snapshotClone,
+       ignoreElements:el=>el.id==='webglBloom'||el.id==='gpuLabStatus'||el.id==='gpuLabStats'
+      })
+     : fastLightSource();
    if(!active){gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);return;}
    draw(image);captures++;ready=true;failures=0;
    captureCost=0.75*captureCost+0.25*(performance.now()-t0);
-   say('GPU BLOOM ACTIVE · native game remains interactive');
+   say('GPU BLOOM ACTIVE · '+(ctl.slow?.checked?'pixel reconstruction (slow)':'fast native-layout light mask'));
+
   }catch(err){
    latestError=String(err&&err.message||err);failures++;
    if(failures<=2||failures%20===0)console.warn('Tetris integrated compositor capture:',err);
@@ -155,7 +218,7 @@
   if(active&&!busy)void capture();
   if(!active)say('GPU bloom bypassed; original app visuals remain active.');
  };
- for(const c of [ctl.enabled,ctl.cut,ctl.width,ctl.capture,ctl.echo,ctl.strength]){
+ for(const c of [ctl.enabled,ctl.cut,ctl.width,ctl.capture,ctl.echo,ctl.slow,ctl.strength]){
   c.addEventListener('input',apply);c.addEventListener('change',apply);
  }
  const observation=new ResizeObserver(()=>{lastCapture=0;});observation.observe(app);
@@ -174,7 +237,7 @@
  apply();
  requestAnimationFrame(frame);
  window.__integratedGpuLab={
-  getState:()=>({webgl2:true,ready,active,cut,radius,maxRate,echo,captures,processed,captureCost:Math.round(captureCost),uiFPS:realFPS,lastError:latestError,sourceWidth,sourceHeight,realDOM:Boolean(document.getElementById('board')&&document.getElementById('options'))}),
+  getState:()=>({webgl2:true,ready,active,cut,radius,maxRate,echo,slow:ctl.slow.checked,captures,processed,captureCost:Math.round(captureCost),uiFPS:realFPS,lastError:latestError,sourceWidth,sourceHeight,realDOM:Boolean(document.getElementById('board')&&document.getElementById('options'))}),
   forceCapture:()=>capture()
  };
 })();
