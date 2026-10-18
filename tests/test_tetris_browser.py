@@ -29,6 +29,19 @@ with sync_playwright() as p:
         page.goto(URL + "?qa=visual-compositing", wait_until="networkidle", timeout=30000)
         page.locator("#board").wait_for()
         assert page.locator("#scoreValue").inner_text() == "000000"
+        # HUD stays LEVEL / SCORE / LINES, aligned left, center, right.
+        hud=page.evaluate("""() => {
+          const cols=[...document.querySelectorAll('#scoreStrip > div')];
+          return cols.map(el=>({
+            label:el.querySelector('small').textContent,
+            alignment:getComputedStyle(el).textAlign,
+            x:el.getBoundingClientRect().x
+          }));
+        }""")
+        assert [x["label"] for x in hud] == ["LEVEL","SCORE","LINES"], hud
+        assert [x["alignment"] for x in hud] == ["left","center","right"], hud
+        assert hud[0]["x"] < hud[1]["x"] < hud[2]["x"], hud
+
         # No geometric warping or curve settings survive.
         for obsolete in ("#crtFilterDefs", "#crtDisplacementMap",
                          "#curvatureControl", "#crtGlass"):
@@ -178,7 +191,7 @@ with sync_playwright() as p:
         # Five independently switchable CRT experiments are opt-in.
         experimental=page.evaluate("""() => {
           const section=document.querySelector('#experimentalFxSection');
-          const keys=['Noise','Persistence','Softness','Interference','Glitch'];
+          const keys=['Noise','Persistence','Softness'];
           const initiallyOff=keys.every(k=>!document.querySelector('#fx'+k+'Enabled').checked);
           const board=document.querySelector('#board').getContext('2d');
           const before=Array.from(board.getImageData(15,15,1,1).data);
@@ -199,16 +212,17 @@ with sync_playwright() as p:
             JSON.stringify(before)===JSON.stringify(after),
             blur:getComputedStyle(document.querySelector('#fxSoftness')).backdropFilter,
             noise:getComputedStyle(document.querySelector('#fxNoise')).display,
-            interference:getComputedStyle(document.querySelector('#fxInterference')).display,
-            glitch:getComputedStyle(document.querySelector('#fxGlitch')).display,
+            absent:!document.querySelector('#fxInterference')&&!document.querySelector('#fxGlitch'),
             saved:JSON.parse(localStorage.getItem('fieldAtlasTetrisExperimentalV01'))};
         }""")
         assert experimental["hasSection"] and experimental["initiallyOff"], experimental
+        assert page.locator("#fxInterferenceEnabled").count() == 0
+        assert page.locator("#fxGlitchEnabled").count() == 0
+
         assert experimental["unmodifiedBoard"], experimental
         assert experimental["blur"] == "blur(0.8px)", experimental
         assert experimental["noise"] == "block", experimental
-        assert experimental["interference"] == "block", experimental
-        assert experimental["glitch"] == "block", experimental
+        assert experimental["absent"], experimental
         assert experimental["saved"]["persistenceDecay"] == 1200, experimental
 
         assert page.locator("#fade-screenTop-on").count() == 1
@@ -302,15 +316,15 @@ with sync_playwright() as p:
         page.locator("#closeOptions").tap()
         assert page.locator("#options").get_attribute("open") is None
         assert page.locator("#modalScrim").is_hidden()
-        # Tapping a button produces an isolated screen-space afterimage.
+        # Only enabled persistence produces an independent screen-space afterimage.
         assert page.locator('#buttonFxLayer .fx-persistence-ghost').count() >= 1
         page.get_by_role("button", name="Display options").tap()
         page.locator("#resetExperimental").tap()
         assert page.locator("#fxNoiseEnabled").is_checked() is False
+        # When off, pressing a control cannot create a flash or lingering ghost.
+        assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() == 0
         assert page.locator("#fxPersistenceEnabled").is_checked() is False
         assert page.locator("#fxSoftnessEnabled").is_checked() is False
-        assert page.locator("#fxInterferenceEnabled").is_checked() is False
-        assert page.locator("#fxGlitchEnabled").is_checked() is False
         assert page.locator('#buttonFxLayer .fx-persistence-ghost').count() == 0
         assert page.locator("#fxNoise").evaluate(
             "el => getComputedStyle(el).display"
@@ -400,8 +414,14 @@ with sync_playwright() as p:
         assert page.locator("#buttonFxLayer").count() == 1
 
         # READY has a friendly game description, not technical piece metrics.
-        assert page.locator("#veilText").inner_text() == (
-            "Stack the blocks. Clear complete rows. Keep the board from filling up."
+        page.wait_for_function("""() =>
+            document.querySelector('#readyText')?.textContent ===
+            'Stack blocks to clear complete rows, and keep the board from filling up'
+        """, timeout=6000)
+        assert page.locator("#readyCursor").count() == 1
+        assert page.locator("#readyCursor").get_attribute("aria-hidden") == "true"
+        assert page.locator("#veilText").get_attribute("aria-label") == (
+            "Stack blocks to clear complete rows, and keep the board from filling up"
         )
         # PAUSE is always visibly enabled. It does nothing before the
         # game starts but retains its reactive button flash.
@@ -425,10 +445,9 @@ with sync_playwright() as p:
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#pauseButton").is_enabled()
         assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
-        # The flash is a separately composited effect, not a child that can
-        # disappear when a button's label or enabled state changes.
-        assert page.locator("#pauseButton .phosphor-hit-layer").count() == 0
-        assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() >= 1
+        # Turning persistence OFF removes all afterimages, even on PAUSE.
+        assert page.locator("#buttonFxLayer .fx-persistence-ghost").count() == 0
+        assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() == 0
 
         # P and Escape are one-way pause keys; neither may resume the game.
         page.keyboard.press("p")
