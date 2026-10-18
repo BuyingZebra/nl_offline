@@ -31,7 +31,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--bright);outline
 a{color:var(--weak)}
 #app{position:relative;display:flex;flex-direction:column;gap:9px;
  margin:auto;padding:0 11px;
- max-width:520px;height:100dvh;min-height:0;background:var(--bg);
+ max-width:520px;height:var(--arcade-shell-height,100dvh);min-height:0;background:var(--bg);
  overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate}
 .panel{border:1px solid var(--border);background:var(--card-bg);
  border-radius:12px;box-shadow:0 0 var(--glow) rgba(var(--phosphor),.13)}
@@ -432,7 +432,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  * Unlike the map, this screen has a flexing center game stage.
  * Keeping the footer out of flex flow removes bottom-padding dead space. */
 @media(orientation:portrait){
- #app{height:100dvh;min-height:0;padding:0 11px}
+ #app{height:var(--arcade-shell-height,100dvh);min-height:0;padding:0 11px}
  #app > header{margin-top:calc(env(safe-area-inset-top,0px) + 9px)}
  #controlDeck{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 30px)}
  #eventline{position:absolute;left:11px;right:11px;
