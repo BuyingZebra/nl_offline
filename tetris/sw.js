@@ -1,6 +1,8 @@
 /* FIELD ATLAS Tetris — optional offline app-shell cache (no map data). */
-const CACHE='field-atlas-arcade-v020';
-const APP_SHELL=['./','./index.html','./core.js','./scores.js','./experimental-fx.js','./ui.js'];
+const CACHE='field-atlas-arcade-v021';
+const APP_SHELL=['./','./index.html','./core.js?arcade=v021',
+ './scores.js?arcade=v021','./experimental-fx.js?arcade=v021',
+ './ui.js?arcade=v021'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(APP_SHELL))
     .then(()=>self.skipWaiting()));
@@ -19,7 +21,7 @@ self.addEventListener('fetch',event=>{
   if(!url.pathname.startsWith(new URL(self.registration.scope).pathname))return;
   // Network-first prevents an earlier cached game from hiding a newly
   // published version. Cached files still launch when the phone is offline.
-  event.respondWith(fetch(request).then(response=>{
+  event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{
     if(response.ok){
       const copy=response.clone();
       event.waitUntil(caches.open(CACHE).then(cache=>cache.put(request,copy)).catch(()=>{}));
