@@ -78,12 +78,24 @@
     }
   },true);
 
+  // Central defaults: preserve the original first-install and RESET values.
+  // Existing localStorage preferences always take priority; changing these
+  // constants must never overwrite a user's saved appearance.
+  const DISPLAY_DEFAULTS=Object.freeze({
+    glow:65,scan:26,vignette:30,sweep:65,showGhost:true,soundOn:false,
+    screenTop:Object.freeze({enabled:true,length:165}),
+    screenBottom:Object.freeze({enabled:false,length:110})
+  });
   let lastFrame=performance.now(),dirty=true;
-  let highScore=0,showGhost=true,soundOn=false,glow=65,scan=26,vignette=30,sweep=65,audioCtx=null;
+  let highScore=0,showGhost=DISPLAY_DEFAULTS.showGhost,
+    soundOn=DISPLAY_DEFAULTS.soundOn,glow=DISPLAY_DEFAULTS.glow,
+    scan=DISPLAY_DEFAULTS.scan,vignette=DISPLAY_DEFAULTS.vignette,
+    sweep=DISPLAY_DEFAULTS.sweep,audioCtx=null;
   let gameOverHandled=false,highScores=[],storage=null;
   const fadeKeys=['screenTop','screenBottom'];
   const defaultGradients={
-    screenTop:{enabled:true,length:165},screenBottom:{enabled:false,length:110}
+    screenTop:{...DISPLAY_DEFAULTS.screenTop},
+    screenBottom:{...DISPLAY_DEFAULTS.screenBottom}
   };
   let gradients=JSON.parse(JSON.stringify(defaultGradients));
   let palette=null;
@@ -98,7 +110,7 @@
   let experimental=null;
   try{experimental=window.FieldAtlasExperimentalFX?.create(document)||null;}
   catch(e){console.warn('Experimental CRT overlays unavailable; game continues',e);}
-  sweep=clamp(Number(read('fieldAtlasTetrisSweepV01','65'))||0,0,100);
+  sweep=clamp(Number(read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep)))||0,0,100);
   try{storage=window.localStorage;}catch(e){storage=null;}
   highScores=Scores.read(storage);
   highScore=highScores[0]?.score||0;
@@ -111,8 +123,8 @@
       scan=Number.isFinite(saved.scanlines)?clamp(Math.round(saved.scanlines),0,100):scan;
       vignette=Number.isFinite(saved.vignette)?clamp(Math.round(saved.vignette),0,100):vignette;
     }else{
-      scan=clamp(Number(read('fieldAtlasTetrisScan','26'))||0,0,100);
-      glow=clamp(Number(read('fieldAtlasTetrisGlow','65'))||0,0,100);
+      scan=clamp(Number(read('fieldAtlasTetrisScan',String(DISPLAY_DEFAULTS.scan)))||0,0,100);
+      glow=clamp(Number(read('fieldAtlasTetrisGlow',String(DISPLAY_DEFAULTS.glow)))||0,0,100);
     }
   }catch(e){}
   // Screen fades are post-processing overlays for all arcade content.
@@ -138,8 +150,8 @@
       }
     }
   }catch(e){}
-  showGhost=read('fieldAtlasTetrisGhost','yes')!=='no';
-  soundOn=read('fieldAtlasTetrisSound','no')==='yes';
+  showGhost=read('fieldAtlasTetrisGhost',DISPLAY_DEFAULTS.showGhost?'yes':'no')!=='no';
+  soundOn=read('fieldAtlasTetrisSound',DISPLAY_DEFAULTS.soundOn?'yes':'no')==='yes';
   $('ghostControl').checked=showGhost;$('soundControl').checked=soundOn;
 
   function css(name){return getComputedStyle(root).getPropertyValue(name).trim();}
@@ -528,7 +540,7 @@
     });
   }
   $('resetEffects').addEventListener('click',()=>{
-    glow=65;scan=26;vignette=30;sweep=65;
+    ({glow,scan,vignette,sweep}=DISPLAY_DEFAULTS);
     store('fieldAtlasTetrisSweepV01',sweep);
     saveEffects();refreshPalette();
   });
