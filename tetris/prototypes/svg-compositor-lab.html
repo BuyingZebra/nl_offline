@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>SVG Compositor Feasibility Lab — Not Tetris Release</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#151515;color:#d6d6d6;font:12px ui-monospace,Menlo,monospace}
+main{max-width:500px;margin:auto;padding:10px;display:grid;gap:10px}
+header h1{font-size:14px;margin:0 0 5px}small{color:#aaa}
+#display{width:100%;height:490px;position:relative;overflow:hidden;background:#151515;isolation:isolate}
+#view{position:absolute;inset:0;display:flex;flex-direction:column;gap:8px;padding:12px;background:#151515}
+.panel{border:1px solid #6a6a6a;background:#0b0b0b;padding:9px;border-radius:6px}
+#game{display:flex;gap:10px;flex:1;min-height:0}#board{width:68%;height:100%;background:#151515}
+#right{flex:1;display:flex;flex-direction:column;gap:5px;font-size:9px}
+.board-tile{background:#cecece}.stat{text-align:center}
+#buttons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
+button{background:#151515;color:#cecece;border:1px solid #6a6a6a;border-radius:3px;padding:9px;font:inherit;cursor:pointer}
+button.bright{background:#cecece;color:#060606;border-color:#cecece}
+input[type=checkbox]{accent-color:#cecece}#modal{position:absolute;inset:80px 28px;display:none;background:#101010;color:#cecece;border:1px solid #888;padding:16px;z-index:3;text-align:center}#modal.open{display:block}
+#stack{display:grid;gap:4px}.item{display:flex;align-items:center;gap:6px;padding:4px;background:#202020;border-radius:3px}
+.item label{flex:1}.item button{padding:5px 10px}
+#controls{border:1px solid #555;border-radius:5px;padding:8px}
+#controls .row{display:flex;align-items:center;gap:10px}
+#controls label{display:flex;gap:4px;align-items:center}
+#status{font-size:10px;white-space:pre-wrap;color:#aaa}
+</style>
+</head>
+<body>
+<!-- Individual filters are chainable operations, not element-specific styles. -->
+<svg aria-hidden="true" width="0" height="0" style="position:absolute;pointer-events:none;overflow:hidden">
+<defs>
+<filter id="fx-noise" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+ <feTurbulence id="noiseSeed" type="fractalNoise" baseFrequency=".78" numOctaves="1" seed="1" result="grain"/>
+ <feColorMatrix in="grain" type="saturate" values="0" result="grayNoise"/>
+ <feComponentTransfer in="grayNoise" result="faintNoise"><feFuncA type="linear" slope=".07"/></feComponentTransfer>
+ <feBlend in="SourceGraphic" in2="faintNoise" mode="soft-light"/>
+</filter>
+<filter id="fx-scanlines" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+ <feImage id="scanTexture" x="0" y="0" width="390" height="490" preserveAspectRatio="none" result="scanImage"/>
+ <feBlend in="SourceGraphic" in2="scanImage" mode="multiply"/>
+</filter>
+<filter id="fx-softness" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+ <feGaussianBlur in="SourceGraphic" stdDeviation=".22"/>
+</filter>
+<filter id="fx-vignette" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+ <feImage id="vignetteTexture" x="0" y="0" width="390" height="490" preserveAspectRatio="none" result="vignetteImage"/>
+ <feBlend in="SourceGraphic" in2="vignetteImage" mode="multiply"/>
+</filter>
+<filter id="fx-fades" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+ <feImage id="fadeTexture" x="0" y="0" width="390" height="490" preserveAspectRatio="none" result="fadeImage"/>
+ <feBlend in="SourceGraphic" in2="fadeImage" mode="multiply"/>
+</filter>
+<filter id="fx-glow" color-interpolation-filters="sRGB" x="-4%" y="-4%" width="108%" height="108%">
+ <feColorMatrix in="SourceGraphic" type="matrix"
+ values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  .2126 .7152 .0722 0 0" result="luma"/>
+ <feComponentTransfer in="luma" result="gate"><feFuncA type="linear" slope="1.4" intercept="-.12"/></feComponentTransfer>
+ <feGaussianBlur in="gate" stdDeviation="4" result="spread"/>
+ <feComponentTransfer in="spread" result="emission"><feFuncA id="glowGain" type="linear" slope=".83"/></feComponentTransfer>
+ <feBlend in="SourceGraphic" in2="emission" mode="screen"/>
+</filter>
+<filter id="fx-phosphor" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+ <feFlood id="phosphorColor" flood-color="#6cff9c" result="tint"/>
+ <feBlend in="tint" in2="SourceGraphic" mode="color"/>
+</filter>
+</defs>
+</svg>
+<main>
+<header><h1>SCREEN-SPACE SVG COMPOSITOR / PROTOTYPE</h1><small>Isolated feasibility experiment. No Tetris code changed.</small></header>
+<div id="display">
+ <div id="view">
+  <div class="panel" style="display:flex;align-items:center;justify-content:space-between"><b>TETRIS SYSTEM</b><button id="openMenu">SETTINGS</button></div>
+  <div id="game">
+   <canvas id="board" width="240" height="380" aria-label="Board with bright pieces"></canvas>
+   <div id="right"><div class="panel">HOLD<div style="height:48px"></div></div><div class="panel">NEXT<div style="height:70px"></div></div><div class="panel" style="margin-top:auto">BEST<br>14928</div></div>
+  </div>
+  <div class="panel">
+   <div style="display:flex;justify-content:space-around;margin-bottom:8px;text-align:center">LEVEL<br>01&nbsp;&nbsp;&nbsp;&nbsp;SCORE<br><b id="score">000000</b>&nbsp;&nbsp;&nbsp;&nbsp;LINES<br>00</div>
+   <div id="buttons"><button class="bright" id="left">◀</button><button class="bright" id="drop">DROP</button><button class="bright" id="right">▶</button></div>
+  </div>
+  <div style="font-size:9px">READY / TEST SCREEN&nbsp;&nbsp;&nbsp;&nbsp;BUILD: PROTOTYPE</div>
+ </div>
+ <div id="modal"><h2 style="font-size:14px">DISPLAY SETTINGS</h2><p>Testing whether the complete screen—including this menu—is processed.</p><label>GLOW <input id="modalGlow" type="range" min="0" max="100" value="83"></label><br><button id="closeMenu">RETURN</button></div>
+</div>
+<div id="controls"><div class="row"><b>EFFECT ORDER</b><button id="reset">RESET</button><label><input type="checkbox" id="enable" checked> Enabled</label></div><div id="stack"></div>
+<div class="row" style="margin-top:9px"><label>GLOW <input id="glow" type="range" min="0" max="100" value="83"></label><output id="glowValue">83%</output></div></div>
+<div id="status" aria-live="polite"></div>
+</main>
+<script>
+const initial=['noise','scanlines','softness','vignette','fades','glow','phosphor'];
+let order=[...initial],enabled=true,score=0;
+const display=document.querySelector('#display'),stack=document.querySelector('#stack'),status=document.querySelector('#status');
+const filters={noise:'fx-noise',scanlines:'fx-scanlines',softness:'fx-softness',vignette:'fx-vignette',fades:'fx-fades',glow:'fx-glow',phosphor:'fx-phosphor'};
+function apply(){
+ display.style.filter=enabled?order.map(k=>'url("#'+filters[k]+'")').join(' '):'none';
+ status.textContent='Order: '+order.join(' > ')+'\nComputed CSS filter: '+getComputedStyle(display).filter;
+}
+function renderStack(){
+ stack.replaceChildren();
+ order.forEach((item,i)=>{
+  const row=document.createElement('div');row.className='item';
+  const label=document.createElement('label');label.textContent=(i+1)+'. '+item.toUpperCase();row.append(label);
+  for(const delta of [-1,1]){
+   const b=document.createElement('button');b.textContent=delta<0?'↑':'↓';b.disabled=i+delta<0||i+delta>=order.length;
+   b.onclick=()=>{[order[i],order[i+delta]]=[order[i+delta],order[i]];renderStack();apply();};row.append(b);
+  }
+  stack.append(row);
+ });
+}
+function drawBoard(){
+ const c=document.querySelector('#board'),ctx=c.getContext('2d');
+ const w=c.width,h=c.height;ctx.fillStyle='#151515';ctx.fillRect(0,0,w,h);
+ ctx.strokeStyle='#303030';ctx.lineWidth=.5;
+ for(let x=0;x<=10;x++){ctx.beginPath();ctx.moveTo(x*24+.5,0);ctx.lineTo(x*24+.5,h);ctx.stroke();}
+ for(let y=0;y<=20;y++){ctx.beginPath();ctx.moveTo(0,y*19+.5);ctx.lineTo(w,y*19+.5);ctx.stroke();}
+ const cells=[[4,5],[5,5],[5,6],[6,6],[3,16],[4,16],[5,16],[4,17],[5,17]];
+ for(const [x,y] of cells){ctx.fillStyle='#cecece';ctx.fillRect(x*24+1,y*19+1,22,17);ctx.strokeStyle='#e3e3e3';ctx.strokeRect(x*24+1,y*19+1,22,17);}
+}
+function texture(kind){
+ const box=display.getBoundingClientRect(),w=Math.max(1,Math.round(box.width)),h=Math.max(1,Math.round(box.height));
+ const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+ if(kind==='scanlines'){
+  for(let y=0;y<h;y+=4){ctx.fillStyle='rgba(0,0,0,.23)';ctx.fillRect(0,y+2,w,1);ctx.fillStyle='rgba(0,0,0,.38)';ctx.fillRect(0,y+3,w,1);}
+ }else if(kind==='vignette'){
+  const g=ctx.createRadialGradient(w*.5,h*.5,Math.min(w,h)*.15,w*.5,h*.5,Math.max(w,h)*.62);
+  g.addColorStop(0,'#fff');g.addColorStop(.45,'#f7f7f7');g.addColorStop(1,'#444');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+ }else if(kind==='fades'){
+  const t=ctx.createLinearGradient(0,0,0,135);
+  t.addColorStop(0,'#242424');t.addColorStop(1,'white');ctx.fillStyle=t;ctx.fillRect(0,0,w,135);
+  const b=ctx.createLinearGradient(0,h-135,0,h);
+  b.addColorStop(0,'white');b.addColorStop(1,'#242424');ctx.fillStyle=b;ctx.fillRect(0,h-135,w,135);
+ }
+ const el=document.getElementById(kind==='scanlines'?'scanTexture':kind==='vignette'?'vignetteTexture':'fadeTexture');
+ el.setAttribute('href',c.toDataURL('image/png'));el.setAttribute('width',w);el.setAttribute('height',h);
+}
+document.querySelector('#enable').onchange=e=>{enabled=e.target.checked;apply();};
+document.querySelector('#reset').onclick=()=>{order=[...initial];renderStack();apply();};
+document.querySelector('#glow').oninput=e=>{let v=Number(e.target.value);document.querySelector('#glowGain').setAttribute('slope',(v/100).toFixed(2));document.querySelector('#modalGlow').value=v;document.querySelector('#glowValue').textContent=v+'%';};
+document.querySelector('#modalGlow').oninput=e=>{document.querySelector('#glow').value=e.target.value;document.querySelector('#glow').dispatchEvent(new Event('input'));};
+document.querySelector('#openMenu').onclick=()=>document.querySelector('#modal').classList.add('open');
+document.querySelector('#closeMenu').onclick=()=>document.querySelector('#modal').classList.remove('open');
+document.querySelector('#drop').onclick=()=>{score+=10;document.querySelector('#score').textContent=String(score).padStart(6,'0');};
+function updateTextures(){for(const k of ['scanlines','vignette','fades'])texture(k);}
+window.addEventListener('resize',()=>{updateTextures();apply();});
+drawBoard();renderStack();updateTextures();apply();
+window.__stackTest={order:()=>[...order],apply,move:(id,delta)=>{const i=order.indexOf(id);if(i+delta>=0&&i+delta<order.length){[order[i],order[i+delta]]=[order[i+delta],order[i]];renderStack();apply()}},toggle:()=>{enabled=!enabled;apply();},reset:()=>{order=[...initial];renderStack();apply();}};
+</script>
+</body></html>
