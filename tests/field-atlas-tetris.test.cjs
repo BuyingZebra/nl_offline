@@ -59,13 +59,13 @@ test('horizontal movement respects the field borders',()=>{
  for(let i=0;i<50;i++)g.move(1);
  assert.equal(g.move(1),false);
 });
-test('ghost and hard drop agree; hard drop rewards exactly two points per row',()=>{
+test('hard drop adds two points per row and a placement bonus',()=>{
  const g=fresh();g.start();
  const target=g.ghostY(),oldScore=g.score;
  assert.ok(target>=0);
  assert.equal(g.hardDrop(),true);
  assert.equal(g.pieces,1);
- assert.equal(g.score-oldScore,target*2);
+ assert.equal(g.score-oldScore,target*2+10);
 });
 test('hold prevents repeated swaps until the next piece is locked',()=>{
  const g=fresh();g.start();
@@ -87,7 +87,7 @@ test('line clear correctly removes both filled rows and scores the double',()=>{
  const distance=g.ghostY()-g.current.y;
  g.hardDrop();
  assert.equal(g.lines,2);
- assert.equal(g.score,300+distance*2);
+ assert.equal(g.score,310+distance*2);
  assert.equal(g.level,1);
  assert.ok(g.board.slice(0,2).every(row=>row.every(cell=>!cell)));
 });
@@ -114,6 +114,7 @@ test('the game responds to time and respects grounded lock delay',()=>{
  assert.equal(g.pieces,0);
  for(let i=0;i<5;i++)g.tick(100);
  assert.equal(g.pieces,1);
+ assert.equal(g.score,10,'Gravity-locked piece earns a placement bonus');
 });
 test('browser assets are local, parse cleanly, and expose iPhone controls',()=>{
  const dir=path.join(__dirname,'../tetris');
@@ -432,12 +433,12 @@ test('all three direction keys share a solid phosphor face, and ready instructio
  assert.match(pad,/<button data-action="hard" aria-label="Hard drop">DROP<\/button>/);
  assert.doesNotMatch(pad,/<span|drop-arrow|drop-label|▼/);
  assert.match(html,/#pad button\[data-action="hard"\]\{\s*grid-column:span 2;/);
- assert.ok(ui.includes('Stack blocks to clear complete rows, and keep the board from filling up'));
- assert.ok(ui.includes('readyTypingTimer=setInterval(type,32)'));
- assert.ok(ui.includes('startReadyIntro()'));
- assert.ok(html.includes('<span id="readyText"></span><span id="readyCursor" aria-hidden="true"></span>'));
+ assert.ok(ui.includes("const readyMessage='SURVIVE THE SOVIET CHALLENGE'"));
+ assert.ok(ui.includes('showReadyMessage()'));
+ assert.ok(html.includes('<span id="readyText">SURVIVE THE SOVIET CHALLENGE</span><span id="readyCursor" aria-hidden="true"></span>'));
  assert.ok(html.includes('@keyframes ready-cursor-blink'));
- assert.ok(ui.includes("window.matchMedia('(prefers-reduced-motion: reduce)').matches"));
+ assert.ok(html.includes('margin-inline:.55em'));
+ assert.doesNotMatch(ui,/readyTypingTimer|setInterval\(type,32\)|startReadyIntro/);
  assert.doesNotMatch(ui,/FALLING-BLOCK ARCADE/);
 });
 
@@ -626,4 +627,22 @@ test('HUD level, score and lines display in left-center-right order',()=>{
  assert.ok(html.includes('#scoreStrip div:nth-child(2){align-items:center;text-align:center}'));
  assert.ok(html.includes('#scoreStrip div:nth-child(3){align-items:flex-end;text-align:right}'));
  assert.doesNotMatch(html,/#scoreStrip div:last-child\{display:none\}/);
+});
+
+test('consecutive normal placements accumulate visible score and preserve level multiplier',()=>{
+ const g=fresh();g.start();
+ assert.equal(g.score,0);
+ g.current=g.piece('O');g.current.y=18;
+ for(let t=0;t<6;t++)g.tick(100);
+ assert.equal(g.score,10);
+ assert.equal(g.pieces,1);
+ const prev=g.score;
+ g.hardDrop();
+ assert.ok(g.score>prev);
+ assert.equal(g.pieces,2);
+ g.level=3;
+ g.current=g.piece('O');
+ g.current.y=18;
+ for(let t=0;t<6;t++)g.tick(100);
+ assert.ok(g.score>=prev+30);
 });
