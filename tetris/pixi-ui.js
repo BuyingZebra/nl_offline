@@ -675,6 +675,7 @@
     optionBounds:modals.options?.modal.getBounds(),
     world:base.children.map(c=>({visible:c.visible,renderable:c.renderable}))}),
   debugForceRender:()=>{renderApp.renderer.render(renderApp.stage);return true;},
-  debugMarker:()=>{renderApp.stage.addChild(new P.Graphics().rect(30,30,110,110).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;}
+  debugMarker:()=>{renderApp.stage.addChild(new P.Graphics().rect(30,30,110,110).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;},
+  debugModalMarker:()=>{modals.options.modal.addChild(new P.Graphics().rect(100,130,90,70).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;}
  };
 })();
