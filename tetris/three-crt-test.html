@@ -247,7 +247,7 @@ try {
   if(!tear.checked){tearNext=0;tearEnd=0;return 0;}
   const rate=Number(tearFrequency.value);
   const gap=60000/Math.max(1,rate);
-  if(!tearNext&&!tearEnd){tearNext=now+Math.random()*gap;return 0;}
+  if(!tearNext&&!tearEnd){tearNext=now+350+Math.random()*400;return 0;}
   if(!tearEnd&&now>=tearNext){
    tearStart=now;
    tearEnd=now+65+Math.random()*125;
