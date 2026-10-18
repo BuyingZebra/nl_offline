@@ -245,7 +245,9 @@ function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
 }
 function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity){
  g.font='700 '+size+'px '+FONT;g.textAlign=align;g.textBaseline='middle';
- g.fillStyle=color;g.fillText(String(str),x,y,maxWidth);
+ g.fillStyle=color;
+ if(Number.isFinite(maxWidth))g.fillText(String(str),x,y,Math.max(1,maxWidth));
+ else g.fillText(String(str),x,y);
 }
 function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
 function region(x,y,w,h,act,opts={}){regions.push({x,y,w,h,act,...opts});}
