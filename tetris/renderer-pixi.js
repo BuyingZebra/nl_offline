@@ -42,7 +42,7 @@
  };
  let pixi=null,scene=null,dirty=true,enabled=false,sceneBuilds=0,copiedCanvases=0,
      lastSync=0,lastCanvasUpdate=0,lastError='',started=false;
- let sources=[],raf=null;
+ let sources=[],raf=null,dynamicFades=[];
  const paintRect=(container,el,style,r)=>{
   const background=rgba(style.backgroundColor);
   const border=rgba(style.borderTopColor);
@@ -161,6 +161,7 @@
   const r=el.getBoundingClientRect();
   // A transparent technical wrapper is no colour source of its own.
   const layer=new Pixi.Container();layer.alpha=ownAlpha;container.addChild(layer);
+  if(el.id==='readyCursor')dynamicFades.push({node:el,layer});
   if(r.width>0&&r.height>0)paintRect(layer,el,style,r);
   if(el instanceof HTMLCanvasElement){
    try{
@@ -185,7 +186,7 @@
  }
  function renderScene(){
   if(!pixi)return;
-  const next=new Pixi.Container();sources=[];
+  const next=new Pixi.Container();sources=[];dynamicFades=[];
   const groups=[':scope > header',':scope > #stage',':scope > #controlDeck',
     ':scope > #eventline',':scope > #modalScrim',
     ':scope > #options',':scope > #leaderboard',':scope > #scoreEntry',':scope > #restartConfirm'];
@@ -235,7 +236,8 @@
      try{
       // CSS animations on the source do not produce mutations, but dialogs,
       // the cursor and responsive layout must continue to mirror them.
-      if(dirty||(now-lastSync)>500){renderScene();lastSync=now;}
+      if(dirty){renderScene();lastSync=now;}
+      for(const fade of dynamicFades)fade.layer.alpha=clamp(parseFloat(getComputedStyle(fade.node).opacity)||0,0,1);
       if(now-lastCanvasUpdate>50){
        for(const item of sources)item.texture.source.update();
        copiedCanvases+=sources.length;lastCanvasUpdate=now;
@@ -254,7 +256,8 @@
  window.FieldAtlasPixiRenderer={
   getState:()=>({initialized:Boolean(pixi),enabled,requested:prefersPixi,sceneBuilds,copiedCanvases,lastError,
    contentLuminance:'grayscale',nativeInput:true,sourceCanvasCount:sources.length}),
-  enable:()=>{if(!pixi)return false;renderScene();enabled=true;appElement.classList.add('pixi-display');return true;},
+  enable:()=>{if(!pixi)return false;renderScene();enabled=true;appElement.classList.add('pixi-display');
+   pixi.renderer.render(pixi.stage);return true;},
   disable:()=>{enabled=false;appElement.classList.remove('pixi-display');return true;},
   render:()=>{markDirty();},
   destroy
