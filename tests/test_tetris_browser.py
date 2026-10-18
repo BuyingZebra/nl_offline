@@ -67,6 +67,22 @@ with sync_playwright() as p:
         assert geometry["stageHeight"]>=geometry["boardHeight"]-2, geometry
         assert geometry["stageBottom"]<=geometry["deckTop"]+2, geometry
         assert geometry["footerBottom"]<=geometry["appBottom"], geometry
+        sidebar=page.evaluate("""() => {
+          const b=selector=>document.querySelector(selector).getBoundingClientRect();
+          const hold=b('#holdCanvas').parentElement;
+          const panels=document.querySelectorAll('#side > .side-panel');
+          const first=panels[0].getBoundingClientRect();
+          const next=panels[1].getBoundingClientRect();
+          const stats=panels[2].getBoundingClientRect();
+          const side=b('#side');
+          return {nextGap:next.top-first.bottom,
+            statsGap:stats.top-next.bottom,
+            bottomInset:side.bottom-stats.bottom,
+            sideHeight:side.height};
+        }""")
+        assert 4 <= sidebar["nextGap"] <= 10, sidebar
+        assert sidebar["statsGap"] > sidebar["nextGap"] + 10, sidebar
+        assert abs(sidebar["bottomInset"]) < 3, sidebar
         # Map-style bottom anchoring: the footer sits against the safe area,
         # immediately below controls. Screen-wide scanlines reach the same edge.
         assert abs(geometry["appBottom"]-geometry["scanBottom"])<2,geometry
@@ -218,12 +234,34 @@ with sync_playwright() as p:
             "el => getComputedStyle(el).backgroundColor"
         )
         assert page.locator("#options").get_attribute("open") is not None
+        approved=page.evaluate("""() => {
+          const val=id=>document.getElementById(id).value;
+          const checked=id=>document.getElementById(id).checked;
+          return {
+            glow:val('glowControl'),scan:val('scanControl'),
+            vignette:val('vignetteControl'),sweep:val('sweepControl'),
+            fadeTop:val('fade-screenTop'),fadeBottom:val('fade-screenBottom'),
+            topOn:checked('fade-screenTop-on'),bottomOn:checked('fade-screenBottom-on'),
+            sound:checked('soundControl'),ghost:checked('ghostControl'),
+            noise:checked('fxNoiseEnabled'),noiseAmount:val('fxNoiseAmount'),
+            noiseSpeed:val('fxNoiseSpeed'),persistence:checked('fxPersistenceEnabled'),
+            persistenceAmount:val('fxPersistenceAmount'),
+            persistenceDecay:val('fxPersistenceDecay'),
+            softness:checked('fxSoftnessEnabled'),softnessAmount:val('fxSoftnessAmount')};
+        }""")
+        assert approved=={
+          "glow":"83","scan":"51","vignette":"49","sweep":"57",
+          "fadeTop":"135","fadeBottom":"135","topOn":True,"bottomOn":True,
+          "sound":True,"ghost":True,"noise":True,"noiseAmount":"8",
+          "noiseSpeed":"24","persistence":True,"persistenceAmount":"35",
+          "persistenceDecay":"765","softness":True,"softnessAmount":"13"
+        },approved
         assert page.locator("#modalScrim").is_visible()
-        # Five independently switchable CRT experiments are opt-in.
+        # Three CRT experiments now start enabled at the approved default values.
         experimental=page.evaluate("""() => {
           const section=document.querySelector('#experimentalFxSection');
           const keys=['Noise','Persistence','Softness'];
-          const initiallyOff=keys.every(k=>!document.querySelector('#fx'+k+'Enabled').checked);
+          const initiallyOn=keys.every(k=>document.querySelector('#fx'+k+'Enabled').checked);
           const board=document.querySelector('#board').getContext('2d');
           const before=Array.from(board.getImageData(15,15,1,1).data);
           const enable=k=>{
@@ -239,14 +277,14 @@ with sync_playwright() as p:
           adjust('fxPersistenceDecay',1200);
           adjust('fxNoiseSpeed',24);
           const after=Array.from(board.getImageData(15,15,1,1).data);
-          return {hasSection:!!section,initiallyOff,unmodifiedBoard:
+          return {hasSection:!!section,initiallyOn,unmodifiedBoard:
             JSON.stringify(before)===JSON.stringify(after),
             blur:getComputedStyle(document.querySelector('#fxSoftness')).backdropFilter,
             noise:getComputedStyle(document.querySelector('#fxNoise')).display,
             absent:!document.querySelector('#fxInterference')&&!document.querySelector('#fxGlitch'),
             saved:JSON.parse(localStorage.getItem('fieldAtlasTetrisExperimentalV01'))};
         }""")
-        assert experimental["hasSection"] and experimental["initiallyOff"], experimental
+        assert experimental["hasSection"] and experimental["initiallyOn"], experimental
         assert page.locator("#fxInterferenceEnabled").count() == 0
         assert page.locator("#fxGlitchEnabled").count() == 0
 
@@ -351,18 +389,18 @@ with sync_playwright() as p:
         assert page.locator('#buttonFxLayer .fx-persistence-ghost').count() >= 1
         page.get_by_role("button", name="Display options").tap()
         page.locator("#resetExperimental").tap()
-        assert page.locator("#fxNoiseEnabled").is_checked() is False
-        # When off, pressing a control cannot create a flash or lingering ghost.
+        assert page.locator("#fxNoiseEnabled").is_checked() is True
+        # Reset restores the approved enabled defaults and removes old ghosts.
         assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() == 0
-        assert page.locator("#fxPersistenceEnabled").is_checked() is False
-        assert page.locator("#fxSoftnessEnabled").is_checked() is False
+        assert page.locator("#fxPersistenceEnabled").is_checked() is True
+        assert page.locator("#fxSoftnessEnabled").is_checked() is True
         assert page.locator('#buttonFxLayer .fx-persistence-ghost').count() == 0
         assert page.locator("#fxNoise").evaluate(
             "el => getComputedStyle(el).display"
-        ) == "none"
+        ) == "block"
         assert page.evaluate(
             "JSON.parse(localStorage.getItem('fieldAtlasTetrisExperimentalV01')).noiseEnabled"
-        ) is False
+        ) is True
         page.locator("#closeOptions").tap()
 
         # The game content is no longer subjected to a distortion filter.
