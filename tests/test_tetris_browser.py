@@ -559,6 +559,36 @@ with sync_playwright() as p:
         )
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#veil").get_attribute("class") == "hidden"
+
+        # Simulate the reported iOS gap: CSS viewport shorter than the
+        # device's physical portrait screen. The entire CRT compositor
+        # must cover the screen, not just the dynamic browser viewport.
+        short_context = browser.new_context(
+            viewport={"width":390,"height":786},
+            screen={"width":390,"height":844},
+            is_mobile=True,has_touch=True,
+        )
+        try:
+            short_page=short_context.new_page()
+            short_page.goto(URL + "?qa=short-ios-viewport",
+                            wait_until="networkidle",timeout=30000)
+            shell=short_page.evaluate("""() => {
+              const rect=id=>document.querySelector(id).getBoundingClientRect();
+              const app=rect('#app'),scan=rect('#screenScan'),
+                    footer=rect('#eventline'),deck=rect('#controlDeck');
+              return {viewport:innerHeight,screen:screen.height,
+                app:app.height,scan:scan.height,footer:footer.bottom,
+                deck:deck.bottom,
+                heightVariable:app.style.getPropertyValue('--arcade-shell-height')};
+            }""")
+            assert shell["screen"]>shell["viewport"]+40,shell
+            assert abs(shell["app"]-shell["screen"])<2,shell
+            assert abs(shell["scan"]-shell["app"])<2,shell
+            assert shell["footer"]<=shell["app"],shell
+            assert shell["deck"]<shell["footer"],shell
+            assert shell["heightVariable"]=="844px",shell
+        finally:
+            short_context.close()
         assert not exceptions, exceptions
         print("PASS: solid directional keys, text-only Drop, always-visible Pause, friendly instructions and protected Resume")
     finally:
