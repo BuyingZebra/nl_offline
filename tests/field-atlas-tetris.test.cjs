@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v016'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v017'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v016'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v017'/);
 });
 
 
@@ -453,98 +453,21 @@ test('PAUSE stays visually active in READY and PAUSED but cannot start or resume
 });
 
 
-const CRT=require('../tetris/crt-curve.js');
-test('real CRT barrel mapping is radially symmetric and zero at the screen centre',()=>{
- assert.equal(CRT.VERSION,'0.10');
- assert.equal(CRT.DEFAULT_CURVATURE,16);
- assert.equal(CRT.STORAGE_KEY,'fieldAtlasTetrisCurvatureV01');
- assert.deepEqual(CRT.displacementAt(0,0),{dx:0,dy:0});
- const a=CRT.displacementAt(1,.75),b=CRT.displacementAt(-1,-.75);
- assert.ok(a.dx>0&&a.dy>0);
- assert.equal(a.dx,-b.dx);
- assert.equal(a.dy,-b.dy);
- assert.ok(Math.abs(a.dx)<1&&Math.abs(a.dy)<1);
- const middle=CRT.pixelAt(0,0);
- assert.deepEqual(middle,[128,128,128,255]);
- assert.equal(CRT.pixelAt(1,1)[3],255);
- assert.ok(CRT.pixelAt(1,1)[0]>128);
- assert.ok(CRT.pixelAt(-1,-1)[0]<128);
-});
 
-test('generated displacement field is self-contained RGBA data, not a remote texture',()=>{
- const seen={};
- const canvas={
-  getContext:()=>({
-   createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
-   putImageData:im=>{seen.data=im.data;}
-  }),
-  toDataURL:type=>{
-   assert.equal(type,'image/png');
-   return 'data:image/png;base64,LOCAL';
-  }
- };
- assert.equal(CRT.generateField(canvas,12,20),'data:image/png;base64,LOCAL');
- assert.equal(canvas.width,12);
- assert.equal(canvas.height,20);
- assert.equal(seen.data.length,12*20*4);
- assert.ok(seen.data[3]===255);
-});
-
-test('curve off means no filter; strength dynamically scales one shared postprocess',()=>{
- const props={},attributes={},imageAttributes={};
- const node={
-   clientWidth:390,clientHeight:844,
-   style:{
-    filter:'',
-    setProperty:(k,v)=>{props[k]=v;}
-   }
- };
- const displaced={setAttribute:(k,v)=>{attributes[k]=v;}};
- const image={setAttribute:(k,v)=>{imageAttributes[k]=v;}};
- const zero=CRT.apply(node,image,displaced,{},0,390,844);
- assert.equal(zero.scale,0);
- assert.equal(node.style.filter,'none');
- assert.equal(attributes.scale,'0');
- const full=CRT.apply(node,image,displaced,{},100,390,844);
- assert.equal(node.style.filter,'url("#fieldAtlasCRTBarrel")');
- assert.ok(full.scale>10);
- assert.equal(imageAttributes.width,'390');
- assert.equal(imageAttributes.height,'844');
- const half=CRT.apply(node,image,displaced,{},50,390,844);
- assert.ok(half.scale>0&&half.scale<full.scale);
- assert.ok(Number(props['--crt-glass-opacity'])>0);
- assert.equal(CRT.apply(node,image,displaced,{},0,390,844).amount,0);
- assert.equal(node.style.filter,'none');
-});
-
-test('CRT curvature is a real post-composite SVG warp over game, menus and scanlines',()=>{
+test('remove barrel distortion, retain the blur and use a clearer pause veil',()=>{
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
- const {Script}=require('node:vm');
- assert.doesNotThrow(()=>new Script(fs.readFileSync(path.join(dir,'crt-curve.js'),'utf8')));
- assert.match(html,/<filter id="fieldAtlasCRTBarrel"/);
- assert.match(html,/<feImage id="crtDisplacementImage"/);
- assert.match(html,/<feDisplacementMap id="crtDisplacementMap" in="SourceGraphic"/);
- assert.ok(html.indexOf('<svg id="crtFilterDefs"')<html.indexOf('<div id="app">'));
- assert.match(html,/id="curvatureControl" class="effect-slider" type="range" min="0" max="100"/);
- assert.match(html,/id="curvatureValue">16%/);
- assert.match(html,/<div id="crtGlass" aria-hidden="true"><\/div>/);
- assert.match(html,/<script src="\.\/crt-curve\.js"><\/script>/);
- assert.match(ui,/CRT\.createController\(document\)/);
- assert.match(ui,/read\(CRT\.STORAGE_KEY,String\(curvature\)\)/);
- assert.match(ui,/store\(CRT\.STORAGE_KEY,curvature\)/);
- assert.match(ui,/curvature=CRT\.DEFAULT_CURVATURE;/);
- assert.match(ui,/window\.addEventListener\('resize',\(\)=>\{/);
- assert.ok(sw.includes("'./crt-curve.js'"));
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v016'"));
- assert.ok(html.includes('background:var(--bg)'));
- assert.ok(html.includes('background:var(--card-bg)'));
- assert.ok(html.includes('color-mix(in srgb,var(--card-bg) 94%,transparent)'));
+ assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
+ assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
+ assert.doesNotMatch(sw,/crt-curve\.js/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v017'/);
+ assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
+ assert.match(html,/#app\{background:var\(--bg\)\}/);
+ assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
+ assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 82%,transparent\)\}/);
 });
-
-
 test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
@@ -553,7 +476,7 @@ test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',
  for(const gray of ['#303030','#e3e3e3','#cecece','#aeaeae','#6a6a6a','#060606','#292929'])
   assert.ok(html.includes(gray),'Missing grayscale luminance step '+gray);
  assert.doesNotMatch(html,/:root\[data-theme="amber"\]\{\s*--bg:/);
- assert.match(html,/#app\{--crt-glass-opacity:0;--crt-glass-radius:0px;\s*background:var\(--bg\)\}/);
+ assert.match(html,/#app\{background:var\(--bg\)\}/);
  assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;pointer-events:none;\s*background:rgb\(var\(--phosphor-rgb\)\);mix-blend-mode:color;opacity:1\}/);
  assert.match(html,/:root\[data-theme="amber"\]\{--phosphor-rgb:255,196,100\}/);
  assert.match(html,/#screenShade\{opacity:var\(--vignette-intensity\);\s*background:radial-gradient\(/);
@@ -572,7 +495,7 @@ test('flat app, darker visible panels, matching ordinary buttons and bright Star
  assert.match(html,/#app #playButton\{\s*background:var\(--bright\);color:var\(--shadow\);border-color:var\(--bright\)/);
  assert.match(html,/#pad button:is\(\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\{\s*background:var\(--bright\);color:var\(--shadow\);border-color:var\(--bright\)/);
  assert.match(html,/#app #playButton:active\{background:var\(--bright\);color:var\(--shadow\)\}/);
- assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 94%,transparent\)/);
+ assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 82%,transparent\)/);
 });
 test('pause actions omit icons and use High Score label',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
