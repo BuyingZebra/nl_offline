@@ -266,7 +266,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
  assert.ok(html.includes('opacity:var(--scan-intensity)'));
  assert.ok(ui.includes("$('crtBloomAmount').setAttribute('slope',(glow/100).toFixed(3))"));
  assert.doesNotMatch(ui,/--glow-strength|--glow-radius/);
- assert.ok(ui.includes("app.style.setProperty('--vignette-intensity'"));
+ assert.ok(ui.includes("root.style.setProperty('--vignette-intensity'"));
 });
 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
@@ -522,7 +522,7 @@ test('the refresh sweep has independent luminance control and saved strength',()
  assert.ok(html.includes('id="sweepValue">57%'));
  assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep))"));
  assert.ok(ui.includes("store('fieldAtlasTetrisSweepV01',sweep)"));
- assert.ok(ui.includes("app.style.setProperty('--sweep-intensity'"));
+ assert.ok(ui.includes("root.style.setProperty('--sweep-intensity'"));
  assert.ok(ui.includes("rangeDisplay($('sweepControl'),$('sweepValue'),sweep)"));
 });
 
