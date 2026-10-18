@@ -79,6 +79,7 @@
     segments.push({text,rect:firstRect});text='';firstRect=null;
    }
    if(!firstRect)firstRect={left:r.left,top:r.top,width:0,height:r.height};
+   firstRect.width=Math.max(firstRect.width,r.left+r.width-firstRect.left);
    lineTop=thisTop;text+=raw[i];
   }
   if(text)segments.push({text,rect:firstRect});
@@ -90,7 +91,7 @@
   const base=appRect();
   for(const segment of lineSegments(node)){
    const text=segment.text.replace(/\s+/g,' ').trim();
-   if(!text||!segment.rect?.width)return;
+   if(!text||!segment.rect?.width)continue;
    const size=parseFloat(style.fontSize)||12;
    const label=new Pixi.Text({
     text,
