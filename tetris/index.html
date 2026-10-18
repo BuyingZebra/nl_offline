@@ -392,12 +392,8 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  #buttonFxLayer .phosphor-hit-layer{animation-duration:1ms}}
 
 
-/* FIELD ATLAS / CRT GLASS v0.10. The optional SVG feDisplacementMap is
-   applied to the full composited app by JS, NOT just the board. The
-   (unfiltered) iPhone touch targets stay native and responsive.
-   At curvature 0 the #app filter is literally 'none'. */
-#app{--crt-glass-opacity:0;--crt-glass-radius:0px;
- background:var(--bg)}
+/* Flat unwarped app surface; CRT effects remain independent overlays. */
+#app{background:var(--bg)}
 /* Flat app and ordinary buttons share one luminance; visible cards
    darken that value. Technical layout wrappers remain transparent. */
 #app :is(.panel,.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm){
@@ -416,38 +412,12 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   color-mix(in srgb,var(--bright) var(--glow-strength),transparent);
 }
 #app #playButton:active{background:var(--bright);color:var(--shadow)}
-/* Menus shade the already-dark game board without repainting its parent. */
-#veil{background:color-mix(in srgb,var(--card-bg) 94%,transparent)}
-:root[data-theme="amber"] #veil{
- background:color-mix(in srgb,var(--card-bg) 94%,transparent);
-}
-#crtGlass{position:absolute;inset:0;z-index:46;pointer-events:none;
- border-radius:var(--crt-glass-radius);
- opacity:var(--crt-glass-opacity);
- background:transparent;
- box-shadow:inset 0 0 36px rgba(0,0,0,.3),
- inset 0 0 2px color-mix(in srgb,var(--border) 50%,transparent)}
+/* More transparency reveals the paused board while preserving its 3px blur. */
+#veil{background:color-mix(in srgb,var(--card-bg) 82%,transparent)}
 
 </style>
 </head>
 <body>
-<!-- Built-in local SVG filter: physically displaces rendered screen pixels.
-     One filter applies to #app after its menus, game and phosphor layers
-     have been composited. It needs no third-party scripts or textures. -->
-<svg id="crtFilterDefs" width="0" height="0" xmlns="http://www.w3.org/2000/svg"
-     aria-hidden="true" focusable="false"
-     style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none">
- <defs>
-  <filter id="fieldAtlasCRTBarrel" x="-10%" y="-10%" width="120%" height="120%"
-          filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse"
-          color-interpolation-filters="sRGB">
-   <feImage id="crtDisplacementImage" x="0" y="0" width="1" height="1"
-            preserveAspectRatio="none" result="barrelField"/>
-   <feDisplacementMap id="crtDisplacementMap" in="SourceGraphic"
-     in2="barrelField" scale="0" xChannelSelector="R" yChannelSelector="G"/>
-  </filter>
- </defs>
-</svg>
 <div id="app">
  <header class="panel">
   <div class="heading"><h1>TETRIS SYSTEM</h1></div>
@@ -498,7 +468,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div id="screenScan" aria-hidden="true"></div>
  <div id="phosphorFilm" aria-hidden="true"></div>
  <div id="sweep" aria-hidden="true"></div>
- <div id="crtGlass" aria-hidden="true"></div>
+
  <div id="modalScrim" hidden aria-hidden="true"></div>
 <dialog id="options" aria-label="FIELD ATLAS display settings">
  <div class="dialog-toolbar">
@@ -515,7 +485,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">65%</output></div><p class="effect-note">Glow follows the original brightness and colour of each element.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
  <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">26%</output></div><p class="effect-note">Identical scanline overlay for the entire Pip-Boy display, including menus.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="26"></div>
  <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">30%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="30"></div>
- <div class="effect-row"><div class="effect-head"><label for="curvatureControl">CRT CURVATURE</label><output id="curvatureValue">16%</output></div><p class="effect-note">Fish-eye glass bends the whole screen, including menus and scanlines. At 0%, distortion is off.</p><input id="curvatureControl" class="effect-slider" type="range" min="0" max="100" step="1" value="16"></div>
+
  <button id="resetEffects">RESET DISPLAY EFFECTS</button>
  <p id="guide">LEFT / RIGHT: MOVE. UP OR X: ROTATE. DOWN OR SPACE: DROP. C: HOLD. P: PAUSE. Tap board to rotate; swipe sideways to move or downward to drop.</p>
 </dialog>
@@ -544,7 +514,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 </div>
 <script src="./core.js"></script>
 <script src="./scores.js"></script>
-<script src="./crt-curve.js"></script>
+
 <script src="./ui.js"></script>
 </body>
 </html>
