@@ -32,14 +32,15 @@ a{color:var(--weak)}
 #app{position:relative;display:flex;flex-direction:column;gap:9px;
  margin:auto;padding:calc(env(safe-area-inset-top,0px) + 9px) 11px
  calc(env(safe-area-inset-bottom,0px) + 16px);
- max-width:520px;height:100dvh;min-height:0;background:var(--bg);
+ max-width:520px;height:100%;min-height:100dvh;background:var(--bg);
  overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate}
-/* Use the full portrait phone canvas, not just Safari's smaller
- * dynamic viewport. #stage absorbs added height and the board preserves
- * its 1:2 aspect ratio; controls retain their safe-area spacing. */
+/* Height is anchored to the document viewport first. On iPhone the
+ * large/dynamic viewport units can omit part of the rendered safe-area.
+ * 100% of html/body wins if that is larger, so the shared compositor
+ * reaches the bottom without extra overlays or a transformed UI. */
 @supports(height:100lvh){
  @media(orientation:portrait){
-  #app{height:100lvh;min-height:100dvh}
+  #app{height:max(100%,100vh,100lvh,100dvh)}
  }
 }
 .panel{border:1px solid var(--border);background:var(--card-bg);
@@ -58,15 +59,17 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #board{display:block;width:100%;height:100%;touch-action:none}
 #veil{position:absolute;inset:0;z-index:2;background:rgba(0,0,0,.81);
  display:flex;flex-direction:column;align-items:center;justify-content:center;
- padding:15px;text-align:center;gap:10px;backdrop-filter:blur(3px)}
+ padding:15px;text-align:center;gap:12px;backdrop-filter:blur(3px)}
 #veil.hidden{display:none}
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
  color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
-#veilText{min-height:3.2em}
-#readyCursor{display:inline-block;width:.65em;height:.95em;
- margin-inline:.55em;
- background:var(--weak);vertical-align:-.12em;
+#veilText{min-height:0}
+#veilText:has(#readyCursor){display:flex;flex-direction:column;
+ align-items:center;justify-content:center;gap:12px}
+#readyText{display:block}
+#readyCursor{display:block;flex:none;width:.65em;height:.95em;
+ margin:0;background:var(--weak);
  animation:ready-cursor-blink .85s steps(1,end) infinite}
 @keyframes ready-cursor-blink{50%{opacity:0}}
 @media(prefers-reduced-motion:reduce){#readyCursor{animation:none}}
@@ -93,6 +96,9 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #scoreStrip div:nth-child(3){align-items:flex-end;text-align:right}
 #scoreStrip small{font-size:9px;color:var(--weak);letter-spacing:.13em}
 #scoreStrip strong{font-size:clamp(13px,4vw,17px);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+#scoreStrip strong.hud-changed{animation:hud-tick .32s ease-out}
+@keyframes hud-tick{from{opacity:.55}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){#scoreStrip strong.hud-changed{animation:none}}
 #pad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 #pad button{min-width:0;padding:7px 0;height:53px;font-size:18px;user-select:none;-webkit-user-select:none;
  touch-action:none}
