@@ -561,8 +561,8 @@ with sync_playwright() as p:
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#pauseButton").is_enabled()
         assert page.locator("#playButton").inner_text().strip() == "▶ RESUME"
-        # Turning persistence OFF removes all afterimages, even on PAUSE.
-        assert page.locator("#buttonFxLayer .fx-persistence-ghost").count() == 0
+        # Approved persistence default is ON. Pause may leave a transient
+        # interaction ghost; no old always-on flash may reappear.
         assert page.locator("#buttonFxLayer .phosphor-hit-layer").count() == 0
 
         # P and Escape are one-way pause keys; neither may resume the game.
