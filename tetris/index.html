@@ -65,7 +65,8 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #newGameButton{width:100%;background:var(--bg);color:var(--ink);font-size:11px}
 #newGameButton[hidden]{display:none}
 #playButton{width:100%}
-#side{display:flex;flex-direction:column;align-self:stretch;justify-content:space-between;
+/* Preview stack stays compact; gameplay statistics sit separately at bottom. */
+#side{display:flex;flex-direction:column;align-self:stretch;justify-content:flex-start;
  gap:6px;min-width:0;width:93px}
 .side-panel{display:flex;flex-direction:column;align-items:center;gap:3px;
  border:1px solid var(--border);border-radius:9px;background:var(--card-bg);padding:6px 3px}
@@ -73,7 +74,7 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 .side-panel canvas{display:block;width:80px;max-width:100%;height:60px}
 #queue{display:flex;flex-direction:column;align-items:center;gap:1px}
 #queue canvas{height:44px}
-#sideStats{padding:8px 4px;gap:7px;align-items:stretch}
+#sideStats{margin-top:auto;padding:8px 4px;gap:7px;align-items:stretch}
 .mini-stat{display:flex;flex-direction:column;gap:4px;text-align:center}
 .mini-stat b{font-size:13px;font-variant-numeric:tabular-nums}
 #controlDeck{flex:none;display:flex;flex-direction:column;gap:7px;padding:9px}
@@ -108,8 +109,8 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #eventline{flex:none;min-height:13px;display:flex;justify-content:space-between;
  color:var(--weak);font-size:9px;letter-spacing:.07em;gap:6px}
 #eventline span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#screenShade{position:absolute;inset:0;pointer-events:none;z-index:7}
-#sweep{position:absolute;left:0;top:-70px;width:100%;height:70px;z-index:9;pointer-events:none;
+#screenShade{position:absolute;inset:0;pointer-events:none}
+#sweep{position:absolute;left:0;top:-70px;width:100%;height:70px;pointer-events:none;
  background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09));
  animation:sweep 13s linear infinite}
 @keyframes sweep{to{transform:translateY(calc(100dvh + 90px))}}
@@ -117,10 +118,6 @@ dialog{color:var(--ink);background:var(--bg);border:1px solid var(--border);bord
  padding:18px;max-width:calc(100vw - 40px);width:410px;box-shadow:0 0 50px #000}
 dialog::backdrop{background:rgba(0,0,0,.72)}
 dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
-.options-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:13px 0;
- font-size:12px}
-.options-row input[type=range]{width:55%;accent-color:var(--bright)}
-.options-row input[type=checkbox]{width:22px;height:22px;accent-color:var(--bright)}
 #closeOptions{width:100%;margin-top:12px}
 #restartConfirm p{font-size:12px;line-height:1.6;color:var(--weak);margin:0 0 18px}
 #restartConfirm .decision{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -155,8 +152,9 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
 
 
 /* FIELD ATLAS parity: use the same geometry, colour and phosphor feedback as map controls. */
-:root{--glow-radius:11.05px;--glow-strength:57.2%;--glow-level:.65;
- --scan-intensity:.26;--vignette-intensity:.30;--phosphor-rgb:108,255,156}
+:root{--glow-radius:14.11px;--glow-strength:73.0%;--glow-level:.83;
+ --scan-intensity:.51;--vignette-intensity:.49;--sweep-intensity:.57;
+ --phosphor-rgb:108,255,156}
 :root[data-theme="amber"]{--phosphor-rgb:255,196,100}
 #app{--glow:var(--glow-radius);
  padding-top:calc(env(safe-area-inset-top,0px) + 9px)}
@@ -170,7 +168,7 @@ button:not(.primary):active{background:var(--solid)}
  background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
  rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%)}
 #sweep{opacity:var(--sweep-intensity,var(--glow-level))}
-#screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;z-index:6;
+#screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;
  height:0;pointer-events:none}
 #screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
 #screenBottomFade{bottom:0;background:linear-gradient(to top,#000,transparent)}
@@ -251,13 +249,12 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
  0 14px 42px #000a}
 #app dialog[open]{display:block}
 #app dialog::backdrop{display:none}
-#screenTopFade,#screenBottomFade{z-index:31}
-#screenShade{z-index:32}
+/* Compositor ordering is defined once in the final screen-layer rules. */
 /* The sole hue source: COLOR blending preserves gray scene luminosity.
    Both game and menus receive the same phosphor film. */
-#phosphorFilm{position:absolute;inset:0;z-index:34;pointer-events:none;
+#phosphorFilm{position:absolute;inset:0;pointer-events:none;
  background:rgb(var(--phosphor-rgb));mix-blend-mode:color;opacity:1}
-#sweep{z-index:35;mix-blend-mode:screen;
+#sweep{mix-blend-mode:screen;
  background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09))}
 #screenTopFade,#screenBottomFade,#screenScan,#screenShade,#sweep{pointer-events:none}
 /* Element-derived emission: luminous labels use their foreground colour,
@@ -496,37 +493,37 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   <button id="closeOptions">RETURN TO GAME</button>
  </div>
  <div class="setting-line"><b>GHOST PIECE</b><input id="ghostControl" type="checkbox" checked aria-label="Show ghost piece"></div>
- <div class="setting-line"><b>SOUND</b><input id="soundControl" type="checkbox" aria-label="Enable sound"></div>
+ <div class="setting-line"><b>SOUND</b><input id="soundControl" type="checkbox" checked aria-label="Enable sound"></div>
  <div class="settings-divider"></div>
  <div class="settings-heading">GRADIENT LENGTH / CSS PIXELS</div>
- <div class="gradient-row"><label for="fade-screenTop-on"><input id="fade-screenTop-on" type="checkbox" checked> SCREEN TOP</label><input id="fade-screenTop" class="effect-slider" type="range" min="0" max="420" step="5" value="165"><output id="fade-screenTop-value">165px</output></div>
- <div class="gradient-row"><label for="fade-screenBottom-on"><input id="fade-screenBottom-on" type="checkbox"> SCREEN BOTTOM</label><input id="fade-screenBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="110"><output id="fade-screenBottom-value">110px</output></div>
+ <div class="gradient-row"><label for="fade-screenTop-on"><input id="fade-screenTop-on" type="checkbox" checked> SCREEN TOP</label><input id="fade-screenTop" class="effect-slider" type="range" min="0" max="420" step="5" value="135"><output id="fade-screenTop-value">135px</output></div>
+ <div class="gradient-row"><label for="fade-screenBottom-on"><input id="fade-screenBottom-on" type="checkbox" checked> SCREEN BOTTOM</label><input id="fade-screenBottom" class="effect-slider" type="range" min="0" max="420" step="5" value="135"><output id="fade-screenBottom-value">135px</output></div>
  <p class="setting-copy">Screen top and bottom fades overlay the entire display, including the playfield and menus.</p>
  <div class="settings-divider"></div>
- <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">65%</output></div><p class="effect-note">Glow follows the original brightness and colour of each element.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
- <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">26%</output></div><p class="effect-note">Identical scanline overlay for the entire Pip-Boy display, including menus.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="26"></div>
- <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">30%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="30"></div>
- <div class="effect-row"><div class="effect-head"><label for="sweepControl">REFRESH SWEEP</label><output id="sweepValue">65%</output></div><p class="effect-note">Strength of the traveling refresh line, independent of the phosphor glow.</p><input id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
+ <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">83%</output></div><p class="effect-note">Glow follows the original brightness and colour of each element.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="83"></div>
+ <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">51%</output></div><p class="effect-note">Identical scanline overlay for the entire Pip-Boy display, including menus.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="51"></div>
+ <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">49%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="49"></div>
+ <div class="effect-row"><div class="effect-head"><label for="sweepControl">REFRESH SWEEP</label><output id="sweepValue">57%</output></div><p class="effect-note">Strength of the traveling refresh line, independent of the phosphor glow.</p><input id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="57"></div>
 
  <button id="resetEffects">RESET DISPLAY EFFECTS</button>
  <div id="experimentalFxSection">
   <div class="settings-divider"></div>
   <div class="settings-heading">EXPERIMENTAL CRT EFFECTS</div>
-  <p class="setting-copy">Independent grayscale compositing overlays. All effects are off by default; settings are saved only on this device. Motion respects Reduce Motion.</p>
+  <p class="setting-copy">Independent grayscale compositing overlays. Defaults are enabled; settings are saved only on this device. Motion respects Reduce Motion.</p>
  <div class="experimental-effect">
-  <label class="experimental-toggle"><input id="fxNoiseEnabled" type="checkbox"> NOISE</label>
+  <label class="experimental-toggle"><input id="fxNoiseEnabled" type="checkbox" checked> NOISE</label>
   <p class="effect-note">Animated grayscale grain, rendered at low resolution.</p>
-  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxNoiseAmount">AMOUNT</label><output id="fxNoiseAmountValue">18%</output></div><input id="fxNoiseAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="18"></div><div class="effect-row"><div class="effect-head"><label for="fxNoiseSpeed">SPEED</label><output id="fxNoiseSpeedValue">12 FPS</output></div><input id="fxNoiseSpeed" class="effect-slider" type="range" min="1" max="24" step="1" value="12"></div></div>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxNoiseAmount">AMOUNT</label><output id="fxNoiseAmountValue">8%</output></div><input id="fxNoiseAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="8"></div><div class="effect-row"><div class="effect-head"><label for="fxNoiseSpeed">SPEED</label><output id="fxNoiseSpeedValue">24 FPS</output></div><input id="fxNoiseSpeed" class="effect-slider" type="range" min="1" max="24" step="1" value="24"></div></div>
  </div>
  <div class="experimental-effect">
-  <label class="experimental-toggle"><input id="fxPersistenceEnabled" type="checkbox"> PERSISTENCE</label>
+  <label class="experimental-toggle"><input id="fxPersistenceEnabled" type="checkbox" checked> PERSISTENCE</label>
   <p class="effect-note">Only button presses leave a brief fading imprint.</p>
-  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxPersistenceAmount">AMOUNT</label><output id="fxPersistenceAmountValue">35%</output></div><input id="fxPersistenceAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="35"></div><div class="effect-row"><div class="effect-head"><label for="fxPersistenceDecay">DECAY</label><output id="fxPersistenceDecayValue">450 MS</output></div><input id="fxPersistenceDecay" class="effect-slider" type="range" min="100" max="1200" step="1" value="450"></div></div>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxPersistenceAmount">AMOUNT</label><output id="fxPersistenceAmountValue">35%</output></div><input id="fxPersistenceAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="35"></div><div class="effect-row"><div class="effect-head"><label for="fxPersistenceDecay">DECAY</label><output id="fxPersistenceDecayValue">765 MS</output></div><input id="fxPersistenceDecay" class="effect-slider" type="range" min="100" max="1200" step="1" value="765"></div></div>
  </div>
  <div class="experimental-effect">
-  <label class="experimental-toggle"><input id="fxSoftnessEnabled" type="checkbox"> SOFTNESS</label>
+  <label class="experimental-toggle"><input id="fxSoftnessEnabled" type="checkbox" checked> SOFTNESS</label>
   <p class="effect-note">Optional optical blur of the composed UI; geometry stays fixed.</p>
-  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxSoftnessAmount">AMOUNT</label><output id="fxSoftnessAmountValue">25%</output></div><input id="fxSoftnessAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="25"></div></div>
+  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxSoftnessAmount">AMOUNT</label><output id="fxSoftnessAmountValue">13%</output></div><input id="fxSoftnessAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="13"></div></div>
  </div>
   <button id="resetExperimental">RESET EXPERIMENTAL EFFECTS</button>
  </div>
