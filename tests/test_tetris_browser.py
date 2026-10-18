@@ -240,9 +240,15 @@ with sync_playwright() as p:
         assert page.locator('#options input[type="checkbox"]').evaluate_all(
           """els => els.every(el => getComputedStyle(el).borderTopLeftRadius==='0px')"""
         )
-        assert page.locator('#screenScan').evaluate(
-          """el => getComputedStyle(el).backgroundImage.includes('repeating-linear-gradient')"""
-        )
+        scan_style = page.locator('#screenScan').evaluate("""el => {
+          const s=getComputedStyle(el);
+          return {image:s.backgroundImage,opacity:s.opacity,zIndex:s.zIndex};
+        }""")
+        assert "repeating-linear-gradient" in scan_style["image"], scan_style
+        assert "transparent" in scan_style["image"], scan_style
+        assert "rgba(0, 0, 0," in scan_style["image"], scan_style
+        assert "255, 255, 255" not in scan_style["image"], scan_style
+        assert scan_style["zIndex"] == "43", scan_style
         page.locator("#closeOptions").tap()
         assert page.locator("#options").get_attribute("open") is None
         assert page.locator("#modalScrim").is_hidden()
