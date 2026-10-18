@@ -30,6 +30,11 @@ with sync_playwright() as p:
     assert not exceptions,exceptions
     assert not state()['errors'],state()['errors']
     page.screenshot(path=str(output/(browser_name+'-ready.png')))
+    if browser_name=='webkit':
+        page.evaluate('window.FieldAtlasTetris.debugBypassEffects(true)')
+        page.wait_for_timeout(200)
+        page.screenshot(path=str(output/(browser_name+'-raw.png')))
+        page.evaluate('window.FieldAtlasTetris.debugBypassEffects(false)')
     page.evaluate("window.FieldAtlasTetris.action('start')")
     page.wait_for_timeout(160)
     assert state()['gameStatus']=='playing',state()
@@ -42,7 +47,7 @@ with sync_playwright() as p:
     assert state()['mode']=='options'
     page.screenshot(path=str(output/(browser_name+'-options.png')))
     if browser_name=='webkit':
-        for label in ['ready','options']:
+        for label in ['ready','raw','options']:
             img=Image.open(output/(browser_name+'-'+label+'.png')).convert('RGB')
             img.thumbnail((390,844))
             data=io.BytesIO();img.save(data,format='JPEG',quality=73)
