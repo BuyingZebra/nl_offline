@@ -363,6 +363,8 @@
       }
     }
   }
+  const playCaption=$('playButton').querySelector('.play-caption');
+  if(!playCaption)throw Error('Tetris play button caption missing');
   function updateHUD(){
     syncLiveStats();
     // PAUSE is a consistently lit, clickable control in every state.
@@ -378,15 +380,15 @@
     if(game.status==='ready'){
       $('veilTitle').textContent='TETRIS';
       showReadyMessage();
-      $('playButton').textContent='▶ START GAME';
+      playCaption.textContent='START GAME';
     }else if(game.status==='paused'){
       $('veilTitle').textContent='PAUSED';
       showOtherMessage('YOUR GAME IS SAFE UNTIL YOU RETURN');
-      $('playButton').textContent='▶ RESUME';
+      playCaption.textContent='RESUME';
     }else if(game.status==='over'){
       $('veilTitle').textContent='GAME OVER';
       showOtherMessage('SCORE '+game.score.toLocaleString('en-CA')+' / '+game.lines+' LINES');
-      $('playButton').textContent='▶ PLAY AGAIN';
+      playCaption.textContent='PLAY AGAIN';
     }
   }
 
