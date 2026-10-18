@@ -79,7 +79,7 @@
   },true);
 
   let lastFrame=performance.now(),dirty=true;
-  let highScore=0,showGhost=true,soundOn=false,glow=65,scan=26,vignette=30,audioCtx=null;
+  let highScore=0,showGhost=true,soundOn=false,glow=65,scan=26,vignette=30,sweep=65,audioCtx=null;
   let gameOverHandled=false,highScores=[],storage=null;
   const fadeKeys=['screenTop','screenBottom'];
   const defaultGradients={
@@ -98,6 +98,7 @@
   let experimental=null;
   try{experimental=window.FieldAtlasExperimentalFX?.create(document)||null;}
   catch(e){console.warn('Experimental CRT overlays unavailable; game continues',e);}
+  sweep=clamp(Number(read('fieldAtlasTetrisSweepV01','65'))||0,0,100);
   try{storage=window.localStorage;}catch(e){storage=null;}
   highScores=Scores.read(storage);
   highScore=highScores[0]?.score||0;
@@ -177,6 +178,7 @@
     rangeDisplay($('glowControl'),$('glowValue'),glow);
     rangeDisplay($('scanControl'),$('scanValue'),scan);
     rangeDisplay($('vignetteControl'),$('vignetteValue'),vignette);
+    rangeDisplay($('sweepControl'),$('sweepValue'),sweep);
     for(const key of fadeKeys){
       $('fade-'+key+'-on').checked=gradients[key].enabled;
       rangeDisplay($('fade-'+key),$('fade-'+key+'-value'),gradients[key].length,'px');
@@ -193,6 +195,7 @@
     app.style.setProperty('--scan-intensity',String(scan/100));
     app.style.setProperty('--vignette-intensity',String(vignette/100));
     app.style.setProperty('--glow-level',k.toFixed(3));
+    app.style.setProperty('--sweep-intensity',(sweep/100).toFixed(3));
     app.style.setProperty('--glow-radius',(17*k).toFixed(2)+'px');
     app.style.setProperty('--glow-strength',(88*k).toFixed(1)+'%');
     applyGradientFades();
@@ -465,6 +468,11 @@
       refreshPalette();
     });
   }
+  $('sweepControl').addEventListener('input',event=>{
+    sweep=clamp(Math.round(Number(event.target.value)||0),0,100);
+    store('fieldAtlasTetrisSweepV01',sweep);
+    refreshPalette();
+  });
   // Resize triggers game redraw; the display itself remains unwarped.
   window.addEventListener('resize',()=>{dirty=true;},{passive:true});
   for(const key of fadeKeys){
@@ -478,7 +486,8 @@
     });
   }
   $('resetEffects').addEventListener('click',()=>{
-    glow=65;scan=26;vignette=30;
+    glow=65;scan=26;vignette=30;sweep=65;
+    store('fieldAtlasTetrisSweepV01',sweep);
     saveEffects();refreshPalette();
   });
   $('ghostControl').addEventListener('change',e=>{
