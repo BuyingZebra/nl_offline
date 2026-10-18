@@ -163,7 +163,7 @@ button .phosphor-hit-layer{
 #screenShade{opacity:var(--vignette-intensity);
  background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
  rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%)}
-#sweep{opacity:var(--glow-level)}
+#sweep{opacity:var(--sweep-intensity,var(--glow-level))}
 #screenTopFade,#screenBottomFade{position:absolute;left:0;right:0;z-index:6;
  height:0;pointer-events:none}
 #screenTopFade{top:0;background:linear-gradient(to bottom,#000,transparent)}
@@ -515,6 +515,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div class="effect-row"><div class="effect-head"><label for="glowControl">PHOSPHOR GLOW</label><output id="glowValue">65%</output></div><p class="effect-note">Glow follows the original brightness and colour of each element.</p><input id="glowControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
  <div class="effect-row"><div class="effect-head"><label for="scanControl">CRT SCANLINES</label><output id="scanValue">26%</output></div><p class="effect-note">Identical scanline overlay for the entire Pip-Boy display, including menus.</p><input id="scanControl" class="effect-slider" type="range" min="0" max="100" step="1" value="26"></div>
  <div class="effect-row"><div class="effect-head"><label for="vignetteControl">EDGE VIGNETTE</label><output id="vignetteValue">30%</output></div><p class="effect-note">At 100%, the screen edges become nearly black.</p><input id="vignetteControl" class="effect-slider" type="range" min="0" max="100" step="1" value="30"></div>
+ <div class="effect-row"><div class="effect-head"><label for="sweepControl">REFRESH SWEEP</label><output id="sweepValue">65%</output></div><p class="effect-note">Strength of the traveling refresh line, independent of the phosphor glow.</p><input id="sweepControl" class="effect-slider" type="range" min="0" max="100" step="1" value="65"></div>
 
  <button id="resetEffects">RESET DISPLAY EFFECTS</button>
  <div id="experimentalFxSection">
