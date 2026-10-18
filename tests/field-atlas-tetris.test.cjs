@@ -736,7 +736,8 @@ test('Tetris checks for current offline shell every launch; no forced gameplay r
  assert.match(ui,/registration\.update\(\)\.catch/);
  assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/caches\.keys\(\).*keys\.filter/);
- assert.ok(html.includes('LOCAL ARCADE ENGINE / V024'));
+ assert.ok(html.includes('LOCAL ARCADE ENGINE / V023'));
+ assert.ok(html.includes('id="eventline" data-build="v024"'));
  assert.match(html,/#screenScan\{position:absolute;inset:0;/);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
 });
