@@ -560,9 +560,10 @@ with sync_playwright() as p:
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#veil").get_attribute("class") == "hidden"
 
-        # Simulate the reported iOS gap: CSS viewport shorter than the
-        # device's physical portrait screen. The entire CRT compositor
-        # must cover the screen, not just the dynamic browser viewport.
+        # Guard against the exact legacy WebKit/PWA chin combination:
+        # black-translucent standalone status bar plus 100%-height root.
+        # Physical screen.height is intentionally *not* used for layout:
+        # when browser chrome is visible it is larger than the usable area.
         short_context = browser.new_context(
             viewport={"width":390,"height":786},
             screen={"width":390,"height":844},
@@ -570,7 +571,7 @@ with sync_playwright() as p:
         )
         try:
             short_page=short_context.new_page()
-            short_page.goto(URL + "?qa=short-ios-viewport",
+            short_page.goto(URL + "?qa=ios-root-viewport-v023",
                             wait_until="networkidle",timeout=30000)
             shell=short_page.evaluate("""() => {
               const rect=id=>document.querySelector(id).getBoundingClientRect();
@@ -579,14 +580,25 @@ with sync_playwright() as p:
               return {viewport:innerHeight,screen:screen.height,
                 app:app.height,scan:scan.height,footer:footer.bottom,
                 deck:deck.bottom,
-                heightVariable:document.querySelector('#app').style.getPropertyValue('--arcade-shell-height')};
+                rootHeight:getComputedStyle(document.documentElement).height,
+                bodyHeight:getComputedStyle(document.body).height,
+                statusMeta:document.querySelector(
+                  'meta[name="apple-mobile-web-app-status-bar-style"]')?.content||null,
+                heightVariable:document.querySelector('#app').style
+                  .getPropertyValue('--arcade-shell-height')};
             }""")
             assert shell["screen"]>shell["viewport"]+40,shell
-            assert abs(shell["app"]-shell["screen"])<2,shell
+            assert abs(shell["app"]-shell["viewport"])<2,shell
+            assert abs(float(shell["rootHeight"].replace("px",""))-
+                       shell["viewport"])<2,shell
             assert abs(shell["scan"]-shell["app"])<2,shell
             assert shell["footer"]<=shell["app"],shell
             assert shell["deck"]<shell["footer"],shell
-            assert shell["heightVariable"]=="844px",shell
+            assert shell["statusMeta"]!="black-translucent",shell
+            assert shell["heightVariable"]=="",shell
+            short_page.screenshot(
+                path=str(EVIDENCE/"tetris-ios-root-viewport-v023.png")
+            )
         finally:
             short_context.close()
         assert not exceptions, exceptions
