@@ -351,3 +351,305 @@
   syncGame();
   return {app,offsetX,safe,inner,headerY:headY,headerH:headH,boardX,boardY,boardW,boardH,deckY,deckH,deckX,deckW};
  };
+
+ const makeCheckbox=(parent,label,x,y,initial,onChange)=>{
+  text(parent,label,x,y+16,11,C.ink);
+  const g=new P.Graphics();g.position.set(x+309,y+6);parent.addChild(g);
+  let current=!!initial;
+  const paint=()=>{
+   g.clear().rect(0,0,20,20).stroke({color:C.bright,width:1});
+   if(current)g.rect(1,1,18,18).fill({color:C.bright});
+  };
+  paint();g.eventMode='static';g.cursor='pointer';g.hitArea=new P.Rectangle(-10,-6,40,38);
+  g.on('pointerdown',()=>{current=!current;paint();onChange(current);});
+  return {g,get value(){return current;},set value(v){current=!!v;paint();}};
+ };
+ const addSlider=(parent,title,x,y,w,value,min,max,onChange,unit='%',description='')=>{
+  text(parent,title,x,y+12,10,C.ink);
+  const out=text(parent,String(value)+unit,x+w,y+12,10,C.ink,'right');
+  const graphics=new P.Graphics();graphics.position.set(x,y+33);parent.addChild(graphics);
+  let val=value,down=false;
+  function paint(){
+   const t=clamp((val-min)/(max-min||1),0,1);
+   graphics.clear().rect(0,17,w,6).fill({color:C.border})
+    .rect(0,17,w*t,6).fill({color:C.bright})
+    .rect(clamp(w*t-10.5,0,w-21),9.5,21,21).fill({color:C.bright});
+   out.text=(typeof val==='number'?Math.round(val*10)/10:val)+unit;
+  }
+  paint();
+  graphics.eventMode='static';graphics.cursor='pointer';graphics.hitArea=new P.Rectangle(0,0,w,44);
+  const update=e=>{
+   const local=graphics.toLocal(e.global);
+   val=clamp(min+(max-min)*clamp(local.x/w,0,1),min,max);
+   val=Math.round(val*10)/10;
+   paint();onChange(val);
+  };
+  graphics.on('pointerdown',e=>{down=true;update(e);e.stopPropagation();});
+  graphics.on('globalpointermove',e=>{if(down)update(e);});
+  for(const event of ['pointerup','pointerupoutside','pointercancel'])graphics.on(event,()=>{down=false;});
+  let used=78;
+  if(description){
+   const maxChars=Math.floor(w/6.2);
+   const words=description.split(' '),rows=[''];
+   for(const word of words){
+    if((rows[rows.length-1]+' '+word).trim().length>maxChars)rows.push(word);
+    else rows[rows.length-1]=(rows[rows.length-1]+' '+word).trim();
+   }
+   for(let i=0;i<rows.length;i++)text(parent,rows[i],x,y+76+i*14,9,C.weak);
+   used+=rows.length*14;
+  }
+  return {height:used,set(v){val=v;paint();}};
+ };
+ const menuLayouts={};
+ function buildModals(){
+  menuLayer=container(base);menuLayer.visible=false;
+  const scrim=box(menuLayer,0,0,width,height,0x000000,null,0);
+  scrim.alpha=.73;scrim.eventMode='static';scrim.hitArea=new P.Rectangle(0,0,width,height);
+  // Native dialogs lived inside #app: all modal pixels pass through the SAME GPU CRT.
+  for(const name of ['options','scores','entry','restart']){
+   const modal=container(menuLayer);modal.visible=false;
+   const w=Math.min(410,width-22),h=name==='options'?Math.min(height*2/3,560):
+       name==='scores'?Math.min(445,height-44):name==='entry'?Math.min(300,height-40):220;
+   const x=(width-w)/2,y=(height-h)/2;
+   modal.position.set(x,y);
+   box(modal,0,0,w,h,C.panel,C.border,14);
+   modal.eventMode='static';modal.hitArea=new P.Rectangle(0,0,w,h);
+   modals[name]={modal,w,h,x,y};
+  }
+  buildOptions();
+  buildScores();
+  buildEntry();
+  buildRestart();
+ }
+ function buildOptions(){
+  const {modal,w,h}=modals.options;
+  const back=button(modal,'RETURN TO GAME',18,17,w-36,45,()=>closeModal(),{size:11});
+  line(modal,18,73,w-18,73,C.border);
+  const viewport=container(modal,0,0);
+  const clip=new P.Graphics().rect(12,82,w-24,h-97).fill({color:0xffffff});
+  modal.addChild(clip);viewport.mask=clip;
+  menuScroll=container(viewport,0,82);menuScrollY=0;
+  let Y=6;const left=25,wide=w-50;
+  const title=(s)=>{Y+=9;text(menuScroll,s,left,Y+8,10,C.weak);Y+=34;};
+  const paragraph=(s)=>{
+   const maxChars=Math.floor(wide/6.1),words=s.split(' '),rows=[''];
+   for(const word of words){
+    if((rows[rows.length-1]+' '+word).trim().length>maxChars)rows.push(word);
+    else rows[rows.length-1]=(rows[rows.length-1]+' '+word).trim();
+   }
+   for(let i=0;i<rows.length;i++)text(menuScroll,rows[i],left,Y+i*14,9,C.weak);
+   Y+=rows.length*14+8;
+  };
+  const divider=()=>{line(menuScroll,left,Y,left+wide,Y,C.border);Y+=17;};
+  const check=(name,initial,onChange)=>{makeCheckbox(menuScroll,name,left,Y,initial,onChange);Y+=47;};
+  const slid=(title,val,min,max,onChange,suffix='%',description='')=>{
+   const res=addSlider(menuScroll,title,left,Y,wide,val,min,max,onChange,suffix,description);
+   Y+=res.height;
+  };
+  check('GHOST PIECE',showGhost,v=>{showGhost=v;store('fieldAtlasTetrisGhost',v?'yes':'no');syncGame();});
+  check('SOUND',soundOn,v=>{soundOn=v;store('fieldAtlasTetrisSound',v?'yes':'no');});
+  divider();
+  title('GRADIENT LENGTH / CSS PIXELS');
+  for(const k of ['screenTop','screenBottom']){
+   const upper=k==='screenTop'?'SCREEN TOP':'SCREEN BOTTOM';
+   check(upper,gradients[k].enabled,v=>{gradients[k].enabled=v;settingSave();syncCRT();});
+   slid(upper+' LENGTH',gradients[k].length,0,420,v=>{
+    gradients[k].length=Math.round(v/5)*5;settingSave();syncCRT();},'px');
+  }
+  paragraph('Screen top and bottom fades overlay the entire display, including gameplay and menus.');
+  divider();
+  slid('PHOSPHOR GLOW',glow,0,100,v=>{glow=v;settingSave();syncCRT();},'%',
+    'Screen-wide phosphor bloom responds to the brightness of the complete composited image.');
+  slid('CRT SCANLINES',scan,0,100,v=>{scan=v;settingSave();syncCRT();},'%',
+    'Identical scanline processing for the entire display, including menus.');
+  slid('EDGE VIGNETTE',vignette,0,100,v=>{vignette=v;settingSave();syncCRT();},'%',
+    'At 100 percent, the screen edges become nearly black.');
+  slid('REFRESH SWEEP',sweep,0,100,v=>{sweep=v;settingSave();syncCRT();},'%',
+    'Strength of the traveling refresh line, independent of phosphor glow.');
+  button(menuScroll,'RESET DISPLAY EFFECTS',left,Y,wide,44,()=>{
+   glow=83;scan=51;vignette=49;sweep=57;
+   gradients={screenTop:{enabled:true,length:135},screenBottom:{enabled:true,length:135}};
+   settingSave();syncCRT();rebuildOptions();},{size:10});
+  Y+=61;divider();title('EXPERIMENTAL CRT EFFECTS');
+  paragraph('Independent grayscale GPU effects. Defaults are enabled. Settings are stored on this device.');
+  for(const spec of [
+   ['NOISE','noiseEnabled','noiseAmount',8,100,'%','Animated screen-space monochrome grain.'],
+   ['PERSISTENCE','persistenceEnabled','persistenceAmount',35,100,'%','Button presses leave a fading imprint.'],
+   ['SOFTNESS','softnessEnabled','softnessAmount',13,100,'%','Optical softness of the completed display.']
+  ]){
+   const [label,onKey,key,defaultV,max,suffix,description]=spec;
+   check(label,experimental[onKey],v=>{experimental[onKey]=v;settingSave();syncCRT();});
+   slid('AMOUNT',experimental[key],0,max,v=>{experimental[key]=v;settingSave();syncCRT();},suffix,description);
+   if(key==='noiseAmount')slid('SPEED',experimental.noiseSpeed,1,24,v=>{
+    experimental.noiseSpeed=v;settingSave();},' FPS');
+   if(key==='persistenceAmount')slid('DECAY',experimental.persistenceDecay,100,1200,v=>{
+    experimental.persistenceDecay=v;settingSave();},' MS');
+  }
+  button(menuScroll,'RESET EXPERIMENTAL EFFECTS',left,Y,wide,44,()=>{
+   Object.assign(experimental,{noiseEnabled:true,noiseAmount:8,noiseSpeed:24,
+    persistenceEnabled:true,persistenceAmount:35,persistenceDecay:765,
+    softnessEnabled:true,softnessAmount:13});settingSave();syncCRT();rebuildOptions();
+  },{size:10});Y+=65;
+  divider();title('GPU COMPOSITOR / FULL SCREEN');
+  paragraph('Each stage operates on the complete grayscale scene. Use the arrows to reorder GPU passes.');
+  slid('BLOOM CUTOFF',crt.config.threshold,20,95,v=>{crt.set('threshold',v);},'%');
+  slid('BLOOM RADIUS',crt.config.radius,.5,8,v=>{crt.set('radius',v);},'px');
+  slid('GHOST AMOUNT',crt.config.ghost,0,100,v=>{crt.set('ghost',v);},'%');
+  slid('GHOST DISTANCE',crt.config.ghostDistance,0,12,v=>{crt.set('ghostDistance',v);},'px');
+  for(let i=0;i<crt.order.length;i++){
+   const id=crt.order[i],ry=Y;
+   check(id.toUpperCase(),crt.enabled[id],v=>{crt.toggle(id,v);});
+   const up=button(menuScroll,'↑',left+wide-73,ry+2,33,34,()=>{
+    crt.move(id,-1);rebuildOptions();},{size:16});
+   const down=button(menuScroll,'↓',left+wide-35,ry+2,33,34,()=>{
+    crt.move(id,1);rebuildOptions();},{size:16});
+  }
+  divider();paragraph('LEFT / RIGHT: MOVE. UP OR X: ROTATE. DOWN OR SPACE: DROP. C: HOLD. P: PAUSE.');
+  Y+=18;menuMaxScroll=Math.max(0,Y-(h-100));
+  const scrollSurface=modal;
+  let dragY=null,scrollStart=0;
+  const setScroll=v=>{menuScrollY=clamp(v,0,menuMaxScroll);menuScroll.y=82-menuScrollY;};
+  setScroll(0);
+  scrollSurface.on('wheel',e=>{setScroll(menuScrollY+e.deltaY);});
+  scrollSurface.on('pointerdown',e=>{dragY=e.global.y;scrollStart=menuScrollY;});
+  scrollSurface.on('globalpointermove',e=>{
+   if(dragY===null)return;
+   if(Math.abs(e.global.y-dragY)>8)setScroll(scrollStart+dragY-e.global.y);
+  });
+  for(const ev of ['pointerup','pointerupoutside','pointercancel'])scrollSurface.on(ev,()=>{dragY=null;});
+  menuLayouts.options={setScroll,getScroll:()=>menuScrollY};
+ }
+ function rebuildOptions(){
+  const was=currentModal==='options',scroll=menuScrollY;
+  const {modal}=modals.options;
+  modal.removeAllListeners();
+  modal.removeChildren().forEach(c=>c.destroy({children:true}));
+  box(modal,0,0,modals.options.w,modals.options.h,C.panel,C.border,14);
+  buildOptions();
+  menuLayouts.options.setScroll(scroll);
+  modal.visible=was;
+  state.menuBuilds++;
+ }
+ function buildScores(){
+  const {modal,w,h}=modals.scores;
+  text(modal,'FIELD ATLAS / TOP FIVE',w/2,32,15,C.ink,'center',700,1.4);
+  line(modal,18,56,w-18,56,C.border);
+  const holder=container(modal,0,67);
+  const refresh=()=>{
+   holder.removeChildren().forEach(c=>c.destroy({children:true}));
+   const list=highScores.slice(0,5);
+   for(let i=0;i<5;i++){
+    const y=i*46,record=list[i];
+    box(holder,18,y,w-36,42,C.bg,C.border,7);
+    text(holder,String(i+1).padStart(2,'0'),28,y+21,10,C.weak);
+    text(holder,record?.name||'---',64,y+21,12);
+    text(holder,record?fmt(record.score):'------',w-29,y+21,12,C.ink,'right');
+   }
+  };
+  modals.scores.refresh=refresh;refresh();
+  text(modal,'High scores are stored locally on this device.',w/2,h-78,9,C.weak,'center');
+  button(modal,'RETURN',18,h-60,w-36,44,()=>closeModal(),{size:11});
+ }
+ function buildEntry(){
+  const {modal,w,h}=modals.entry;
+  text(modal,'NEW HIGH SCORE',w/2,33,17,C.ink,'center');
+  text(modal,'You reached the top five.',w/2,72,11,C.weak,'center');
+  const score=text(modal,'000000',w/2,113,24,C.ink,'center');
+  text(modal,'INITIALS / UP TO 3',24,151,10,C.weak);
+  box(modal,22,168,w-44,50,C.bg,C.border,8);
+  const value=text(modal,'AAA',w/2,193,19,C.ink,'center');
+  modals.entry.value=value;modals.entry.score=score;
+  const activate=box(modal,22,168,w-44,50,C.bg,null,8);
+  activate.alpha=0;activate.eventMode='static';activate.hitArea=new P.Rectangle(0,0,w-44,50);
+  activate.on('pointerdown',()=>entry.focus());
+  button(modal,'SKIP',22,h-65,(w-50)/2,44,()=>{entry.blur();closeModal();},{size:11});
+  button(modal,'SAVE',28+(w-50)/2,h-65,(w-50)/2,44,()=>{
+   const name=Scores.initials(entry.value);if(Scores.qualifies(highScores,game.score)){
+    highScores=Scores.add(highScores,{name,score:game.score,lines:game.lines,level:game.level,at:Date.now()});
+    highScores=Scores.save(localStorage,highScores);
+    store('fieldAtlasTetrisInitials',name);
+   }
+   entry.blur();closeModal();openModal('scores');},{size:11});
+  entry.addEventListener('input',()=>{entry.value=entry.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);value.text=entry.value;});
+ }
+ function buildRestart(){
+  const {modal,w,h}=modals.restart;
+  text(modal,'START NEW GAME?',w/2,38,16,C.ink,'center');
+  text(modal,'Your current game and score',w/2,90,11,C.weak,'center');
+  text(modal,'will be lost. Are you sure?',w/2,108,11,C.weak,'center');
+  button(modal,'CANCEL',18,h-67,(w-43)/2,46,()=>closeModal(),{size:11});
+  button(modal,'YES, RESTART',25+(w-43)/2,h-67,(w-43)/2,46,()=>{
+   game.reset();game.start();gameOverHandled=false;closeModal();syncGame();
+  },{size:11});
+ }
+ function openModal(name){
+  if(currentModal)return;
+  currentModal=name;menuLayer.visible=true;
+  for(const [id,v] of Object.entries(modals))v.modal.visible=id===name;
+  if(name==='options'){if(game.status==='playing'){game.pause();syncGame();}}
+  if(name==='scores')modals.scores.refresh();
+  if(name==='entry'){modals.entry.score.text=String(game.score);modals.entry.value.text=entry.value;}
+ }
+ function closeModal(){
+  if(!currentModal)return;
+  for(const item of Object.values(modals))item.modal.visible=false;
+  currentModal=null;menuLayer.visible=false;
+ }
+ function resize(){
+  width=Math.max(1,innerWidth);height=Math.max(1,innerHeight);
+  if(gameLayer){base.removeChild(gameLayer);gameLayer.destroy({children:true});}
+  if(menuLayer){base.removeChild(menuLayer);menuLayer.destroy({children:true});}
+  gameLayer=null;menuLayer=null;boardGraphic=null;modals={};controls={};
+  const name=currentModal;currentModal=null;
+  createGame();
+  buildModals();
+  if(name)openModal(name);
+  syncCRT();state.sceneBuilds++;
+ }
+ const keyboard={
+  ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
+  ArrowDown:'hard',Space:'hard',KeyC:'hold',ShiftLeft:'hold',ShiftRight:'hold',KeyP:'pause',Escape:'pause'
+ };
+ document.addEventListener('keydown',e=>{
+  if(document.activeElement===entry){
+   if(e.code==='Escape'){entry.blur();closeModal();}return;
+  }
+  if(currentModal){
+   if(e.code==='Escape'){e.preventDefault();closeModal();}
+   return;
+  }
+  const a=keyboard[e.code];if(!a)return;
+  e.preventDefault();
+  if(e.repeat&&['hard','hold','pause'].includes(a))return;
+  action(a);
+ });
+ window.addEventListener('resize',resize,{passive:true});
+ document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&game.status==='playing'){game.pause();syncGame();}
+  lastNow=performance.now();
+ });
+ resize();
+ let lastFpsUpdate=performance.now(),count=0;
+ renderApp.ticker.add(ticker=>{
+  const now=performance.now(),dt=Math.min(100,Math.max(0,now-lastNow));
+  lastNow=now;
+  if(!document.hidden){
+   if(!currentModal&&game.status==='playing'){
+    const before=game.pieces,lines=game.lines;
+    if(game.tick(dt)||game.pieces!==before||game.lines!==lines)syncGame();
+    onOver();
+   }
+   crt.tick(now);
+  }
+  count++;
+  if(now-lastFpsUpdate>1000){fps=Math.round(count*1000/(now-lastFpsUpdate));count=0;lastFpsUpdate=now;state.fps=fps;}
+ });
+ window.FieldAtlasTetris={
+  getState:()=>({renderer:'PixiJS',webgl:Boolean(renderApp.renderer.gl),gameStatus:game.status,
+   score:game.score,lines:game.lines,level:game.level,pieces:game.pieces,
+   mode:currentModal,theme,showGhost,soundOn,width,height,fps,
+   luminanceOnly:true,objectsReused:state.sceneBuilds,
+   crt:crt.state(),errors:[...crt.errors,state.lastError].filter(Boolean)}),
+  action,openModal,closeModal,game,reset:()=>{game.reset();syncGame();}
+ };
+})();
