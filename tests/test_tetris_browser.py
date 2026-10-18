@@ -413,16 +413,19 @@ with sync_playwright() as p:
         assert page.locator("#scoresButton").count() == 0
         assert page.locator("#buttonFxLayer").count() == 1
 
-        # READY has a friendly game description, not technical piece metrics.
-        page.wait_for_function("""() =>
-            document.querySelector('#readyText')?.textContent ===
-            'Stack blocks to clear complete rows, and keep the board from filling up'
-        """, timeout=6000)
+        # READY tagline is immediate, uppercase, and has only a blinking block cursor.
+        assert page.locator("#readyText").inner_text() == "SURVIVE THE SOVIET CHALLENGE"
         assert page.locator("#readyCursor").count() == 1
         assert page.locator("#readyCursor").get_attribute("aria-hidden") == "true"
         assert page.locator("#veilText").get_attribute("aria-label") == (
-            "Stack blocks to clear complete rows, and keep the board from filling up"
+            "SURVIVE THE SOVIET CHALLENGE"
         )
+        assert page.locator("#readyText").evaluate(
+            "el => getComputedStyle(el).animationName"
+        ) == "none"
+        assert page.locator("#readyCursor").evaluate(
+            "el => getComputedStyle(el).marginLeft"
+        ) != "0px"
         # PAUSE is always visibly enabled. It does nothing before the
         # game starts but retains its reactive button flash.
         assert page.locator("#pauseButton").is_enabled()
@@ -435,8 +438,17 @@ with sync_playwright() as p:
             "() => Number(document.querySelector('#scoreValue').textContent)>0",
             timeout=6000,
         )
+        first_score = int(page.locator("#scoreValue").inner_text())
+        assert first_score>0
+        # Points must continue accumulating on the next piece, not only the first.
+        page.locator('button[data-action="hard"]').tap()
+        page.wait_for_function(
+            "(before) => Number(document.querySelector('#scoreValue').textContent)>before",
+            arg=first_score,
+            timeout=6000,
+        )
         previous_score = page.locator("#scoreValue").inner_text()
-        assert int(previous_score)>0
+        assert int(previous_score)>first_score
         assert page.locator('button[data-action="restart"]').count() == 0
         page.locator("#pauseButton").tap()
         page.locator("#newGameButton").wait_for(state="visible", timeout=5000)
