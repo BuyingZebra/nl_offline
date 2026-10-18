@@ -237,6 +237,19 @@ with sync_playwright() as p:
             "el => Number(getComputedStyle(el).opacity)"
         )
         assert abs(opacity-0.75)<0.01, opacity
+        # Traveling refresh sweep is independently adjustable from glow.
+        page.locator("#sweepControl").evaluate(
+            """el => {el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}))}"""
+        )
+        assert page.locator("#sweep").evaluate(
+            "el => getComputedStyle(el).opacity"
+        ) == "0"
+        page.locator("#sweepControl").evaluate(
+            """el => {el.value='65';el.dispatchEvent(new Event('input',{bubbles:true}))}"""
+        )
+        assert page.locator("#sweep").evaluate(
+            "el => getComputedStyle(el).opacity"
+        ) == "0.65"
         page.screenshot(path=str(EVIDENCE/"tetris-menu-green.png"))
 
         # Theme toggle lives on the main screen. Return is at the top.
