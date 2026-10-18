@@ -241,6 +241,29 @@ try {
  composer.addPass(grain);
  composer.addPass(new OutputPass());
  let pending=false,hitBoxes=[],lastTime=0,lastDraw=0,forceDraw=true,trailUntil=0;
+ // Video artifacts are deliberately periodic only when their own layer is enabled.
+ let rollPhase=0,tearNext=0,tearEnd=0,tearStart=0,tearY=.5,tearDirection=1;
+ function stepTear(now){
+  if(!tear.checked){tearNext=0;tearEnd=0;return 0;}
+  const rate=Number(tearFrequency.value);
+  const gap=60000/Math.max(1,rate);
+  if(!tearNext&&!tearEnd){tearNext=now+Math.random()*gap;return 0;}
+  if(!tearEnd&&now>=tearNext){
+   tearStart=now;
+   tearEnd=now+65+Math.random()*125;
+   tearNext=0;
+   tearY=.1+Math.random()*.8;
+   tearDirection=Math.random()<.5?-1:1;
+  }
+  if(tearEnd&&now>=tearEnd){
+   tearEnd=0;
+   tearNext=now+gap*(.45+Math.random()*1.1);
+   return 0;
+  }
+  if(!tearEnd)return 0;
+  const duration=Math.max(1,tearEnd-tearStart);
+  return tearDirection*Math.sin(Math.PI*Math.min(1,(now-tearStart)/duration))*Number(tearAmount.value);
+ }
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
  const fill=(x,y,w,h,r,v)=>{
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=c(v);ctx.fill();
@@ -315,10 +338,20 @@ try {
  }
  function draw(now){
   pending=false;
-  const animated=raster.checked||(persistence.checked&&now<trailUntil);
+  const animated=raster.checked||noise.checked||tear.checked||
+   (roll.checked&&Number(rollSpeed.value)!==0)||(persistence.checked&&now<trailUntil);
   if(animated&&!forceDraw&&now-lastDraw<33){schedule(false);return;}
   const dt=lastTime?Math.min(.2,Math.max(.001,(now-lastTime)/1000)):1/30;
   lastTime=now;lastDraw=now;forceDraw=false;
+  if(roll.checked){
+   rollPhase=(rollPhase+dt*Number(rollSpeed.value)/100)%1;
+   verticalRoll.uniforms.uOffset.value=(rollPhase+Number(rollOffset.value)/100+2)%1;
+  }
+  verticalRoll.enabled=roll.checked;
+  const tearShift=stepTear(now);
+  horizontalTear.enabled=tear.checked&&Math.abs(tearShift)>.02;
+  horizontalTear.uniforms.uShift.value=tearShift;
+  horizontalTear.uniforms.uBandY.value=tearY;
   glow.enabled=bloom.checked;
   glow.threshold=Number(cutoff.value);
   glow.strength=Number(strength.value);
@@ -329,6 +362,15 @@ try {
   refresh.uniforms.uRaster.value=raster.checked?Number(rasterAmount.value):0;
   afterglow.enabled=persistence.checked;
   afterglow.uniforms.damp.value=Math.exp(-dt/(Number(decay.value)/1000));
+  edgeSoftness.enabled=softness.checked;
+  edgeSoftness.uniforms.uAmount.value=Number(softnessAmount.value);
+  edgeSoftness.uniforms.uRadius.value=Number(softnessRadius.value);
+  edgeVignette.enabled=vignette.checked;
+  edgeVignette.uniforms.uAmount.value=Number(vignetteAmount.value);
+  edgeVignette.uniforms.uStart.value=Number(vignetteSpread.value);
+  grain.enabled=noise.checked;
+  grain.uniforms.uAmount.value=Number(noiseAmount.value);
+  grain.uniforms.uTick.value=Math.floor(now/1000*Number(noiseSpeed.value));
   composer.render();
   if(animated)schedule(false);
  }
@@ -343,17 +385,32 @@ try {
   W=w;H=h;DPR=d;
   renderer.setPixelRatio(d);renderer.setSize(w,h,false);
   composer.setPixelRatio(d);composer.setSize(w,h);
+  edgeSoftness.uniforms.uSize.value.set(w,h);
+  horizontalTear.uniforms.uSize.value.set(w,h);
   clearAfterglow();lastTime=0;
   paintSource();schedule();
   status.textContent='Canvas source → Three.js GPU | DPR '+d+' | '+Math.round(w*d)+' × '+Math.round(h*d)+' pixels';
  }
- for(const el of [phosphor,bloom,cutoff,strength,raster,persistence,rasterPeriod,rasterAmount,decay])el.addEventListener('input',()=>{
+ for(const el of [phosphor,bloom,cutoff,strength,raster,persistence,rasterPeriod,rasterAmount,decay,
+  vignette,vignetteAmount,vignetteSpread,softness,softnessAmount,softnessRadius,
+  noise,noiseAmount,noiseSpeed,tear,tearAmount,tearFrequency,roll,rollSpeed,rollOffset])el.addEventListener('input',()=>{
   get('thresholdOut').textContent=Number(cutoff.value).toFixed(2);
   get('strengthOut').textContent=Number(strength.value).toFixed(2);
   get('rasterPeriodOut').textContent=Number(rasterPeriod.value).toFixed(1)+'s';
   get('rasterAmountOut').textContent=Number(rasterAmount.value).toFixed(2);
   get('decayOut').textContent=Number(decay.value)+'ms';
+  get('vignetteAmountOut').textContent=Number(vignetteAmount.value).toFixed(2);
+  get('vignetteSpreadOut').textContent=Number(vignetteSpread.value).toFixed(2);
+  get('softnessAmountOut').textContent=Number(softnessAmount.value).toFixed(2);
+  get('softnessRadiusOut').textContent=Number(softnessRadius.value).toFixed(1)+'px';
+  get('noiseAmountOut').textContent=Number(noiseAmount.value).toFixed(2);
+  get('noiseSpeedOut').textContent=Number(noiseSpeed.value)+'fps';
+  get('tearAmountOut').textContent=Number(tearAmount.value)+'px';
+  get('tearFrequencyOut').textContent=Number(tearFrequency.value)+'/min';
+  get('rollSpeedOut').textContent=Number(rollSpeed.value)+'%/s';
+  get('rollOffsetOut').textContent=Number(rollOffset.value)+'%';
   if(el===persistence){clearAfterglow();lastTime=0;}
+  if(el===tear){tearNext=0;tearEnd=0;}
   if(persistence.checked)trailUntil=performance.now()+Number(decay.value)*7;
   schedule();
  });
@@ -367,7 +424,7 @@ try {
   }
  });
  document.addEventListener('visibilitychange',()=>{
-  lastTime=0;
+  lastTime=0;tearNext=0;tearEnd=0;
   if(!document.hidden){clearAfterglow();schedule();}
  });
  new ResizeObserver(resize).observe(frame);
