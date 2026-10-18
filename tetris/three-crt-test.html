@@ -30,7 +30,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </div>
 <label class="slider">Bloom cutoff<input id="threshold" type="range" min="0" max="1" step=".01" value=".55"><output id="thresholdOut">0.55</output></label>
 <label class="slider">Bloom strength<input id="strength" type="range" min="0" max="3" step=".05" value="1.50"><output id="strengthOut">1.50</output></label>
-<p class="note">Both effects begin <strong>OFF</strong>. Three.js draws the grayscale controls at device pixel density. UnrealBloomPass extracts pixels above the luminance threshold and blurs them in GPU render targets; a separate shader converts final grayscale luminance to green phosphor. No SVG, CSS shadows, or duplicated HTML.</p>
+<p class="note">Both effects begin <strong>OFF</strong>. The controls are drawn as one grayscale Canvas2D source at native pixel density, then composited by Three.js. UnrealBloomPass extracts high-luminance pixels for real GPU bloom; a separate shader applies green phosphor. No SVG, CSS shadows, or duplicated HTML.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -42,120 +42,126 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
 const get=id=>document.getElementById(id);
-const frame=get('frame'),canvas=get('screen'),note=get('status');
-const phosphor=get('phosphor'),bloom=get('bloom'),threshold=get('threshold'),strength=get('strength');
-try{
- const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+const frame=get('frame'),screen=get('screen'),status=get('status'),loading=get('loading');
+const phosphor=get('phosphor'),bloom=get('bloom'),cutoff=get('threshold'),strength=get('strength');
+let W=0,H=0,DPR=1,selected=-1;
+try {
+ // Use the browser's high-quality 2D text/shape rasterization for this source.
+ // Three.js holds its complete grayscale result as ONE texture for GPU bloom.
+ const source=document.createElement('canvas');
+ const ctx=source.getContext('2d',{alpha:false});
+ if(!ctx)throw Error('Canvas 2D is unavailable');
+ const texture=new THREE.CanvasTexture(source);
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.minFilter=THREE.LinearFilter;
+ texture.magFilter=THREE.LinearFilter;
+ texture.generateMipmaps=false;
+
+ const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:true,alpha:false,powerPreference:'high-performance'});
  renderer.outputColorSpace=THREE.SRGBColorSpace;
  renderer.toneMapping=THREE.NoToneMapping;
- renderer.setClearColor(0x050505,1);
  const scene=new THREE.Scene();
- scene.background=new THREE.Color().setRGB(.007,.007,.007);
- const camera=new THREE.OrthographicCamera(0,1,0,1,.01,100);
- camera.position.z=10;
- const rt=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4});
- const composer=new EffectComposer(renderer,rt);
+ scene.background=new THREE.Color(0x080808);
+ const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);
+ camera.position.z=2;
+ const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({
+  map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false
+ }));
+ surface.frustumCulled=false;
+ scene.add(surface);
+
+ const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
- const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.50,.42,.55);
- glow.enabled=false;
+ const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
  composer.addPass(glow);
- const phosphorPass=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uColor:{value:new THREE.Vector3(.28,1,.46)}},
+ const tint=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.28,1,.46)}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-  fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uColor;void main(){vec3 src=texture2D(tDiffuse,vUv).rgb;float lum=dot(src,vec3(.2126,.7152,.0722));vec3 col=mix(src,vec3(lum)*uColor,uEnabled);gl_FragColor=vec4(col,1.0);}'
+  fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
- composer.addPass(phosphorPass);
+ composer.addPass(tint);
  composer.addPass(new OutputPass());
- let W=0,H=0,DPR=1,needsDraw=false;
- const objects=[],colors=new Map();
- const gray=l=>new THREE.Color().setRGB(l,l,l);
- function mat(l){if(!colors.has(l))colors.set(l,new THREE.MeshBasicMaterial({color:gray(l),depthWrite:false}));return colors.get(l);}
- function rounded(x,y,w,h,r,l){
-  r=Math.min(r,w/2,h/2);
-  const p=new THREE.Shape();
-  p.moveTo(x+r,y);p.lineTo(x+w-r,y);p.quadraticCurveTo(x+w,y,x+w,y+r);
-  p.lineTo(x+w,y+h-r);p.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  p.lineTo(x+r,y+h);p.quadraticCurveTo(x,y+h,x,y+h-r);
-  p.lineTo(x,y+r);p.quadraticCurveTo(x,y,x+r,y);
-  const m=new THREE.Mesh(new THREE.ShapeGeometry(p,10),mat(l));
-  scene.add(m);objects.push(m);
- }
- function label(word,x,y,w,h,size,l=.9){
-  const cv=document.createElement('canvas');
-  cv.width=Math.ceil(w*DPR);cv.height=Math.ceil(h*DPR);
-  const cx=cv.getContext('2d');
-  cx.scale(DPR,DPR);
-  cx.font='700 '+size+'px system-ui,-apple-system,sans-serif';
-  cx.textAlign='center';cx.textBaseline='middle';
-  const n=Math.round(Math.pow(l,1/2.2)*255);
-  cx.fillStyle='rgb('+n+','+n+','+n+')';
-  cx.fillText(word,w/2,h/2,w-2);
-  const t=new THREE.CanvasTexture(cv);
-  t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=false;
-  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false}));
-  m.position.set(x+w/2,y+h/2,1);
-  scene.add(m);objects.push(m);
- }
- function rebuild(){
-  for(const o of objects){scene.remove(o);o.geometry.dispose();if(o.material.map){o.material.map.dispose();o.material.dispose();}}
-  objects.length=0;
-  const w=Math.min(W-22,430),x=(W-w)/2,hy=25;
-  rounded(x,hy,w,65,12,.11);
-  rounded(x+2,hy+2,w-4,1,0,.46);
-  label('TETRIS SYSTEM',x,hy+10,w,24,17,.97);
-  label('NATIVE RESOLUTION · GRAYSCALE SOURCE',x,hy+37,w,16,9,.52);
-  const dy=114,dh=H-dy-23;
-  rounded(x,dy,w,dh,12,.095);
-  const gap=6,pad=10,bw=(w-pad*2-gap*4)/5,by=dy+24,bh=Math.min(78,Math.max(58,dh*.37));
+ let pending=false,hitBoxes=[];
+ const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
+ const fill=(x,y,w,h,r,v)=>{
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=c(v);ctx.fill();
+ };
+ const stroke=(x,y,w,h,r,v)=>{
+  ctx.beginPath();ctx.roundRect(x+.5,y+.5,w-1,h-1,r);ctx.strokeStyle=c(v);ctx.lineWidth=1;ctx.stroke();
+ };
+ const text=(str,x,y,size,v,weight=740)=>{
+  ctx.fillStyle=c(v);ctx.font=weight+' '+size+'px system-ui,-apple-system,sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(str,x,y);
+ };
+ function paintSource(){
+  const w=W,h=H;
+  if(!w||!h)return;
+  source.width=Math.max(1,Math.round(w*DPR));
+  source.height=Math.max(1,Math.round(h*DPR));
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle='#090909';ctx.fillRect(0,0,w,h);
+  const bw=Math.min(w-24,430),bx=(w-bw)/2;
+  fill(bx,21,bw,68,12,.09);
+  stroke(bx,21,bw,68,12,.42);
+  text('TETRIS SYSTEM',w/2,46,19,.98,770);
+  text('GRAYSCALE SOURCE · CANVAS + THREE.JS',w/2,70,9,.52,690);
+  const y=111,dh=h-y-20;
+  fill(bx,y,bw,dh,12,.065);stroke(bx,y,bw,dh,12,.38);
+  const gap=6,pad=10,btnW=(bw-pad*2-gap*4)/5,btnH=Math.min(78,Math.max(58,dh*.37)),btnY=y+21;
   const buttons=[['◀','LEFT'],['▶','RIGHT'],['↻','ROTATE'],['▼','DOWN'],['⇣','DROP']];
-  for(let i=0;i<5;i++){
-   const bx=x+pad+i*(bw+gap);
-   rounded(bx,by,bw,bh,9,.40);
-   rounded(bx+1,by+1,bw-2,bh-2,8,.16);
-   label(buttons[i][0],bx,by+7,bw,36,25,.99);
-   label(buttons[i][1],bx,by+bh-24,bw,17,9,.58);
-  }
-  const rowY=by+bh+10,rowH=Math.max(31,Math.min(40,dy+dh-rowY-40));
-  for(let i=0;i<3;i++){
-   const b2=(w-2*pad-2*gap)/3,bx=x+pad+i*(b2+gap);
-   rounded(bx,rowY,b2,rowH,8,.32);
-   rounded(bx+1,rowY+1,b2-2,rowH-2,7,.14);
-   label(['HOLD','PAUSE','NEW GAME'][i],bx,rowY,b2,rowH,11,.87);
-  }
-  const rw=(w-2*pad-5*5)/6,rampY=dy+dh-23;
-  [.10,.25,.40,.60,.80,1].forEach((l,i)=>rounded(x+pad+i*(rw+5),rampY,rw,11,2,l));
+  hitBoxes=[];
+  buttons.forEach(([glyph,label],i)=>{
+   const x=bx+pad+i*(btnW+gap);
+   fill(x,btnY,btnW,btnH,9,selected===i?.8:.38);
+   stroke(x,btnY,btnW,btnH,9,.68);
+   text(glyph,x+btnW/2,btnY+27,25,selected===i?.1:1);
+   text(label,x+btnW/2,btnY+btnH-15,9,selected===i?.2:.76);
+   hitBoxes.push({x,y:btnY,w:btnW,h:btnH,id:i});
+  });
+  const secondY=btnY+btnH+10;
+  const secondH=Math.max(30,Math.min(43,y+dh-secondY-36));
+  ['HOLD','PAUSE','NEW GAME'].forEach((s,i)=>{
+   const b2=(bw-2*pad-2*gap)/3,x=bx+pad+i*(b2+gap);
+   fill(x,secondY,b2,secondH,8,.19);stroke(x,secondY,b2,secondH,8,.56);
+   text(s,x+b2/2,secondY+secondH/2,11,.87);
+  });
+  const lum=[.10,.25,.4,.6,.8,1],sw=(bw-2*pad-5*5)/6,swY=y+dh-24;
+  lum.forEach((v,i)=>fill(bx+pad+i*(sw+5),swY,sw,12,2,v));
+  texture.needsUpdate=true;
  }
  function draw(){
-  needsDraw=false;
+  pending=false;
   glow.enabled=bloom.checked;
-  glow.threshold=Number(threshold.value);
+  glow.threshold=Number(cutoff.value);
   glow.strength=Number(strength.value);
-  phosphorPass.uniforms.uEnabled.value=phosphor.checked?1:0;
+  tint.uniforms.uEnabled.value=phosphor.checked?1:0;
   composer.render();
  }
- function schedule(){if(needsDraw)return;needsDraw=true;requestAnimationFrame(draw);}
+ function schedule(){if(!pending){pending=true;requestAnimationFrame(draw);}}
  function resize(){
-  const r=frame.getBoundingClientRect();
-  const w=Math.max(1,Math.round(r.width-2)),h=Math.max(1,Math.round(r.height-2));
-  const d=window.devicePixelRatio||1;
-  if(w===W&&h===H&&d===DPR)return;
+  const rect=frame.getBoundingClientRect();
+  const w=Math.max(1,Math.round(rect.width-2)),h=Math.max(1,Math.round(rect.height-2)),d=window.devicePixelRatio||1;
+  if(W===w&&H===h&&DPR===d)return;
   W=w;H=h;DPR=d;
-  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
-  composer.setPixelRatio(DPR);composer.setSize(W,H);
-  camera.left=0;camera.right=W;camera.top=0;camera.bottom=H;camera.updateProjectionMatrix();
-  rebuild();schedule();
-  note.textContent='WebGL · device pixel ratio '+DPR+' · '+Math.round(W*DPR)+' × '+Math.round(H*DPR)+' render target';
+  renderer.setPixelRatio(d);renderer.setSize(w,h,false);
+  composer.setPixelRatio(d);composer.setSize(w,h);
+  paintSource();schedule();
+  status.textContent='Canvas source → Three.js GPU | DPR '+d+' | '+Math.round(w*d)+' × '+Math.round(h*d)+' pixels';
  }
- for(const el of [phosphor,bloom,threshold,strength])el.addEventListener('input',()=>{
-  get('thresholdOut').textContent=Number(threshold.value).toFixed(2);
+ for(const el of [phosphor,bloom,cutoff,strength])el.addEventListener('input',()=>{
+  get('thresholdOut').textContent=Number(cutoff.value).toFixed(2);
   get('strengthOut').textContent=Number(strength.value).toFixed(2);
   schedule();
  });
+ screen.addEventListener('pointerdown',event=>{
+  const r=screen.getBoundingClientRect(),x=event.clientX-r.left,y=event.clientY-r.top;
+  const hit=hitBoxes.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+  if(hit){selected=hit.id;paintSource();schedule();}
+ });
  new ResizeObserver(resize).observe(frame);
- resize();get('loading').hidden=true;
+ resize();loading.hidden=true;
 }catch(error){
- get('loading').textContent='Renderer failed: '+String(error?.message||error);
- note.textContent=String(error);console.error(error);
+ loading.textContent='Renderer error: '+String(error?.message||error);
+ status.textContent=String(error);console.error(error);
 }
 </script></body></html>
