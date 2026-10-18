@@ -51,6 +51,23 @@ jobs:
               errors=[]
               page.on('pageerror',lambda e:errors.append(str(e)))
               page.on('console',lambda m:print('console:',m.type,m.text[:350]) if m.type=='error' else None)
+              page.add_init_script("""(() => {
+                const p=WebGL2RenderingContext?.prototype;
+                if(!p)return;
+                const original=p.compileShader;
+                p.compileShader=function(shader){
+                  original.call(this,shader);
+                  if(!this.getShaderParameter(shader,this.COMPILE_STATUS))
+                    console.error('GLSL_COMPILE_ERROR',this.getShaderInfoLog(shader),
+                      this.getShaderSource(shader)?.slice(0,2400));
+                };
+                const link=p.linkProgram;
+                p.linkProgram=function(program){
+                  link.call(this,program);
+                  if(!this.getProgramParameter(program,this.LINK_STATUS))
+                    console.error('GLSL_LINK_ERROR',this.getProgramInfoLog(program));
+                };
+              })()""")
               page.goto('http://127.0.0.1:8765/tetris/pixi-migration.html',wait_until='domcontentloaded')
               page.wait_for_timeout(1600)
               info=page.evaluate('''() => ({
