@@ -41,6 +41,26 @@ with sync_playwright() as p:
         assert [x["label"] for x in hud] == ["LEVEL","SCORE","LINES"], hud
         assert [x["alignment"] for x in hud] == ["left","center","right"], hud
         assert hud[0]["x"] < hud[1]["x"] < hud[2]["x"], hud
+        # The CRT application shell fills the available portrait canvas;
+        # the bottom HUD stays in-flow and the playfield is not distorted.
+        geometry=page.evaluate("""() => {
+          const rect=id=>document.querySelector(id).getBoundingClientRect();
+          const app=rect('#app'),board=rect('#boardShell'),
+                stage=rect('#stage'),deck=rect('#controlDeck'),
+                footer=rect('#eventline');
+          return {appHeight:app.height,viewport:innerHeight,stageHeight:stage.height,
+            boardHeight:board.height,boardWidth:board.width,
+            deckTop:deck.top,stageBottom:stage.bottom,
+            footerBottom:footer.bottom,appBottom:app.bottom,
+            bodyColor:getComputedStyle(document.body).backgroundColor,
+            appColor:getComputedStyle(document.querySelector('#app')).backgroundColor};
+        }""")
+        assert geometry["appHeight"]>=geometry["viewport"]-2, geometry
+        assert geometry["bodyColor"]==geometry["appColor"], geometry
+        assert abs(geometry["boardHeight"]-geometry["boardWidth"]*2)<3, geometry
+        assert geometry["stageHeight"]>=geometry["boardHeight"]-2, geometry
+        assert geometry["stageBottom"]<=geometry["deckTop"]+2, geometry
+        assert geometry["footerBottom"]<=geometry["appBottom"], geometry
 
         # No geometric warping or curve settings survive.
         for obsolete in ("#crtFilterDefs", "#crtDisplacementMap",
@@ -449,6 +469,29 @@ with sync_playwright() as p:
         )
         previous_score = page.locator("#scoreValue").inner_text()
         assert int(previous_score)>first_score
+        # Exercise the live counter path when a lock changes all three
+        # counters. The engine's level-up arithmetic is separately unit tested.
+        page.evaluate("""() => {
+          const proto=window.FieldAtlasBlocks.Game.prototype;
+          const hardDrop=proto.hardDrop;
+          proto.hardDrop=function(...args){
+            const result=hardDrop.apply(this,args);
+            if(result){
+              this.lines=10;
+              this.level=2;
+              this.score+=500;
+            }
+            return result;
+          };
+        }""")
+        page.locator('button[data-action="hard"]').tap()
+        page.wait_for_function("""() =>
+          document.querySelector('#levelValue').textContent==='02' &&
+          document.querySelector('#linesValue').textContent==='10'
+        """, timeout=6000)
+        updated_score=page.locator("#scoreValue").inner_text()
+        assert int(updated_score)>int(previous_score)
+        previous_score=updated_score
         assert page.locator('button[data-action="restart"]').count() == 0
         page.locator("#pauseButton").tap()
         page.locator("#newGameButton").wait_for(state="visible", timeout=5000)
