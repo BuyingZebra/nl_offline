@@ -49,6 +49,7 @@ with sync_playwright() as p:
     page.evaluate("window.FieldAtlasTetris.openModal('options')")
     assert state()['mode']=='options'
     page.wait_for_timeout(850)
+    print(browser_name,'MODAL DIAG',page.evaluate('window.FieldAtlasTetris.debugModal()'))
     page.screenshot(path=str(output/(browser_name+'-options.png')))
     if browser_name=='webkit':
         for label in ['ready','raw','options']:
