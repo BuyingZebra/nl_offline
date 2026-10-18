@@ -171,7 +171,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v022'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v023'"));
  assert.match(sw,/event\.respondWith\(fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -224,7 +224,7 @@ test('the high score feature is game-over-only, with visible five-slot board and
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
- assert.ok(html.includes('<script src="./scores.js?arcade=v022"></script>'));
+ assert.ok(html.includes('<script src="./scores.js?arcade=v023"></script>'));
  assert.ok(html.includes('id="pausedScoresButton"'));
  assert.doesNotMatch(html,/id="scoresButton"/);
  assert.ok(html.includes('id="scoreEntry"'));
@@ -269,8 +269,8 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
- assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v022'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v022'/);
+ assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v023'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v023'/);
 });
 
 
@@ -296,7 +296,7 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.ok(ui.includes("if(event.key!=='Tab')return"));
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  const appStart=html.indexOf('<div id="app">');
- const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v022">');
+ const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v023">');
  const dialogs=html.indexOf('<dialog id="options"');
  assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
  assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:41;/);
@@ -464,7 +464,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v022'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v023'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{background:var\(--bg\)\}/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
@@ -530,9 +530,9 @@ test('experimental effects use isolated grayscale compositor layers and offline 
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  const {Script}=require('node:vm');
  assert.doesNotThrow(()=>new Script(fx));
- assert.ok(sw.includes("'./experimental-fx.js?arcade=v022'"));
- assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v022"></script>'));
- assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v022">'));
+ assert.ok(sw.includes("'./experimental-fx.js?arcade=v023'"));
+ assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v023"></script>'));
+ assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v023">'));
  for(const id of ['fxSoftness','fxNoise','experimentalFxSection','resetExperimental',
    'fxNoiseEnabled','fxNoiseAmount','fxNoiseSpeed',
    'fxPersistenceEnabled','fxPersistenceAmount','fxPersistenceDecay',
@@ -666,17 +666,24 @@ test('score, level and lines are refreshed independently of canvas redraw',()=>{
  assert.ok(html.includes('id="levelValue"'));
 });
 
-test('portrait Tetris mirrors FIELD ATLAS map screen and footer safe-area anchor',()=>{
+test('Tetris matches FIELD ATLAS map edge-to-edge viewport without legacy iOS chin',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  const map=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
  assert.ok(map.includes('height:100dvh;max-width:520px'));
- assert.ok(map.includes('#footer{bottom:calc(env(safe-area-inset-bottom,0px) + 10px)'));
- assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?max-width:520px;height:var\(--arcade-shell-height,100dvh\);/);
- assert.match(html,/@media\(orientation:portrait\)\{\s*#app\{height:var\(--arcade-shell-height,100dvh\);min-height:0;padding:0 11px\}/);
+ assert.ok(map.includes('viewport-fit=cover'));
+ assert.ok(html.includes('viewport-fit=cover'));
+ // WebKit + a translucent standalone status bar + 100%-height root can
+ // truncate the visible app, leaving the exact #151515 band on iPhone.
+ assert.doesNotMatch(html,/apple-mobile-web-app-status-bar-style.*black-translucent/);
+ assert.match(html,/html,body\{margin:0;width:100%;height:100vh;overflow:hidden;background:var\(--bg\);/);
+ assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?max-width:520px;height:100dvh;/);
+ assert.match(html,/@media\(orientation:portrait\)\{\s*#app\{height:100dvh;min-height:0;padding:0 11px\}/);
  assert.match(html,/#eventline\{position:absolute;left:11px;right:11px;\s*bottom:calc\(env\(safe-area-inset-bottom,0px\) \+ 10px\)\}/);
- assert.match(html,/#controlDeck\{margin-bottom:calc\(env\(safe-area-inset-bottom,0px\) \+ 30px\)\}/);
  assert.ok(html.includes('#stage{min-height:0;flex:1;'));
  assert.ok(html.includes('aspect-ratio:1/2;'));
+ assert.doesNotMatch(html,/--arcade-shell-height/);
+ assert.doesNotMatch(ui,/fitPhoneViewport|screen\?\.height/);
 });
 
 test('Tetris bundle is cache coherent and visible score changes trigger feedback',()=>{
@@ -685,24 +692,23 @@ test('Tetris bundle is cache coherent and visible score changes trigger feedback
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  for(const name of ['core','scores','experimental-fx','ui']){
-  assert.ok(html.includes('src="./'+name+'.js?arcade=v022"'));
-  assert.ok(sw.includes("'./"+name+".js?arcade=v022'"));
+  assert.ok(html.includes('src="./'+name+'.js?arcade=v023"'));
+  assert.ok(sw.includes("'./"+name+".js?arcade=v023'"));
  }
  assert.match(ui,/if\(\(id==='scoreValue'\|\|id==='levelValue'\|\|id==='linesValue'\)&&game.status==='playing'\)/);
  assert.ok(html.includes('#scoreStrip strong.hud-changed{animation:hud-tick'));
  assert.ok(ui.includes("node.classList.add('hud-changed')"));
 });
 
-test('iOS portrait viewport correction extends compositor, not individual layers',()=>{
+test('Tetris checks for current offline shell every launch; no forced gameplay reload',()=>{
  const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
- assert.match(ui,/function fitPhoneViewport\(\)\{/);
- assert.match(ui,/window\.screen\?\.height/);
- assert.match(ui,/window\.matchMedia\('\(orientation: portrait\)'\)\.matches/);
- assert.match(ui,/window\.matchMedia\('\(pointer: coarse\)'\)\.matches/);
- assert.match(ui,/if\(difference>0&&difference<=Math\.min\(160,viewport\*\.25\)\)/);
- assert.match(ui,/app\.style\.setProperty\('--arcade-shell-height',Math\.ceil\(height\)\+'px'\)/);
- assert.match(ui,/window\.addEventListener\('resize',fitPhoneViewport/);
+ assert.match(ui,/updateViaCache:'none'/);
+ assert.match(ui,/registration\.update\(\)\.catch/);
+ assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
+ assert.match(sw,/caches\.keys\(\).*keys\.filter/);
+ assert.ok(html.includes('LOCAL ARCADE ENGINE / V023'));
  assert.match(html,/#screenScan\{position:absolute;inset:0;/);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
 });
