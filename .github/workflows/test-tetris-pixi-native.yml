@@ -1,0 +1,94 @@
+name: Tetris V028 Native PixiJS Smoke
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tetris/pixi-ui.js'
+      - 'tetris/pixi-crt.js'
+      - 'tetris/pixi-migration.html'
+      - '.github/workflows/test-tetris-pixi-native.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright
+        run: |
+          python -m pip install playwright==1.55.0 Pillow
+          python -m playwright install ${{ matrix.browser }} --with-deps
+      - name: Start local server
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 >/tmp/tetris-native-pixi.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8765/tetris/pixi-migration.html >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1
+      - name: Check native GPU Tetris and menu inputs
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          name=os.environ['BROWSER']
+          with sync_playwright() as p:
+              args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] if name=='chromium' else []
+              browser=getattr(p,name).launch(headless=True,args=args)
+              page=browser.new_page(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True)
+              errors=[]
+              page.on('pageerror',lambda e:errors.append(str(e)))
+              page.on('console',lambda m:print('console:',m.type,m.text[:350]) if m.type=='error' else None)
+              page.goto('http://127.0.0.1:8765/tetris/pixi-migration.html',wait_until='domcontentloaded')
+              page.wait_for_timeout(1600)
+              info=page.evaluate('''() => ({
+                app:!!window.FieldAtlasTetris,
+                state:window.FieldAtlasTetris?.getState(),
+                fail:document.getElementById('fatal').textContent,
+                pixi:!!window.PIXI,
+                layers:document.querySelectorAll('#game canvas').length
+              })''')
+              print(name,'BOOT',info)
+              assert info['app'],('Renderer failed',info,errors)
+              assert info['layers']==1
+              assert info['state']['luminanceOnly'] and info['state']['webgl']
+              assert not info['state']['errors'],info
+              out=Path('work/tetris-native-v028')
+              out.mkdir(parents=True,exist_ok=True)
+              page.screenshot(path=str(out/(name+'-ready.png')))
+              page.evaluate("window.FieldAtlasTetris.openModal('options')")
+              page.wait_for_timeout(300)
+              assert page.evaluate("window.FieldAtlasTetris.getState().mode")=='options'
+              page.screenshot(path=str(out/(name+'-options.png')))
+              page.evaluate("window.FieldAtlasTetris.closeModal()")
+              page.evaluate("window.FieldAtlasTetris.action('start')")
+              page.wait_for_timeout(250)
+              assert page.evaluate("window.FieldAtlasTetris.getState().gameStatus")=='playing'
+              page.screenshot(path=str(out/(name+'-playing.png')))
+              page.evaluate("window.FieldAtlasTetris.action('hard')")
+              assert page.evaluate("window.FieldAtlasTetris.getState().score")>0
+              page.evaluate("window.FieldAtlasTetris.action('pause')")
+              assert page.evaluate("window.FieldAtlasTetris.getState().gameStatus")=='paused'
+              print(name,'PASS',page.evaluate('window.FieldAtlasTetris.getState()'))
+              assert not errors,errors
+              browser.close()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tetris-v028-native-${{ matrix.browser }}
+          path: work/tetris-native-v028/*.png
+          retention-days: 7
+          if-no-files-found: warn
