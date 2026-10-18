@@ -56,6 +56,9 @@ with sync_playwright() as p:
             appColor:getComputedStyle(document.querySelector('#app')).backgroundColor};
         }""")
         assert geometry["appHeight"]>=geometry["viewport"]-2, geometry
+        assert page.locator("#app").evaluate(
+            "el => el.getBoundingClientRect().height >= document.documentElement.clientHeight-2"
+        ),geometry
         assert geometry["bodyColor"]==geometry["appColor"], geometry
         assert abs(geometry["boardHeight"]-geometry["boardWidth"]*2)<3, geometry
         assert geometry["stageHeight"]>=geometry["boardHeight"]-2, geometry
@@ -443,9 +446,19 @@ with sync_playwright() as p:
         assert page.locator("#readyText").evaluate(
             "el => getComputedStyle(el).animationName"
         ) == "none"
-        assert page.locator("#readyCursor").evaluate(
-            "el => getComputedStyle(el).marginLeft"
-        ) != "0px"
+        ready_layout=page.evaluate("""() => {
+          const r=id=>document.querySelector(id).getBoundingClientRect();
+          const title=r('#veilTitle'),line=r('#readyText'),cursor=r('#readyCursor'),
+                button=r('#playButton');
+          return {a:line.top-title.bottom,b:cursor.top-line.bottom,
+            c:button.top-cursor.bottom,
+            lineCenter:(line.left+line.right)/2,
+            cursorCenter:(cursor.left+cursor.right)/2};
+        }""")
+        assert 8<=ready_layout["a"]<=17,ready_layout
+        assert abs(ready_layout["a"]-ready_layout["b"])<3,ready_layout
+        assert abs(ready_layout["b"]-ready_layout["c"])<3,ready_layout
+        assert abs(ready_layout["lineCenter"]-ready_layout["cursorCenter"])<2,ready_layout
         # PAUSE is always visibly enabled. It does nothing before the
         # game starts but retains its reactive button flash.
         assert page.locator("#pauseButton").is_enabled()
@@ -469,6 +482,9 @@ with sync_playwright() as p:
         )
         previous_score = page.locator("#scoreValue").inner_text()
         assert int(previous_score)>first_score
+        assert page.locator("#scoreValue").evaluate(
+            "el => el.classList.contains('hud-changed')"
+        ),"Changed score should be visually acknowledged"
         # Exercise the live counter path when a lock changes all three
         # counters. The engine's level-up arithmetic is separately unit tested.
         page.evaluate("""() => {
