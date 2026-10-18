@@ -11,7 +11,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 #loading{position:absolute;inset:0;display:grid;place-items:center;background:#070707;color:#aaa;font-size:12px}
 #loading[hidden]{display:none}
 .panel{background:#1c1c1c;border:1px solid #545454;border-radius:12px;margin-top:12px;padding:12px}
-.switches{display:flex;gap:8px}.switches label{flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:#2a2a2a;border:1px solid #595959;border-radius:8px;padding:12px 5px;font-size:12px;font-weight:700}
+.switches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.switches label{flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;background:#2a2a2a;border:1px solid #595959;border-radius:8px;padding:12px 5px;font-size:12px;font-weight:700}
 .switches input{height:18px;width:18px;accent-color:#89df9d}
 .slider{display:grid;grid-template-columns:105px 1fr 37px;align-items:center;gap:9px;margin-top:15px;font-size:11px}.slider input{width:100%;accent-color:#bababa}.slider output{text-align:right;font-variant-numeric:tabular-nums}
 .note{border-top:1px solid #444;margin:14px 0 0;padding-top:10px;color:#aaa;font-size:11px;line-height:1.5}
@@ -21,16 +21,19 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </head>
 <body><main>
 <h1>THREE.JS · CRT COMPOSITOR TEST</h1>
-<p class="intro">Grayscale controls → luminance bloom → phosphor colour</p>
+<p class="intro">Grayscale controls → bloom → phosphor → scanlines</p>
 <div id="frame"><canvas id="screen"></canvas><div id="loading">Loading Three.js…</div></div>
 <div class="panel">
 <div class="switches">
 <label><input id="phosphor" type="checkbox">Phosphor</label>
 <label><input id="bloom" type="checkbox">Bloom</label>
+<label><input id="scanlines" type="checkbox">Scanlines</label>
 </div>
 <label class="slider">Bloom cutoff<input id="threshold" type="range" min="0" max="1" step=".01" value=".55"><output id="thresholdOut">0.55</output></label>
 <label class="slider">Bloom strength<input id="strength" type="range" min="0" max="3" step=".05" value="1.50"><output id="strengthOut">1.50</output></label>
-<p class="note"><strong>DRAG THE DARK SHIELD</strong> over the glowing controls. Its grayscale face matches the background, and it blocks the final glow like a foreground object. Both effects begin <strong>OFF</strong>. The controls are drawn as one grayscale Canvas2D source at native pixel density, then composited by Three.js. UnrealBloomPass extracts high-luminance pixels for real GPU bloom; a separate shader applies green phosphor. No SVG, CSS shadows, or duplicated HTML.</p>
+<label class="slider">Line opacity<input id="lineStrength" type="range" min="0" max="1" step=".01" value=".45"><output id="lineStrengthOut">0.45</output></label>
+<label class="slider">Line spacing<input id="lineSpacing" type="range" min="2" max="12" step=".5" value="5"><output id="lineSpacingOut">5.0</output></label>
+<p class="note">All effects begin <strong>OFF</strong>. The controls are drawn once at native pixel density. Three.js applies GPU luminance bloom, phosphor colour, then a separate adjustable scanline pass. No occlusion, SVG, CSS shadows or duplicated HTML.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -43,7 +46,7 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
 const get=id=>document.getElementById(id);
 const frame=get('frame'),screen=get('screen'),status=get('status'),loading=get('loading');
-const phosphor=get('phosphor'),bloom=get('bloom'),cutoff=get('threshold'),strength=get('strength');
+const phosphor=get('phosphor'),bloom=get('bloom'),scanlines=get('scanlines'),cutoff=get('threshold'),strength=get('strength'),lineStrength=get('lineStrength'),lineSpacing=get('lineSpacing');
 let W=0,H=0,DPR=1,selected=-1;
 try {
  // Use the browser's high-quality 2D text/shape rasterization for this source.
@@ -80,53 +83,26 @@ try {
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
  composer.addPass(tint);
- // Foreground occlusion happens AFTER bloom and phosphor: the dark shield
- // blocks the original light AND the halo, like a solid object in front.
- const shieldPass=new ShaderPass({
-  uniforms:{
-   tDiffuse:{value:null},
-   uRect:{value:new THREE.Vector4(0,0,140,75)},
-   uSize:{value:new THREE.Vector2(1,1)},
-   uBackground:{value:0.00273}
-  },
+ // One independent screen-space layer, applied AFTER phosphor/bloom.
+ // gl_FragCoord samples actual framebuffer pixels (Retina included).
+ const lines=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uOpacity:{value:.45},uSpacing:{value:5}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:`
    varying vec2 vUv;
    uniform sampler2D tDiffuse;
-   uniform vec4 uRect;
-   uniform vec2 uSize;
-   uniform float uBackground;
-   float roundedRect(vec2 p,vec2 halfSize,float radius){
-    vec2 q=abs(p)-(halfSize-vec2(radius));
-    return length(max(q,0.0))+min(max(q.x,q.y),0.0)-radius;
-   }
+   uniform float uOpacity,uSpacing;
    void main(){
-    vec3 image=texture2D(tDiffuse,vUv).rgb;
-    vec2 pixel=vec2(vUv.x*uSize.x,(1.0-vUv.y)*uSize.y);
-    vec2 center=uRect.xy+uRect.zw*.5;
-    float d=roundedRect(pixel-center,uRect.zw*.5,12.0);
-    float inside=1.0-smoothstep(-0.8,0.8,d);
-    // Dark edge is only an unobtrusive dragging affordance; it does not glow.
-    float edge=(1.0-smoothstep(0.0,1.2,abs(d)))*0.022;
-    vec3 shieldColor=vec3(uBackground)+vec3(edge);
-    gl_FragColor=vec4(mix(image,shieldColor,inside),1.0);
+    vec3 src=texture2D(tDiffuse,vUv).rgb;
+    float phase=fract(gl_FragCoord.y/max(2.0,uSpacing));
+    float dark=smoothstep(0.50,0.87,phase);
+    gl_FragColor=vec4(src*(1.0-uOpacity*dark),1.0);
    }`
  });
- composer.addPass(shieldPass);
+ lines.enabled=false;
+ composer.addPass(lines);
  composer.addPass(new OutputPass());
- let pending=false,hitBoxes=[],drag=null;
- const shield={x:0,y:0,w:132,h:74};
- const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
- const redrawShield=()=>{
-  shieldPass.uniforms.uRect.value.set(shield.x,shield.y,shield.w,shield.h);
-  shieldPass.uniforms.uSize.value.set(W,H);
-  schedule();
- };
- const pointerPosition=event=>{
-  const r=screen.getBoundingClientRect();
-  return {x:(event.clientX-r.left)*W/r.width,y:(event.clientY-r.top)*H/r.height};
- };
- const insideShield=({x,y})=>x>=shield.x&&x<=shield.x+shield.w&&y>=shield.y&&y<=shield.y+shield.h;
+ let pending=false,hitBoxes=[];
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
  const fill=(x,y,w,h,r,v)=>{
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=c(v);ctx.fill();
@@ -180,6 +156,9 @@ try {
   glow.threshold=Number(cutoff.value);
   glow.strength=Number(strength.value);
   tint.uniforms.uEnabled.value=phosphor.checked?1:0;
+  lines.enabled=scanlines.checked;
+  lines.uniforms.uOpacity.value=Number(lineStrength.value);
+  lines.uniforms.uSpacing.value=Number(lineSpacing.value);
   composer.render();
  }
  function schedule(){if(!pending){pending=true;requestAnimationFrame(draw);}}
@@ -187,56 +166,24 @@ try {
   const rect=frame.getBoundingClientRect();
   const w=Math.max(1,Math.round(rect.width-2)),h=Math.max(1,Math.round(rect.height-2)),d=window.devicePixelRatio||1;
   if(W===w&&H===h&&DPR===d)return;
-  const wasSized=W>0&&H>0;
-  const oldW=W,oldH=H;
   W=w;H=h;DPR=d;
-  shield.w=Math.min(132,Math.max(80,W*.4));
-  shield.h=Math.min(74,Math.max(55,H*.2));
-  if(wasSized){
-   shield.x=clamp(shield.x+(W-oldW)*.5,0,W-shield.w);
-   shield.y=clamp(shield.y+(H-oldH)*.5,0,H-shield.h);
-  }else{
-   shield.x=(W-shield.w)*.5;
-   shield.y=Math.min(H-shield.h-8,147);
-  }
-  shieldPass.uniforms.uRect.value.set(shield.x,shield.y,shield.w,shield.h);
-  shieldPass.uniforms.uSize.value.set(W,H);
   renderer.setPixelRatio(d);renderer.setSize(w,h,false);
   composer.setPixelRatio(d);composer.setSize(w,h);
   paintSource();schedule();
   status.textContent='Canvas source → Three.js GPU | DPR '+d+' | '+Math.round(w*d)+' × '+Math.round(h*d)+' pixels';
  }
- for(const el of [phosphor,bloom,cutoff,strength])el.addEventListener('input',()=>{
+ for(const el of [phosphor,bloom,scanlines,cutoff,strength,lineStrength,lineSpacing])el.addEventListener('input',()=>{
   get('thresholdOut').textContent=Number(cutoff.value).toFixed(2);
   get('strengthOut').textContent=Number(strength.value).toFixed(2);
+  get('lineStrengthOut').textContent=Number(lineStrength.value).toFixed(2);
+  get('lineSpacingOut').textContent=Number(lineSpacing.value).toFixed(1);
   schedule();
  });
  screen.addEventListener('pointerdown',event=>{
-  const p=pointerPosition(event);
-  if(insideShield(p)){
-   drag={id:event.pointerId,dx:p.x-shield.x,dy:p.y-shield.y};
-   screen.setPointerCapture(event.pointerId);
-   event.preventDefault();
-   return;
-  }
-  const hit=hitBoxes.find(b=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h);
+  const r=screen.getBoundingClientRect(),x=event.clientX-r.left,y=event.clientY-r.top;
+  const hit=hitBoxes.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
   if(hit){selected=hit.id;paintSource();schedule();}
  });
- screen.addEventListener('pointermove',event=>{
-  if(!drag||event.pointerId!==drag.id)return;
-  const p=pointerPosition(event);
-  shield.x=clamp(p.x-drag.dx,0,W-shield.w);
-  shield.y=clamp(p.y-drag.dy,0,H-shield.h);
-  redrawShield();
-  event.preventDefault();
- });
- const stopDrag=event=>{
-  if(!drag||event.pointerId!==drag.id)return;
-  drag=null;
-  if(screen.hasPointerCapture(event.pointerId))screen.releasePointerCapture(event.pointerId);
- };
- screen.addEventListener('pointerup',stopDrag);
- screen.addEventListener('pointercancel',stopDrag);
  new ResizeObserver(resize).observe(frame);
  resize();loading.hidden=true;
 }catch(error){
