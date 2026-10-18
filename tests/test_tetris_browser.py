@@ -637,7 +637,7 @@ with sync_playwright() as p:
             "persistence":False,"persistenceAmount":"28",
             "persistenceDecay":"512","softness":False,"softnessAmount":"22"
         },preference_check
-        page.screenshot(path=str(EVIDENCE/"tetris-settings-preserved-v024.png"))
+        page.screenshot(path=str(EVIDENCE/"tetris-settings-preserved-v025.png"))
         # RESET DISPLAY EFFECTS must restore the newly approved full preset,
         # including both screen fades rather than only the four percentages.
         page.locator("#resetEffects").tap()
