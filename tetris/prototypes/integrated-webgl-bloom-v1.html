@@ -570,6 +570,25 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  </div>
 </dialog>
 </div>
+<script>
+/* Experiment-only storage sandbox: do not read or write FIELD ATLAS live preferences. */
+(()=>{
+ const staged=new Map();
+ try{
+  const storage=window.localStorage;
+  const originalGet=Storage.prototype.getItem;
+  const originalSet=Storage.prototype.setItem;
+  const originalRemove=Storage.prototype.removeItem;
+  const sandboxed=(obj,key)=>obj===storage&&String(key).startsWith('fieldAtlas');
+  Storage.prototype.getItem=function(key){return sandboxed(this,key)
+   ?(staged.has(String(key))?staged.get(String(key)):null):originalGet.call(this,key);};
+  Storage.prototype.setItem=function(key,value){if(sandboxed(this,key)){
+   staged.set(String(key),String(value));return;}return originalSet.call(this,key,value);};
+  Storage.prototype.removeItem=function(key){if(sandboxed(this,key)){
+   staged.delete(String(key));return;}return originalRemove.call(this,key);};
+ }catch(err){console.warn('Preview preference isolation unavailable:',err);}
+})();
+</script>
 <script src="../core.js?arcade=v027"></script>
 <script src="../scores.js?arcade=v027"></script>
 <script>/* Experimental session uses only memory scores; never write live records. */
