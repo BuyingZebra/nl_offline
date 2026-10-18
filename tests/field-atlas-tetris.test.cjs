@@ -666,11 +666,15 @@ test('score, level and lines are refreshed independently of canvas redraw',()=>{
  assert.ok(html.includes('id="levelValue"'));
 });
 
-test('portrait CRT uses the large viewport and safe-area bottom for natural stage expansion',()=>{
+test('portrait Tetris mirrors FIELD ATLAS map screen and footer safe-area anchor',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
- assert.ok(html.includes('html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);'));
- assert.match(html,/@supports\(height:100lvh\)\{\s*@media\(orientation:portrait\)\{\s*#app\{height:max\(100%,100vh,100lvh,100dvh\)\}/);
- assert.ok(html.includes('calc(env(safe-area-inset-bottom,0px) + 16px)'));
+ const map=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ assert.ok(map.includes('height:100dvh;max-width:520px'));
+ assert.ok(map.includes('#footer{bottom:calc(env(safe-area-inset-bottom,0px) + 10px)'));
+ assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?max-width:520px;height:100dvh;/);
+ assert.match(html,/@media\(orientation:portrait\)\{\s*#app\{height:100dvh;min-height:0;padding:0 11px\}/);
+ assert.match(html,/#eventline\{position:absolute;left:11px;right:11px;\s*bottom:calc\(env\(safe-area-inset-bottom,0px\) \+ 10px\)\}/);
+ assert.match(html,/#controlDeck\{margin-bottom:calc\(env\(safe-area-inset-bottom,0px\) \+ 30px\)\}/);
  assert.ok(html.includes('#stage{min-height:0;flex:1;'));
  assert.ok(html.includes('aspect-ratio:1/2;'));
 });
