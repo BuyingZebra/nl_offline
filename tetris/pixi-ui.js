@@ -23,10 +23,10 @@
  let highScores=scores,showGhost=saved('fieldAtlasTetrisGhost','yes')!=='no',
   soundOn=saved('fieldAtlasTetrisSound','yes')!=='no',
   theme=saved('fieldAtlasThemeV06','green')==='amber'?'amber':'green',
-  glow=83,scan=51,vignette=49,sweep=57,
-  gradients={screenTop:{enabled:false,length:135},screenBottom:{enabled:false,length:135}},
-  experimental={noiseEnabled:false,noiseAmount:8,noiseSpeed:24,persistenceEnabled:false,
-   persistenceAmount:35,persistenceDecay:765,softnessEnabled:false,softnessAmount:13};
+  glow=0,scan=0,vignette=0,sweep=0,
+  gradients={screenTop:{enabled:false,length:0},screenBottom:{enabled:false,length:0}},
+  experimental={noiseEnabled:false,noiseAmount:0,noiseSpeed:24,persistenceEnabled:false,
+   persistenceAmount:0,persistenceDecay:765,softnessEnabled:false,softnessAmount:0};
  // Raw layout baseline: no legacy compositor settings are restored.
  // No filters, gradients, noise, softness, persistence or saved-effects overrides.
  // Gameplay and high-score preferences are untouched.
@@ -511,8 +511,8 @@
   slid('REFRESH SWEEP',sweep,0,100,v=>{sweep=v;settingSave();syncCRT();},'%',
     'Strength of the traveling refresh line, independent of phosphor glow.');
   button(menuScroll,'RESET DISPLAY EFFECTS',left,Y,wide,44,()=>{
-   glow=83;scan=51;vignette=49;sweep=57;
-   gradients={screenTop:{enabled:false,length:135},screenBottom:{enabled:false,length:135}};
+   glow=0;scan=0;vignette=0;sweep=0;
+   gradients={screenTop:{enabled:false,length:0},screenBottom:{enabled:false,length:0}};
    settingSave();syncCRT();rebuildOptions();},{size:10});
   Y+=61;divider();title('EXPERIMENTAL CRT EFFECTS');
   paragraph('Independent grayscale GPU effects. Defaults are enabled. Settings are stored on this device.');
@@ -530,9 +530,9 @@
     experimental.persistenceDecay=v;settingSave();},' MS');
   }
   button(menuScroll,'RESET EXPERIMENTAL EFFECTS',left,Y,wide,44,()=>{
-   Object.assign(experimental,{noiseEnabled:false,noiseAmount:8,noiseSpeed:24,
-    persistenceEnabled:false,persistenceAmount:35,persistenceDecay:765,
-    softnessEnabled:false,softnessAmount:13});settingSave();syncCRT();rebuildOptions();
+   Object.assign(experimental,{noiseEnabled:false,noiseAmount:0,noiseSpeed:24,
+    persistenceEnabled:false,persistenceAmount:0,persistenceDecay:765,
+    softnessEnabled:false,softnessAmount:0});settingSave();syncCRT();rebuildOptions();
   },{size:10});Y+=65;
   divider();title('GPU COMPOSITOR / FULL SCREEN');
   paragraph('Each stage operates on the complete grayscale scene. Use the arrows to reorder GPU passes.');
