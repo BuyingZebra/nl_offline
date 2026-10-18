@@ -6,34 +6,6 @@
   if(!API||!Scores)throw Error('FIELD ATLAS arcade modules failed to load');
   const game=new API.Game();
   const $=id=>document.getElementById(id);
-  // iOS can report a dynamic CSS viewport shorter than the actual phone
-  // display even with viewport-fit=cover. The map's 100dvh shell is the
-  // baseline; fill the remaining device screen only on portrait handsets.
-  // Never grow a desktop browser window or extend landscape controls.
-  function fitPhoneViewport(){
-    const app=$('app');
-    const viewport=Math.max(
-      Number(window.innerHeight)||0,
-      Number(document.documentElement.clientHeight)||0,
-      Number(window.visualViewport?.height)||0
-    );
-    const portrait=window.matchMedia('(orientation: portrait)').matches;
-    const handset=window.matchMedia('(pointer: coarse)').matches
-      && Math.min(Number(window.screen?.width)||0,Number(window.screen?.height)||0)<=650;
-    let height=viewport;
-    if(portrait&&handset){
-      const fullScreen=Number(window.screen?.height)||0;
-      const difference=fullScreen-viewport;
-      if(difference>0&&difference<=Math.min(160,viewport*.25)){
-        height=fullScreen;
-      }
-    }
-    if(height>0)app.style.setProperty('--arcade-shell-height',Math.ceil(height)+'px');
-  }
-  fitPhoneViewport();
-  window.addEventListener('resize',fitPhoneViewport,{passive:true});
-  window.addEventListener('orientationchange',fitPhoneViewport,{passive:true});
-  window.visualViewport?.addEventListener('resize',fitPhoneViewport,{passive:true});
   const board=$('board'),ctx=board.getContext('2d',{alpha:false});
   const root=document.documentElement;
   const BOARD_SIZE=30,BOARD_W=300,BOARD_H=600;
