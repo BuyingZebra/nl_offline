@@ -602,15 +602,15 @@ with sync_playwright() as p:
         page.evaluate("""() => {
           localStorage.setItem('fieldAtlasThemeV06','green');
           localStorage.setItem('fieldAtlasEffectsV06',
-            JSON.stringify({glow:83,scanlines:51,vignette:49}));
-          localStorage.setItem('fieldAtlasTetrisSweepV01','57');
+            JSON.stringify({glow:42,scanlines:33,vignette:17}));
+          localStorage.setItem('fieldAtlasTetrisSweepV01','28');
           localStorage.setItem('fieldAtlasTetrisGradientsV01',
-            JSON.stringify({screenTop:{enabled:true,length:135},
-              screenBottom:{enabled:true,length:135}}));
+            JSON.stringify({screenTop:{enabled:true,length:185},
+              screenBottom:{enabled:false,length:60}}));
           localStorage.setItem('fieldAtlasTetrisExperimentalV01',
-            JSON.stringify({noiseEnabled:true,noiseAmount:8,noiseSpeed:24,
-              persistenceEnabled:true,persistenceAmount:35,persistenceDecay:765,
-              softnessEnabled:true,softnessAmount:13}));
+            JSON.stringify({noiseEnabled:false,noiseAmount:6,noiseSpeed:18,
+              persistenceEnabled:false,persistenceAmount:28,persistenceDecay:512,
+              softnessEnabled:false,softnessAmount:22}));
         }""")
         page.reload(wait_until="networkidle",timeout=30000)
         page.get_by_role("button", name="Display options").tap()
@@ -630,14 +630,32 @@ with sync_playwright() as p:
             softness:on('fxSoftnessEnabled'),softnessAmount:value('fxSoftnessAmount')};
         }""")
         assert preference_check=={
-            "theme":"green","glow":"83","scan":"51",
-            "vignette":"49","sweep":"57","top":"135","bottom":"135",
-            "topEnabled":True,"bottomEnabled":True,
-            "noise":True,"noiseAmount":"8","noiseSpeed":"24",
-            "persistence":True,"persistenceAmount":"35",
-            "persistenceDecay":"765","softness":True,"softnessAmount":"13"
+            "theme":"green","glow":"42","scan":"33",
+            "vignette":"17","sweep":"28","top":"185","bottom":"60",
+            "topEnabled":True,"bottomEnabled":False,
+            "noise":False,"noiseAmount":"6","noiseSpeed":"18",
+            "persistence":False,"persistenceAmount":"28",
+            "persistenceDecay":"512","softness":False,"softnessAmount":"22"
         },preference_check
         page.screenshot(path=str(EVIDENCE/"tetris-settings-preserved-v024.png"))
+        # RESET DISPLAY EFFECTS must restore the newly approved full preset,
+        # including both screen fades rather than only the four percentages.
+        page.locator("#resetEffects").tap()
+        reset_values=page.evaluate("""() => {
+          const v=id=>document.getElementById(id).value;
+          const on=id=>document.getElementById(id).checked;
+          return [v('glowControl'),v('scanControl'),v('vignetteControl'),
+            v('sweepControl'),v('fade-screenTop'),v('fade-screenBottom'),
+            on('fade-screenTop-on'),on('fade-screenBottom-on')];
+        }""")
+        assert reset_values==["83","51","49","57","135","135",True,True],reset_values
+        page.locator("#resetExperimental").tap()
+        assert page.locator("#fxNoiseEnabled").is_checked()
+        assert page.locator("#fxPersistenceEnabled").is_checked()
+        assert page.locator("#fxSoftnessEnabled").is_checked()
+        assert page.locator("#fxNoiseAmount").input_value()=="8"
+        assert page.locator("#fxPersistenceDecay").input_value()=="765"
+        assert page.locator("#fxSoftnessAmount").input_value()=="13"
         page.locator("#closeOptions").tap()
 
         # Guard against the exact legacy WebKit/PWA chin combination:
