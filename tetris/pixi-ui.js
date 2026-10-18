@@ -650,6 +650,9 @@
    mode:currentModal,theme,showGhost,soundOn,width,height,fps,
    luminanceOnly:true,objectsReused:state.sceneBuilds,
    crt:crt.state(),errors:[...crt.errors,state.lastError].filter(Boolean)}),
-  action,openModal,closeModal,game,reset:()=>{game.reset();syncGame();}
+  action,openModal,closeModal,game,reset:()=>{game.reset();syncGame();},
+  debugBypassEffects:(bypass)=>{if(bypass)base.filters=null;else crt.apply();},
+  debugSetEffect:(id,v)=>crt.toggle(id,v),
+  debugStage:()=>({children:base.children.length,filters:base.filters?.length||0})
  };
 })();
