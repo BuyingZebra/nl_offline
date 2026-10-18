@@ -92,9 +92,9 @@ with sync_playwright() as p:
         for obsolete in ("#crtFilterDefs", "#crtDisplacementMap",
                          "#curvatureControl", "#crtGlass"):
             assert page.locator(obsolete).count() == 0
-        assert page.locator("#app").evaluate(
+        assert "crtScreenBloom" in page.locator("#app").evaluate(
             "el => getComputedStyle(el).filter"
-        ) == "none"
+        )
         assert page.locator("#console").count() == 0
         assert page.locator("#consoleState").count() == 0
         # Neutral-grayscale app: stage wrapper stays transparent, visible
@@ -403,9 +403,9 @@ with sync_playwright() as p:
         page.locator("#closeOptions").tap()
 
         # The game content is no longer subjected to a distortion filter.
-        assert page.locator("#app").evaluate(
+        assert "crtScreenBloom" in page.locator("#app").evaluate(
             "el => getComputedStyle(el).filter"
-        ) == "none"
+        )
         page.locator("#themeToggle").tap()
         assert page.locator("html").get_attribute("data-theme") == "amber"
         amber_colours=page.evaluate("""() => {
