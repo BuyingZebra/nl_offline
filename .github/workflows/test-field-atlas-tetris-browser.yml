@@ -1,10 +1,11 @@
 name: FIELD ATLAS Arcade Mobile Browser QA
 on:
   push:
-    branches: [main]
+    branches: [main, 'experiment/reorderable-svg-compositor']
     paths:
       - 'tetris/**'
       - 'tests/test_tetris_browser.py'
+      - 'tests/test_svg_compositor_lab.py'
       - '.github/workflows/test-field-atlas-tetris-browser.yml'
   workflow_dispatch:
 permissions:
@@ -38,6 +39,10 @@ jobs:
         env:
           FIELD_ATLAS_BROWSER: ${{ matrix.browser }}
         run: python tests/test_tetris_browser.py
+      - name: Verify reorderable SVG stack laboratory
+        env:
+          FIELD_ATLAS_BROWSER: ${{ matrix.browser }}
+        run: python tests/test_svg_compositor_lab.py
       - name: Save phone screenshots
         if: always()
         uses: actions/upload-artifact@v4
