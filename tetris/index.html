@@ -55,6 +55,12 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
  color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
+#veilText{min-height:4.7em}
+#readyCursor{display:inline-block;width:.65em;height:.95em;
+ background:var(--weak);vertical-align:-.12em;
+ animation:ready-cursor-blink .85s steps(1,end) infinite}
+@keyframes ready-cursor-blink{50%{opacity:0}}
+@media(prefers-reduced-motion:reduce){#readyCursor{animation:none}}
 #newGameButton{width:100%;background:var(--bg);color:var(--ink);font-size:11px}
 #newGameButton[hidden]{display:none}
 #playButton{width:100%}
@@ -70,9 +76,12 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 .mini-stat{display:flex;flex-direction:column;gap:4px;text-align:center}
 .mini-stat b{font-size:13px;font-variant-numeric:tabular-nums}
 #controlDeck{flex:none;display:flex;flex-direction:column;gap:7px;padding:9px}
-#scoreStrip{display:grid;grid-template-columns:1.2fr .8fr .8fr;gap:8px;
+#scoreStrip{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr);gap:8px;
  border-bottom:1px solid var(--border);padding:1px 2px 8px}
 #scoreStrip div{display:flex;flex-direction:column;gap:3px;min-width:0}
+#scoreStrip div:nth-child(1){align-items:flex-start;text-align:left}
+#scoreStrip div:nth-child(2){align-items:center;text-align:center}
+#scoreStrip div:nth-child(3){align-items:flex-end;text-align:right}
 #scoreStrip small{font-size:9px;color:var(--weak);letter-spacing:.13em}
 #scoreStrip strong{font-size:clamp(13px,4vw,17px);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
 #pad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
@@ -132,7 +141,7 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  header small{font-size:8px}.header-tools button{min-width:35px;min-height:37px;height:37px}
  #stage{grid-column:2;grid-row:1 / 4;min-height:0}#boardShell{height:100%;max-width:calc(100% - 98px)}
  #controlDeck{grid-column:3;grid-row:1 / 4;align-self:center}
- #scoreStrip{grid-template-columns:1fr 1fr}#scoreStrip div:last-child{display:none}
+ #scoreStrip{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr)}
  #pad{grid-template-columns:repeat(5,minmax(0,1fr))}
  #pad button[data-action="hard"]{font-size:12px}
  #extras button{flex-basis:48%}
@@ -149,13 +158,6 @@ dialog h2{font-size:15px;letter-spacing:.13em;margin:0 0 18px}
  padding-top:calc(env(safe-area-inset-top,0px) + 9px)}
 button{border-radius:8px;background:var(--panel)}
 button:not(.primary):active{background:var(--solid)}
-button.phosphor-reactive{position:relative;isolation:isolate;overflow:visible}
-button .phosphor-hit-layer{
- position:absolute;inset:-2px;pointer-events:none;opacity:0;border-radius:inherit;
- color:inherit;border:1px solid color-mix(in srgb,currentColor var(--glow-strength),transparent);
- background:transparent;
- box-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent),
- inset 0 0 calc(var(--glow-radius) * .6) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app :is(button,h1,b,strong,small,output,label,#console,#eventline,canvas+div,.side-panel){
  text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app :is(.panel,button,#boardShell,.side-panel){
@@ -273,12 +275,6 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 #app :is(header h1,#veil h2,#entryScore){
  text-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-#app button .phosphor-hit-layer{
- border-color:color-mix(in srgb,currentColor var(--glow-strength),transparent);
- background:transparent;
- box-shadow:0 0 var(--glow-radius)
- color-mix(in srgb,currentColor var(--glow-strength),transparent)}
-@media(prefers-reduced-motion:reduce){.phosphor-hit-layer{animation:none!important}}
 
 
 /* Arcade control icons share the FIELD ATLAS terminal font everywhere.
@@ -358,27 +354,6 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 #sweep{z-index:40;pointer-events:none}
 
 
-/* A reusable phosphor *overlay*, not a button child:
- * It is screen-space, so PAUSE can become disabled and UI labels can change
- * without destroying an in-flight phosphor flash. All button sizes share it. */
-#app header .heading h1{margin:0;line-height:1.25;
- font-size:clamp(18px,5.6vw,23px);letter-spacing:.11em}
-#buttonFxLayer{position:absolute;inset:0;z-index:39;
- overflow:hidden;pointer-events:none;isolation:isolate}
-#buttonFxLayer .phosphor-hit-layer{position:absolute;pointer-events:none;
- box-sizing:border-box;opacity:0;
- border:1px solid var(--flash-color);
- border-radius:var(--flash-radius,8px);
- background:transparent;
- box-shadow:0 0 var(--glow-radius)
-  color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent),
-  inset 0 0 calc(var(--glow-radius) * .6)
-  color-mix(in srgb,var(--flash-color) var(--glow-strength),transparent);
- animation:phosphor-flash 1050ms linear forwards}
-@keyframes phosphor-flash{
- 0%{opacity:.95}100%{opacity:0}}
-@media(prefers-reduced-motion:reduce){
- #buttonFxLayer .phosphor-hit-layer{animation-duration:1ms}}
 
 
 /* Flat unwarped app surface; CRT effects remain independent overlays. */
@@ -407,18 +382,11 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 /* Experimental effects are strictly grayscale, screen-space overlays.
  * They sit above UI/dialogs and below scanlines and the phosphor hue pass.
  * The application and button surfaces never receive these filters. */
-#fxSoftness,#fxNoise,#fxInterference,#fxGlitch{
+#fxSoftness,#fxNoise{
  position:absolute;pointer-events:none;display:none;
 }
 #fxSoftness{inset:0;z-index:27;background:transparent}
 #fxNoise{inset:0;z-index:28;width:100%;height:100%;image-rendering:pixelated}
-#fxInterference{z-index:29;left:0;width:100%;height:8px;opacity:0;
- background:linear-gradient(to bottom,transparent,rgba(0,0,0,.38) 42%,
- rgba(255,255,255,.12) 63%,transparent)}
-#fxGlitch{z-index:30;left:0;width:100%;height:5px;opacity:0;
- background:repeating-linear-gradient(to bottom,rgba(255,255,255,.45) 0px,
- rgba(255,255,255,.45) 1px,transparent 1px,transparent 2px,
- rgba(0,0,0,.55) 2px,rgba(0,0,0,.55) 4px)}
 #buttonFxLayer .fx-persistence-ghost{
  position:absolute;display:flex;align-items:center;justify-content:center;
  box-sizing:border-box;pointer-events:none;white-space:nowrap;overflow:hidden;
@@ -438,7 +406,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
 .experimental-grid .effect-head output{font-variant-numeric:tabular-nums}
 #resetExperimental{width:100%;margin:3px 0 12px}
 @media(prefers-reduced-motion:reduce){
- #fxNoise,#fxInterference,#fxGlitch{display:none!important}
+ #fxNoise{display:none!important}
 }
 
 </style>
@@ -457,7 +425,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    <canvas id="board" width="300" height="600" aria-label="Tetris game board, 10 columns by 20 rows"></canvas>
    <div id="veil">
     <h2 id="veilTitle">TETRIS</h2>
-    <p id="veilText">Stack the blocks. Clear complete rows. Keep the board from filling up.</p>
+    <p id="veilText"><span id="readyText"></span><span id="readyCursor" aria-hidden="true"></span></p>
     <button id="playButton">▶ START GAME</button>
     <button id="newGameButton" hidden>NEW GAME</button>
     <button id="pausedScoresButton" hidden>HIGH SCORE</button>
@@ -471,9 +439,9 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  </main>
  <section id="controlDeck" class="panel" aria-label="Tetris controls and score">
   <div id="scoreStrip">
+   <div><small>LEVEL</small><strong id="levelValue">01</strong></div>
    <div><small>SCORE</small><strong id="scoreValue">000000</strong></div>
    <div><small>LINES</small><strong id="linesValue">00</strong></div>
-   <div><small>LEVEL</small><strong id="levelValue">01</strong></div>
   </div>
   <div id="pad" aria-label="Movement controls">
    <button data-action="left" aria-label="Move left">◀</button>
@@ -489,8 +457,6 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  <div id="eventline"><span id="eventText">READY / PRESS START</span><span>LOCAL ARCADE ENGINE</span></div>
  <div id="fxSoftness" aria-hidden="true"></div>
  <canvas id="fxNoise" aria-hidden="true"></canvas>
- <div id="fxInterference" aria-hidden="true"></div>
- <div id="fxGlitch" aria-hidden="true"></div>
  <div id="buttonFxLayer" aria-hidden="true"></div>
  <div id="screenTopFade" aria-hidden="true"></div>
  <div id="screenBottomFade" aria-hidden="true"></div>
@@ -536,16 +502,6 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   <label class="experimental-toggle"><input id="fxSoftnessEnabled" type="checkbox"> SOFTNESS</label>
   <p class="effect-note">Optional optical blur of the composed UI; geometry stays fixed.</p>
   <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxSoftnessAmount">AMOUNT</label><output id="fxSoftnessAmountValue">25%</output></div><input id="fxSoftnessAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="25"></div></div>
- </div>
- <div class="experimental-effect">
-  <label class="experimental-toggle"><input id="fxInterferenceEnabled" type="checkbox"> INTERFERENCE</label>
-  <p class="effect-note">Occasional faint horizontal luminance disturbance.</p>
-  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxInterferenceAmount">AMOUNT</label><output id="fxInterferenceAmountValue">20%</output></div><input id="fxInterferenceAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="20"></div><div class="effect-row"><div class="effect-head"><label for="fxInterferenceRate">FREQUENCY</label><output id="fxInterferenceRateValue">6/MIN</output></div><input id="fxInterferenceRate" class="effect-slider" type="range" min="1" max="20" step="1" value="6"></div></div>
- </div>
- <div class="experimental-effect">
-  <label class="experimental-toggle"><input id="fxGlitchEnabled" type="checkbox"> GLITCH</label>
-  <p class="effect-note">Brief grayscale interference streaks; never moves controls.</p>
-  <div class="experimental-grid"><div class="effect-row"><div class="effect-head"><label for="fxGlitchAmount">AMOUNT</label><output id="fxGlitchAmountValue">20%</output></div><input id="fxGlitchAmount" class="effect-slider" type="range" min="0" max="100" step="1" value="20"></div><div class="effect-row"><div class="effect-head"><label for="fxGlitchRate">FREQUENCY</label><output id="fxGlitchRateValue">3/MIN</output></div><input id="fxGlitchRate" class="effect-slider" type="range" min="1" max="20" step="1" value="3"></div></div>
  </div>
   <button id="resetExperimental">RESET EXPERIMENTAL EFFECTS</button>
  </div>
