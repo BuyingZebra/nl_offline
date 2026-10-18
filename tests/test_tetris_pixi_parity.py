@@ -19,7 +19,15 @@ with sync_playwright() as p:
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     url='http://127.0.0.1:8765/tetris/?renderer=pixi'
+    page.on('console',lambda m: print(engine,'CONSOLE',m.type,m.text[:350]) if m.type=='error' else None)
+    page.on('requestfailed',lambda r: print(engine,'FAILED RESOURCE',r.url))
     page.goto(url,wait_until='domcontentloaded',timeout=30000)
+    page.wait_for_timeout(1200)
+    print(engine,'INIT',page.evaluate("""() => ({
+      pixiGlobal:typeof window.PIXI,renderer:typeof window.FieldAtlasPixiRenderer,
+      rendererState:window.FieldAtlasPixiRenderer?.getState(),
+      relevantScripts:[...document.scripts].map(s=>s.src).filter(s=>s.includes('pixi'))
+    })"""),'ERRORS',errors)
     page.wait_for_function('() => window.FieldAtlasPixiRenderer?.getState().initialized===true',timeout=15000)
     page.add_style_tag(content='''#readyCursor,*{animation-duration:0s!important;transition-duration:0s!important}''')
     page.wait_for_timeout(900)
