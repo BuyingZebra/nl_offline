@@ -175,6 +175,42 @@ with sync_playwright() as p:
         )
         assert page.locator("#options").get_attribute("open") is not None
         assert page.locator("#modalScrim").is_visible()
+        # Five independently switchable CRT experiments are opt-in.
+        experimental=page.evaluate("""() => {
+          const section=document.querySelector('#experimentalFxSection');
+          const keys=['Noise','Persistence','Softness','Interference','Glitch'];
+          const initiallyOff=keys.every(k=>!document.querySelector('#fx'+k+'Enabled').checked);
+          const board=document.querySelector('#board').getContext('2d');
+          const before=Array.from(board.getImageData(15,15,1,1).data);
+          const enable=k=>{
+            const el=document.querySelector('#fx'+k+'Enabled');
+            el.checked=true;el.dispatchEvent(new Event('change',{bubbles:true}));
+          };
+          keys.forEach(enable);
+          const adjust=(id,value)=>{
+            const el=document.querySelector('#'+id);
+            el.value=String(value);el.dispatchEvent(new Event('input',{bubbles:true}));
+          };
+          adjust('fxSoftnessAmount',50);
+          adjust('fxPersistenceDecay',1200);
+          adjust('fxNoiseSpeed',24);
+          const after=Array.from(board.getImageData(15,15,1,1).data);
+          return {hasSection:!!section,initiallyOff,unmodifiedBoard:
+            JSON.stringify(before)===JSON.stringify(after),
+            blur:getComputedStyle(document.querySelector('#fxSoftness')).backdropFilter,
+            noise:getComputedStyle(document.querySelector('#fxNoise')).display,
+            interference:getComputedStyle(document.querySelector('#fxInterference')).display,
+            glitch:getComputedStyle(document.querySelector('#fxGlitch')).display,
+            saved:JSON.parse(localStorage.getItem('fieldAtlasTetrisExperimentalV01'))};
+        }""")
+        assert experimental["hasSection"] and experimental["initiallyOff"], experimental
+        assert experimental["unmodifiedBoard"], experimental
+        assert experimental["blur"] == "blur(0.8px)", experimental
+        assert experimental["noise"] == "block", experimental
+        assert experimental["interference"] == "block", experimental
+        assert experimental["glitch"] == "block", experimental
+        assert experimental["saved"]["persistenceDecay"] == 1200, experimental
+
         assert page.locator("#fade-screenTop-on").count() == 1
         assert page.locator("#fade-screenBottom-on").count() == 1
         assert page.locator("#fade-playfieldTop-on").count() == 0
@@ -253,6 +289,24 @@ with sync_playwright() as p:
         page.locator("#closeOptions").tap()
         assert page.locator("#options").get_attribute("open") is None
         assert page.locator("#modalScrim").is_hidden()
+        # Tapping a button produces an isolated screen-space afterimage.
+        assert page.locator('#buttonFxLayer .fx-persistence-ghost').count() >= 1
+        page.get_by_role("button", name="Display options").tap()
+        page.locator("#resetExperimental").tap()
+        assert page.locator("#fxNoiseEnabled").is_checked() is False
+        assert page.locator("#fxPersistenceEnabled").is_checked() is False
+        assert page.locator("#fxSoftnessEnabled").is_checked() is False
+        assert page.locator("#fxInterferenceEnabled").is_checked() is False
+        assert page.locator("#fxGlitchEnabled").is_checked() is False
+        assert page.locator('#buttonFxLayer .fx-persistence-ghost').count() == 0
+        assert page.locator("#fxNoise").evaluate(
+            "el => getComputedStyle(el).display"
+        ) == "none"
+        assert page.evaluate(
+            "JSON.parse(localStorage.getItem('fieldAtlasTetrisExperimentalV01')).noiseEnabled"
+        ) is False
+        page.locator("#closeOptions").tap()
+
         # The game content is no longer subjected to a distortion filter.
         assert page.locator("#app").evaluate(
             "el => getComputedStyle(el).filter"
