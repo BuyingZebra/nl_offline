@@ -668,6 +668,12 @@
     firstChild:base.children[0]?.children.slice(0,5).map(x=>({type:x.constructor.name,
       visible:x.visible,renderable:x.renderable,alpha:x.alpha,bounds:x.getBounds()}))
    }),
+  debugModal:()=>({mode:currentModal,menuVisible:menuLayer?.visible,menuRenderable:menuLayer?.renderable,
+    children:menuLayer?.children.length,childVisible:menuLayer?.children.map(c=>c.visible),
+    optionVisible:modals.options?.modal.visible,
+    optionChildren:modals.options?.modal.children.length,
+    optionBounds:modals.options?.modal.getBounds(),
+    world:base.children.map(c=>({visible:c.visible,renderable:c.renderable}))}),
   debugForceRender:()=>{renderApp.renderer.render(renderApp.stage);return true;},
   debugMarker:()=>{renderApp.stage.addChild(new P.Graphics().rect(30,30,110,110).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;}
  };
