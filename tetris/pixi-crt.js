@@ -109,8 +109,8 @@
    this.scene=scene;
    this.order=['glow','ghost','softness','noise','scanlines','vignette','phosphor'];
    this.enabled={glow:false,ghost:false,softness:false,noise:false,scanlines:false,vignette:false,phosphor:false};
-   this.config={glow:68,threshold:56,radius:2.6,ghost:24,ghostDistance:3,
-    softness:13,noise:8,noiseRate:24,scan:51,vignette:49,sweep:57,top:135,bottom:135,
+   this.config={glow:0,threshold:56,radius:2.6,ghost:0,ghostDistance:3,
+    softness:0,noise:0,noiseRate:24,scan:0,vignette:0,sweep:0,top:0,bottom:0,
     theme:'green'};
    this.filters={};this.errors=[];
    for(const [id,spec] of Object.entries(snippets)){
