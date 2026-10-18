@@ -52,7 +52,6 @@ with sync_playwright() as p:
     board_box = box(rect_board)
     controls_box = box(rect_buttons)
     screen_box = box(screen)
-    page.evaluate("document.querySelector('#enable').checked=false;window.__stackTest.toggle()") if False else None
     page.evaluate("""() => {
         const el=document.querySelector('#enable');
         el.checked=false;el.dispatchEvent(new Event('change'));
@@ -61,7 +60,7 @@ with sync_playwright() as p:
     stage_results = {}
     for name in EXPECTED:
         page.locator("#display").evaluate(
-            "(el, name)=>el.style.filter='url(\\\"#fx-'+name+'\\\")'", name
+            "(el, name) => el.style.filter = 'url(#fx-' + name + ')'", name
         )
         image = capture(page, "only-" + name)
         stage_results[name] = {
