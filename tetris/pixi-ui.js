@@ -267,8 +267,8 @@
   gameLayer=app;
   box(app,0,0,maxW,height,C.bg,null,0);
   const pad=11,inner=maxW-2*pad,gap=height<=730?6:9;
-  let headY=safe.top+9,headH=height<=730?53:65,deckH=height<=730?160:172;
-  let deckY=height-safe.bottom-30-deckH;
+  let headY=safe.top+16,headH=height<=730?53:65,deckH=height<=730?160:172;
+  let deckY=height-safe.bottom-60-deckH;
   let stageY=headY+headH+gap,stageH=deckY-gap-stageY;
   if(landscape){headY=8;headH=64;deckY=8;deckH=height-16;stageY=8;stageH=height-16;}
   const headerX=landscape?8:pad,headerW=landscape?Math.min(205,maxW*.25):inner;
@@ -353,7 +353,7 @@
   const ey=py+buttonH+7,ex=dx+dw/2,extraW=Math.min(180,dw*.4),extraGap=8;
   controls.hold=button(app,'HOLD',ex-extraGap/2-extraW,ey,extraW,44,()=>action('hold'),{size:11});
   controls.pause=button(app,'PAUSE',ex+extraGap/2,ey,extraW,44,()=>action('pause'),{size:11});
-  const footerY=height-safe.bottom-18;
+  const footerY=height-safe.bottom-48;
   // Developer overlay uses these SAME computed layout rectangles. No parallel
   // sizing calculations, no changes to the scene, and no GPU composition.
   layoutDebug?.setLayout([
