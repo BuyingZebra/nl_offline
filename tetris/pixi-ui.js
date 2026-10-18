@@ -24,9 +24,9 @@
   soundOn=saved('fieldAtlasTetrisSound','yes')!=='no',
   theme=saved('fieldAtlasThemeV06','green')==='amber'?'amber':'green',
   glow=83,scan=51,vignette=49,sweep=57,
-  gradients={screenTop:{enabled:true,length:135},screenBottom:{enabled:true,length:135}},
-  experimental={noiseEnabled:true,noiseAmount:8,noiseSpeed:24,persistenceEnabled:true,
-   persistenceAmount:35,persistenceDecay:765,softnessEnabled:true,softnessAmount:13};
+  gradients={screenTop:{enabled:false,length:135},screenBottom:{enabled:false,length:135}},
+  experimental={noiseEnabled:false,noiseAmount:8,noiseSpeed:24,persistenceEnabled:false,
+   persistenceAmount:35,persistenceDecay:765,softnessEnabled:false,softnessAmount:13};
  try{
   const a=JSON.parse(saved('fieldAtlasEffectsV06','null'));
   if(a){glow=clamp(Number(a.glow??83),0,100);scan=clamp(Number(a.scanlines??51),0,100);
@@ -38,6 +38,13 @@
   if(c)Object.assign(experimental,c);
   sweep=clamp(Number(saved('fieldAtlasTetrisSweepV01','57')),0,100);
  }catch(e){}
+ // Always begin design sessions with effects disabled, including on devices
+ // with older saved settings. Preserve strength values for manual re-enabling.
+ gradients.screenTop.enabled=false;
+ gradients.screenBottom.enabled=false;
+ experimental.noiseEnabled=false;
+ experimental.softnessEnabled=false;
+ experimental.persistenceEnabled=false;
  const renderApp=new P.Application();
  try{
   await renderApp.init({resizeTo:window,preference:'webgl',backgroundColor:C.bg,
@@ -515,7 +522,7 @@
     'Strength of the traveling refresh line, independent of phosphor glow.');
   button(menuScroll,'RESET DISPLAY EFFECTS',left,Y,wide,44,()=>{
    glow=83;scan=51;vignette=49;sweep=57;
-   gradients={screenTop:{enabled:true,length:135},screenBottom:{enabled:true,length:135}};
+   gradients={screenTop:{enabled:false,length:135},screenBottom:{enabled:false,length:135}};
    settingSave();syncCRT();rebuildOptions();},{size:10});
   Y+=61;divider();title('EXPERIMENTAL CRT EFFECTS');
   paragraph('Independent grayscale GPU effects. Defaults are enabled. Settings are stored on this device.');
@@ -533,9 +540,9 @@
     experimental.persistenceDecay=v;settingSave();},' MS');
   }
   button(menuScroll,'RESET EXPERIMENTAL EFFECTS',left,Y,wide,44,()=>{
-   Object.assign(experimental,{noiseEnabled:true,noiseAmount:8,noiseSpeed:24,
-    persistenceEnabled:true,persistenceAmount:35,persistenceDecay:765,
-    softnessEnabled:true,softnessAmount:13});settingSave();syncCRT();rebuildOptions();
+   Object.assign(experimental,{noiseEnabled:false,noiseAmount:8,noiseSpeed:24,
+    persistenceEnabled:false,persistenceAmount:35,persistenceDecay:765,
+    softnessEnabled:false,softnessAmount:13});settingSave();syncCRT();rebuildOptions();
   },{size:10});Y+=65;
   divider();title('GPU COMPOSITOR / FULL SCREEN');
   paragraph('Each stage operates on the complete grayscale scene. Use the arrows to reorder GPU passes.');
