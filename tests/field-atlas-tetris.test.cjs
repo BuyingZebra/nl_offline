@@ -171,9 +171,11 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v023'"));
- assert.match(sw,/event\.respondWith\(fetch\(request,\{cache:'no-store'\}\)/);
- assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v024'"));
+ assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
+ assert.match(sw,/const cacheKey=navigation\?PAGE_URL:request/);
+ assert.match(sw,/cache\.match\(cacheKey\)/);
+ assert.doesNotMatch(sw,/ignoreSearch/);
 });
 
 
@@ -224,7 +226,7 @@ test('the high score feature is game-over-only, with visible five-slot board and
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
- assert.ok(html.includes('<script src="./scores.js?arcade=v023"></script>'));
+ assert.ok(html.includes('<script src="./scores.js?arcade=v024"></script>'));
  assert.ok(html.includes('id="pausedScoresButton"'));
  assert.doesNotMatch(html,/id="scoresButton"/);
  assert.ok(html.includes('id="scoreEntry"'));
@@ -269,8 +271,8 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
- assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v023'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v023'/);
+ assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v024'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v024'/);
 });
 
 
@@ -296,7 +298,7 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.ok(ui.includes("if(event.key!=='Tab')return"));
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  const appStart=html.indexOf('<div id="app">');
- const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v023">');
+ const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v024">');
  const dialogs=html.indexOf('<dialog id="options"');
  assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
  assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:41;/);
@@ -464,7 +466,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v023'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v024'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{background:var\(--bg\)\}/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
@@ -530,9 +532,9 @@ test('experimental effects use isolated grayscale compositor layers and offline 
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  const {Script}=require('node:vm');
  assert.doesNotThrow(()=>new Script(fx));
- assert.ok(sw.includes("'./experimental-fx.js?arcade=v023'"));
- assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v023"></script>'));
- assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v023">'));
+ assert.ok(sw.includes("'./experimental-fx.js?arcade=v024'"));
+ assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v024"></script>'));
+ assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v024">'));
  for(const id of ['fxSoftness','fxNoise','experimentalFxSection','resetExperimental',
    'fxNoiseEnabled','fxNoiseAmount','fxNoiseSpeed',
    'fxPersistenceEnabled','fxPersistenceAmount','fxPersistenceDecay',
@@ -692,12 +694,38 @@ test('Tetris bundle is cache coherent and visible score changes trigger feedback
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  for(const name of ['core','scores','experimental-fx','ui']){
-  assert.ok(html.includes('src="./'+name+'.js?arcade=v023"'));
-  assert.ok(sw.includes("'./"+name+".js?arcade=v023'"));
+  assert.ok(html.includes('src="./'+name+'.js?arcade=v024"'));
+  assert.ok(sw.includes("'./"+name+".js?arcade=v024'"));
  }
  assert.match(ui,/if\(\(id==='scoreValue'\|\|id==='levelValue'\|\|id==='linesValue'\)&&game.status==='playing'\)/);
  assert.ok(html.includes('#scoreStrip strong.hud-changed{animation:hud-tick'));
  assert.ok(ui.includes("node.classList.add('hud-changed')"));
+});
+
+
+test('default values remain unchanged and user-specific settings remain authoritative',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const fx=fs.readFileSync(path.join(__dirname,'../tetris/experimental-fx.js'),'utf8');
+ assert.match(ui,/const DISPLAY_DEFAULTS=Object\.freeze\(\{\s*glow:65,scan:26,vignette:30,sweep:65,showGhost:true,soundOn:false,/);
+ assert.ok(ui.includes('screenTop:Object.freeze({enabled:true,length:165})'));
+ assert.ok(ui.includes('screenBottom:Object.freeze({enabled:false,length:110})'));
+ assert.ok(ui.includes('({glow,scan,vignette,sweep}=DISPLAY_DEFAULTS)'));
+ assert.ok(ui.includes("read('fieldAtlasEffectsV06','null')"));
+ assert.ok(ui.includes("read('fieldAtlasTetrisSweepV01',String(DISPLAY_DEFAULTS.sweep))"));
+ for(const property of ['noiseEnabled:false','noiseAmount:18','noiseSpeed:12',
+    'persistenceEnabled:false','persistenceAmount:35','persistenceDecay:450',
+    'softnessEnabled:false','softnessAmount:25'])
+   assert.ok(fx.includes(property),'Existing experimental default changed: '+property);
+});
+test('duplicate CSS background aliases removed without touching compositor stack',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ assert.equal((html.match(/#app\{background:var\(--bg\)\}/g)||[]).length,0);
+ assert.equal((html.match(/#boardShell\{background:var\(--card-bg\)\}/g)||[]).length,0);
+ assert.ok(html.includes('max-width:520px;height:100dvh;min-height:0;background:var(--bg)'));
+ assert.ok(html.includes('border-radius:7px;background:var(--card-bg)'));
+ assert.ok(!html.includes('var(--scan)'));
+ assert.ok(html.includes('mix-blend-mode:color;opacity:1'));
+ assert.ok(html.includes('#screenScan{position:absolute;inset:0;z-index:43;'));
 });
 
 test('Tetris checks for current offline shell every launch; no forced gameplay reload',()=>{
@@ -708,7 +736,7 @@ test('Tetris checks for current offline shell every launch; no forced gameplay r
  assert.match(ui,/registration\.update\(\)\.catch/);
  assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/caches\.keys\(\).*keys\.filter/);
- assert.ok(html.includes('LOCAL ARCADE ENGINE / V023'));
+ assert.ok(html.includes('LOCAL ARCADE ENGINE / V024'));
  assert.match(html,/#screenScan\{position:absolute;inset:0;/);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
 });
