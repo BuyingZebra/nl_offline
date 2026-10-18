@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101010">
+<title>FIELD ATLAS — CSS CRT compositor stress test</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body,html{padding:0;margin:0;height:100%;background:#060606;color:#e8e8e8;overflow:hidden}
+button,input{font:inherit}
+#display{position:fixed;inset:0;background:#090909;overflow:hidden;isolation:isolate}
+#source,#source .shell,.bloom .shell{width:100%;height:100%;max-height:100dvh}
+.shell{padding:max(15px,env(safe-area-inset-top)) 12px max(14px,env(safe-area-inset-bottom));
+ max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:10px;color:#d9d9d9;background:#090909}
+.head{min-height:65px;border:1px solid #5d5d5d;border-radius:13px;background:#1e1e1e;display:flex;align-items:center;justify-content:space-between;padding:9px 12px}
+.head strong{font-size:17px;letter-spacing:1px;font-weight:760}.head small{display:block;color:#8e8e8e;font-size:10px;letter-spacing:1.3px;margin-top:2px}
+.symbols{display:flex;gap:5px}.symbols i{display:inline-flex;border:1px solid #777;border-radius:9px;width:32px;height:33px;align-items:center;justify-content:center;font-style:normal;font-size:15px}
+.stage{min-height:0;flex:1;display:flex;align-items:center;justify-content:center;gap:10px}
+.board{width:min(calc(100% - 103px), 50cqh, 305px);max-width:305px;aspect-ratio:1/2;
+ border:1px solid #848484;border-radius:7px;background:#111;padding:4px;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));grid-template-rows:repeat(20,minmax(0,1fr));gap:2px}
+.stage{container-type:size}
+.cell{background:#171717;border-radius:2px;min-width:0;min-height:0}
+.cell.on{box-shadow:inset 0 0 0 1px #6b6b6b}
+.side{width:93px;align-self:stretch;max-height:min(610px,100%);display:flex;flex-direction:column;justify-content:center;gap:8px}
+.sidebox{border:1px solid #5d5d5d;border-radius:11px;background:#202020;padding:8px 7px}
+.sidebox h4{font-size:10px;color:#929292;letter-spacing:1px;margin:0 0 6px;font-weight:700}
+.shape{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,16px);gap:3px}
+.shape span{background:#242424;border-radius:2px}.shape span.on{background:#b8b8b8}
+.stats{margin-top:auto}.stats p{margin:5px 0;color:#d6d6d6;font-size:12px}.stats p span{color:#888;display:block;font-size:9px;letter-spacing:.6px}
+.deck{border:1px solid #5f5f5f;background:#1d1d1d;border-radius:12px;padding:9px;display:grid;gap:8px}
+.luminance{display:flex;align-items:center;gap:5px}
+.swatch{height:25px;border-radius:3px;flex:1;border:1px solid #515151;display:flex;align-items:center;justify-content:center;font-size:9px;text-shadow:0 1px #080808}
+.pad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.pad button{height:50px;color:#dfdfdf;background:#363636;border:1px solid #6d6d6d;border-radius:10px;font-size:16px;font-weight:700;touch-action:manipulation}
+.pad button:active{background:#888}
+.actions{display:flex;gap:7px}.actions button{flex:1;color:#d8d8d8;background:#292929;border:1px solid #777;border-radius:8px;padding:10px 3px;font-size:11px;font-weight:700}
+.foot{font-size:10px;letter-spacing:1px;color:#858585;text-align:center;padding-bottom:3px}
+#layers{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.layer{position:absolute;inset:0;pointer-events:none;will-change:auto}
+.layer[hidden]{display:none!important}
+.tint{background:#00f66a;mix-blend-mode:color;opacity:1}
+.scan{background:repeating-linear-gradient(to bottom,transparent 0px,transparent 2px,rgba(0,0,0,.94) 2px,rgba(0,0,0,.94) 3px);opacity:.36;mix-blend-mode:multiply}
+.vignette{background:radial-gradient(ellipse at 50% 48%,transparent 21%,rgba(0,0,0,.08) 53%,rgba(0,0,0,.88) 100%);opacity:.6;mix-blend-mode:multiply}
+.grain{background-image:repeating-conic-gradient(from 27deg,#fff 0 14deg,transparent 17deg 31deg,#000 34deg 50deg,transparent 54deg 88deg);background-size:13px 17px;mix-blend-mode:overlay;opacity:.065;animation:grainShift .13s steps(3,end) infinite}
+@keyframes grainShift{0%{background-position:0 0}33%{background-position:27px -19px}66%{background-position:-43px 29px}}
+/* Backdrop filter tests real browser backdrop sampling but is not thresholded bloom. */
+.backdrop{backdrop-filter:blur(2px) brightness(1.16);-webkit-backdrop-filter:blur(2px) brightness(1.16);opacity:.55}
+/* HTML clone: selective high-contrast bright-pass approximation, then blur and screen-blend. */
+.bloom{mix-blend-mode:screen;opacity:.26;overflow:hidden}
+.bloom .shell{filter:brightness(1.25) contrast(7) blur(4px);-webkit-filter:brightness(1.25) contrast(7) blur(4px);pointer-events:none}
+#hud{position:fixed;z-index:100;right:9px;top:max(9px,env(safe-area-inset-top));pointer-events:auto}
+#tools{width:min(350px,calc(100vw - 18px));max-height:72dvh;overflow:auto;border-radius:11px;
+ border:1px solid #656565;background:rgba(12,12,12,.975);box-shadow:0 12px 36px #000d;color:#eaeaea}
+#tools:not([open]){width:auto}
+#tools summary{list-style:none;cursor:pointer;padding:10px 13px;font:700 11px system-ui;letter-spacing:.8px;background:#232323}
+#tools summary::-webkit-details-marker{display:none}
+#tools .inner{padding:12px;display:grid;gap:10px}
+.toolbar{display:flex;gap:7px}.toolbar button{flex:1;padding:9px 4px;border:1px solid #696969;background:#2b2b2b;color:#ededed;border-radius:7px;font-weight:750;font-size:11px}
+#stats{font-size:11px;color:#9c9c9c;margin:0}
+.effect{border:1px solid #404040;border-radius:8px;padding:8px;display:grid;gap:6px}
+.effect .first{display:flex;align-items:center;justify-content:space-between;gap:5px}
+.effect label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:680;cursor:pointer}
+.effect small{color:#999;font-size:10px}
+.effect input[type=range]{width:100%;accent-color:#d7d7d7}
+.effect .ord{display:flex;gap:4px}.ord button{background:#333;border:1px solid #666;border-radius:4px;color:white;padding:4px 7px;font-size:13px}
+.note{font-size:10px;color:#a8a8a8;line-height:1.55;border-top:1px solid #444;padding-top:8px}
+.note strong{color:#e8e8e8}
+@media (max-height:720px){.head{min-height:52px}.pad button{height:42px}.deck{gap:5px}.shell{gap:6px}.swatch{height:20px}}
+</style>
+</head>
+<body>
+<main id="display">
+ <section id="source">
+  <div class="shell">
+   <header class="head"><div><strong>TETRIS SYSTEM</strong><small>FIELD ATLAS · NATIVE HTML</small></div><div class="symbols"><i>◈</i><i>⚙</i></div></header>
+   <section class="stage">
+    <div class="board" aria-label="Animated test board"></div>
+    <aside class="side">
+     <div class="sidebox"><h4>HOLD</h4><div class="shape holdshape"></div></div>
+     <div class="sidebox"><h4>NEXT</h4><div class="shape nextshape"></div></div>
+     <div class="sidebox stats"><h4>BEST</h4><p><span>SCORE</span><b class="score">002,410</b></p><p><span>LEVEL</span>07</p><p><span>LINES</span>024</p></div>
+    </aside>
+   </section>
+   <section class="deck">
+    <div class="luminance">
+     <div class="swatch" style="background:#222;color:#ddd">13%</div><div class="swatch" style="background:#555;color:#ddd">33%</div><div class="swatch" style="background:#888;color:#eee">53%</div><div class="swatch" style="background:#bbb;color:#151515;text-shadow:none">73%</div><div class="swatch" style="background:#eee;color:#111;text-shadow:none">93%</div>
+    </div>
+    <div class="pad"><button type="button">◀</button><button type="button">▶</button><button type="button">⟳</button><button type="button">▼</button><button type="button">⇓</button></div>
+    <div class="actions"><button type="button">HOLD</button><button type="button">PAUSE</button><button type="button">NEW GAME</button></div>
+   </section>
+   <footer class="foot">CSS COMPOSITOR EXPERIMENT · RAW HTML SOURCE</footer>
+  </div>
+ </section>
+ <div id="layers" aria-hidden="true">
+  <div class="layer bloom" data-id="bloom" hidden></div>
+  <div class="layer backdrop" data-id="backdrop" hidden></div>
+  <div class="layer tint" data-id="tint" hidden></div>
+  <div class="layer scan" data-id="scan" hidden></div>
+  <div class="layer grain" data-id="grain" hidden></div>
+  <div class="layer vignette" data-id="vignette" hidden></div>
+ </div>
+</main>
+<aside id="hud">
+ <details id="tools">
+  <summary>CRT TEST · EFFECTS / SETTINGS</summary>
+  <div class="inner">
+   <div class="toolbar"><button id="raw" type="button">ALL OFF / RAW</button><button id="preset" type="button">CRT PRESET</button></div>
+   <p id="stats">Native browser rendering · loading</p>
+   <div id="effectControls"></div>
+   <p class="note"><strong>What this tests:</strong> Crisp native HTML and ordered browser compositor layers. PHOSPHOR uses the grayscale source's luminance via CSS colour blending. BLOOM uses an actual blurred bright-pass copy of the whole HTML scene, not per-element shadows. BACKDROP is a native browser blur probe, <strong>not bloom</strong>. These are experiments, not proof that CSS meets the final compositor requirements. Use ▲▼ to reorder.</p>
+  </div>
+ </details>
+</aside>
+<script>
+(()=>{
+ 'use strict';
+ const source=document.getElementById('source');
+ const layers=document.getElementById('layers');
+ const toolBox=document.getElementById('effectControls');
+ const stats=document.getElementById('stats');
+ const settings=[
+  {id:'bloom',name:'BLOOM / HTML BRIGHT-PASS',help:'Whole-screen cloned scene → contrast → blur → screen blend.',amount:26,max:100,on:false},
+  {id:'backdrop',name:'BACKDROP BLUR PROBE',help:'True backdrop-filter. Blurs underlying pixels; not selective bloom.',amount:55,max:100,on:false},
+  {id:'tint',name:'PHOSPHOR LUMINANCE',help:'CSS color blend keeps grayscale source luminance.',amount:100,max:100,on:false},
+  {id:'scan',name:'SCANLINES',help:'Transparent CSS scanline overlay.',amount:36,max:100,on:false},
+  {id:'grain',name:'MOVING GRAIN',help:'Pattern overlay (texture prototype).',amount:6,max:30,on:false},
+  {id:'vignette',name:'VIGNETTE',help:'Radial darkness layer.',amount:60,max:100,on:false}
+ ];
+ const board=source.querySelector('.board');
+ const gray=['#eeeeee','#bdbdbd','#888888','#585858'];
+ for(let i=0;i<200;i++){const el=document.createElement('div');el.className='cell';board.appendChild(el);}
+ for(const sel of ['.holdshape','.nextshape']){
+  const shape=source.querySelector(sel);
+  for(let i=0;i<8;i++){const e=document.createElement('span');if([1,4,5,6].includes(i))e.className='on';shape.appendChild(e);}
+ }
+ const cells=Array.from(board.children);
+ let frame=0, pendingMirror=false;
+ function updateBoard(){
+  frame++;
+  for(let i=0;i<cells.length;i++){
+   const row=Math.floor(i/10),col=i%10;
+   const fill=row>=14 || (row>=9 && (row*11+col*7)%11<3) || (row>=3&&row<=6&&col>=(frame%8)&&col<(frame%8)+2);
+   const cell=cells[i];cell.classList.toggle('on',fill);
+   cell.style.background=fill?gray[(row+col)%4]:'#171717';
+  }
+  source.querySelector('.score').textContent=String(2410+frame*10).padStart(6,'0');
+  scheduleMirror();
+ }
+ function scheduleMirror(){
+  if(pendingMirror||!settings.find(x=>x.id==='bloom').on)return;
+  pendingMirror=true;requestAnimationFrame(()=>{
+   pendingMirror=false;
+   if(!settings.find(x=>x.id==='bloom').on)return;
+   const layer=layers.querySelector('[data-id="bloom"]');
+   layer.replaceChildren(source.firstElementChild.cloneNode(true));
+  });
+ }
+ function repaint(){
+  for(const entry of settings){
+   const layer=layers.querySelector('[data-id="'+entry.id+'"]');
+   layer.hidden=!entry.on;
+   layer.style.opacity=String(entry.amount/100);
+  }
+  if(settings.find(x=>x.id==='bloom').on)scheduleMirror();
+  const enabled=settings.filter(x=>x.on).length;
+  stats.textContent='DPR '+window.devicePixelRatio+' · '+enabled+' / 6 layers active · HTML text retained';
+ }
+ function controls(){
+  toolBox.replaceChildren();
+  for(const e of settings){
+   const wrap=document.createElement('section');wrap.className='effect';
+   const first=document.createElement('div');first.className='first';
+   const label=document.createElement('label');
+   const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=e.on;
+   checkbox.addEventListener('change',()=>{e.on=checkbox.checked;repaint();});
+   label.append(checkbox,document.createTextNode(e.name));first.append(label);
+   const order=document.createElement('div');order.className='ord';
+   for(const [symbol,offset] of [['▲',-1],['▼',1]]){
+    const btn=document.createElement('button');btn.textContent=symbol;btn.type='button';
+    btn.setAttribute('aria-label','Move '+e.name+' '+(offset<0?'up':'down'));
+    btn.onclick=()=>{const at=settings.indexOf(e),to=at+offset;if(to<0||to>=settings.length)return;
+     settings.splice(at,1);settings.splice(to,0,e);
+     settings.forEach(x=>layers.appendChild(layers.querySelector('[data-id="'+x.id+'"]')));controls();repaint();};
+    order.append(btn);
+   }
+   first.append(order);wrap.append(first);
+   const tiny=document.createElement('small');tiny.textContent=e.help;wrap.append(tiny);
+   const range=document.createElement('input');range.type='range';range.min='0';range.max=String(e.max);range.value=String(e.amount);
+   range.setAttribute('aria-label',e.name+' strength');
+   range.oninput=()=>{e.amount=Number(range.value);repaint();};wrap.append(range);
+   toolBox.append(wrap);
+  }
+ }
+ document.getElementById('raw').onclick=()=>{settings.forEach(e=>e.on=false);controls();repaint();};
+ document.getElementById('preset').onclick=()=>{
+  settings.forEach(e=>e.on=(e.id!=='backdrop'));
+  controls();repaint();
+ };
+ document.querySelectorAll('.pad button,.actions button').forEach(b=>b.addEventListener('click',()=>{
+  frame+=1;updateBoard();b.animate([{transform:'scale(.95)'},{transform:'scale(1)'}],{duration:100});
+ }));
+ controls();repaint();updateBoard();setInterval(updateBoard,280);
+})();
+</script>
+</body>
+</html>
