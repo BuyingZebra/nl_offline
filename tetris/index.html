@@ -76,7 +76,7 @@ window.FieldAtlasLayoutDebug=(()=>{
  document.body.append(overlay,toggle);
  const palette=['#ff1744','#00e5ff','#76ff03','#ff9100','#d500f9',
                 '#ffff00','#00b0ff','#ff4081','#00e676','#ff6d00'];
- let enabled=true,regions=[],modal=null;
+ let enabled=false,regions=[],modal=null;
  const draw=()=>{
   overlay.hidden=!enabled;overlay.replaceChildren();
   toggle.setAttribute('aria-pressed',String(enabled));
