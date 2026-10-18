@@ -60,6 +60,7 @@
   crt.set('bottom',gradients.screenBottom.enabled?gradients.screenBottom.length:0);
   crt.set('softness',experimental.softnessEnabled?experimental.softnessAmount:0);
   crt.set('noise',experimental.noiseEnabled?experimental.noiseAmount:0);
+  crt.set('noiseRate',experimental.noiseSpeed);
   crt.apply();
  };
  initFX();
@@ -142,6 +143,7 @@
   crt.set('top',gradients.screenTop.enabled?gradients.screenTop.length:0);
   crt.set('bottom',gradients.screenBottom.enabled?gradients.screenBottom.length:0);
   crt.set('noise',experimental.noiseEnabled?experimental.noiseAmount:0);
+  crt.set('noiseRate',experimental.noiseSpeed);
   crt.set('softness',experimental.softnessEnabled?experimental.softnessAmount:0);
   crt.apply();
  };
@@ -510,7 +512,7 @@
    check(label,experimental[onKey],v=>{experimental[onKey]=v;settingSave();syncCRT();});
    slid('AMOUNT',experimental[key],0,max,v=>{experimental[key]=v;settingSave();syncCRT();},suffix,description);
    if(key==='noiseAmount')slid('SPEED',experimental.noiseSpeed,1,24,v=>{
-    experimental.noiseSpeed=v;settingSave();},' FPS');
+    experimental.noiseSpeed=v;settingSave();syncCRT();},' FPS');
    if(key==='persistenceAmount')slid('DECAY',experimental.persistenceDecay,100,1200,v=>{
     experimental.persistenceDecay=v;settingSave();},' MS');
   }
