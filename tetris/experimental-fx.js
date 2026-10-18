@@ -6,9 +6,9 @@
   'use strict';
   const KEY='fieldAtlasTetrisExperimentalV01';
   const DEFAULTS=Object.freeze({
-    noiseEnabled:false,noiseAmount:18,noiseSpeed:12,
-    persistenceEnabled:false,persistenceAmount:35,persistenceDecay:450,
-    softnessEnabled:false,softnessAmount:25
+    noiseEnabled:true,noiseAmount:8,noiseSpeed:24,
+    persistenceEnabled:true,persistenceAmount:35,persistenceDecay:765,
+    softnessEnabled:true,softnessAmount:13
   });
   const CONTROLS={
     noiseAmount:[100,'%'],noiseSpeed:[24,' FPS'],
