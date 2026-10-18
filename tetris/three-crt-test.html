@@ -219,16 +219,29 @@ try {
   texture.needsUpdate=true;
  }
  function clearAfterglow(){
-  const oldTarget=renderer.getRenderTarget();
-  const oldColor=renderer.getClearColor(new THREE.Color()).clone();
-  const oldAlpha=renderer.getClearAlpha();
-  renderer.setClearColor(0x000000,0);
-  for(const rt of [afterglow.textureOld,afterglow.textureComp]){
-   renderer.setRenderTarget(rt);
-   renderer.clear(true,true,true);
+  // Three.js r180 exposes the AfterimagePass buffers as _textureOld/_textureComp.
+  // Older builds used textureOld/textureComp. Never pass undefined to setRenderTarget.
+  const buffers=[
+   afterglow._textureOld ?? afterglow.textureOld,
+   afterglow._textureComp ?? afterglow.textureComp
+  ].filter(rt=>rt?.isWebGLRenderTarget);
+  if(buffers.length!==2){
+   console.warn('Afterimage history buffers unavailable; skip history clear.');
+   return;
   }
-  renderer.setRenderTarget(oldTarget);
-  renderer.setClearColor(oldColor,oldAlpha);
+  const previous=renderer.getRenderTarget();
+  const color=renderer.getClearColor(new THREE.Color()).clone();
+  const alpha=renderer.getClearAlpha();
+  try{
+   renderer.setClearColor(0x000000,0);
+   for(const rt of buffers){
+    renderer.setRenderTarget(rt);
+    renderer.clear(true,true,true);
+   }
+  }finally{
+   renderer.setRenderTarget(previous);
+   renderer.setClearColor(color,alpha);
+  }
  }
  function draw(now){
   pending=false;
