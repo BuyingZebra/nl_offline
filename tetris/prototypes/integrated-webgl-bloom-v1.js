@@ -117,6 +117,9 @@
   // html2canvas 1.4.1 does not support CSS color-mix() or several modern blend modes.
   // These overrides apply ONLY to the off-screen clone, never to the actual visible game.
   root.style.setProperty('--panel','#080808');root.style.setProperty('--card-bg','#080808');
+  const veil=doc.getElementById('veil');if(veil)veil.style.background='rgba(8,8,8,.82)';
+  // Normalize legacy html2canvas-incompatible color-mix() only in snapshot clone.
+  // The actual game's computed CSS and luminance design remain untouched.
   for(const id of ['webglBloom','phosphorFilm','screenScan','screenShade','screenTopFade','screenBottomFade','sweep','fxSoftness','fxNoise','buttonFxLayer']){
    const node=doc.getElementById(id);if(node)node.style.setProperty('display','none','important');
   }
