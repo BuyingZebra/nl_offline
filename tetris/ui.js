@@ -334,6 +334,12 @@
     parent.removeAttribute('aria-label');
     if(parent.textContent!==message)parent.textContent=message;
   }
+  // Cache stable HUD nodes once, rather than performing six DOM lookups
+  // every animation frame. Game state remains the sole source of truth.
+  const liveStatNodes=Object.freeze(Object.fromEntries(
+    ['scoreValue','linesValue','levelValue','bestScore','pieceCount','eventText']
+      .map(id=>[id,$(id)])
+  ));
   // Live counters have their own update path. A blocked/offscreen canvas
   // redraw must never prevent scoring, levels, or lines from reaching the HUD.
   function syncLiveStats(){
@@ -346,7 +352,7 @@
       eventText:game.lastEvent+' / '+game.dropMs+' MS'
     };
     for(const [id,value] of Object.entries(values)){
-      const node=$(id);
+      const node=liveStatNodes[id];
       if(node.textContent===value)continue;
       node.textContent=value;
       // Make a real update unmistakable when six-digit zero-padding makes
