@@ -55,8 +55,9 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #veil h2{font-size:clamp(14px,4.2vw,21px);margin:0;letter-spacing:.13em;
  color:var(--bright);text-shadow:0 0 15px rgba(var(--phosphor),.36)}
 #veil p{margin:0;font-size:10px;line-height:1.55;color:var(--weak)}
-#veilText{min-height:4.7em}
+#veilText{min-height:3.2em}
 #readyCursor{display:inline-block;width:.65em;height:.95em;
+ margin-inline:.55em;
  background:var(--weak);vertical-align:-.12em;
  animation:ready-cursor-blink .85s steps(1,end) infinite}
 @keyframes ready-cursor-blink{50%{opacity:0}}
@@ -428,7 +429,7 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
    <canvas id="board" width="300" height="600" aria-label="Tetris game board, 10 columns by 20 rows"></canvas>
    <div id="veil">
     <h2 id="veilTitle">TETRIS</h2>
-    <p id="veilText"><span id="readyText"></span><span id="readyCursor" aria-hidden="true"></span></p>
+    <p id="veilText"><span id="readyText">SURVIVE THE SOVIET CHALLENGE</span><span id="readyCursor" aria-hidden="true"></span></p>
     <button id="playButton">▶ START GAME</button>
     <button id="newGameButton" hidden>NEW GAME</button>
     <button id="pausedScoresButton" hidden>HIGH SCORE</button>
