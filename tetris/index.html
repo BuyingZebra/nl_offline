@@ -42,15 +42,6 @@ a{color:var(--weak)}
   #app{height:100lvh;min-height:100dvh}
  }
 }
-/* The playfield is always 10 columns by 20 rows. Size it against both
- * stage axes, instead of shrinking its width after fixing its height. */
-@supports(width:1cqh){
- @media(orientation:portrait){
-  #stage{container-type:size}
-  #boardShell{width:min(calc(100cqw - 103px),50cqh,305px);
-   height:auto;max-width:none;max-height:none}
- }
-}
 .panel{border:1px solid var(--border);background:var(--card-bg);
  border-radius:12px;box-shadow:0 0 var(--glow) rgba(var(--phosphor),.13)}
 header{flex:none;display:flex;align-items:center;gap:12px;padding:12px 13px;min-height:65px}
@@ -430,6 +421,15 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  #fxNoise{display:none!important}
 }
 
+/* The playfield is always 10 columns by 20 rows. Size it against both
+ * stage axes, instead of shrinking its width after fixing its height. */
+@supports(width:1cqh){
+ @media(orientation:portrait){
+  #stage{container-type:size}
+  #boardShell{width:min(calc(100cqw - 103px),50cqh,305px);
+   height:auto;max-width:none;max-height:none}
+ }
+}
 </style>
 </head>
 <body>
