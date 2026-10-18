@@ -78,13 +78,12 @@
     }
   },true);
 
-  // Central defaults: preserve the original first-install and RESET values.
-  // Existing localStorage preferences always take priority; changing these
-  // constants must never overwrite a user's saved appearance.
+  // First-install and RESET defaults (the approved Tetris CRT preset).
+  // Previously saved user settings always take priority at startup.
   const DISPLAY_DEFAULTS=Object.freeze({
-    glow:65,scan:26,vignette:30,sweep:65,showGhost:true,soundOn:false,
-    screenTop:Object.freeze({enabled:true,length:165}),
-    screenBottom:Object.freeze({enabled:false,length:110})
+    glow:83,scan:51,vignette:49,sweep:57,showGhost:true,soundOn:true,
+    screenTop:Object.freeze({enabled:true,length:135}),
+    screenBottom:Object.freeze({enabled:true,length:135})
   });
   let lastFrame=performance.now(),dirty=true;
   let highScore=0,showGhost=DISPLAY_DEFAULTS.showGhost,
@@ -387,7 +386,7 @@
     }else if(game.status==='over'){
       $('veilTitle').textContent='GAME OVER';
       showOtherMessage('SCORE '+game.score.toLocaleString('en-CA')+' / '+game.lines+' LINES');
-      $('playButton').textContent='↻ PLAY AGAIN';
+      $('playButton').textContent='▶ PLAY AGAIN';
     }
   }
 
@@ -547,8 +546,9 @@
   }
   $('resetEffects').addEventListener('click',()=>{
     ({glow,scan,vignette,sweep}=DISPLAY_DEFAULTS);
+    for(const key of fadeKeys)gradients[key]={...DISPLAY_DEFAULTS[key]};
     store('fieldAtlasTetrisSweepV01',sweep);
-    saveEffects();refreshPalette();
+    saveEffects();saveGradients();refreshPalette();
   });
   $('ghostControl').addEventListener('change',e=>{
     showGhost=e.target.checked;store('fieldAtlasTetrisGhost',showGhost?'yes':'no');dirty=true;
