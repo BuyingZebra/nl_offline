@@ -468,7 +468,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(sw,/crt-curve\.js/);
  assert.match(sw,/const CACHE='field-atlas-arcade-v024'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
- assert.match(html,/#app\{background:var\(--bg\)\}/);
+ assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?height:100dvh;min-height:0;background:var\(--bg\)/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
  assert.match(html,/#veil\{background:color-mix\(in srgb,var\(--card-bg\) 82%,transparent\)\}/);
 });
@@ -480,7 +480,7 @@ test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',
  for(const gray of ['#303030','#e3e3e3','#cecece','#aeaeae','#6a6a6a','#060606','#292929'])
   assert.ok(html.includes(gray),'Missing grayscale luminance step '+gray);
  assert.doesNotMatch(html,/:root\[data-theme="amber"\]\{\s*--bg:/);
- assert.match(html,/#app\{background:var\(--bg\)\}/);
+ assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?height:100dvh;min-height:0;background:var\(--bg\)/);
  assert.match(html,/#phosphorFilm\{position:absolute;inset:0;z-index:34;pointer-events:none;\s*background:rgb\(var\(--phosphor-rgb\)\);mix-blend-mode:color;opacity:1\}/);
  assert.match(html,/:root\[data-theme="amber"\]\{--phosphor-rgb:255,196,100\}/);
  assert.match(html,/#screenShade\{opacity:var\(--vignette-intensity\);\s*background:radial-gradient\(/);
@@ -494,7 +494,7 @@ test('grayscale luminance, hue-only phosphor film, and darkening-only vignette',
 test('flat app, darker visible panels, matching ordinary buttons and bright Start/Resume',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
  assert.match(html,/#app :is\(\.panel,\.side-panel,#options,#leaderboard,#scoreEntry,#restartConfirm\)\{\s*background:var\(--card-bg\)/);
- assert.match(html,/#boardShell\{background:var\(--card-bg\)\}/);
+ assert.match(html,/#boardShell\{height:100%;max-height:610px;[\s\S]*?border-radius:7px;background:var\(--card-bg\)/);
  assert.match(html,/#app \.score-row\{background:var\(--app-face\)\}/);
  assert.match(html,/#app button:not\(:is\(#playButton,\[data-action="left"\],\[data-action="hard"\],\[data-action="right"\]\)\)\{\s*background:var\(--app-face\);/);
  assert.match(html,/#app #playButton\{\s*background:var\(--bright\);color:var\(--shadow\);border-color:var\(--bright\)/);
