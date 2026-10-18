@@ -95,11 +95,6 @@ header h1{margin:5px 0 0;font-size:clamp(17px,5vw,21px);white-space:nowrap;lette
 #eventline{flex:none;min-height:13px;display:flex;justify-content:space-between;
  color:var(--weak);font-size:9px;letter-spacing:.07em;gap:6px}
 #eventline span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#screenScan{position:absolute;inset:0;pointer-events:none;z-index:8;
- background:repeating-linear-gradient(to bottom,
- rgba(var(--phosphor),.16) 0,rgba(var(--phosphor),.16) 1px,
- transparent 1px,transparent 3px,rgba(0,0,0,.58) 3px,rgba(0,0,0,.58) 4px);
- opacity:var(--scan)}
 #screenShade{position:absolute;inset:0;pointer-events:none;z-index:7}
 #sweep{position:absolute;left:0;top:-70px;width:100%;height:70px;z-index:9;pointer-events:none;
  background:linear-gradient(to bottom,transparent,rgba(var(--phosphor),.09));
@@ -165,7 +160,6 @@ button .phosphor-hit-layer{
  text-shadow:0 0 var(--glow-radius) color-mix(in srgb,currentColor var(--glow-strength),transparent)}
 #app :is(.panel,button,#boardShell,.side-panel){
  box-shadow:0 0 var(--glow-radius) color-mix(in srgb,var(--border) var(--glow-strength),transparent)}
-#screenScan{opacity:var(--scan-intensity)}
 #screenShade{opacity:var(--vignette-intensity);
  background:radial-gradient(ellipse 72% 65% at 50% 50%,transparent 18%,
  rgba(0,0,0,.14) 38%,rgba(0,0,0,.88) 72%,rgba(0,0,0,1) 100%)}
@@ -254,11 +248,6 @@ dialog :is(button,output,label,h2,.setting-copy,.effect-note,.score-row){
 #app dialog::backdrop{display:none}
 #screenTopFade,#screenBottomFade{z-index:31}
 #screenShade{z-index:32}
-#screenScan{z-index:33;
- background:repeating-linear-gradient(to bottom,
- rgba(0,0,0,.03) 0,rgba(0,0,0,.03) 1px,
- transparent 1px,transparent 3px,
- rgba(0,0,0,.65) 3px,rgba(0,0,0,.65) 4px)}
 /* The sole hue source: COLOR blending preserves gray scene luminosity.
    Both game and menus receive the same phosphor film. */
 #phosphorFilm{position:absolute;inset:0;z-index:34;pointer-events:none;
@@ -354,14 +343,14 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
  width:21px;height:21px;border:1px solid var(--bright);border-radius:0;
  background:var(--bright);box-shadow:0 0 var(--glow-radius)
  color-mix(in srgb,var(--bright) var(--glow-strength),transparent)}
-/* Reuse exact OSM/Pip-Boy v0.33 map grid: one screen-aligned 4px overlay,
- * composited ABOVE settings, menus, game controls and the playfield. */
+/* CRT scanlines are gaps between illuminated phosphor rows, not light sources.
+ * A single screen-space mask ONLY dims every fourth row, regardless of
+ * which element is underneath. The phosphor film supplies the hue separately.
+ * Leave scanline strength under the existing display-control slider. */
 #screenScan{position:absolute;inset:0;z-index:43;pointer-events:none;
  opacity:var(--scan-intensity);
  background:repeating-linear-gradient(to bottom,
- rgba(255,255,255,.15) 0px,
-  rgba(255,255,255,.15) 1px,
- transparent 1px,transparent 3px,
+ transparent 0px,transparent 3px,
  rgba(0,0,0,.59) 3px,rgba(0,0,0,.59) 4px)}
 #screenTopFade,#screenBottomFade{z-index:41;pointer-events:none}
 #screenShade{z-index:42;pointer-events:none}
