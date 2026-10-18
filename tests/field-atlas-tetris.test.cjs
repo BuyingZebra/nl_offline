@@ -170,7 +170,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v017'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v018'"));
  assert.match(sw,/event\.respondWith\(fetch\(request\)/);
  assert.match(sw,/caches\.match\(request,\{ignoreSearch:true\}\)/);
 });
@@ -269,7 +269,7 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
  assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v017'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v018'/);
 });
 
 
@@ -460,7 +460,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v017'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v018'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{background:var\(--bg\)\}/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
@@ -503,4 +503,102 @@ test('pause actions omit icons and use High Score label',()=>{
  assert.ok(html.includes('<button id="pausedScoresButton" hidden>HIGH SCORE</button>'));
  assert.doesNotMatch(html,/>★ TOP 5 SCORES|>↻ NEW GAME/);
  assert.match(ui,/refreshPalette\(\);\s*\/\/ Canvas is a separate paint surface\.[\s\S]*?paintBoard\(\);\s*updateHUD\(\);/);
+});
+
+
+test('experimental effects use isolated grayscale compositor layers and offline module',()=>{
+ const dir=path.join(__dirname,'../tetris');
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
+ const fx=fs.readFileSync(path.join(dir,'experimental-fx.js'),'utf8');
+ const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
+ const {Script}=require('node:vm');
+ assert.doesNotThrow(()=>new Script(fx));
+ assert.ok(sw.includes("'./experimental-fx.js'"));
+ assert.ok(html.includes('<script src="./experimental-fx.js"></script>'));
+ assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js">'));
+ for(const id of ['fxSoftness','fxNoise','fxInterference','fxGlitch','experimentalFxSection','resetExperimental',
+   'fxNoiseEnabled','fxNoiseAmount','fxNoiseSpeed',
+   'fxPersistenceEnabled','fxPersistenceAmount','fxPersistenceDecay',
+   'fxSoftnessEnabled','fxSoftnessAmount',
+   'fxInterferenceEnabled','fxInterferenceAmount','fxInterferenceRate',
+   'fxGlitchEnabled','fxGlitchAmount','fxGlitchRate']){
+  assert.ok(html.includes('id="'+id+'"'),'Missing experimental compositor control '+id);
+ }
+ assert.match(html,/#fxSoftness\{inset:0;z-index:27;background:transparent\}/);
+ assert.match(html,/#fxNoise\{inset:0;z-index:28;/);
+ assert.match(html,/#fxInterference\{z-index:29;/);
+ assert.match(html,/#fxGlitch\{z-index:30;/);
+ assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
+ assert.ok(fx.includes("fieldAtlasTetrisExperimentalV01"));
+ assert.ok(fx.includes("noiseEnabled:false"));
+ assert.ok(fx.includes("glitchEnabled:false"));
+ assert.ok(fx.includes("persistenceEnabled:false"));
+ assert.match(ui,/experimental\?\.onButton\(button,bounds,appBounds\)/);
+ assert.doesNotMatch(fx,/\.style\.filter\s*=|\.style\.backgroundColor\s*=\s*['"](?:green|amber)/);
+});
+
+test('experimental controller toggles, saves, renders interaction ghosts and resets cleanly',()=>{
+ const {runInNewContext}=require('node:vm');
+ const script=fs.readFileSync(path.join(__dirname,'../tetris/experimental-fx.js'),'utf8');
+ const elements=new Map(),saved=new Map();
+ let frameCount=0;
+ function element(id){
+   if(elements.has(id))return elements.get(id);
+   const listeners={},children=[];
+   const item={id,value:'',checked:false,clientWidth:390,clientHeight:844,
+    style:{setProperty(k,v){this[k]=v}},textContent:'',
+    addEventListener(type,handler){(listeners[type]??=[]).push(handler);},
+    fire(type){for(const cb of listeners[type]||[])cb();},
+    getContext(){return {
+      createImageData(w,h){return {data:new Uint8ClampedArray(w*h*4)}},
+      putImageData(){}
+    };},
+    querySelectorAll(cls){return children.filter(x=>cls==='.fx-persistence-ghost'&&x.className==='fx-persistence-ghost')},
+    appendChild(node){children.push(node);node.remove=()=>{const i=children.indexOf(node);if(i>=0)children.splice(i,1)}}
+   };
+   elements.set(id,item);return item;
+ }
+ const doc={hidden:false,getElementById:element,createElement:()=>element('ghost'+Math.random()),
+  addEventListener(){}};
+ const win={localStorage:{
+  getItem:k=>saved.has(k)?saved.get(k):null,
+  setItem:(k,v)=>saved.set(k,v)},
+  matchMedia:()=>({matches:false,addEventListener(){}}),
+  requestAnimationFrame:()=>++frameCount,cancelAnimationFrame(){},
+  setTimeout:()=>100,clearTimeout(){},addEventListener(){},
+  getComputedStyle:()=>({
+    borderRadius:'8px',backgroundColor:'rgb(21,21,21)',color:'rgb(227,227,227)',
+    borderTopColor:'rgb(106,106,106)',fontSize:'12px',fontWeight:'700',
+    fontFamily:'monospace',letterSpacing:'1px'})
+ };
+ runInNewContext(script,{window:win});
+ const fx=win.FieldAtlasExperimentalFX.create(doc);
+ assert.equal(fx.getValues().noiseEnabled,false);
+ assert.equal(element('fxNoise').style.display,'none');
+ assert.equal(element('fxSoftness').style.display,'none');
+ element('fxNoiseEnabled').checked=true;element('fxNoiseEnabled').fire('change');
+ assert.equal(element('fxNoise').style.display,'block');
+ assert.ok(frameCount>0);
+ element('fxSoftnessEnabled').checked=true;element('fxSoftnessEnabled').fire('change');
+ assert.equal(element('fxSoftness').style.display,'block');
+ element('fxSoftnessAmount').value='50';element('fxSoftnessAmount').fire('input');
+ assert.equal(element('fxSoftness').style.backdropFilter,'blur(0.80px)');
+ element('fxPersistenceEnabled').checked=true;element('fxPersistenceEnabled').fire('change');
+ fx.onButton({textContent:'PAUSE'}, {left:11,top:30,width:80,height:44},
+  {left:1,top:5});
+ const ghosts=element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost');
+ assert.equal(ghosts.length,1);
+ assert.equal(ghosts[0].style.left,'10px');
+ assert.equal(ghosts[0].style.top,'25px');
+ assert.equal(ghosts[0].textContent,'PAUSE');
+ assert.ok(saved.has('fieldAtlasTetrisExperimentalV01'));
+ element('resetExperimental').fire('click');
+ assert.equal(fx.getValues().noiseEnabled,false);
+ assert.equal(fx.getValues().persistenceEnabled,false);
+ assert.equal(element('fxSoftness').style.display,'none');
+ assert.equal(element('fxNoise').style.display,'none');
+ assert.equal(element('buttonFxLayer').querySelectorAll('.fx-persistence-ghost').length,0);
+ assert.equal(element('fxNoiseEnabled').checked,false);
+ assert.equal(element('fxNoiseAmountValue').textContent,'18%');
 });
