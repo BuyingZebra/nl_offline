@@ -1,7 +1,7 @@
 name: FIELD ATLAS Arcade / Tetris Tests
 on:
   push:
-    branches: [main]
+    branches: [main, 'experiment/screen-space-phosphor-glow']
     paths:
       - 'tetris/**'
       - 'tests/field-atlas-tetris.test.cjs'
