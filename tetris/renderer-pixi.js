@@ -138,9 +138,21 @@
    container.addChild(g);return;
   }
   if(el.type==='text'){
-   // The transparent real input retains keyboard, IME and accessibility.
-   const text=document.createTextNode(el.value||el.placeholder||'');
-   makeText(container,text,style,1);
+   // Keep the real input as the focusable keyboard/IME target; render its value
+   // into the same GPU luminance scene rather than leaving it invisible.
+   const label=new Pixi.Text({text:el.value||el.placeholder||'',
+    style:{fontFamily:style.fontFamily,fontSize:parseFloat(style.fontSize)||19,
+      fontWeight:style.fontWeight||'700',
+      letterSpacing:parseFloat(style.letterSpacing)||0,fill:rgba(style.color).color}});
+   const pad=parseFloat(style.paddingLeft)||12;
+   label.position.set(x+pad,y+(rect.height-label.height)/2);
+   if(!el.value)label.alpha=.55;
+   container.addChild(label);
+   if(document.activeElement===el){
+    const caretX=Math.min(x+rect.width-12,x+pad+label.width+2);
+    g.rect(caretX,y+10,2,Math.max(12,rect.height-20)).fill({color:rgba(style.color).color});
+    container.addChild(g);
+   }
   }
  };
  function renderNode(node,container,parentOpacity=1){
@@ -230,6 +242,9 @@
    });
    addEventListener('resize',markDirty,{passive:true});
    appElement.addEventListener('scroll',markDirty,true);
+   for(const event of ['pointerdown','pointerup','pointercancel','input','change','focusin','focusout']){
+    appElement.addEventListener(event,markDirty,true);
+   }
    const loop=(now)=>{
     if(!pixi)return;
     if(enabled){
