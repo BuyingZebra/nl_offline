@@ -727,6 +727,47 @@ with sync_playwright() as p:
             )
         finally:
             short_context.close()
+        # Real pixel regression: contrast-filtered screen-space bloom must
+        # brighten the area next to a luminous button without boosting a
+        # distant near-black region or the shadow of an individual element.
+        from io import BytesIO
+        from PIL import Image
+        bloom_context=browser.new_context(
+            viewport={"width":390,"height":844},
+            device_scale_factor=1,is_mobile=True,has_touch=True,
+            reduced_motion="reduce",
+        )
+        try:
+            bloom_page=bloom_context.new_page()
+            bloom_page.goto(URL+"?qa=screen-bloom",wait_until="networkidle",timeout=30000)
+            assert "crtScreenBloom" in bloom_page.locator("#app").evaluate(
+                "el=>getComputedStyle(el).filter"
+            )
+            assert bloom_page.locator("#crtBloomAmount").get_attribute("slope")=="0.830"
+            bloom_page.evaluate("""() => {
+              document.querySelector('#sweep').style.display='none';
+              document.querySelector('#fxNoise').style.display='none';
+              document.querySelector('#screenScan').style.display='none';
+              document.querySelector('#crtBloomAmount').setAttribute('slope','0');
+            }""")
+            rect=bloom_page.locator("#playButton").bounding_box()
+            assert rect and rect["height"]>40
+            base=Image.open(BytesIO(bloom_page.screenshot())).convert("RGB")
+            bloom_page.locator("#crtBloomAmount").evaluate(
+                "el => el.setAttribute('slope','0.83')"
+            )
+            glow=Image.open(BytesIO(bloom_page.screenshot())).convert("RGB")
+            near=(round(rect["x"]+rect["width"]/2),round(rect["y"]-6))
+            distant=(8,round(rect["y"]-55))
+            def light(image,point):
+                return sum(image.getpixel(point))/3
+            near_change=light(glow,near)-light(base,near)
+            dark_change=light(glow,distant)-light(base,distant)
+            assert near_change>3,(near,near_change,distant,dark_change)
+            assert abs(dark_change)<5,(near,near_change,distant,dark_change)
+            bloom_page.screenshot(path=str(EVIDENCE/"tetris-screen-bloom.png"))
+        finally:
+            bloom_context.close()
         assert not exceptions, exceptions
         print("PASS: solid directional keys, text-only Drop, always-visible Pause, friendly instructions and protected Resume")
     finally:
