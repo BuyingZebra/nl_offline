@@ -30,7 +30,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </div>
 <label class="slider">Bloom cutoff<input id="threshold" type="range" min="0" max="1" step=".01" value=".55"><output id="thresholdOut">0.55</output></label>
 <label class="slider">Bloom strength<input id="strength" type="range" min="0" max="3" step=".05" value="1.50"><output id="strengthOut">1.50</output></label>
-<p class="note">Both effects begin <strong>OFF</strong>. The controls are drawn as one grayscale Canvas2D source at native pixel density, then composited by Three.js. UnrealBloomPass extracts high-luminance pixels for real GPU bloom; a separate shader applies green phosphor. No SVG, CSS shadows, or duplicated HTML.</p>
+<p class="note"><strong>DRAG THE DARK SHIELD</strong> over the glowing controls. Its grayscale face matches the background, and it blocks the final glow like a foreground object. Both effects begin <strong>OFF</strong>. The controls are drawn as one grayscale Canvas2D source at native pixel density, then composited by Three.js. UnrealBloomPass extracts high-luminance pixels for real GPU bloom; a separate shader applies green phosphor. No SVG, CSS shadows, or duplicated HTML.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -80,8 +80,53 @@ try {
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
  composer.addPass(tint);
+ // Foreground occlusion happens AFTER bloom and phosphor: the dark shield
+ // blocks the original light AND the halo, like a solid object in front.
+ const shieldPass=new ShaderPass({
+  uniforms:{
+   tDiffuse:{value:null},
+   uRect:{value:new THREE.Vector4(0,0,140,75)},
+   uSize:{value:new THREE.Vector2(1,1)},
+   uBackground:{value:0.00273}
+  },
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:`
+   varying vec2 vUv;
+   uniform sampler2D tDiffuse;
+   uniform vec4 uRect;
+   uniform vec2 uSize;
+   uniform float uBackground;
+   float roundedRect(vec2 p,vec2 halfSize,float radius){
+    vec2 q=abs(p)-(halfSize-vec2(radius));
+    return length(max(q,0.0))+min(max(q.x,q.y),0.0)-radius;
+   }
+   void main(){
+    vec3 image=texture2D(tDiffuse,vUv).rgb;
+    vec2 pixel=vec2(vUv.x*uSize.x,(1.0-vUv.y)*uSize.y);
+    vec2 center=uRect.xy+uRect.zw*.5;
+    float d=roundedRect(pixel-center,uRect.zw*.5,12.0);
+    float inside=1.0-smoothstep(-0.8,0.8,d);
+    // Dark edge is only an unobtrusive dragging affordance; it does not glow.
+    float edge=(1.0-smoothstep(0.0,1.2,abs(d)))*0.022;
+    vec3 shieldColor=vec3(uBackground)+vec3(edge);
+    gl_FragColor=vec4(mix(image,shieldColor,inside),1.0);
+   }`
+ });
+ composer.addPass(shieldPass);
  composer.addPass(new OutputPass());
- let pending=false,hitBoxes=[];
+ let pending=false,hitBoxes=[],drag=null;
+ const shield={x:0,y:0,w:132,h:74};
+ const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+ const redrawShield=()=>{
+  shieldPass.uniforms.uRect.value.set(shield.x,shield.y,shield.w,shield.h);
+  shieldPass.uniforms.uSize.value.set(W,H);
+  schedule();
+ };
+ const pointerPosition=event=>{
+  const r=screen.getBoundingClientRect();
+  return {x:(event.clientX-r.left)*W/r.width,y:(event.clientY-r.top)*H/r.height};
+ };
+ const insideShield=({x,y})=>x>=shield.x&&x<=shield.x+shield.w&&y>=shield.y&&y<=shield.y+shield.h;
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
  const fill=(x,y,w,h,r,v)=>{
   ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=c(v);ctx.fill();
@@ -142,7 +187,20 @@ try {
   const rect=frame.getBoundingClientRect();
   const w=Math.max(1,Math.round(rect.width-2)),h=Math.max(1,Math.round(rect.height-2)),d=window.devicePixelRatio||1;
   if(W===w&&H===h&&DPR===d)return;
+  const wasSized=W>0&&H>0;
+  const oldW=W,oldH=H;
   W=w;H=h;DPR=d;
+  shield.w=Math.min(132,Math.max(80,W*.4));
+  shield.h=Math.min(74,Math.max(55,H*.2));
+  if(wasSized){
+   shield.x=clamp(shield.x+(W-oldW)*.5,0,W-shield.w);
+   shield.y=clamp(shield.y+(H-oldH)*.5,0,H-shield.h);
+  }else{
+   shield.x=(W-shield.w)*.5;
+   shield.y=Math.min(H-shield.h-8,147);
+  }
+  shieldPass.uniforms.uRect.value.set(shield.x,shield.y,shield.w,shield.h);
+  shieldPass.uniforms.uSize.value.set(W,H);
   renderer.setPixelRatio(d);renderer.setSize(w,h,false);
   composer.setPixelRatio(d);composer.setSize(w,h);
   paintSource();schedule();
@@ -154,10 +212,31 @@ try {
   schedule();
  });
  screen.addEventListener('pointerdown',event=>{
-  const r=screen.getBoundingClientRect(),x=event.clientX-r.left,y=event.clientY-r.top;
-  const hit=hitBoxes.find(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+  const p=pointerPosition(event);
+  if(insideShield(p)){
+   drag={id:event.pointerId,dx:p.x-shield.x,dy:p.y-shield.y};
+   screen.setPointerCapture(event.pointerId);
+   event.preventDefault();
+   return;
+  }
+  const hit=hitBoxes.find(b=>p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h);
   if(hit){selected=hit.id;paintSource();schedule();}
  });
+ screen.addEventListener('pointermove',event=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  const p=pointerPosition(event);
+  shield.x=clamp(p.x-drag.dx,0,W-shield.w);
+  shield.y=clamp(p.y-drag.dy,0,H-shield.h);
+  redrawShield();
+  event.preventDefault();
+ });
+ const stopDrag=event=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  drag=null;
+  if(screen.hasPointerCapture(event.pointerId))screen.releasePointerCapture(event.pointerId);
+ };
+ screen.addEventListener('pointerup',stopDrag);
+ screen.addEventListener('pointercancel',stopDrag);
  new ResizeObserver(resize).observe(frame);
  resize();loading.hidden=true;
 }catch(error){
