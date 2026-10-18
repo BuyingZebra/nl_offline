@@ -560,6 +560,49 @@ with sync_playwright() as p:
         assert page.locator("#pauseButton").inner_text() == "PAUSE"
         assert page.locator("#veil").get_attribute("class") == "hidden"
 
+        # Preserve a user's current custom CRT settings across a maintenance
+        # upgrade. These are intentionally not our first-install defaults.
+        page.evaluate("""() => {
+          localStorage.setItem('fieldAtlasThemeV06','green');
+          localStorage.setItem('fieldAtlasEffectsV06',
+            JSON.stringify({glow:83,scanlines:51,vignette:49}));
+          localStorage.setItem('fieldAtlasTetrisSweepV01','57');
+          localStorage.setItem('fieldAtlasTetrisGradientsV01',
+            JSON.stringify({screenTop:{enabled:true,length:135},
+              screenBottom:{enabled:true,length:135}}));
+          localStorage.setItem('fieldAtlasTetrisExperimentalV01',
+            JSON.stringify({noiseEnabled:true,noiseAmount:8,noiseSpeed:24,
+              persistenceEnabled:true,persistenceAmount:35,persistenceDecay:765,
+              softnessEnabled:true,softnessAmount:13}));
+        }""")
+        page.reload(wait_until="networkidle",timeout=30000)
+        page.get_by_role("button", name="Display options").tap()
+        preference_check=page.evaluate("""() => {
+          const value=id=>document.getElementById(id).value;
+          const on=id=>document.getElementById(id).checked;
+          return {theme:document.documentElement.dataset.theme,
+            glow:value('glowControl'),scan:value('scanControl'),
+            vignette:value('vignetteControl'),sweep:value('sweepControl'),
+            top:value('fade-screenTop'),bottom:value('fade-screenBottom'),
+            topEnabled:on('fade-screenTop-on'),bottomEnabled:on('fade-screenBottom-on'),
+            noise:on('fxNoiseEnabled'),noiseAmount:value('fxNoiseAmount'),
+            noiseSpeed:value('fxNoiseSpeed'),
+            persistence:on('fxPersistenceEnabled'),
+            persistenceAmount:value('fxPersistenceAmount'),
+            persistenceDecay:value('fxPersistenceDecay'),
+            softness:on('fxSoftnessEnabled'),softnessAmount:value('fxSoftnessAmount')};
+        }""")
+        assert preference_check=={
+            "theme":"green","glow":"83","scan":"51",
+            "vignette":"49","sweep":"57","top":"135","bottom":"135",
+            "topEnabled":True,"bottomEnabled":True,
+            "noise":True,"noiseAmount":"8","noiseSpeed":"24",
+            "persistence":True,"persistenceAmount":"35",
+            "persistenceDecay":"765","softness":True,"softnessAmount":"13"
+        },preference_check
+        page.screenshot(path=str(EVIDENCE/"tetris-settings-preserved-v024.png"))
+        page.locator("#closeOptions").tap()
+
         # Guard against the exact legacy WebKit/PWA chin combination:
         # black-translucent standalone status bar plus 100%-height root.
         # Physical screen.height is intentionally *not* used for layout:
