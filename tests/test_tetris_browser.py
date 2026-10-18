@@ -579,7 +579,7 @@ with sync_playwright() as p:
               return {viewport:innerHeight,screen:screen.height,
                 app:app.height,scan:scan.height,footer:footer.bottom,
                 deck:deck.bottom,
-                heightVariable:app.style.getPropertyValue('--arcade-shell-height')};
+                heightVariable:document.querySelector('#app').style.getPropertyValue('--arcade-shell-height')};
             }""")
             assert shell["screen"]>shell["viewport"]+40,shell
             assert abs(shell["app"]-shell["screen"])<2,shell
