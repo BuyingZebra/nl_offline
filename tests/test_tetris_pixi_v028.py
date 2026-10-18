@@ -2,6 +2,8 @@
 """Single-renderer Tetris migration smoke — browser UI, gameplay, shader and storage."""
 import os
 from pathlib import Path
+from PIL import Image
+import io,base64
 from playwright.sync_api import sync_playwright
 
 browser_name=os.environ.get('FIELD_ATLAS_BROWSER','chromium')
@@ -39,6 +41,12 @@ with sync_playwright() as p:
     page.evaluate("window.FieldAtlasTetris.openModal('options')")
     assert state()['mode']=='options'
     page.screenshot(path=str(output/(browser_name+'-options.png')))
+    if browser_name=='webkit':
+        for label in ['ready','options']:
+            img=Image.open(output/(browser_name+'-'+label+'.png')).convert('RGB')
+            img.thumbnail((390,844))
+            data=io.BytesIO();img.save(data,format='JPEG',quality=73)
+            print('SCREENSHOT:'+label+':'+base64.b64encode(data.getvalue()).decode())
     page.evaluate("window.FieldAtlasTetris.closeModal()")
     page.evaluate("window.FieldAtlasTetris.openModal('scores')")
     assert state()['mode']=='scores'
