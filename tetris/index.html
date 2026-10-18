@@ -30,19 +30,9 @@ button:disabled{opacity:.35;cursor:default}
 button:focus-visible,input:focus-visible{outline:2px solid var(--bright);outline-offset:2px}
 a{color:var(--weak)}
 #app{position:relative;display:flex;flex-direction:column;gap:9px;
- margin:auto;padding:calc(env(safe-area-inset-top,0px) + 9px) 11px
- calc(env(safe-area-inset-bottom,0px) + 16px);
- max-width:520px;height:100%;min-height:100dvh;background:var(--bg);
+ margin:auto;padding:0 11px;
+ max-width:520px;height:100dvh;min-height:0;background:var(--bg);
  overflow:hidden;box-shadow:0 0 100px #000;isolation:isolate}
-/* Height is anchored to the document viewport first. On iPhone the
- * large/dynamic viewport units can omit part of the rendered safe-area.
- * 100% of html/body wins if that is larger, so the shared compositor
- * reaches the bottom without extra overlays or a transformed UI. */
-@supports(height:100lvh){
- @media(orientation:portrait){
-  #app{height:max(100%,100vh,100lvh,100dvh)}
- }
-}
 .panel{border:1px solid var(--border);background:var(--card-bg);
  border-radius:12px;box-shadow:0 0 var(--glow) rgba(var(--phosphor),.13)}
 header{flex:none;display:flex;align-items:center;gap:12px;padding:12px 13px;min-height:65px}
@@ -435,6 +425,18 @@ html,body,#app,#app *,button,input,select,textarea,dialog,dialog *{
   #boardShell{width:min(calc(100cqw - 103px),50cqh,305px);
    height:auto;max-width:none;max-height:none}
  }
+}
+
+/* Same bottom anchoring as FIELD ATLAS map's #footer:
+ * app = 100dvh; status is bottom + safe-area; controls rest just above.
+ * Unlike the map, this screen has a flexing center game stage.
+ * Keeping the footer out of flex flow removes bottom-padding dead space. */
+@media(orientation:portrait){
+ #app{height:100dvh;min-height:0;padding:0 11px}
+ #app > header{margin-top:calc(env(safe-area-inset-top,0px) + 9px)}
+ #controlDeck{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 30px)}
+ #eventline{position:absolute;left:11px;right:11px;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}
 }
 </style>
 </head>
