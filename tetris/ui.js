@@ -335,7 +335,15 @@
     };
     for(const [id,value] of Object.entries(values)){
       const node=$(id);
-      if(node.textContent!==value)node.textContent=value;
+      if(node.textContent===value)continue;
+      node.textContent=value;
+      // Make a real update unmistakable when six-digit zero-padding makes
+      // the numerical difference visually subtle under CRT scanlines.
+      if((id==='scoreValue'||id==='levelValue'||id==='linesValue')&&game.status==='playing'){
+        node.classList.remove('hud-changed');
+        void node.offsetWidth;
+        node.classList.add('hud-changed');
+      }
     }
   }
   function updateHUD(){
