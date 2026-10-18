@@ -393,4 +393,340 @@ function paintGame(){
  if(modal)paintModal();
  texture.needsUpdate=true;dirty=false;
 }
-function paintModal(){/* Extended controls & score modals are installed below. */}
+
+const MENU=[
+ ['heading','GAMEPLAY'],
+ ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound'],
+ ['heading','CRT EMISSION'],
+ ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
+ ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
+ ['range','BLOOM STRENGTH','bloomStrength',0,3,.05,''],
+ ['heading','SIGNAL GHOSTING'],
+ ['switch','GHOSTING','ghost'],
+ ['range','GHOST X','ghostX',-32,32,1,' px'],
+ ['range','GHOST Y','ghostY',-32,32,1,' px'],
+ ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%'],
+ ['heading','SIGNAL NOISE'],
+ ['switch','MOVING NOISE','noise'],
+ ['range','NOISE AMOUNT','noiseAmount',0,100,1,'%'],
+ ['range','NOISE SIZE','noiseSize',.5,8,.5,' px'],
+ ['range','NOISE RATE','noiseRate',1,60,1,' Hz'],
+ ['heading','DISPLAY OPTICS'],
+ ['switch','EDGE SOFTNESS','softness'],
+ ['range','BLUR STRENGTH','softnessStrength',0,1,.01,''],
+ ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px'],
+ ['switch','VIGNETTE','vignette'],
+ ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
+ ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
+ ['heading','VERTICAL SYNCHRONIZATION'],
+ ['switch','VERTICAL ROLL','roll'],
+ ['range','ROLL SPEED','rollSpeed',-100,100,1,'%/s'],
+ ['range','ROLL POSITION','rollOffset',0,100,1,'%'],
+ ['heading','DISPLAY PRESET'],
+ ['button','RESTORE APPROVED VALUES','resetFX']
+];
+function settingValue(k){
+ if(k==='pieceGhost')return showGhost;
+ if(k==='sound')return soundOn;
+ return FX[k];
+}
+function setSetting(k,value){
+ if(k==='pieceGhost'){
+  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');
+ }else if(k==='sound'){
+  soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
+ }else{FX[k]=value;persist();}
+ invalidate();
+}
+function displayValue(value,step,unit){
+ const digits=step<.1?2:step<1?1:0;
+ return Number(value).toFixed(digits)+unit;
+}
+function modalPanel(title,height){
+ const insetsValue=insets();
+ const w=Math.max(190,Math.min(410,W-26));
+ const h=Math.min(height,H-insetsValue.top-insetsValue.bottom-22);
+ const x=(W-w)/2,y=(H-h)/2;
+ regions=[];region(0,0,W,H,'block');rect(0,0,W,H,'rgba(0,0,0,.77)');
+ panel(x,y,w,h,13,C.panel,C.border);
+ text(title,x+17,y+25,14,C.bright,'left',w-34);
+ return {x,y,w,h};
+}
+function drawOptions(){
+ const q=modalPanel('FIELD ATLAS / DISPLAY SETTINGS',Math.min(680,H*.82));
+ const {x,y,w,h}=q;
+ key('RETURN TO GAME',x+15,y+43,w-30,43,'close',{size:11});
+ const top=y+97,bottom=y+h-15,vheight=bottom-top;
+ modalView={x:x+12,y:top,w:w-24,h:vheight};
+ g.save();g.beginPath();g.rect(modalView.x,top,modalView.w,vheight);g.clip();
+ region(modalView.x,top,modalView.w,vheight,'scroll',{scroll:true});
+ let yy=top+8-optionsScroll;
+ for(const item of MENU){
+  const [kind,name,k,min,max,step,unit]=item;
+  if(kind==='heading'){
+   if(yy+22>=top&&yy<=bottom)
+    text(name,x+25,yy+11,10,C.weak);
+   yy+=34;continue;
+  }
+  if(kind==='button'){
+   if(yy+44>=top&&yy<=bottom)key(name,x+25,yy+3,w-50,38,k,{size:10});
+   yy+=60;continue;
+  }
+  if(kind==='switch'){
+   const value=settingValue(k);
+   if(yy+43>=top&&yy<=bottom){
+    text(name,x+25,yy+17,11,C.ink);
+    const tx=x+w-53,ty=yy+7;
+    panel(tx,ty,22,22,3,value?C.bright:C.button,C.border);
+    if(value)text('✓',tx+11,ty+11,17,C.dark,'center');
+    region(x+18,yy,w-35,41,'toggle',{field:k,modalControl:true});
+   }
+   yy+=46;continue;
+  }
+  if(kind==='range'){
+   const val=Number(settingValue(k));
+   if(yy+60>=top&&yy<=bottom){
+    text(name,x+25,yy+12,10,C.ink);
+    text(displayValue(val,step,unit),x+w-25,yy+12,10,C.weak,'right');
+    const lx=x+27,trackW=w-54,sy=yy+39;
+    rect(lx,sy,trackW,5,C.border);
+    const fraction=clamp((val-min)/(max-min),0,1),cx=lx+trackW*fraction;
+    rect(lx,sy,trackW*fraction,5,C.bright);
+    panel(cx-9,sy-7,18,19,6,C.bright,null);
+    region(lx,yy+20,trackW,36,'slider',{field:k,min,max,step,trackX:lx,trackW,modalControl:true});
+   }
+   yy+=66;continue;
+  }
+ }
+ const contentHeight=yy+optionsScroll-top;
+ optionsMaxScroll=Math.max(0,contentHeight-vheight+12);
+ g.restore();
+ // Scroll indicator shows that additional settings are below.
+ if(optionsMaxScroll>0){
+  const railH=vheight-15,thumbH=Math.max(28,railH*vheight/(vheight+optionsMaxScroll));
+  const thumbY=top+7+(railH-thumbH)*clamp(optionsScroll/optionsMaxScroll,0,1);
+  rect(x+w-7,thumbY,2,thumbH,C.weak);
+ }
+ // Buttons/slider regions outside the viewport must never intercept touches.
+}
+function drawScores(){
+ const q=modalPanel('FIELD ATLAS / TOP FIVE',Math.min(430,H*.7));
+ const {x,y,w,h}=q;
+ for(let i=0;i<5;i++){
+  const score=highs[i],ry=y+60+i*54;
+  text(fmt(i+1,2),x+20,ry,12,C.bright);
+  text(score?.name||'---',x+73,ry,12,C.ink);
+  text(score?Number(score.score).toLocaleString('en-CA'):'------',x+w-17,ry,12,C.ink,'right');
+  text(score?score.lines+' LINES / LV '+score.level:'NO RECORD',x+74,ry+19,9,C.weak);
+  if(i!==4)rect(x+17,ry+29,w-34,1,'#303030');
+ }
+ text('HIGH SCORES ARE SAVED ON THIS DEVICE',x+w/2,y+h-77,9,C.weak,'center',w-30);
+ key('RETURN',x+16,y+h-57,w-32,41,'close',{size:11});
+}
+function drawRestart(){
+ const q=modalPanel('START NEW GAME?',215);
+ const {x,y,w,h}=q;
+ text('Your current game and score will be lost.',x+w/2,y+72,10,C.weak,'center',w-25);
+ key('CANCEL',x+15,y+h-69,(w-39)/2,46,'close');
+ key('YES, RESTART',x+(w-39)/2+24,y+h-69,(w-39)/2,46,'restartYes',{light:true});
+}
+function drawEntry(){
+ const q=modalPanel('NEW HIGH SCORE',275);
+ const {x,y,w,h}=q;
+ text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,y+69,12,C.bright,'center');
+ text('INITIALS / UP TO THREE',x+w/2,y+105,10,C.weak,'center');
+ key(initialsInput.value||'TAP TO ENTER',x+35,y+126,w-70,43,'typeInitials',{size:15});
+ key('SKIP',x+15,y+h-65,(w-39)/2,45,'skipScore');
+ key('SAVE SCORE',x+24+(w-39)/2,y+h-65,(w-39)/2,45,'saveScore',{light:true});
+}
+function paintModal(){
+ if(modal==='options')drawOptions();
+ else if(modal==='scores')drawScores();
+ else if(modal==='restart')drawRestart();
+ else if(modal==='entry')drawEntry();
+}
+function handleAction(act){
+ if(act==='block'||act==='scroll'||act==='board')return;
+ if(act==='close'){openModal(null);return;}
+ if(act==='options'){options();return;}
+ if(act==='scores'){scores();return;}
+ if(act==='theme'){
+  theme=theme==='green'?'amber':'green';
+  store('fieldAtlasThemeV06',theme);invalidate();return;
+ }
+ if(act==='restart'){if(game.status==='paused')openModal('restart');return;}
+ if(act==='restartYes'){restart();return;}
+ if(act==='skipScore'){initialsInput.blur();openModal(null);return;}
+ if(act==='saveScore'){saveScore();return;}
+ if(act==='typeInitials'){initialsInput.focus();return;}
+ if(act==='resetFX'){FX={...DEFAULT};persist();invalidate();return;}
+ if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
+}
+function stopRepeat(){
+ if(repeatDelay!==null){clearTimeout(repeatDelay);repeatDelay=null;}
+ if(repeatInterval!==null){clearInterval(repeatInterval);repeatInterval=null;}
+}
+function eventPoint(e){
+ const rect=screen.getBoundingClientRect();
+ return {x:(e.clientX-rect.left)*W/rect.width,y:(e.clientY-rect.top)*H/rect.height};
+}
+function regionAt(p){
+ return [...regions].reverse().find(r=>{
+  if(!(p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h))return false;
+  if(modal==='options'&&r.modalControl&&modalView){
+   if(p.y<modalView.y||p.y>modalView.y+modalView.h)return false;
+  }
+  return true;
+ });
+}
+function setSlider(r,x){
+ const f=clamp((x-r.trackX)/Math.max(1,r.trackW),0,1);
+ const v=r.min+f*(r.max-r.min);
+ const stepped=Math.round(v/r.step)*r.step;
+ setSetting(r.field,Number(stepped.toFixed(4)));
+}
+screen.addEventListener('pointerdown',e=>{
+ if(e.pointerType==='mouse'&&e.button!==0)return;
+ e.preventDefault();
+ const p=eventPoint(e),r=regionAt(p);
+ stopRepeat();
+ pressed={id:e.pointerId,region:r,start:p,action:r?.act,box:r,scroll:optionsScroll};
+ try{screen.setPointerCapture(e.pointerId)}catch(err){}
+ if(!r)return;
+ if(r.slider){setSlider(r,p.x);return;}
+ if(r.act==='toggle'){setSetting(r.field,!settingValue(r.field));return;}
+ if(r.act==='scroll'||r.act==='board'){invalidate();return;}
+ handleAction(r.act);
+ if(r.repeat){
+  repeatDelay=setTimeout(()=>{repeatInterval=setInterval(()=>handleAction(r.act),82);},210);
+ }
+ invalidate();
+});
+screen.addEventListener('pointermove',e=>{
+ if(!pressed||pressed.id!==e.pointerId)return;
+ const p=eventPoint(e),r=pressed.region;
+ if(r?.slider){setSlider(r,p.x);return;}
+ if(modal==='options'&&pressed.action==='scroll'){
+  optionsScroll=clamp(pressed.scroll+pressed.start.y-p.y,0,optionsMaxScroll);
+  invalidate();
+ }
+});
+function releaseTouch(e){
+ if(!pressed||pressed.id!==e.pointerId)return;
+ stopRepeat();
+ const was=pressed,p=eventPoint(e);pressed=null;
+ try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(err){}
+ if(was.action==='board'&&e.type==='pointerup'){
+  const dx=p.x-was.start.x,dy=p.y-was.start.y;
+  if(Math.abs(dx)<16&&Math.abs(dy)<16)perform('cw');
+  else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
+   for(let i=0;i<clamp(Math.round(Math.abs(dx)/32),1,5);i++)perform(dx>0?'right':'left');
+  }else if(dy>25)perform('hard');
+ }
+ invalidate();
+}
+screen.addEventListener('pointerup',releaseTouch);
+screen.addEventListener('pointercancel',releaseTouch);
+window.addEventListener('blur',stopRepeat);
+screen.addEventListener('wheel',e=>{
+ if(modal==='options'){
+  e.preventDefault();optionsScroll=clamp(optionsScroll+e.deltaY,0,optionsMaxScroll);invalidate();
+ }
+},{passive:false});
+const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
+ ArrowDown:'hard',Space:'hard',KeyC:'hold',ShiftLeft:'hold',
+ KeyP:'pause',Escape:'pause'};
+document.addEventListener('keydown',e=>{
+ if(document.activeElement===initialsInput)return;
+ if(modal){
+  if(e.code==='Escape'){e.preventDefault();openModal(null);}
+  return;
+ }
+ const a=KEYS[e.code];
+ if(!a)return;
+ e.preventDefault();
+ if(e.repeat&&['hard','hold','pause','start'].includes(a))return;
+ perform(a);
+});
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&game.status==='playing')perform('pause');
+ lastTime=performance.now();
+ if(!document.hidden)invalidate();
+});
+function syncFX(now){
+ verticalRoll.enabled=FX.roll;
+ if(FX.roll){
+  const step=(now-lastDraw)/1000;
+  rollPhase=(rollPhase+Math.max(0,Math.min(.1,step))*FX.rollSpeed/100)%1;
+  verticalRoll.uniforms.uOffset.value=(rollPhase+FX.rollOffset/100+2)%1;
+ }
+ ghostPass.enabled=FX.ghost;
+ ghostPass.uniforms.uX.value=FX.ghostX;
+ ghostPass.uniforms.uY.value=FX.ghostY;
+ ghostPass.uniforms.uStrength.value=FX.ghostStrength/100;
+ grain.enabled=FX.noise;
+ grain.uniforms.uAmount.value=FX.noiseAmount/100;
+ grain.uniforms.uTick.value=Math.floor(now/1000*FX.noiseRate);
+ grain.uniforms.uGrainSize.value=FX.noiseSize;
+ tint.uniforms.uEnabled.value=FX.phosphor?1:0;
+ tint.uniforms.uTint.value.copy(hues[theme]);
+ glow.enabled=FX.bloom;
+ glow.threshold=FX.bloomCutoff;glow.strength=FX.bloomStrength;
+ edgeSoftness.enabled=FX.softness;
+ edgeSoftness.uniforms.uAmount.value=FX.softnessStrength;
+ edgeSoftness.uniforms.uRadius.value=FX.softnessRadius;
+ edgeVignette.enabled=FX.vignette;
+ edgeVignette.uniforms.uAmount.value=FX.vignetteAmount;
+ edgeVignette.uniforms.uStart.value=FX.vignetteSpread;
+}
+function requestFrame(){
+ if(!queued&&!document.hidden){queued=true;requestAnimationFrame(frame);}
+}
+function frame(now){
+ queued=false;
+ try{
+  const dt=clamp(now-lastTime,0,100);lastTime=now;
+  const prior=game.pieces,priorLines=game.lines,priorStatus=game.status;
+  const advanced=game.tick(dt);
+  if(advanced||game.pieces!==prior||game.lines!==prior||priorStatus!==game.status){
+   dirty=true;
+   if(game.lines>priorLines)tone(590,.1);
+   else if(game.pieces>prior)tone(180,.04);
+   onOver();
+  }
+  const animateNoise=FX.noise&&FX.noiseAmount>0;
+  const animateRoll=FX.roll&&FX.rollSpeed!==0;
+  const animated=animateNoise||animateRoll;
+  const frameInterval=animateNoise?Math.max(16,1000/FX.noiseRate):30;
+  const update=dirty||(animated&&now-lastDraw>=frameInterval);
+  if(update){
+   if(dirty)paintGame();
+   syncFX(now);
+   composer.render();
+   lastDraw=now;
+  }
+  if(game.status==='playing'||animated||dirty)requestFrame();
+ }catch(e){
+  fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
+  console.error(e);
+ }
+}
+function resize(){
+ const b=display.getBoundingClientRect(),w=Math.max(1,Math.round(b.width)),h=Math.max(1,Math.round(b.height));
+ const d=Math.max(1,window.devicePixelRatio||1);
+ if(w===W&&h===H&&d===DPR&&!dirty)return;
+ W=w;H=h;DPR=d;
+ input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
+ g.setTransform(DPR,0,0,DPR,0,0);
+ renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
+ composer.setPixelRatio(DPR);composer.setSize(W,H);
+ ghostPass.uniforms.uSize.value.set(W,H);
+ edgeSoftness.uniforms.uSize.value.set(W,H);
+ grain.uniforms.uDpr.value=DPR;
+ dirty=true;invalidate();
+}
+new ResizeObserver(resize).observe(display);
+window.addEventListener('orientationchange',()=>{dirty=true;resize();});
+resize();
+requestFrame();
+
