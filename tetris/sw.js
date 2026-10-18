@@ -3,10 +3,10 @@
  * Navigations with arbitrary URL parameters fall back to the canonical HTML.
  * Never cache unbounded user-generated URLs or obsolete script revisions.
  */
-const CACHE='field-atlas-arcade-v025';
-const APP_SHELL=['./','./index.html','./core.js?arcade=v025',
- './scores.js?arcade=v025','./experimental-fx.js?arcade=v025',
- './ui.js?arcade=v025'];
+const CACHE='field-atlas-arcade-v026';
+const APP_SHELL=['./','./index.html','./core.js?arcade=v026',
+ './scores.js?arcade=v026','./experimental-fx.js?arcade=v026',
+ './ui.js?arcade=v026'];
 const SCOPE_URL=new URL(self.registration.scope);
 const PAGE_URL=new URL('./index.html',SCOPE_URL).href;
 const SHELL_URLS=new Set(APP_SHELL.map(path=>new URL(path,SCOPE_URL).href));
