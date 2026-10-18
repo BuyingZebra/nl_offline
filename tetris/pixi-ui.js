@@ -679,32 +679,7 @@
    mode:currentModal,theme,showGhost,soundOn,width,height,fps,
    luminanceOnly:true,objectsReused:state.sceneBuilds,
    crt:crt.state(),errors:[...crt.errors,state.lastError].filter(Boolean)}),
-  action,openModal,closeModal,game,reset:()=>{game.reset();syncGame();},
-  debugBypassEffects:(bypass)=>{if(bypass)base.filters=null;else crt.apply();},
-  debugSetEffect:(id,v)=>crt.toggle(id,v),
-  debugStage:()=>({
-    stageChildren:renderApp.stage.children.length,
-    children:base.children.length,
-    gameChildren:gameLayer?.children.length,
-    filters:base.filters?.length||0,
-    canvasSize:[renderApp.canvas.width,renderApp.canvas.height],
-    canvasCSS:(()=>{const r=renderApp.canvas.getBoundingClientRect();return [r.x,r.y,r.width,r.height];})(),
-    baseBounds:base.getBounds(),
-    stageVisible:renderApp.stage.visible,
-    stageRenderable:renderApp.stage.renderable,
-    baseAlpha:base.worldAlpha,
-    gameAlpha:gameLayer?.worldAlpha,
-    firstChild:base.children[0]?.children.slice(0,5).map(x=>({type:x.constructor.name,
-      visible:x.visible,renderable:x.renderable,alpha:x.alpha,bounds:x.getBounds()}))
-   }),
-  debugModal:()=>({mode:currentModal,menuVisible:menuLayer?.visible,menuRenderable:menuLayer?.renderable,
-    children:menuLayer?.children.length,childVisible:menuLayer?.children.map(c=>c.visible),
-    optionVisible:modals.options?.modal.visible,
-    optionChildren:modals.options?.modal.children.length,
-    optionBounds:modals.options?.modal.getBounds(),
-    world:base.children.map(c=>({visible:c.visible,renderable:c.renderable}))}),
-  debugForceRender:()=>{renderApp.renderer.render(renderApp.stage);return true;},
-  debugMarker:()=>{renderApp.stage.addChild(new P.Graphics().rect(30,30,110,110).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;},
-  debugModalMarker:()=>{modals.options.modal.addChild(new P.Graphics().rect(100,130,90,70).fill({color:0xff0000}));renderApp.renderer.render(renderApp.stage);return true;}
+  action,openModal,closeModal,game,reset:()=>{game.reset();syncGame();}
+
  };
 })();
