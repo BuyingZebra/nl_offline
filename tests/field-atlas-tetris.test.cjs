@@ -171,7 +171,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v026'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v027'"));
  assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/const cacheKey=navigation\?PAGE_URL:request/);
  assert.match(sw,/cache\.match\(cacheKey\)/);
@@ -226,7 +226,7 @@ test('the high score feature is game-over-only, with visible five-slot board and
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
- assert.ok(html.includes('<script src="./scores.js?arcade=v026"></script>'));
+ assert.ok(html.includes('<script src="./scores.js?arcade=v027"></script>'));
  assert.ok(html.includes('id="pausedScoresButton"'));
  assert.doesNotMatch(html,/id="scoresButton"/);
  assert.ok(html.includes('id="scoreEntry"'));
@@ -271,8 +271,8 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
- assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v026'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v026'/);
+ assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v027'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v027'/);
 });
 
 
@@ -298,7 +298,7 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.ok(ui.includes("if(event.key!=='Tab')return"));
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  const appStart=html.indexOf('<div id="app">');
- const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v026">');
+ const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v027">');
  const dialogs=html.indexOf('<dialog id="options"');
  assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
  assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:41;/);
@@ -468,7 +468,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v026'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v027'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?height:100dvh;min-height:0;background:var\(--bg\)/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
@@ -534,9 +534,9 @@ test('experimental effects use isolated grayscale compositor layers and offline 
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  const {Script}=require('node:vm');
  assert.doesNotThrow(()=>new Script(fx));
- assert.ok(sw.includes("'./experimental-fx.js?arcade=v026'"));
- assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v026"></script>'));
- assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v026">'));
+ assert.ok(sw.includes("'./experimental-fx.js?arcade=v027'"));
+ assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v027"></script>'));
+ assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v027">'));
  for(const id of ['fxSoftness','fxNoise','experimentalFxSection','resetExperimental',
    'fxNoiseEnabled','fxNoiseAmount','fxNoiseSpeed',
    'fxPersistenceEnabled','fxPersistenceAmount','fxPersistenceDecay',
@@ -696,8 +696,8 @@ test('Tetris bundle is cache coherent and visible score changes trigger feedback
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  for(const name of ['core','scores','experimental-fx','ui']){
-  assert.ok(html.includes('src="./'+name+'.js?arcade=v026"'));
-  assert.ok(sw.includes("'./"+name+".js?arcade=v026'"));
+  assert.ok(html.includes('src="./'+name+'.js?arcade=v027"'));
+  assert.ok(sw.includes("'./"+name+".js?arcade=v027'"));
  }
  assert.match(ui,/if\(\(id==='scoreValue'\|\|id==='levelValue'\|\|id==='linesValue'\)&&game.status==='playing'\)/);
  assert.ok(html.includes('#scoreStrip strong.hud-changed{animation:hud-tick'));
@@ -738,8 +738,8 @@ test('Tetris checks for current offline shell every launch; no forced gameplay r
  assert.match(ui,/registration\.update\(\)\.catch/);
  assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/caches\.keys\(\).*keys\.filter/);
- assert.ok(html.includes('LOCAL ARCADE ENGINE / V026'));
- assert.ok(html.includes('id="eventline" data-build="v026"'));
+ assert.ok(html.includes('LOCAL ARCADE ENGINE / V027'));
+ assert.ok(html.includes('id="eventline" data-build="v027"'));
  assert.match(html,/#screenScan\{position:absolute;inset:0;/);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
 });
@@ -756,7 +756,7 @@ test('offline worker loads only exact V024 scripts and safely falls back to cano
   addAll:async()=>{}
  };
  requests.set(scope+'index.html',{ok:true,content:'new-page'});
- requests.set(scope+'core.js?arcade=v026',{ok:true,content:'new-core'});
+ requests.set(scope+'core.js?arcade=v027',{ok:true,content:'new-core'});
  let isOnline=false,networkCount=0;
  const sandbox={
   URL,Set,Promise,
@@ -782,7 +782,7 @@ test('offline worker loads only exact V024 scripts and safely falls back to cano
   await Promise.all(pending);
   return returned;
  }
- assert.equal((await fetchEvent(scope+'core.js?arcade=v026')).content,'new-core');
+ assert.equal((await fetchEvent(scope+'core.js?arcade=v027')).content,'new-core');
  // A stale script URL must not silently receive the latest other version.
  assert.equal(await fetchEvent(scope+'core.js?arcade=v023'),null);
  // HTML navigations are the sole permitted query-insensitive fallback.
