@@ -27,19 +27,9 @@
   gradients={screenTop:{enabled:false,length:135},screenBottom:{enabled:false,length:135}},
   experimental={noiseEnabled:false,noiseAmount:8,noiseSpeed:24,persistenceEnabled:false,
    persistenceAmount:35,persistenceDecay:765,softnessEnabled:false,softnessAmount:13};
- try{
-  const a=JSON.parse(saved('fieldAtlasEffectsV06','null'));
-  if(a){glow=clamp(Number(a.glow??83),0,100);scan=clamp(Number(a.scanlines??51),0,100);
-   vignette=clamp(Number(a.vignette??49),0,100);}
-  const b=JSON.parse(saved('fieldAtlasTetrisGradientsV01','null'));
-  const m=JSON.parse(saved('fieldAtlasGradientsV20','null'));
-  for(const key of Object.keys(gradients))Object.assign(gradients[key],m?.[key],b?.[key]);
-  const c=JSON.parse(saved('fieldAtlasTetrisExperimentalV01','null'));
-  if(c)Object.assign(experimental,c);
-  sweep=clamp(Number(saved('fieldAtlasTetrisSweepV01','57')),0,100);
- }catch(e){}
- // Always begin design sessions with effects disabled, including on devices
- // with older saved settings. Preserve strength values for manual re-enabling.
+ // Raw layout baseline: no legacy compositor settings are restored.
+ // No filters, gradients, noise, softness, persistence or saved-effects overrides.
+ // Gameplay and high-score preferences are untouched.
  gradients.screenTop.enabled=false;
  gradients.screenBottom.enabled=false;
  experimental.noiseEnabled=false;
