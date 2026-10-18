@@ -171,7 +171,7 @@ test('new game requires explicit yes and cancel does not reset score',()=>{
 
 test('service worker fetches current game first and preserves offline fallback',()=>{
  const sw=require('node:fs').readFileSync(require('node:path').join(__dirname,'../tetris/sw.js'),'utf8');
- assert.ok(sw.includes("const CACHE='field-atlas-arcade-v025'"));
+ assert.ok(sw.includes("const CACHE='field-atlas-arcade-v026'"));
  assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/const cacheKey=navigation\?PAGE_URL:request/);
  assert.match(sw,/cache\.match\(cacheKey\)/);
@@ -226,7 +226,7 @@ test('the high score feature is game-over-only, with visible five-slot board and
  const dir=path.join(__dirname,'../tetris');
  const html=fs.readFileSync(path.join(dir,'index.html'),'utf8');
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
- assert.ok(html.includes('<script src="./scores.js?arcade=v025"></script>'));
+ assert.ok(html.includes('<script src="./scores.js?arcade=v026"></script>'));
  assert.ok(html.includes('id="pausedScoresButton"'));
  assert.doesNotMatch(html,/id="scoresButton"/);
  assert.ok(html.includes('id="scoreEntry"'));
@@ -271,8 +271,8 @@ test('all map display settings and reactive phosphor behaviors are reflected in 
 
 test('new cached arcade shell includes the scoring system for offline play',()=>{
  const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
- assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v025'/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v025'/);
+ assert.match(sw,/const APP_SHELL=\[[^\]]*'\.\/scores\.js\?arcade=v026'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v026'/);
 });
 
 
@@ -298,7 +298,7 @@ test('one screen-wide compositor covers game and every menu with only two fades'
  assert.ok(ui.includes("if(event.key!=='Tab')return"));
  assert.ok(html.includes('#app dialog[open]{display:block}'));
  const appStart=html.indexOf('<div id="app">');
- const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v025">');
+ const appEnd=html.lastIndexOf('</div>\n<script src="./core.js?arcade=v026">');
  const dialogs=html.indexOf('<dialog id="options"');
  assert.ok(dialogs>appStart&&dialogs<appEnd,'Modal must stay in #app below the global overlay');
  assert.match(html,/#screenTopFade,#screenBottomFade\{z-index:41;/);
@@ -368,8 +368,8 @@ test('PAUSE is permanently labeled and cannot resume the game from screen contro
  assert.doesNotMatch(ui,/pauseButton'\)\.disabled/);
  assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break/);
  assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break/);
- assert.ok(html.includes('<button id="playButton">▶ START GAME</button>'));
- assert.ok(ui.includes("$('playButton').textContent='▶ RESUME'"));
+ assert.ok(html.includes('<button id="playButton"><span class="play-arrow" aria-hidden="true">▶</span><span class="play-caption">START GAME</span></button>'));
+ assert.ok(ui.includes("playCaption.textContent='RESUME'"));
  assert.doesNotMatch(ui,/pauseButton'\)\.textContent=/);
  assert.doesNotMatch(ui,/Enter:'start'/);
  assert.ok(html.includes('id="newGameButton" hidden'));
@@ -422,7 +422,7 @@ test('removing the console leaves stage space available without damaging overlay
  assert.ok(html.includes('id="buttonFxLayer"'));
  assert.ok(html.includes('id="pauseButton">PAUSE</button>'));
  assert.ok(ui.includes("case 'pause':performed=game.status==='playing'&&game.pause();break;"));
- assert.ok(ui.includes("$('playButton').textContent='▶ RESUME'"));
+ assert.ok(ui.includes("playCaption.textContent='RESUME'"));
 });
 
 
@@ -453,7 +453,7 @@ test('PAUSE stays visually active in READY and PAUSED but cannot start or resume
  assert.match(html,/<button data-action="pause" id="pauseButton">PAUSE<\/button>/);
  assert.doesNotMatch(ui,/\$\('pauseButton'\)\.disabled\s*=/);
  assert.match(ui,/case 'pause':performed=game\.status==='playing'&&game\.pause\(\);break;/);
- assert.match(ui,/\$\('playButton'\)\.textContent='▶ RESUME';/);
+ assert.match(ui,/playCaption\.textContent='RESUME';/);
 });
 
 
@@ -466,7 +466,7 @@ test('remove barrel distortion, retain the blur and use a clearer pause veil',()
  assert.doesNotMatch(html,/crtFilterDefs|crtDisplacement|crtGlass|curvatureControl|curvatureValue|fieldAtlasCRTBarrel|crt-curve\.js/);
  assert.doesNotMatch(ui,/FieldAtlasCRT|applyCurvature|curvatureControl|curvatureValue|fieldAtlasTetrisCurvature/);
  assert.doesNotMatch(sw,/crt-curve\.js/);
- assert.match(sw,/const CACHE='field-atlas-arcade-v025'/);
+ assert.match(sw,/const CACHE='field-atlas-arcade-v026'/);
  assert.ok(!fs.existsSync(path.join(dir,'crt-curve.js')));
  assert.match(html,/#app\{position:relative;display:flex;flex-direction:column;gap:9px;[\s\S]*?height:100dvh;min-height:0;background:var\(--bg\)/);
  assert.match(html,/#veil\{[^}]*backdrop-filter:blur\(3px\)\}/);
@@ -532,9 +532,9 @@ test('experimental effects use isolated grayscale compositor layers and offline 
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  const {Script}=require('node:vm');
  assert.doesNotThrow(()=>new Script(fx));
- assert.ok(sw.includes("'./experimental-fx.js?arcade=v025'"));
- assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v025"></script>'));
- assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v025">'));
+ assert.ok(sw.includes("'./experimental-fx.js?arcade=v026'"));
+ assert.ok(html.includes('<script src="./experimental-fx.js?arcade=v026"></script>'));
+ assert.ok(html.indexOf('experimental-fx.js')<html.indexOf('<script src="./ui.js?arcade=v026">'));
  for(const id of ['fxSoftness','fxNoise','experimentalFxSection','resetExperimental',
    'fxNoiseEnabled','fxNoiseAmount','fxNoiseSpeed',
    'fxPersistenceEnabled','fxPersistenceAmount','fxPersistenceDecay',
@@ -694,8 +694,8 @@ test('Tetris bundle is cache coherent and visible score changes trigger feedback
  const ui=fs.readFileSync(path.join(dir,'ui.js'),'utf8');
  const sw=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
  for(const name of ['core','scores','experimental-fx','ui']){
-  assert.ok(html.includes('src="./'+name+'.js?arcade=v025"'));
-  assert.ok(sw.includes("'./"+name+".js?arcade=v025'"));
+  assert.ok(html.includes('src="./'+name+'.js?arcade=v026"'));
+  assert.ok(sw.includes("'./"+name+".js?arcade=v026'"));
  }
  assert.match(ui,/if\(\(id==='scoreValue'\|\|id==='levelValue'\|\|id==='linesValue'\)&&game.status==='playing'\)/);
  assert.ok(html.includes('#scoreStrip strong.hud-changed{animation:hud-tick'));
@@ -736,8 +736,8 @@ test('Tetris checks for current offline shell every launch; no forced gameplay r
  assert.match(ui,/registration\.update\(\)\.catch/);
  assert.match(sw,/fetch\(request,\{cache:'no-store'\}\)/);
  assert.match(sw,/caches\.keys\(\).*keys\.filter/);
- assert.ok(html.includes('LOCAL ARCADE ENGINE / V023'));
- assert.ok(html.includes('id="eventline" data-build="v025"'));
+ assert.ok(html.includes('LOCAL ARCADE ENGINE / V026'));
+ assert.ok(html.includes('id="eventline" data-build="v026"'));
  assert.match(html,/#screenScan\{position:absolute;inset:0;/);
  assert.match(html,/#phosphorFilm\{z-index:44;pointer-events:none\}/);
 });
@@ -754,7 +754,7 @@ test('offline worker loads only exact V024 scripts and safely falls back to cano
   addAll:async()=>{}
  };
  requests.set(scope+'index.html',{ok:true,content:'new-page'});
- requests.set(scope+'core.js?arcade=v025',{ok:true,content:'new-core'});
+ requests.set(scope+'core.js?arcade=v026',{ok:true,content:'new-core'});
  let isOnline=false,networkCount=0;
  const sandbox={
   URL,Set,Promise,
@@ -780,7 +780,7 @@ test('offline worker loads only exact V024 scripts and safely falls back to cano
   await Promise.all(pending);
   return returned;
  }
- assert.equal((await fetchEvent(scope+'core.js?arcade=v025')).content,'new-core');
+ assert.equal((await fetchEvent(scope+'core.js?arcade=v026')).content,'new-core');
  // A stale script URL must not silently receive the latest other version.
  assert.equal(await fetchEvent(scope+'core.js?arcade=v023'),null);
  // HTML navigations are the sole permitted query-insensitive fallback.
@@ -801,8 +801,8 @@ test('sidebar groups HOLD and NEXT above the separate BEST/PIECES panel',()=>{
  assert.ok(hold>0&&hold<next&&next<best,'Sidebar order changed');
  assert.match(html,/#side\{display:flex;flex-direction:column;align-self:stretch;justify-content:flex-start;/);
  assert.match(html,/#sideStats\{margin-top:auto;/);
- assert.ok(html.includes('<button id="playButton">▶ START GAME</button>'));
- assert.ok(ui.includes("$('playButton').textContent='▶ PLAY AGAIN'"));
+ assert.ok(html.includes('<button id="playButton"><span class="play-arrow" aria-hidden="true">▶</span><span class="play-caption">START GAME</span></button>'));
+ assert.ok(ui.includes("playCaption.textContent='PLAY AGAIN'"));
  assert.doesNotMatch(ui,/↻ PLAY AGAIN/);
 });
 test('approved settings reflected in control markup and first paint',()=>{
@@ -831,5 +831,33 @@ test('unused settings rows and superseded compositor layers removed',()=>{
  for(const [id,z] of [['screenTopFade,#screenBottomFade',41],['screenShade',42],
    ['phosphorFilm',44],['sweep',40]]){
    assert.ok(html.includes('#'+id+'{z-index:'+z+';'),'Missing layer '+id);
+ }
+});
+
+test('play arrow and caption retain separate positioning for all three labels',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../tetris/ui.js'),'utf8');
+ const fx=fs.readFileSync(path.join(__dirname,'../tetris/experimental-fx.js'),'utf8');
+ assert.match(html,/#playButton\{width:100%;position:relative;text-align:center;padding-inline:33px\}/);
+ assert.match(html,/#playButton \.play-arrow,[\s\S]*?position:absolute;left:17px;top:50%;transform:translateY\(-50%\)/);
+ assert.match(html,/#playButton \.play-caption,[\s\S]*?display:block;width:100%;text-align:center;white-space:nowrap/);
+ assert.match(html,/<span class="play-arrow" aria-hidden="true">▶<\/span><span class="play-caption">START GAME<\/span>/);
+ for(const name of ['START GAME','RESUME','PLAY AGAIN'])
+  assert.ok(ui.includes("playCaption.textContent='"+name+"'"));
+ assert.doesNotMatch(ui,/\$\('playButton'\)\.textContent=/);
+ assert.ok(fx.includes("ghost.className+=' play-feedback'"));
+ assert.ok(fx.includes('ghost.appendChild(arrow.cloneNode(true))'));
+ assert.ok(fx.includes('ghost.appendChild(caption.cloneNode(true))'));
+});
+test('visible Tetris release number matches cache and all bundled scripts',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../tetris/index.html'),'utf8');
+ const sw=fs.readFileSync(path.join(__dirname,'../tetris/sw.js'),'utf8');
+ const build=sw.match(/const CACHE='field-atlas-arcade-v(\d+)'/)?.[1];
+ assert.ok(build,'Missing cache version');
+ assert.ok(html.includes('data-build="v'+build+'"'));
+ assert.ok(html.includes('LOCAL ARCADE ENGINE / V'+build));
+ for(const name of ['core','scores','experimental-fx','ui']){
+  assert.ok(html.includes('src="./'+name+'.js?arcade=v'+build+'"'));
+  assert.ok(sw.includes("'./"+name+".js?arcade=v"+build+"'"));
  }
 });
