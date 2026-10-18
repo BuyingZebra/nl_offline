@@ -22,7 +22,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </head>
 <body><main>
 <h1>THREE.JS · CRT COMPOSITOR TEST</h1>
-<p class="intro">Grayscale → phosphor → raster / persistence → bloom</p>
+<p class="intro">Grayscale → CRT GPU layers → final display</p>
 <div id="frame"><canvas id="screen"></canvas><div id="loading">Loading Three.js…</div></div>
 <div class="panel">
 <div class="switches">
@@ -31,7 +31,28 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 </div>
 <label class="slider">Bloom cutoff<input id="threshold" type="range" min="0" max="1" step=".01" value=".55"><output id="thresholdOut">0.55</output></label>
 <label class="slider">Bloom strength<input id="strength" type="range" min="0" max="3" step=".05" value="1.50"><output id="strengthOut">1.50</output></label>
-<div class="subhead">TEMPORAL CRT EFFECTS · OPTIONAL</div>
+<div class="subhead">SCREEN OPTICS · NEW</div>
+<div class="switches">
+<label><input id="vignette" type="checkbox">Vignette</label>
+<label><input id="softness" type="checkbox">Edge softness</label>
+</div>
+<label class="slider">Darkening<input id="vignetteAmount" type="range" min="0" max="1" step=".01" value=".55"><output id="vignetteAmountOut">0.55</output></label>
+<label class="slider">Fade spread<input id="vignetteSpread" type="range" min=".2" max=".85" step=".01" value=".5"><output id="vignetteSpreadOut">0.50</output></label>
+<label class="slider">Blur strength<input id="softnessAmount" type="range" min="0" max="1" step=".01" value=".65"><output id="softnessAmountOut">0.65</output></label>
+<label class="slider">Blur radius<input id="softnessRadius" type="range" min="0" max="10" step=".5" value="4"><output id="softnessRadiusOut">4px</output></label>
+<div class="subhead">ANALOG ARTIFACTS · NEW</div>
+<div class="switches">
+<label><input id="noise" type="checkbox">Moving noise</label>
+<label><input id="tear" type="checkbox">Horizontal tear</label>
+<label><input id="roll" type="checkbox">Vertical roll</label>
+</div>
+<label class="slider">Noise amount<input id="noiseAmount" type="range" min="0" max=".4" step=".01" value=".12"><output id="noiseAmountOut">0.12</output></label>
+<label class="slider">Noise speed<input id="noiseSpeed" type="range" min="1" max="30" step="1" value="15"><output id="noiseSpeedOut">15fps</output></label>
+<label class="slider">Tear shift<input id="tearAmount" type="range" min="0" max="30" step="1" value="12"><output id="tearAmountOut">12px</output></label>
+<label class="slider">Tear frequency<input id="tearFrequency" type="range" min="1" max="30" step="1" value="8"><output id="tearFrequencyOut">8/min</output></label>
+<label class="slider">Roll speed<input id="rollSpeed" type="range" min="-100" max="100" step="1" value="20"><output id="rollSpeedOut">20%/s</output></label>
+<label class="slider">Roll offset<input id="rollOffset" type="range" min="0" max="100" step="1" value="0"><output id="rollOffsetOut">0%</output></label>
+<div class="subhead">EXISTING TEMPORAL EFFECTS</div>
 <div class="switches">
 <label><input id="raster" type="checkbox">Raster sweep</label>
 <label><input id="persistence" type="checkbox">Persistence</label>
@@ -39,7 +60,7 @@ canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 <label class="slider">Refresh cycle<input id="rasterPeriod" type="range" min=".3" max="8" step=".1" value="2.5"><output id="rasterPeriodOut">2.5s</output></label>
 <label class="slider">Raster intensity<input id="rasterAmount" type="range" min="0" max="1" step=".01" value=".65"><output id="rasterAmountOut">0.65</output></label>
 <label class="slider">Afterglow decay<input id="decay" type="range" min="60" max="1200" step="20" value="380"><output id="decayOut">380ms</output></label>
-<p class="note">All effects begin <strong>OFF</strong>. The grayscale UI is composited through phosphor colour, optional raster illumination and GPU frame persistence, then luminance bloom. The existing raster sweep is an artistic animation, not a true 60 Hz beam refresh. Tap different controls to test persistence. No scanline, flicker, occlusion, SVG or CSS shadow effects.</p>
+<p class="note">All effects start <strong>OFF</strong>. This isolated test now supports independent vignette, edge blur, moving grayscale noise, occasional horizontal tearing, and seamless whole-image vertical roll. The original scanline and flicker effects are removed. Rolling and tearing currently displace the image without moving touch targets. The main Tetris app is unchanged.</p>
 <p id="status">Waiting for renderer…</p>
 </div></main>
 <script type="module">
@@ -55,6 +76,11 @@ const get=id=>document.getElementById(id);
 const frame=get('frame'),screen=get('screen'),status=get('status'),loading=get('loading');
 const phosphor=get('phosphor'),bloom=get('bloom'),cutoff=get('threshold'),strength=get('strength');
 const raster=get('raster'),persistence=get('persistence'),rasterPeriod=get('rasterPeriod'),rasterAmount=get('rasterAmount'),decay=get('decay');
+const vignette=get('vignette'),vignetteAmount=get('vignetteAmount'),vignetteSpread=get('vignetteSpread');
+const softness=get('softness'),softnessAmount=get('softnessAmount'),softnessRadius=get('softnessRadius');
+const noise=get('noise'),noiseAmount=get('noiseAmount'),noiseSpeed=get('noiseSpeed');
+const tear=get('tear'),tearAmount=get('tearAmount'),tearFrequency=get('tearFrequency');
+const roll=get('roll'),rollSpeed=get('rollSpeed'),rollOffset=get('rollOffset');
 let W=0,H=0,DPR=1,selected=-1;
 try {
  // Use the browser's high-quality 2D text/shape rasterization for this source.
@@ -84,6 +110,35 @@ try {
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
  const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
+
+ const passVertex='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
+ // Vertical-sync roll: real image sampling with repeated UV coordinates.
+ const verticalRoll=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uOffset:{value:0}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uOffset;
+   void main(){gl_FragColor=texture2D(tDiffuse,vec2(vUv.x,fract(vUv.y+uOffset)));}`
+ });
+ verticalRoll.enabled=false;
+ composer.addPass(verticalRoll);
+ // Transient sideways image displacement within one horizontal band.
+ const horizontalTear=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uBandY:{value:.5},uShift:{value:0},uWidth:{value:.07},uSize:{value:new THREE.Vector2(1,1)}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;
+   uniform float uBandY,uShift,uWidth;uniform vec2 uSize;
+   void main(){
+    float distance=abs(vUv.y-uBandY);
+    float mask=1.0-smoothstep(uWidth*.6,uWidth,distance);
+    float x=fract(vUv.x+mask*uShift/max(1.0,uSize.x));
+    gl_FragColor=texture2D(tDiffuse,vec2(x,vUv.y));
+   }`
+ });
+ horizontalTear.enabled=false;
+ composer.addPass(horizontalTear);
+
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.28,1,.46)}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
@@ -127,6 +182,63 @@ try {
  afterglow.enabled=false;
  composer.addPass(afterglow);
  composer.addPass(glow);
+
+ // Lens softness: nine pixel taps, blended ONLY near display edges.
+ const edgeSoftness=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.65},uRadius:{value:4},uSize:{value:new THREE.Vector2(1,1)}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;
+   uniform float uAmount,uRadius;uniform vec2 uSize;
+   void main(){
+    vec4 sharp=texture2D(tDiffuse,vUv);
+    vec2 edge=min(vUv,1.0-vUv)*uSize;
+    float d=min(edge.x,edge.y);
+    float a=uAmount*(1.0-smoothstep(0.0,min(uSize.x,uSize.y)*.30,d));
+    vec2 dx=vec2(uRadius/max(1.0,uSize.x),0.0);
+    vec2 dy=vec2(0.0,uRadius/max(1.0,uSize.y));
+    vec4 smoothColor=sharp*.20;
+    smoothColor+=(texture2D(tDiffuse,vUv+dx)+texture2D(tDiffuse,vUv-dx)+texture2D(tDiffuse,vUv+dy)+texture2D(tDiffuse,vUv-dy))*.13;
+    smoothColor+=(texture2D(tDiffuse,vUv+dx+dy)+texture2D(tDiffuse,vUv+dx-dy)+texture2D(tDiffuse,vUv-dx+dy)+texture2D(tDiffuse,vUv-dx-dy))*.07;
+    gl_FragColor=mix(sharp,smoothColor,clamp(a,0.0,1.0));
+   }`
+ });
+ edgeSoftness.enabled=false;
+ // Independent optical falloff; hue and image content stay intact.
+ const edgeVignette=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.55},uStart:{value:.50}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;
+   uniform float uAmount,uStart;
+   void main(){
+    vec4 src=texture2D(tDiffuse,vUv);
+    vec2 p=abs(vUv*2.0-1.0);
+    float edge=smoothstep(uStart,1.0,max(p.x,p.y));
+    float corners=smoothstep(.86,1.4,length(p))*.2;
+    gl_FragColor=vec4(src.rgb*(1.0-uAmount*clamp(edge+corners,0.0,1.0)),1.0);
+   }`
+ });
+ edgeVignette.enabled=false;
+ // Small fluctuating luminance variation without introducing RGB color noise.
+ const grain=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.12},uTick:{value:0}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;
+   uniform float uAmount,uTick;
+   float random(vec2 v){return fract(sin(dot(v,vec2(127.1,311.7)))*43758.5453);}
+   void main(){
+    vec3 src=texture2D(tDiffuse,vUv).rgb;
+    float n=random(floor(gl_FragCoord.xy)+vec2(uTick*13.0,uTick*29.0))-.5;
+    gl_FragColor=vec4(clamp(src*(1.0+uAmount*n*2.0),0.0,1.0),1.0);
+   }`
+ });
+ grain.enabled=false;
+
+ composer.addPass(edgeSoftness);
+ composer.addPass(edgeVignette);
+ composer.addPass(grain);
  composer.addPass(new OutputPass());
  let pending=false,hitBoxes=[],lastTime=0,lastDraw=0,forceDraw=true,trailUntil=0;
  const c=n=>{const s=Math.round(n*255);return 'rgb('+s+','+s+','+s+')'};
