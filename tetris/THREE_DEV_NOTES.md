@@ -84,3 +84,10 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **All default and solid buttons use a 14px font**, including characters used as icons (`◀`, `▶`, `↻`, `◐`, `☷`); fill/background luminance never changes font size.
 - Only the three main game-entry action labels **START GAME / RESUME / PLAY AGAIN** use **16px**, including the corresponding `▶` icon in the same button.
 - Keep existing font weight, letter spacing, sizes/positions of button rectangles, hitboxes, overlay arrangement, spacing, and compositor unchanged. No new URL: the existing `three-v027.html` entry point loads this updated `three-v027.js` and displays build `007`.
+
+## V008: Home Screen automatic build updates
+- **Same permanent URL:** `tetris/three-v027.html`. An iOS Home Screen web app may resume its existing page without a fresh navigation, so the HTML's timestamped import alone cannot pick up new code on resume.
+- On startup, `pageshow`, focus, and returning to the foreground, probe the current source `three-v027.js` via an uncached, timestamped network request. Compare its `THREE_BUILD_VERSION` against the running build and reload automatically when a newer build exists.
+- Check at most once per 15 seconds and also while the idle app remains foregrounded (every 60 seconds). Offline/network failure leaves the current build running.
+- Only auto-reload in the **ready/new-game** state with no modal open. Never discard an in-progress game, paused game, or high-score dialog.
+- The existing bookmark, button typography, geometry, settings, shaders, score storage and production Pixi build are unchanged. A web app still running a pre-V008 script needs **one full reload or force-close-and-relaunch** before it can start self-checking on future resumes.
