@@ -21,11 +21,11 @@ const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-const DEFAULT=Object.freeze({pauseBlur:65,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
+const DEFAULT=Object.freeze({boardBlur:35,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='018'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='019'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -63,15 +63,15 @@ let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
 let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
-// Reusable offscreen buffers for the board-only pause blur (not a full-screen effect).
-const pauseSnapshot=document.createElement('canvas'),pauseBlurCanvas=document.createElement('canvas');
-const pauseSnapshotContext=pauseSnapshot.getContext('2d',{alpha:false});
-const pauseBlurContext=pauseBlurCanvas.getContext('2d',{alpha:true});
-const pauseSmallCanvas=document.createElement('canvas');
-const pauseSmallContext=pauseSmallCanvas.getContext('2d',{willReadFrequently:true});
-if(!g||!modalContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+// Sharp board popup UI is a separate grayscale layer composed after GPU blur.
+const boardPopupCanvas=document.createElement('canvas');
+const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
+if(!g||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
+const boardPopupTexture=new THREE.CanvasTexture(boardPopupCanvas);
+boardPopupTexture.colorSpace=THREE.SRGBColorSpace;boardPopupTexture.minFilter=THREE.LinearFilter;
+boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps=false;
 const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:true,alpha:false,powerPreference:'high-performance'});
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080808);
@@ -102,6 +102,47 @@ modalPlane.visible=false;scene.add(modalPlane);
  const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
 
  const passVertex='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
+ // Shared Gaussian method with EDGE SOFTNESS: 7x7 normalized kernel.
+ // Blur ONLY the full underlying board, then composite sharp board popup UI.
+ const boardPopupPass=new ShaderPass({
+  uniforms:{
+   tDiffuse:{value:null},uPopup:{value:boardPopupTexture},
+   uRect:{value:new THREE.Vector4(0,0,0,0)},uSize:{value:new THREE.Vector2(1,1)},
+   uRadius:{value:0},uDim:{value:.20}
+  },
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
+   uniform vec4 uRect;uniform vec2 uSize;uniform float uRadius,uDim;
+   void main(){
+    vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
+    float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
+                 step(uRect.y,vUv.y)*step(vUv.y,uRect.w);
+    if(inside>.5){
+     if(uRadius>.001){
+      vec2 pixel=1.0/max(vec2(1.0),uSize);
+      float interval=max(.001,uRadius)/3.0;
+      vec3 sum=vec3(0.0);float weights=0.0;
+      for(int y=-3;y<=3;y++){
+       for(int x=-3;x<=3;x++){
+        vec2 offset=vec2(float(x),float(y));
+        float weight=exp(-dot(offset,offset)/(2.0*1.25*1.25));
+        vec2 pos=clamp(vUv+offset*interval*pixel,uRect.xy,uRect.zw);
+        sum+=texture2D(tDiffuse,pos).rgb*weight;
+        weights+=weight;
+       }
+      }
+      backdrop=sum/max(.001,weights);
+     }
+     backdrop*=(1.0-uDim);
+    }
+    vec4 popup=texture2D(uPopup,vUv);
+    gl_FragColor=vec4(mix(backdrop,popup.rgb,popup.a),1.0);
+   }`
+ });
+ boardPopupPass.enabled=false;
+ composer.addPass(boardPopupPass);
+
  // Vertical-sync roll: real image sampling with repeated UV coordinates.
  const verticalRoll=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uOffset:{value:0}},
@@ -230,12 +271,10 @@ modalPlane.visible=false;scene.add(modalPlane);
 // These are GPU tint multipliers of grayscale luminance, not UI source colours.
 const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
-// Pause has one user-facing blur strength: 0% is entirely sharp, while 100%
-// strongly defocuses the full board. Radius derives from board size internally.
-// The pause board itself is dimmed only 12%; labels/buttons stay crisp.
-const PAUSE_BOARD_FX=Object.freeze({dim:.12});
-function pauseBlurRadius(boardWidth){
- const percent=clamp(Number(FX.pauseBlur)||0,0,100)/100;
+// Unified popup blur slider (0..100%) controls Gaussian sample spacing.
+const BOARD_POPUP_DIM=.20;
+function boardBlurRadius(boardWidth){
+ const percent=clamp(Number(FX.boardBlur)||0,0,100)/100;
  return boardWidth*.9*Math.pow(percent,4);
 }
 function tone(freq=240,len=.04){
@@ -377,85 +416,6 @@ function cell(x,y,col,row,size,kind,isGhost=false){
  }
  tileFace(px,py,size,size,kind);
 }
-// Three separable box passes approximate a smooth Gaussian on Safari/iOS
-// where CanvasRenderingContext2D.filter is not normally enabled.
-// Work on the small grayscale board only, never the full UI or menu.
-function boxBlurGray(values,width,height,radius){
- const total=width*height,diameter=radius*2+1;
- let inputGray=values;
- const horizontal=new Uint8ClampedArray(total),vertical=new Uint8ClampedArray(total);
- for(let pass=0;pass<3;pass++){
-  for(let y=0;y<height;y++){
-   const start=y*width;
-   let sum=0;
-   for(let k=-radius;k<=radius;k++)sum+=inputGray[start+Math.max(0,Math.min(width-1,k))];
-   for(let x=0;x<width;x++){
-    horizontal[start+x]=Math.round(sum/diameter);
-    sum+=inputGray[start+Math.min(width-1,x+radius+1)]-
-      inputGray[start+Math.max(0,x-radius)];
-   }
-  }
-  for(let x=0;x<width;x++){
-   let sum=0;
-   for(let k=-radius;k<=radius;k++)sum+=horizontal[Math.max(0,Math.min(height-1,k))*width+x];
-   for(let y=0;y<height;y++){
-    vertical[y*width+x]=Math.round(sum/diameter);
-    sum+=horizontal[Math.min(height-1,y+radius+1)*width+x]-
-      horizontal[Math.max(0,y-radius)*width+x];
-   }
-  }
-  inputGray=vertical;
- }
- return vertical;
-}
-function blurPausedBoard(x,y,w,h){
- g.save();g.beginPath();g.roundRect(x,y,w,h,6);g.clip();
- const radius=pauseBlurRadius(w);
- if(radius>0&&pauseSnapshotContext&&pauseBlurContext&&w>0&&h>0){
-  const pw=Math.max(1,Math.round(w*DPR)),ph=Math.max(1,Math.round(h*DPR));
-  if(pauseSnapshot.width!==pw||pauseSnapshot.height!==ph){
-   pauseSnapshot.width=pw;pauseSnapshot.height=ph;
-   pauseBlurCanvas.width=pw;pauseBlurCanvas.height=ph;
-  }
-  pauseSnapshotContext.setTransform(1,0,0,1,0,0);
-  pauseSnapshotContext.drawImage(input,x*DPR,y*DPR,w*DPR,h*DPR,0,0,pw,ph);
-  pauseBlurContext.setTransform(1,0,0,1,0,0);
-  pauseBlurContext.clearRect(0,0,pw,ph);
-  if('filter' in pauseBlurContext){
-   pauseBlurContext.filter='blur('+(radius*DPR).toFixed(2)+'px)';
-   pauseBlurContext.drawImage(pauseSnapshot,0,0);
-   pauseBlurContext.filter='none';
-  }else if(pauseSmallContext){
-   // iOS Safari normally disables Canvas2D filters. Perform a true image
-   // convolution on a reduced-resolution board, not a scale-only simulation.
-   const factor=.45,dw=Math.max(1,Math.round(pw*factor)),dh=Math.max(1,Math.round(ph*factor));
-   if(pauseSmallCanvas.width!==dw||pauseSmallCanvas.height!==dh){
-    pauseSmallCanvas.width=dw;pauseSmallCanvas.height=dh;
-   }
-   pauseSmallContext.setTransform(1,0,0,1,0,0);
-   pauseSmallContext.imageSmoothingEnabled=true;
-   pauseSmallContext.imageSmoothingQuality='high';
-   pauseSmallContext.drawImage(pauseSnapshot,0,0,dw,dh);
-   const pixels=pauseSmallContext.getImageData(0,0,dw,dh);
-   const sourceGray=new Uint8ClampedArray(dw*dh);
-   for(let i=0;i<sourceGray.length;i++)sourceGray[i]=pixels.data[i*4];
-   const kernelRadius=Math.max(1,Math.round(radius*DPR*factor));
-   const result=boxBlurGray(sourceGray,dw,dh,kernelRadius);
-   for(let i=0;i<result.length;i++){
-    const k=i*4;pixels.data[k]=result[i];
-    pixels.data[k+1]=result[i];pixels.data[k+2]=result[i];pixels.data[k+3]=255;
-   }
-   pauseSmallContext.putImageData(pixels,0,0);
-   pauseBlurContext.imageSmoothingEnabled=true;
-   pauseBlurContext.imageSmoothingQuality='high';
-   pauseBlurContext.drawImage(pauseSmallCanvas,0,0,pw,ph);
-  }else pauseBlurContext.drawImage(pauseSnapshot,0,0);
-  // Draw the fully blurred image, never a sharp/blurred crossfade.
-  g.drawImage(pauseBlurCanvas,x,y,w,h);
- }
- rect(x,y,w,h,'rgba(0,0,0,'+PAUSE_BOARD_FX.dim+')');
- g.restore();
-}
 function stage(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  panel(x,y,w,h,7,C.panel);
@@ -478,14 +438,8 @@ function stage(r){
  g.restore();
  region(x,y,w,h,'board',{board:true});
  if(game.status!=='playing'){
-  if(game.status==='paused'){
-   // Do not blur UI: only the painted board beneath this overlay is softened.
-   blurPausedBoard(x+2,y+2,w-4,h-4);
-  }else{
-   // Keep existing ready / game-over presentation independent of pause.
-   g.save();g.beginPath();g.roundRect(x+2,y+2,w-4,h-4,6);g.clip();
-   rect(x+2,y+2,w-4,h-4,'rgba(0,0,0,.88)');g.restore();
-  }
+  g=boardPopupContext;
+  try{
   const type=game.status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
@@ -505,6 +459,7 @@ function stage(r){
    key('NEW GAME',bx,by+primaryH+inset,bw,secondaryH,'restart');
    key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores');
   }
+  }finally{g=baseContext;}
  }
 }
 function insets(){
@@ -555,6 +510,10 @@ function layout(){
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
+ boardPopupContext.setTransform(1,0,0,1,0,0);
+ boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
+ boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
+ g=baseContext;
  rect(0,0,W,H,C.bg);
  panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
@@ -611,6 +570,7 @@ function paintBaseGame(){
  // The grayscale gameplay texture changes only when game, theme or size changes.
  baseRegions=regions.slice();
  texture.needsUpdate=true;
+ boardPopupTexture.needsUpdate=true;
 }
 function paintGame(){
  if(baseDirty){paintBaseGame();baseDirty=false;}
@@ -625,7 +585,7 @@ function paintGame(){
 const MENU=[
  ['heading','GAMEPLAY'],
  ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound'],
- ['range','PAUSE BLUR','pauseBlur',0,100,1,'%'],
+ ['range','BOARD POPUP BLUR','boardBlur',0,100,1,'%'],
  ['heading','CRT EMISSION'],
  ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
  ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
@@ -666,7 +626,7 @@ function setSetting(k,value){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{
   FX[k]=value;persist();
-  if(k==='pauseBlur'&&game.status==='paused')baseDirty=true;
+  if(k==='boardBlur'&&game.status!=='playing')baseDirty=true;
  }
  invalidate();
 }
@@ -1005,6 +965,13 @@ function syncFX(now){
  edgeSoftness.enabled=FX.softness;
  edgeSoftness.uniforms.uAmount.value=FX.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=FX.softnessRadius;
+ boardPopupPass.enabled=game.status!=='playing'&&!modal;
+ boardPopupPass.uniforms.uRadius.value=boardBlurRadius(Math.max(0,(layoutInfo?.boardW||0)-4));
+ boardPopupPass.uniforms.uDim.value=BOARD_POPUP_DIM;
+ if(layoutInfo){
+  const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
+  boardPopupPass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
+ }
  edgeVignette.enabled=FX.vignette;
  edgeVignette.uniforms.uAmount.value=FX.vignetteAmount;
  edgeVignette.uniforms.uStart.value=FX.vignetteSpread;
@@ -1054,11 +1021,13 @@ function resize(){
  if(w===W&&h===H&&d===DPR&&!dirty)return;
  W=w;H=h;DPR=d;
  input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
+ boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
  g.setTransform(DPR,0,0,DPR,0,0);
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  composer.setPixelRatio(DPR);composer.setSize(W,H);
  ghostPass.uniforms.uSize.value.set(W,H);
  edgeSoftness.uniforms.uSize.value.set(W,H);
+ boardPopupPass.uniforms.uSize.value.set(W,H);
  grain.uniforms.uDpr.value=DPR;
  baseDirty=true;dirty=true;invalidate();
 }
