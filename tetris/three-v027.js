@@ -25,7 +25,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='016'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='017'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -63,6 +63,10 @@ let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
 let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
+// Reusable offscreen buffers for the board-only pause blur (not a full-screen effect).
+const pauseSnapshot=document.createElement('canvas'),pauseBlurCanvas=document.createElement('canvas');
+const pauseSnapshotContext=pauseSnapshot.getContext('2d',{alpha:false});
+const pauseBlurContext=pauseBlurCanvas.getContext('2d',{alpha:true});
 if(!g||!modalContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
@@ -224,6 +228,9 @@ modalPlane.visible=false;scene.add(modalPlane);
 // These are GPU tint multipliers of grayscale luminance, not UI source colours.
 const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
+// "65% blur" is a 65% blend of an authentic Gaussian-blurred board.
+// Dimming is only 8%, confined to the board while paused.
+const PAUSE_BOARD_FX=Object.freeze({blurMix:.65,blurRadius:5.5,dim:.08});
 function tone(freq=240,len=.04){
  if(!soundOn)return;
  try{const AC=window.AudioContext||window.webkitAudioContext;
@@ -317,6 +324,25 @@ function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false}={}){
 // V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
 // displayed as 80x60 and 80x44 CSS pixels. Match their real visual sizes,
 // instead of drawing 20px cells directly in CSS pixels.
+// Fresh grayscale tile styling for both the board and miniature previews:
+// thin bevel rim, darker inset cap, luminous upper edge and lower shadow.
+function tileFace(x,y,w,h,kind){
+ const side=Math.min(w,h),gap=Math.max(.6,Math.min(1.3,side*.055));
+ const level=28+190*(brightness[kind]||.8);
+ const xx=x+gap,yy=y+gap,ww=Math.max(1,w-2*gap),hh=Math.max(1,h-2*gap);
+ const rim=Math.max(.65,Math.min(1.35,side*.08));
+ rect(xx,yy,ww,hh,gray(level-26));
+ rect(xx,yy,ww,rim,gray(level+18));
+ rect(xx,yy,rim,hh,gray(level+12));
+ rect(xx,yy+hh-rim,ww,rim,gray(level-38));
+ rect(xx+ww-rim,yy,rim,hh,gray(level-32));
+ const inset=Math.min(3.2,Math.max(1.7,side*.145));
+ const fx=xx+inset,fy=yy+inset,fw=Math.max(1,ww-2*inset),fh=Math.max(1,hh-2*inset);
+ rect(fx,fy,fw,fh,gray(level-10));
+ rect(fx,fy,fw,Math.max(.65,Math.min(1.15,side*.055)),gray(level+20));
+ rect(fx,fy+fh-Math.max(.65,Math.min(1,side*.045)),fw,
+  Math.max(.65,Math.min(1,side*.045)),gray(level-27));
+}
 function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
  const m=Core.SHAPES[kind],pts=[];
@@ -330,14 +356,9 @@ function smallPiece(kind,x,y,w,h,role='next'){
  const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
  const stepX=sourceCell*w/120,stepY=sourceCell*h/sourceH;
  const sx=x+(w-stepX*cols)/2,sy=y+(h-stepY*rows)/2;
- const shade=gray(28+190*(brightness[kind]||.8));
  for(const [col,row] of pts){
   const xx=sx+(col-loX)*stepX,yy=sy+(row-loY)*stepY;
-  const insetX=w/120,insetY=h/sourceH;
-  rect(xx+insetX,yy+insetY,Math.max(1,stepX-2*insetX),Math.max(1,stepY-2*insetY),shade);
-  g.strokeStyle=C.bright;g.lineWidth=.7;
-  g.strokeRect(xx+1.5*insetX,yy+1.5*insetY,
-   Math.max(1,stepX-3*insetX),Math.max(1,stepY-3*insetY));
+  tileFace(xx,yy,stepX,stepY,kind);
  }
 }
 function cell(x,y,col,row,size,kind,isGhost=false){
@@ -347,10 +368,45 @@ function cell(x,y,col,row,size,kind,isGhost=false){
   g.setLineDash([3,3]);g.strokeStyle='#777';g.lineWidth=1;
   g.strokeRect(px+3,py+3,size-6,size-6);g.setLineDash([]);return;
  }
- const shade=gray(28+190*(brightness[kind]||.8));
- rect(px+1,py+1,size-2,size-2,shade);
- g.strokeStyle=C.bright;g.lineWidth=.6;g.strokeRect(px+1.5,py+1.5,size-3,size-3);
- rect(px+3,py+3,Math.max(1,size-6),2,'rgba(230,230,230,.18)');
+ tileFace(px,py,size,size,kind);
+}
+function blurPausedBoard(x,y,w,h){
+ g.save();g.beginPath();g.roundRect(x,y,w,h,6);g.clip();
+ if(pauseSnapshotContext&&pauseBlurContext&&w>0&&h>0){
+  const pw=Math.max(1,Math.round(w*DPR)),ph=Math.max(1,Math.round(h*DPR));
+  if(pauseSnapshot.width!==pw||pauseSnapshot.height!==ph){
+   pauseSnapshot.width=pw;pauseSnapshot.height=ph;
+   pauseBlurCanvas.width=pw;pauseBlurCanvas.height=ph;
+  }
+  pauseSnapshotContext.setTransform(1,0,0,1,0,0);
+  pauseSnapshotContext.drawImage(input,x*DPR,y*DPR,w*DPR,h*DPR,0,0,pw,ph);
+  pauseBlurContext.setTransform(1,0,0,1,0,0);
+  pauseBlurContext.clearRect(0,0,pw,ph);
+  if('filter' in pauseBlurContext){
+   pauseBlurContext.filter='blur('+(PAUSE_BOARD_FX.blurRadius*DPR).toFixed(2)+'px)';
+   pauseBlurContext.drawImage(pauseSnapshot,0,0);
+   pauseBlurContext.filter='none';
+  }else{
+   // Graceful fallback on older canvases with no 2D filter support.
+   pauseBlurContext.imageSmoothingEnabled=true;
+   pauseBlurContext.imageSmoothingQuality='high';
+   const factor=.32;
+   const dw=Math.max(1,Math.floor(pw*factor)),dh=Math.max(1,Math.floor(ph*factor));
+   const reduced=document.createElement('canvas');
+   reduced.width=dw;reduced.height=dh;
+   const rc=reduced.getContext('2d');
+   if(rc){
+    rc.imageSmoothingEnabled=true;rc.imageSmoothingQuality='high';
+    rc.drawImage(pauseSnapshot,0,0,dw,dh);
+    pauseBlurContext.drawImage(reduced,0,0,pw,ph);
+   }else pauseBlurContext.drawImage(pauseSnapshot,0,0);
+  }
+  g.globalAlpha=PAUSE_BOARD_FX.blurMix;
+  g.drawImage(pauseBlurCanvas,x,y,w,h);
+  g.globalAlpha=1;
+ }
+ rect(x,y,w,h,'rgba(0,0,0,'+PAUSE_BOARD_FX.dim+')');
+ g.restore();
 }
 function stage(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
@@ -374,8 +430,14 @@ function stage(r){
  g.restore();
  region(x,y,w,h,'board',{board:true});
  if(game.status!=='playing'){
-  g.save();g.beginPath();g.roundRect(x+2,y+2,w-4,h-4,6);g.clip();
-  rect(x+2,y+2,w-4,h-4,'rgba(0,0,0,.88)');g.restore();
+  if(game.status==='paused'){
+   // Do not blur UI: only the painted board beneath this overlay is softened.
+   blurPausedBoard(x+2,y+2,w-4,h-4);
+  }else{
+   // Keep existing ready / game-over presentation independent of pause.
+   g.save();g.beginPath();g.roundRect(x+2,y+2,w-4,h-4,6);g.clip();
+   rect(x+2,y+2,w-4,h-4,'rgba(0,0,0,.88)');g.restore();
+  }
   const type=game.status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
