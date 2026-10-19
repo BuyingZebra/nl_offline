@@ -22,14 +22,17 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='005'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='006'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
+// Drop's original 14px font defines all button typography. Filled primary
+// actions use exactly 125% of that size; drawing and hitboxes stay unchanged.
+const BUTTON_FONT_SIZE=14,PRIMARY_BUTTON_FONT_SCALE=1.25;
 const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
- headTitleInset:17,headTitleDrop:6,
+ headTitleInset:17,
  deckBottom:30,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
  padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
  holdHeight:88,nextHeight:162,statsHeight:92
@@ -292,11 +295,12 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,spacing
 }
 function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
 function region(x,y,w,h,act,opts={}){regions.push({x,y,w,h,act,...opts});}
-function key(label,x,y,w,h,act,{light=false,size=11,repeat=false,arrow=false}={}){
+function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false}={}){
+ const size=BUTTON_FONT_SIZE*(light?PRIMARY_BUTTON_FONT_SCALE:1);
  const down=pressed?.action===act&&pressed?.box?.x===x;
  panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
  text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14),size*.08);
- if(arrow)text('▶',x+17,y+h/2,14,light?C.dark:C.ink,'center');
+ if(arrow)text('▶',x+17,y+h/2,size,light?C.dark:C.ink,'center');
  region(x,y,w,h,act,{repeat});
 }
 // V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
@@ -374,7 +378,7 @@ function stage(r){
   const bx=x+(w-bw)/2,normalY=y+h/2+14;
   const clusterH=primaryH+2*secondaryH+2*inset;
   const by=type==='paused'?Math.min(normalY,y+h-inset-clusterH):normalY;
-  key(caption,bx,by,bw,primaryH,'start',{light:true,size:Math.min(13,bw*.05),arrow:true});
+  key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true});
   if(type==='paused'){
    key('NEW GAME',bx,by+primaryH+inset,bw,secondaryH,'restart');
    key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores');
@@ -433,13 +437,13 @@ function paintBaseGame(){
  panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
  text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
-  r.hy+r.hh/2+UI_SPACE.headTitleDrop,titleSize,
+  r.hy+r.hh/2,titleSize,
   C.ink,'left',Math.max(10,r.hw-116),titleSize*.13);
  const th=r.headerButtonH;
  const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
  const ty=r.hy+(r.hh-th)/2;
- key('◐',tx,ty,th,th,'theme',{size:17});
- key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{size:17});
+ key('◐',tx,ty,th,th,'theme');
+ key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r);
  const short=r.short;
  const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
@@ -470,10 +474,10 @@ function paintBaseGame(){
  rect(px,r.dy+r.deckPad+UI_SPACE.scoreHeight-1,pw,1,C.border);
  const gap=UI_SPACE.padGap,col=(pw-gap*4)/5;
  const cy=r.dy+r.deckPad+UI_SPACE.scoreHeight+r.deckGap,ch=r.buttonH;
- key('◀',px,cy,col,ch,'left',{light:true,size:18,repeat:true});
- key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true,size:14});
- key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,size:18,repeat:true});
- key('↻',px+col*4+gap*4,cy,col,ch,'cw',{size:22});
+ key('◀',px,cy,col,ch,'left',{light:true,repeat:true});
+ key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true});
+ key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
+ key('↻',px+col*4+gap*4,cy,col,ch,'cw');
  const ey=cy+ch+r.deckGap,extraGap=UI_SPACE.extrasGap;
  // Shrink each secondary control to 75%, then center their group.
  const ew=(pw-extraGap)/2*UI_SPACE.buttonWidthScale;
@@ -560,7 +564,7 @@ function modalPanel(title,height){
 function drawOptions(){
  const q=modalPanel('FIELD ATLAS / DISPLAY SETTINGS',Math.min(680,H*.82));
  const {x,y,w,h}=q;
- key('RETURN TO GAME',x+15,y+43,w-30,43,'close',{size:11});
+ key('RETURN TO GAME',x+15,y+43,w-30,43,'close');
  const top=y+97,bottom=y+h-15,vheight=bottom-top;
  modalView={x:x+12,y:top,w:w-24,h:vheight};
  g.save();g.beginPath();g.rect(modalView.x,top,modalView.w,vheight);g.clip();
@@ -574,7 +578,7 @@ function drawOptions(){
    yy+=34;continue;
   }
   if(kind==='button'){
-   if(yy+44>=top&&yy<=bottom)key(name,x+25,yy+3,w-50,38,k,{size:10});
+   if(yy+44>=top&&yy<=bottom)key(name,x+25,yy+3,w-50,38,k);
    yy+=60;continue;
   }
   if(kind==='switch'){
@@ -626,7 +630,7 @@ function drawScores(){
   if(i!==4)rect(x+17,ry+29,w-34,1,'#303030');
  }
  text('HIGH SCORES ARE SAVED ON THIS DEVICE',x+w/2,y+h-77,9,C.weak,'center',w-30);
- key('RETURN',x+16,y+h-57,w-32,41,'close',{size:11});
+ key('RETURN',x+16,y+h-57,w-32,41,'close');
 }
 function drawRestart(){
  const q=modalPanel('START NEW GAME?',215);
@@ -640,7 +644,7 @@ function drawEntry(){
  const {x,y,w,h}=q;
  text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,y+69,12,C.bright,'center');
  text('INITIALS / UP TO THREE',x+w/2,y+105,10,C.weak,'center');
- key(initialsInput.value||'TAP TO ENTER',x+35,y+126,w-70,43,'typeInitials',{size:15});
+ key(initialsInput.value||'TAP TO ENTER',x+35,y+126,w-70,43,'typeInitials');
  key('SKIP',x+15,y+h-65,(w-39)/2,45,'skipScore');
  key('SAVE SCORE',x+24+(w-39)/2,y+h-65,(w-39)/2,45,'saveScore',{light:true});
 }
