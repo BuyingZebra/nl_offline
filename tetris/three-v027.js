@@ -36,9 +36,12 @@ let theme=load('fieldAtlasThemeV06','green')==='amber'?'amber':'green';
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0,pressed=null,repeatDelay=null,repeatInterval=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let dirty=true,queued=false,lastTime=performance.now(),lastDraw=0,rollPhase=0,audioCtx=null,gamepadDrag=null;
-const input=document.createElement('canvas'),g=input.getContext('2d',{alpha:false});
-if(!g){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),lastDraw=0,rollPhase=0,audioCtx=null,gamepadDrag=null;
+let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
+const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
+let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
+const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
+if(!g||!modalContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:true,alpha:false,powerPreference:'high-performance'});
@@ -48,6 +51,23 @@ const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
 const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
 surface.frustumCulled=false;scene.add(surface);
+// Three.js composes stationary gameplay, a translucent modal scrim, and a
+// smaller transparent modal texture into ONE framebuffer before CRT shaders.
+// Dragging a menu no longer repaints or reuploads the fullscreen game texture.
+const scrimPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+ new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.77,
+  depthTest:false,depthWrite:false}));
+scrimPlane.frustumCulled=false;scrimPlane.renderOrder=1;scrimPlane.position.z=.02;
+scrimPlane.visible=false;scene.add(scrimPlane);
+const modalTexture=new THREE.CanvasTexture(modalCanvas);
+modalTexture.colorSpace=THREE.SRGBColorSpace;
+modalTexture.minFilter=THREE.LinearFilter;modalTexture.magFilter=THREE.LinearFilter;
+modalTexture.generateMipmaps=false;
+const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+ new THREE.MeshBasicMaterial({map:modalTexture,transparent:true,depthTest:false,
+  depthWrite:false}));
+modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
+modalPlane.visible=false;scene.add(modalPlane);
 
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
@@ -192,7 +212,11 @@ function tone(freq=240,len=.04){
  }catch(e){}
 }
 function invalidate(){dirty=true;requestFrame();}
-function openModal(name){modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;stopRepeat();pressed=null;invalidate();}
+function openModal(name){
+ modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;stopRepeat();pressed=null;
+ if(!modal)regions=baseRegions.slice();
+ invalidate();
+}
 function onOver(){
  if(game.status!=='over'||overOffered)return;
  overOffered=true;
@@ -212,6 +236,7 @@ function perform(type){
  else if(type==='pause')ok=game.pause();
  else if(type==='start')ok=game.start();
  if(ok){
+  baseDirty=true;
   if(was==='over'&&game.status==='playing')overOffered=false;
   if(game.lines>lines)tone(610,.14);
   else if(game.pieces>pieces)tone(175);
@@ -223,7 +248,7 @@ function perform(type){
  return ok;
 }
 function restart(){
- game.reset();game.start();overOffered=false;openModal(null);invalidate();
+ game.reset();game.start();baseDirty=true;overOffered=false;openModal(null);invalidate();
 }
 function options(){if(game.status==='playing')perform('pause');openModal('options');}
 function scores(){if(game.status==='playing')perform('pause');openModal('scores');}
@@ -231,7 +256,7 @@ function saveScore(){
  const tag=Scores.initials(initialsInput.value);
  highs=Scores.save(window.localStorage,Scores.add(highs,
   {name:tag,score:game.score,lines:game.lines,level:game.level,at:Date.now()}));
- store('fieldAtlasTetrisInitials',tag);initialsInput.blur();openModal('scores');
+ store('fieldAtlasTetrisInitials',tag);initialsInput.blur();baseDirty=true;openModal('scores');
 }
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -348,7 +373,7 @@ function layout(){
   sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
   sideX:bx+bw+10,sideW:93,dx,dy,dw,dh,footerY:H-safe.bottom-18};
 }
-function paintGame(){
+function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
  rect(0,0,W,H,C.bg);
  panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
@@ -393,8 +418,18 @@ function paintGame(){
  text(game.status==='ready'?'READY / PRESS START':game.lastEvent+' / '+game.dropMs+' MS',
    r.off+11,r.footerY,9,C.weak,'left',r.inner*.52);
  text('LOCAL ARCADE ENGINE / V027',r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.54);
- if(modal)paintModal();
- texture.needsUpdate=true;dirty=false;
+ // The grayscale gameplay texture changes only when game, theme or size changes.
+ baseRegions=regions.slice();
+ texture.needsUpdate=true;
+}
+function paintGame(){
+ if(baseDirty){paintBaseGame();baseDirty=false;}
+ if(modal)paintModalOverlay();
+ else{
+  modalPlane.visible=false;scrimPlane.visible=false;
+  regions=baseRegions.slice();
+ }
+ dirty=false;
 }
 
 const MENU=[
@@ -435,7 +470,7 @@ function settingValue(k){
 }
 function setSetting(k,value){
  if(k==='pieceGhost'){
-  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');
+  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');baseDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{FX[k]=value;persist();}
@@ -445,15 +480,18 @@ function displayValue(value,step,unit){
  const digits=step<.1?2:step<1?1:0;
  return Number(value).toFixed(digits)+unit;
 }
-function modalPanel(title,height){
- const insetsValue=insets();
+function modalBounds(height){
+ const safe=insets();
  const w=Math.max(190,Math.min(410,W-26));
- const h=Math.min(height,H-insetsValue.top-insetsValue.bottom-22);
- const x=(W-w)/2,y=(H-h)/2;
- regions=[];region(0,0,W,H,'block');rect(0,0,W,H,'rgba(0,0,0,.77)');
- panel(x,y,w,h,13,C.panel,C.border);
- text(title,x+17,y+25,14,C.bright,'left',w-34);
- return {x,y,w,h};
+ const h=Math.min(height,H-safe.top-safe.bottom-22);
+ return {w,h,x:(W-w)/2,y:(H-h)/2};
+}
+function modalPanel(title,height){
+ const q=modalBounds(height);
+ regions=[];region(0,0,W,H,'block');
+ panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
+ text(title,q.x+17,q.y+25,14,C.bright,'left',q.w-34);
+ return q;
 }
 function drawOptions(){
  const q=modalPanel('FIELD ATLAS / DISPLAY SETTINGS',Math.min(680,H*.82));
@@ -548,6 +586,29 @@ function paintModal(){
  else if(modal==='restart')drawRestart();
  else if(modal==='entry')drawEntry();
 }
+function paintModalOverlay(){
+ const wantedHeight=modal==='options'?Math.min(680,H*.82):
+  modal==='scores'?Math.min(430,H*.7):
+  modal==='restart'?215:275;
+ const q=modalBounds(wantedHeight);
+ const cw=Math.max(1,Math.round(q.w*DPR));
+ const ch=Math.max(1,Math.round(q.h*DPR));
+ if(modalCanvas.width!==cw||modalCanvas.height!==ch){
+  modalCanvas.width=cw;modalCanvas.height=ch;
+ }
+ // Redraw only the modal's physical pixels; its rectangular backing stays
+ // transparent so the separate Three.js scrim and game remain visible.
+ modalContext.setTransform(1,0,0,1,0,0);
+ modalContext.clearRect(0,0,cw,ch);
+ modalContext.setTransform(DPR,0,0,DPR,-q.x*DPR,-q.y*DPR);
+ modalPlane.position.set((q.x+q.w/2)/W*2-1,1-(q.y+q.h/2)/H*2,.03);
+ modalPlane.scale.set(q.w/W,q.h/H,1);
+ modalPlane.visible=true;scrimPlane.visible=true;
+ g=modalContext;
+ try{paintModal();}
+ finally{g=baseContext;}
+ modalTexture.needsUpdate=true;
+}
 function handleAction(act){
  if(act==='block'||act==='scroll'||act==='board')return;
  if(act==='close'){openModal(null);return;}
@@ -555,7 +616,7 @@ function handleAction(act){
  if(act==='scores'){scores();return;}
  if(act==='theme'){
   theme=theme==='green'?'amber':'green';
-  store('fieldAtlasThemeV06',theme);invalidate();return;
+  store('fieldAtlasThemeV06',theme);baseDirty=true;invalidate();return;
  }
  if(act==='restart'){if(game.status==='paused')openModal('restart');return;}
  if(act==='restartYes'){restart();return;}
@@ -609,6 +670,7 @@ screen.addEventListener('pointerdown',e=>{
  try{screen.setPointerCapture(e.pointerId)}catch(err){}
  // Game buttons stay immediate, including auto-repeat movement.
  if(!modal&&r&&!r.board){
+  baseDirty=true;
   handleAction(r.act);
   if(r.repeat)repeatDelay=setTimeout(()=>{
    repeatInterval=setInterval(()=>handleAction(r.act),82);
@@ -662,6 +724,7 @@ function releaseTouch(e){
    }
   }
  }else if(touch.action==='board'&&e.type==='pointerup'){
+  baseDirty=true;
   const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
   if(Math.abs(dx)<16&&Math.abs(dy)<16)perform('cw');
   else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
@@ -735,7 +798,7 @@ function frame(now){
   const prior=game.pieces,priorLines=game.lines,priorStatus=game.status;
   const advanced=game.tick(dt);
   if(advanced||game.pieces!==prior||game.lines!==prior||priorStatus!==game.status){
-   dirty=true;
+   dirty=true;baseDirty=true;
    if(game.lines>priorLines)tone(590,.1);
    else if(game.pieces>prior)tone(180,.04);
    onOver();
@@ -776,7 +839,7 @@ function resize(){
  ghostPass.uniforms.uSize.value.set(W,H);
  edgeSoftness.uniforms.uSize.value.set(W,H);
  grain.uniforms.uDpr.value=DPR;
- dirty=true;invalidate();
+ baseDirty=true;dirty=true;invalidate();
 }
 new ResizeObserver(resize).observe(display);
 window.addEventListener('orientationchange',()=>{dirty=true;resize();});
