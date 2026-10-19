@@ -37,3 +37,8 @@ Processing order: **grayscale Canvas2D source → vertical roll (optional) → g
 - Continue iterating on `three-v027.html` / `three-v027.js` using small, testable changes. **Never replace the effects laboratory** or the current production Tetris without explicit approval.
 - The October 18 gesture refinement uses **one pointer recognizer**: menu actions activate on touch-up, vertical swipes scroll even when starting over switches or sliders, horizontal drags change sliders, long-running scrolls ease out with momentum, and repeated game movement buttons continue to act immediately.
 - Geometry hit testing and on-screen drawing must use the same logical-pixel coordinates. Test menu input on real iPhones and Android phones; mocked input tests do not substitute for device verification.
+
+## Rendering performance — menu texture isolation
+- Three.js now renders the gameplay source and menu as **separate high-resolution grayscale CanvasTextures in one Scene**, along with a transparent dimming scrim. A **single RenderPass and the existing CRT effect pipeline** processes the combined image. This is not an unfiltered DOM overlay.
+- While the menu scrolls, only the smaller modal canvas is repainted and uploaded. The large gameplay canvas is cached until gameplay, theme, game options or viewport size actually changes.
+- Continue measuring actual phone smoothness: although canvas uploads are reduced, the full-screen GPU effects are still evaluated for every rendered animation frame. Any further GPU optimization must preserve approved optical appearance.
