@@ -36,7 +36,11 @@ html,body{margin:0;width:100%;height:100%;background:#151515;overflow:hidden}
 <script src="./core.js?three=v027-r1"></script>
 <script src="./scores.js?three=v027-r1"></script>
 <script type="module">
-import('./three-v027.js?three=v027-r1').catch(error=>{
+// Permanent bookmarkable URL: reload always requests the latest committed
+// renderer module rather than reusing an old browser module-cache entry.
+// This is a development-only cache buster; no new link per build is needed.
+const freshModule='./three-v027.js?live='+Date.now();
+import(freshModule).catch(error=>{
  const banner=document.getElementById('error');
  banner.hidden=false;
  banner.textContent='Three.js renderer could not load. Please reconnect and reload.\n'+String(error);
