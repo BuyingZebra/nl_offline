@@ -22,7 +22,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='007'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='008'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -828,11 +828,36 @@ document.addEventListener('keydown',e=>{
  if(e.repeat&&['hard','hold','pause','start'].includes(a))return;
  perform(a);
 });
+// iOS Home Screen web apps can resume a suspended page without reloading it.
+// Check the running renderer against the published build on reactivation.
+// Never interrupt a game or a dialog just to install an update.
+let checkingBuild=false,lastBuildCheck=0;
+async function checkForNewBuild(){
+ if(document.hidden||checkingBuild||modal||game.status!=='ready')return;
+ const now=Date.now();
+ if(now-lastBuildCheck<15000)return;
+ checkingBuild=true;lastBuildCheck=now;
+ try{
+  const url=new URL('./three-v027.js?update-check='+now,import.meta.url);
+  const reply=await fetch(url,{cache:'no-store'});
+  if(!reply.ok)return;
+  const match=(await reply.text()).match(/const THREE_BUILD_VERSION='([0-9]+)'/);
+  if(match&&Number(match[1])>Number(THREE_BUILD_VERSION)&&
+    !document.hidden&&!modal&&game.status==='ready'){
+   location.reload();
+  }
+ }catch(e){/* Offline: keep the current playable build. */}
+ finally{checkingBuild=false;}
+}
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden&&game.status==='playing')perform('pause');
  lastTime=performance.now();
- if(!document.hidden)invalidate();
+ if(!document.hidden){invalidate();void checkForNewBuild();}
 });
+window.addEventListener('pageshow',()=>{void checkForNewBuild();});
+window.addEventListener('focus',()=>{void checkForNewBuild();});
+// Some standalone sessions never report another foreground transition.
+setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
 function syncFX(now){
  verticalRoll.enabled=FX.roll;
  if(FX.roll){
@@ -916,4 +941,6 @@ new ResizeObserver(resize).observe(display);
 window.addEventListener('orientationchange',()=>{dirty=true;resize();});
 resize();
 requestFrame();
+// One check after initialization also covers standalone cold launches.
+void checkForNewBuild();
 
