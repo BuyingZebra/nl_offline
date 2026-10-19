@@ -25,7 +25,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='020'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='021'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -110,45 +110,61 @@ modalPlane.visible=false;scene.add(modalPlane);
  const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
 
  const passVertex='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
- // Shared Gaussian method with EDGE SOFTNESS: 7x7 normalized kernel.
- // Blur ONLY the full underlying board, then composite sharp board popup UI.
- const boardPopupPass=new ShaderPass({
-  uniforms:{
-   tDiffuse:{value:null},uPopup:{value:boardPopupTexture},
-   uRect:{value:new THREE.Vector4(0,0,0,0)},uSize:{value:new THREE.Vector2(1,1)},
-   uRadius:{value:0},uDim:{value:.20}
-  },
-  vertexShader:passVertex,
-  fragmentShader:`
+
+ // A Gaussian is separable: horizontal + vertical convolution gives a
+ // genuinely smooth 2D Gaussian, without the widely spaced 7x7 samples that
+ // caused tiled duplicates at stronger blur settings. Edge Softness uses
+ // the same normalized Gaussian weighting in a single 2D pass.
+ const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
-   uniform vec4 uRect;uniform vec2 uSize;uniform float uRadius,uDim;
+   uniform vec4 uRect;uniform vec2 uSize,uAxis;
+   uniform float uSigma,uStep,uComposite,uFade;
+   uniform vec3 uFadeTo;
    void main(){
     vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
     float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
                  step(uRect.y,vUv.y)*step(vUv.y,uRect.w);
-    if(inside>.5){
-     if(uRadius>.001){
-      vec2 pixel=1.0/max(vec2(1.0),uSize);
-      float interval=max(.001,uRadius)/3.0;
-      vec3 sum=vec3(0.0);float weights=0.0;
-      for(int y=-3;y<=3;y++){
-       for(int x=-3;x<=3;x++){
-        vec2 offset=vec2(float(x),float(y));
-        float weight=exp(-dot(offset,offset)/(2.0*1.25*1.25));
-        vec2 pos=clamp(vUv+offset*interval*pixel,uRect.xy,uRect.zw);
-        sum+=texture2D(tDiffuse,pos).rgb*weight;
-        weights+=weight;
-       }
-      }
-      backdrop=sum/max(.001,weights);
+    if(inside>.5&&uSigma>.01){
+     vec3 sum=vec3(0.0);float weights=0.0;
+     vec2 texel=uAxis*(uStep/max(vec2(1.0),uSize));
+     for(int i=-12;i<=12;i++){
+      float offset=float(i);
+      float weight=exp(-offset*offset/(2.0*uSigma*uSigma));
+      vec2 uv=clamp(vUv+offset*texel,uRect.xy,uRect.zw);
+      sum+=texture2D(tDiffuse,uv).rgb*weight;
+      weights+=weight;
      }
-     backdrop*=(1.0-uDim);
+     backdrop=sum/max(.001,weights);
     }
-    vec4 popup=texture2D(uPopup,vUv);
-    gl_FragColor=vec4(mix(backdrop,popup.rgb,popup.a),1.0);
-   }`
- });
- boardPopupPass.enabled=false;
+    if(uComposite>.5){
+     if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
+     vec4 popup=texture2D(uPopup,vUv);
+     backdrop=mix(backdrop,popup.rgb,popup.a);
+    }
+    gl_FragColor=vec4(backdrop,1.0);
+   }`;
+ function createBoardGaussianPass(axis,composite){
+  return new ShaderPass({
+   uniforms:{
+    tDiffuse:{value:null},uPopup:{value:boardPopupTexture},
+    uRect:{value:new THREE.Vector4(0,0,0,0)},
+    uSize:{value:new THREE.Vector2(1,1)},
+    uAxis:{value:new THREE.Vector2(axis,1-axis)},
+    uSigma:{value:0},uStep:{value:1},
+    uComposite:{value:composite?1:0},
+    uFade:{value:.29},uFadeTo:{value:new THREE.Color(0x101010)}
+   },
+   vertexShader:passVertex,fragmentShader:boardGaussianShader
+  });
+ }
+ const boardBlurHorizontal=createBoardGaussianPass(1,false);
+ const boardPopupPass=createBoardGaussianPass(0,true);
+ // ShaderPass clones input uniforms, including texture objects. Reattach
+ // the ORIGINAL live CanvasTexture so every PAUSED/READY/OVER redraw reaches
+ // the GPU, rather than displaying an old START GAME snapshot.
+ boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
+ boardBlurHorizontal.enabled=false;boardPopupPass.enabled=false;
+ composer.addPass(boardBlurHorizontal);
  composer.addPass(boardPopupPass);
 
  // Vertical-sync roll: real image sampling with repeated UV coordinates.
@@ -279,11 +295,13 @@ modalPlane.visible=false;scene.add(modalPlane);
 // These are GPU tint multipliers of grayscale luminance, not UI source colours.
 const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
-// Unified popup blur slider (0..100%) controls Gaussian sample spacing.
-const BOARD_POPUP_DIM=.29;
-function boardBlurRadius(boardWidth){
- const percent=clamp(Number(FX.boardBlur)||0,0,100)/100;
- return boardWidth*.9*Math.pow(percent,4);
+// Popup blur remains one 0–100% control. Both GPU axes use dense,
+// regularly spaced normalized Gaussian samples. At high settings we enlarge
+// the sampling footprint, while 47% uses nearly pixel-adjacent taps.
+const BOARD_POPUP_FADE=.29;
+function boardBlurParams(){
+ const p=clamp(Number(FX.boardBlur)||0,0,100)/100;
+ return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
 }
 function tone(freq=240,len=.04){
  if(!soundOn)return;
@@ -1020,13 +1038,23 @@ function syncFX(now){
  edgeSoftness.enabled=FX.softness;
  edgeSoftness.uniforms.uAmount.value=FX.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=FX.softnessRadius;
- boardPopupPass.enabled=game.status!=='playing'&&!modal&&
+ const boardOverlayActive=game.status!=='playing'&&!modal&&
   lastPaintedBoardPopupStatus===game.status;
- boardPopupPass.uniforms.uRadius.value=boardBlurRadius(Math.max(0,(layoutInfo?.boardW||0)-4));
- boardPopupPass.uniforms.uDim.value=BOARD_POPUP_DIM;
+ boardBlurHorizontal.enabled=boardOverlayActive;
+ boardPopupPass.enabled=boardOverlayActive;
+ const popupBlur=boardBlurParams();
+ for(const pass of [boardBlurHorizontal,boardPopupPass]){
+  pass.uniforms.uSigma.value=popupBlur.sigma;
+  pass.uniforms.uStep.value=popupBlur.step;
+ }
+ boardPopupPass.uniforms.uFade.value=BOARD_POPUP_FADE;
+ // Keep the live CanvasTexture bound through all update paths.
+ boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){
   const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
-  boardPopupPass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
+  for(const pass of [boardBlurHorizontal,boardPopupPass]){
+   pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
+  }
  }
  edgeVignette.enabled=FX.vignette;
  edgeVignette.uniforms.uAmount.value=FX.vignetteAmount;
@@ -1089,6 +1117,7 @@ function resize(){
  composer.setPixelRatio(DPR);composer.setSize(W,H);
  ghostPass.uniforms.uSize.value.set(W,H);
  edgeSoftness.uniforms.uSize.value.set(W,H);
+ boardBlurHorizontal.uniforms.uSize.value.set(W,H);
  boardPopupPass.uniforms.uSize.value.set(W,H);
  grain.uniforms.uDpr.value=DPR;
  baseDirty=true;dirty=true;invalidate();
