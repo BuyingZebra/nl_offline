@@ -116,3 +116,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Set only the amber hue vector of the existing full-screen phosphor pass to `new THREE.Vector3(185/255,133/255,50/255)`, matching the chosen darker aged-gold colour study candidate. This is an RGB tint multiplier on source luminance; actual post-compositor colour may differ from the flat swatch.
 - Green retains the V012 `#33FF33` vector. All grayscale UI source values, brightness hierarchy, shaders/CRT effects, interaction and layouts, fonts, saved preferences, and the Home Screen update check remain unchanged.
 - Increment `THREE_BUILD_VERSION` to `013` without changing the permanent URL `tetris/three-v027.html`.
+
+## V014: Amber phosphor visually matched to approved Pip-Boy study
+- **Amber only:** change the current GPU tint vector from `[185/255, 133/255, 50/255]` to `[185/255, 79/255, 9/255]`. Green remains **exactly** `[.2, 1, .2]`.
+- Pixel sampling of the user's Version 013 screenshot found the bright filled-button output near **RGB (215, 186, 119)**, whereas the approved bottom-right image study was near **RGB (214, 147, 52)**. The new coefficients preserve red intensity while reducing green and blue roughly by the amount expected under sRGB transfer curves. This is a **visual trial**, not a claim that the app's final emitted light exactly equals the mockup.
+- No changes to grayscale source values, interface luminance constants, layout, gameplay, stored preferences, bloom/CRT effects, compositor pass order, or Home Screen refresh. The footer shows **Version 014** at the unchanged `tetris/three-v027.html` URL.
