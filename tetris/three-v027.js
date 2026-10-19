@@ -287,7 +287,7 @@ function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
 }
 function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,spacing=0){
  g.font='700 '+size+'px '+FONT;g.textAlign=align;g.textBaseline='middle';
- // V027 specified letter-spacing for headings, buttons and small labels.
+ // Decorative tracking remains for headings and HUD labels; button labels use zero tracking.
  g.letterSpacing=spacing?spacing.toFixed(2)+'px':'0px';
  g.fillStyle=color;
  if(Number.isFinite(maxWidth))g.fillText(String(str),x,y,Math.max(1,maxWidth));
@@ -372,9 +372,8 @@ function stage(r){
   const copy=type==='paused'?'YOUR GAME IS SAFE UNTIL YOU RETURN':type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
   text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
   text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
-  // All board overlay buttons share the same 75% width scale and are
-  // Primary game-entry key matches bottom-row HOLD / PAUSE height across sizes.
-  // Keep the existing centered 75%-width overlay-button stack and gaps.
+  // All board overlay buttons retain 75%-width scaling and a centered stack.
+  // Primary game-entry height matches bottom-row HOLD / PAUSE across sizes.
   const inset=UI_SPACE.unit,primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
   const bw=(w-2*inset)*UI_SPACE.buttonWidthScale;
   const bx=x+(w-bw)/2,normalY=y+h/2+14;
