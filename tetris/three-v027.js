@@ -22,7 +22,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='011'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='012'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -158,7 +158,7 @@ modalPlane.visible=false;scene.add(modalPlane);
  composer.addPass(grain);
 
  const tint=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.28,1,.46)}},
+  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.2,1,.2)}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
@@ -216,7 +216,9 @@ modalPlane.visible=false;scene.add(modalPlane);
  composer.addPass(new OutputPass());
 
 
-const hues={green:new THREE.Vector3(.28,1,.46),amber:new THREE.Vector3(1,.72,.36)};
+// Approximate historical green/amber terminal phosphor tints: #33FF33 / #FFB000.
+// These are RGB multipliers applied to grayscale scene luminance, not UI colours.
+const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(1,176/255,0)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
 function tone(freq=240,len=.04){
  if(!soundOn)return;
