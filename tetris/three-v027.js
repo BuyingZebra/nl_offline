@@ -21,11 +21,11 @@ const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-const DEFAULT=Object.freeze({boardBlur:35,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
+const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='019'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='020'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -50,6 +50,11 @@ const store=(key,value)=>{try{localStorage.setItem(key,String(value))}catch(e){}
 let FX={...DEFAULT};
 try{const s=JSON.parse(load(PREF,'null'));if(s&&typeof s==='object')for(const [k,v] of Object.entries(DEFAULT))if(typeof s[k]===typeof v)FX[k]=s[k];}catch(e){}
 const persist=()=>store(PREF,JSON.stringify(FX));
+// Upgrade popup blur to 47% once; later user adjustments remain persistent.
+const BOARD_POPUP_V020='fieldAtlasBoardPopupV020';
+if(load(BOARD_POPUP_V020,'')!=='applied'){
+ FX.boardBlur=47;persist();store(BOARD_POPUP_V020,'applied');
+}
 const game=new Core.Game();
 let highs=Scores.read(window.localStorage),overOffered=false;
 let showGhost=load('fieldAtlasTetrisGhost','yes')!=='no';
@@ -60,6 +65,9 @@ let optionsScroll=0,optionsMaxScroll=0,pressed=null,repeatDelay=null,repeatInter
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),lastDraw=0,rollPhase=0,audioCtx=null,gamepadDrag=null;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
+// Snapshot a just-completed board before Core removes its rows, then flash it.
+const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
+let lineClearFX=null,lastPaintedBoardPopupStatus=null;
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
 let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
@@ -272,7 +280,7 @@ modalPlane.visible=false;scene.add(modalPlane);
 const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
 // Unified popup blur slider (0..100%) controls Gaussian sample spacing.
-const BOARD_POPUP_DIM=.20;
+const BOARD_POPUP_DIM=.29;
 function boardBlurRadius(boardWidth){
  const percent=clamp(Number(FX.boardBlur)||0,0,100)/100;
  return boardWidth*.9*Math.pow(percent,4);
@@ -290,6 +298,29 @@ function tone(freq=240,len=.04){
  }catch(e){}
 }
 function invalidate(){dirty=true;requestFrame();}
+// Core synchronously removes rows on lock; this renderer-only observer
+// captures the exact filled squares before deletion for the short animation.
+const coreLockPiece=game.lockPiece.bind(game);
+game.lockPiece=function(){
+ const beforeLines=game.lines;
+ const snapshot=game.board.map(row=>row.slice());
+ const p=game.current;
+ if(p){
+  p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
+   const x=p.x+rx,y=p.y+ry;
+   if(kind&&x>=0&&x<Core.COLS&&y>=0&&y<Core.ROWS)snapshot[y][x]=kind;
+  }));
+ }
+ coreLockPiece();
+ if(game.lines>beforeLines&&game.status==='playing'){
+  const rows=[];
+  snapshot.forEach((row,y)=>{if(row.every(Boolean))rows.push(y);});
+  if(rows.length){
+   lineClearFX={board:snapshot,rows:new Set(rows),elapsed:0};
+   baseDirty=true;invalidate();
+  }
+ }
+};
 function openModal(name){
  modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;stopRepeat();pressed=null;
  if(!modal)regions=baseRegions.slice();
@@ -304,6 +335,8 @@ function onOver(){
  }
 }
 function perform(type){
+ // Allow pause during the line-clear animation; block gameplay moves.
+ if(lineClearFX&&game.status==='playing'&&['left','right','cw','hard','hold'].includes(type))return false;
  const was=game.status,pieces=game.pieces,lines=game.lines;
  let ok=false;
  if(type==='left')ok=game.move(-1);
@@ -326,6 +359,7 @@ function perform(type){
  return ok;
 }
 function restart(){
+ lineClearFX=null;
  game.reset();game.start();baseDirty=true;overOffered=false;openModal(null);invalidate();
 }
 function options(){if(game.status==='playing')perform('pause');openModal('options');}
@@ -426,8 +460,19 @@ function stage(r){
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
- game.board.forEach((row,ry)=>row.forEach((kind,rx)=>cell(offX,offY,rx,ry,tile,kind)));
- if(game.current&&game.status!=='over'){
+ // Blink freshly completed rows between the detailed tiles and empty
+ // outlined cubes before revealing the core's already-cleared board.
+ const displayBoard=lineClearFX?.board||game.board;
+ const clearIsEmpty=lineClearFX&&Math.floor(lineClearFX.elapsed/LINE_FLASH_TOGGLE_MS)%2===1;
+ displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
+  if(!kind)return;
+  if(clearIsEmpty&&lineClearFX.rows.has(ry)){
+   const px=offX+rx*tile,py=offY+ry*tile;
+   g.save();g.strokeStyle=C.border;g.globalAlpha=.42;g.lineWidth=.7;
+   g.strokeRect(px+2,py+2,tile-4,tile-4);g.restore();
+  }else cell(offX,offY,rx,ry,tile,kind);
+ }));
+ if(!lineClearFX&&game.current&&game.status!=='over'){
   const p=game.current;
   if(showGhost&&(game.status==='playing'||game.status==='paused')){
    const target=game.ghostY();
@@ -437,9 +482,17 @@ function stage(r){
  }
  g.restore();
  region(x,y,w,h,'board',{board:true});
- if(game.status!=='playing'){
-  g=boardPopupContext;
-  try{
+
+}
+function paintBoardPopup(r){
+ // A freshly rendered status snapshot prevents START GAME from persisting
+ // when the engine transitions to PAUSED or GAME OVER.
+ const status=game.status;
+ lastPaintedBoardPopupStatus=status;
+ if(status==='playing')return;
+ const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
+ g=boardPopupContext;
+ try{
   const type=game.status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
@@ -460,7 +513,6 @@ function stage(r){
    key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores');
   }
   }finally{g=baseContext;}
- }
 }
 function insets(){
  const cs=getComputedStyle(safeProbe);
@@ -567,12 +619,15 @@ function paintBaseGame(){
  key('PAUSE',groupX+ew+extraGap,ey,ew,r.extraH,'pause');
  text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,.63);
  text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,.63);
- // The grayscale gameplay texture changes only when game, theme or size changes.
+ // Re-render the sharp popup from the CURRENT status, registering its hitboxes
+ // after all other controls so overlays take input priority.
+ paintBoardPopup(r);
  baseRegions=regions.slice();
  texture.needsUpdate=true;
  boardPopupTexture.needsUpdate=true;
 }
 function paintGame(){
+ if(game.status!==lastPaintedBoardPopupStatus)baseDirty=true;
  if(baseDirty){paintBaseGame();baseDirty=false;}
  if(modal)paintModalOverlay();
  else{
@@ -965,7 +1020,8 @@ function syncFX(now){
  edgeSoftness.enabled=FX.softness;
  edgeSoftness.uniforms.uAmount.value=FX.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=FX.softnessRadius;
- boardPopupPass.enabled=game.status!=='playing'&&!modal;
+ boardPopupPass.enabled=game.status!=='playing'&&!modal&&
+  lastPaintedBoardPopupStatus===game.status;
  boardPopupPass.uniforms.uRadius.value=boardBlurRadius(Math.max(0,(layoutInfo?.boardW||0)-4));
  boardPopupPass.uniforms.uDim.value=BOARD_POPUP_DIM;
  if(layoutInfo){
@@ -984,7 +1040,13 @@ function frame(now){
  try{
   const dt=clamp(now-lastTime,0,100);lastTime=now;
   const prior=game.pieces,priorLines=game.lines,priorStatus=game.status;
-  const advanced=game.tick(dt);
+  // Freeze gravity until the completed rows have finished blinking.
+  const advanced=lineClearFX?false:game.tick(dt);
+  if(lineClearFX&&game.status==='playing'){
+   lineClearFX.elapsed+=dt;
+   if(lineClearFX.elapsed>=LINE_FLASH_MS)lineClearFX=null;
+   dirty=true;baseDirty=true;
+  }
   if(advanced||game.pieces!==prior||game.lines!==prior||priorStatus!==game.status){
    dirty=true;baseDirty=true;
    if(game.lines>priorLines)tone(590,.1);
