@@ -102,3 +102,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Standalone character icons `◀`, `▶`, `↻`, `◐`, `☷` draw at **16px** instead of 14px, whether solid or default.
 - The `▶` icon alongside START GAME / RESUME / PLAY AGAIN is **18px** instead of 16px, independently sized from the unchanged 16px caption.
 - No letter spacing on buttons, and no changes to button rectangles, centering, input regions, layout, rendering passes, Home Screen update logic, or permanent URL. Footer shows Version 010.
+
+## V011: Uniform character icons and wider game-board buttons
+- All button icon characters (`◀`, `▶`, `↻`, `◐`, `☷`), including the separate play arrow in START GAME / RESUME / PLAY AGAIN, use exactly **18px**. Standard button labels stay 14px; the three main-action labels stay 16px. No additional letter spacing.
+- All action buttons on the **game board itself** (START GAME / RESUME / PLAY AGAIN, plus paused NEW GAME and HIGH SCORE) are **85% of the full playfield width** (7.5% margin on either side), centered. They use the separate `UI_SPACE.overlayButtonWidthScale=.85` token.
+- HOLD and PAUSE controls **outside the game board** continue to use the existing 75%-width rule. All button heights, hit testing, spacing, gameplay, shaders, score handling, Home Screen update logic, and the permanent URL remain unchanged. Footer shows Version 011.
