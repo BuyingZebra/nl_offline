@@ -21,11 +21,11 @@ const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
+const DEFAULT=Object.freeze({pauseBlur:65,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='017'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='018'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -230,9 +230,14 @@ modalPlane.visible=false;scene.add(modalPlane);
 // These are GPU tint multipliers of grayscale luminance, not UI source colours.
 const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
-// "65% blur" is a 65% blend of an authentic Gaussian-blurred board.
-// Dimming is only 8%, confined to the board while paused.
-const PAUSE_BOARD_FX=Object.freeze({blurMix:.65,blurRadius:5.5,dim:.08});
+// Pause has one user-facing blur strength: 0% is entirely sharp, while 100%
+// strongly defocuses the full board. Radius derives from board size internally.
+// The pause board itself is dimmed only 12%; labels/buttons stay crisp.
+const PAUSE_BOARD_FX=Object.freeze({dim:.12});
+function pauseBlurRadius(boardWidth){
+ const percent=clamp(Number(FX.pauseBlur)||0,0,100)/100;
+ return boardWidth*.9*Math.pow(percent,4);
+}
 function tone(freq=240,len=.04){
  if(!soundOn)return;
  try{const AC=window.AudioContext||window.webkitAudioContext;
@@ -405,7 +410,8 @@ function boxBlurGray(values,width,height,radius){
 }
 function blurPausedBoard(x,y,w,h){
  g.save();g.beginPath();g.roundRect(x,y,w,h,6);g.clip();
- if(pauseSnapshotContext&&pauseBlurContext&&w>0&&h>0){
+ const radius=pauseBlurRadius(w);
+ if(radius>0&&pauseSnapshotContext&&pauseBlurContext&&w>0&&h>0){
   const pw=Math.max(1,Math.round(w*DPR)),ph=Math.max(1,Math.round(h*DPR));
   if(pauseSnapshot.width!==pw||pauseSnapshot.height!==ph){
    pauseSnapshot.width=pw;pauseSnapshot.height=ph;
@@ -416,7 +422,7 @@ function blurPausedBoard(x,y,w,h){
   pauseBlurContext.setTransform(1,0,0,1,0,0);
   pauseBlurContext.clearRect(0,0,pw,ph);
   if('filter' in pauseBlurContext){
-   pauseBlurContext.filter='blur('+(PAUSE_BOARD_FX.blurRadius*DPR).toFixed(2)+'px)';
+   pauseBlurContext.filter='blur('+(radius*DPR).toFixed(2)+'px)';
    pauseBlurContext.drawImage(pauseSnapshot,0,0);
    pauseBlurContext.filter='none';
   }else if(pauseSmallContext){
@@ -433,8 +439,8 @@ function blurPausedBoard(x,y,w,h){
    const pixels=pauseSmallContext.getImageData(0,0,dw,dh);
    const sourceGray=new Uint8ClampedArray(dw*dh);
    for(let i=0;i<sourceGray.length;i++)sourceGray[i]=pixels.data[i*4];
-   const radius=Math.max(1,Math.round(PAUSE_BOARD_FX.blurRadius*DPR*factor));
-   const result=boxBlurGray(sourceGray,dw,dh,radius);
+   const kernelRadius=Math.max(1,Math.round(radius*DPR*factor));
+   const result=boxBlurGray(sourceGray,dw,dh,kernelRadius);
    for(let i=0;i<result.length;i++){
     const k=i*4;pixels.data[k]=result[i];
     pixels.data[k+1]=result[i];pixels.data[k+2]=result[i];pixels.data[k+3]=255;
@@ -444,9 +450,8 @@ function blurPausedBoard(x,y,w,h){
    pauseBlurContext.imageSmoothingQuality='high';
    pauseBlurContext.drawImage(pauseSmallCanvas,0,0,pw,ph);
   }else pauseBlurContext.drawImage(pauseSnapshot,0,0);
-  g.globalAlpha=PAUSE_BOARD_FX.blurMix;
+  // Draw the fully blurred image, never a sharp/blurred crossfade.
   g.drawImage(pauseBlurCanvas,x,y,w,h);
-  g.globalAlpha=1;
  }
  rect(x,y,w,h,'rgba(0,0,0,'+PAUSE_BOARD_FX.dim+')');
  g.restore();
@@ -464,7 +469,7 @@ function stage(r){
  game.board.forEach((row,ry)=>row.forEach((kind,rx)=>cell(offX,offY,rx,ry,tile,kind)));
  if(game.current&&game.status!=='over'){
   const p=game.current;
-  if(showGhost&&game.status==='playing'){
+  if(showGhost&&(game.status==='playing'||game.status==='paused')){
    const target=game.ghostY();
    p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{if(kind)cell(offX,offY,p.x+rx,target+ry,tile,kind,true);}));
   }
@@ -620,6 +625,7 @@ function paintGame(){
 const MENU=[
  ['heading','GAMEPLAY'],
  ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound'],
+ ['range','PAUSE BLUR','pauseBlur',0,100,1,'%'],
  ['heading','CRT EMISSION'],
  ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
  ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
@@ -658,7 +664,10 @@ function setSetting(k,value){
   showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');baseDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
- }else{FX[k]=value;persist();}
+ }else{
+  FX[k]=value;persist();
+  if(k==='pauseBlur'&&game.status==='paused')baseDirty=true;
+ }
  invalidate();
 }
 function displayValue(value,step,unit){
@@ -808,7 +817,7 @@ function handleAction(act){
  if(act==='skipScore'){initialsInput.blur();openModal(null);return;}
  if(act==='saveScore'){saveScore();return;}
  if(act==='typeInitials'){initialsInput.focus();return;}
- if(act==='resetFX'){FX={...DEFAULT};persist();invalidate();return;}
+ if(act==='resetFX'){FX={...DEFAULT};persist();baseDirty=true;invalidate();return;}
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
 function stopRepeat(){
