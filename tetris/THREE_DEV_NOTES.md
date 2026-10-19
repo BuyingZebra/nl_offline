@@ -111,3 +111,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 ## V012: Trial of reference phosphor tints
 - Apply the candidate CRT-inspired hue settings to the **existing full-screen GPU tint pass** only: green `#33FF33` (RGB multipliers `[0.2, 1, 0.2]`) and amber `#FFB000` (`[1, 176/255, 0]`). These are *approximate digital colour targets*, not measured or standardised CRT phosphor chromaticities; visual appearance also depends on the shader's luminance multiplication, bloom, colour-space handling and phone screen.
 - Keep all grayscale UI source luminance values, layout, gameplay, saved theme selection, existing shader order and optical effects unchanged. The footer reports Version 012, with the same bookmarked Home Screen URL.
+
+## V013: Pip-Boy amber trial (`#B98532`)
+- Set only the amber hue vector of the existing full-screen phosphor pass to `new THREE.Vector3(185/255,133/255,50/255)`, matching the chosen darker aged-gold colour study candidate. This is an RGB tint multiplier on source luminance; actual post-compositor colour may differ from the flat swatch.
+- Green retains the V012 `#33FF33` vector. All grayscale UI source values, brightness hierarchy, shaders/CRT effects, interaction and layouts, fonts, saved preferences, and the Home Screen update check remain unchanged.
+- Increment `THREE_BUILD_VERSION` to `013` without changing the permanent URL `tetris/three-v027.html`.
