@@ -79,3 +79,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - All Canvas2D `key()` buttons use the former DROP font size of **14px**. Buttons with the existing bright fill (`light: true`), including DROP, movement controls and primary confirmation actions, draw labels at **17.5px** (125%). Icon glyphs in buttons follow the same rule.
 - Per-call font overrides were removed to prevent inconsistent button labels across settings, game overlays and dialogs. Existing width, height, spacing, centering, hit regions, CRT passes and FX defaults are unchanged.
 - Version indicator increments from `005` to `006`; the permanent `three-v027.html` link and timestamped module reload remain intact. Static checks passed; actual phone visual verification remains pending.
+
+## V007: Consistent button and character-icon typography
+- **All default and solid buttons use a 14px font**, including characters used as icons (`◀`, `▶`, `↻`, `◐`, `☷`); fill/background luminance never changes font size.
+- Only the three main game-entry action labels **START GAME / RESUME / PLAY AGAIN** use **16px**, including the corresponding `▶` icon in the same button.
+- Keep existing font weight, letter spacing, sizes/positions of button rectangles, hitboxes, overlay arrangement, spacing, and compositor unchanged. No new URL: the existing `three-v027.html` entry point loads this updated `three-v027.js` and displays build `007`.
