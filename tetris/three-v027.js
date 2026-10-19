@@ -15,14 +15,17 @@ const fatal=document.getElementById('error');
 if(!Core?.Game||!Scores){fatal.hidden=false;fatal.textContent='Tetris core missing';throw Error('Tetris core missing');}
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v)),fmt=(n,k=6)=>String(Math.max(0,Math.floor(n))).padStart(k,'0');
 const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')'};
-const C={bg:'#080808',panel:'#151515',button:'#151515',solid:'#303030',ink:'#e3e3e3',
+// Default/unfilled button faces share the exact near-black background value.
+// Lift panels by 3 percentage points of the 0–255 grayscale scale (21 -> 29).
+const SCREEN_BLACK='#080808';
+const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='015'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='016'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
