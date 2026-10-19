@@ -42,3 +42,14 @@ Processing order: **grayscale Canvas2D source → vertical roll (optional) → g
 - Three.js now renders the gameplay source and menu as **separate high-resolution grayscale CanvasTextures in one Scene**, along with a transparent dimming scrim. A **single RenderPass and the existing CRT effect pipeline** processes the combined image. This is not an unfiltered DOM overlay.
 - While the menu scrolls, only the smaller modal canvas is repainted and uploaded. The large gameplay canvas is cached until gameplay, theme, game options or viewport size actually changes.
 - Continue measuring actual phone smoothness: although canvas uploads are reduced, the full-screen GPU effects are still evaluated for every rendered animation frame. Any further GPU optimization must preserve approved optical appearance.
+
+## V002: V027 layout contract
+- **V027 original CSS is authoritative** for geometry and spacing. Version 002 introduces one `UI_SPACE` token object and a `layout()` function; render and pointer hitboxes use the same computed rectangles.
+- Portrait outer content width: `min(viewport width, 520px)`; side gutters 11px. Header and measured controls deck occupy fixed/minimum space, separated from a **flexible middle stage** by 9px gaps (6px on shorter screens).
+- Reference portrait (393 x 852 logical px, safe top 59, bottom 34): header `x=11,y=59,w=371,h=80`; board `x≈31,y=148,w≈229,h=457`; controls `y=614,h=174`; footer `y=800`. Values follow responsive formulas, not coordinates hardcoded to this one device.
+- Board holds **10×20** grid and always retains 1:2 aspect ratio. Board width is constrained by both stage width minus sidebar (93px + 10px gap) and half the available stage height, max 305px.
+- Sidebar: HOLD (88px), NEXT (162px), BEST/PIECES (92px) on normal-height phones. Panels are constrained to the stage and shrink where necessary to avoid overlap; miniature pieces use original V027 120x90/120x75 canvas scaling for accurate visual sizes.
+- Controls deck: 9px internal inset; 45px score row; 7px gaps; 53px primary buttons in five evenly divided tracks with 6px gutters; 44px secondary buttons; 8px gap between extras. Portrait deck uses safe-area-aware bottom anchoring.
+- Header: 46px icons at 7px gap, 13px right inset. Text supports V027 letter spacing (heading 0.13em, buttons 0.08em, captions 0.12em).
+- Tested mocked layout and game interaction in 393x852, 375x667, 320x568, 430x932 and 852x393. **Real iPhone comparison still required** before claiming exact visual parity.
+- CRT compositor shader code, approved effect values, and preserved laboratory are unchanged.
