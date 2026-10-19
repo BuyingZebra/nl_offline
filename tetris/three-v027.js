@@ -22,7 +22,17 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='001'; // Increment for each approved Three.js test update.
+const THREE_BUILD_VERSION='002'; // Increment per approved layout/render test.
+// V027 layout contract: flexible stage bounded by measured header/deck,
+// 11px app insets, 93px sidebar, consistent 6/7/8/9px spacing.
+const UI_SPACE=Object.freeze({
+ appMax:520,padX:11,stackGap:9,side:93,sideGap:10,
+ headHeight:80,headIcons:46,headIconGap:7,headRightPad:13,
+ headTitleInset:17,headTitleDrop:6,
+ deckBottom:30,deckPad:9,scoreHeight:45,deckGap:7,
+ padGap:6,padHeight:53,extrasHeight:44,extrasGap:8,
+ holdHeight:88,nextHeight:162,statsHeight:92
+});
 const PREF='fieldAtlasThreeV027FX01';
 const load=(key,fallback)=>{try{return localStorage.getItem(key)??fallback}catch(e){return fallback}};
 const store=(key,value)=>{try{localStorage.setItem(key,String(value))}catch(e){}};
@@ -270,35 +280,48 @@ function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  if(fill){g.fillStyle=fill;g.fill();}
  if(border){g.strokeStyle=border;g.lineWidth=1;g.stroke();}
 }
-function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity){
+function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,spacing=0){
  g.font='700 '+size+'px '+FONT;g.textAlign=align;g.textBaseline='middle';
+ // V027 specified letter-spacing for headings, buttons and small labels.
+ g.letterSpacing=spacing?spacing.toFixed(2)+'px':'0px';
  g.fillStyle=color;
  if(Number.isFinite(maxWidth))g.fillText(String(str),x,y,Math.max(1,maxWidth));
  else g.fillText(String(str),x,y);
+ g.letterSpacing='0px';
 }
 function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
 function region(x,y,w,h,act,opts={}){regions.push({x,y,w,h,act,...opts});}
 function key(label,x,y,w,h,act,{light=false,size=11,repeat=false,arrow=false}={}){
  const down=pressed?.action===act&&pressed?.box?.x===x;
  panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
- text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14));
+ text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14),size*.08);
  if(arrow)text('▶',x+17,y+h/2,14,light?C.dark:C.ink,'center');
  region(x,y,w,h,act,{repeat});
 }
-function smallPiece(kind,x,y,w,h){
+// V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
+// displayed as 80x60 and 80x44 CSS pixels. Match their real visual sizes,
+// instead of drawing 20px cells directly in CSS pixels.
+function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
  const m=Core.SHAPES[kind],pts=[];
- for(let r=0;r<m.length;r++)for(let c=0;c<m[r].length;c++)if(m[r][c])pts.push([c,r]);
+ for(let row=0;row<m.length;row++)for(let col=0;col<m[row].length;col++)
+  if(m[row][col])pts.push([col,row]);
  if(!pts.length)return;
  const loX=Math.min(...pts.map(p=>p[0])),hiX=Math.max(...pts.map(p=>p[0]));
  const loY=Math.min(...pts.map(p=>p[1])),hiY=Math.max(...pts.map(p=>p[1]));
- const size=Math.min(20,(w-8)/(hiX-loX+1),(h-6)/(hiY-loY+1));
- const sx=x+(w-size*(hiX-loX+1))/2,sy=y+(h-size*(hiY-loY+1))/2;
+ const cols=hiX-loX+1,rows=hiY-loY+1;
+ const sourceH=role==='hold'?90:75;
+ const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
+ const stepX=sourceCell*w/120,stepY=sourceCell*h/sourceH;
+ const sx=x+(w-stepX*cols)/2,sy=y+(h-stepY*rows)/2;
  const shade=gray(28+190*(brightness[kind]||.8));
  for(const [col,row] of pts){
-  const xx=sx+(col-loX)*size,yy=sy+(row-loY)*size;
-  rect(xx+1,yy+1,size-2,size-2,shade);
-  g.strokeStyle=C.bright;g.lineWidth=.6;g.strokeRect(xx+1.5,yy+1.5,size-3,size-3);
+  const xx=sx+(col-loX)*stepX,yy=sy+(row-loY)*stepY;
+  const insetX=w/120,insetY=h/sourceH;
+  rect(xx+insetX,yy+insetY,Math.max(1,stepX-2*insetX),Math.max(1,stepY-2*insetY),shade);
+  g.strokeStyle=C.bright;g.lineWidth=.7;
+  g.strokeRect(xx+1.5*insetX,yy+1.5*insetY,
+   Math.max(1,stepX-3*insetX),Math.max(1,stepY-3*insetY));
  }
 }
 function cell(x,y,col,row,size,kind,isGhost=false){
@@ -355,69 +378,87 @@ function insets(){
  const cs=getComputedStyle(safeProbe);
  return {top:parseFloat(cs.paddingTop)||0,bottom:parseFloat(cs.paddingBottom)||0};
 }
+// Flexbox-equivalent sizing based on V027's layout rules, not magic screen coordinates.
 function layout(){
- const safe=insets(),landscape=W>H&&H<=600;
- const width=landscape?W:Math.min(W,520),off=(W-width)/2,pad=11,inner=width-22;
- const gap=H<=730?6:9;
- let hy=safe.top+9,hh=H<=730?53:65,dh=H<=730?160:172,dy=H-safe.bottom-30-dh;
- let sy=hy+hh+gap,sh=dy-gap-sy;
+ const safe=insets(),landscape=W>H&&H<=600,ui=UI_SPACE;
+ const width=landscape?W:Math.min(W,ui.appMax),off=(W-width)/2,pad=ui.padX,inner=width-2*pad;
+ const short=H<=730,compact=H<=620,gap=compact?4:short?6:ui.stackGap;
+ const deckPad=short?7:ui.deckPad,deckGap=compact?4:short?5:ui.deckGap;
+ const buttonH=compact?42:short?45:ui.padHeight,extraH=compact?39:short?40:ui.extrasHeight;
+ const headerH=compact?50:short?58:ui.headHeight;
+ // Portrait: header + gap + flex:1 stage + gap + measured deck + bottom safe inset.
+ let hy=safe.top+(compact?4:short?9:0),hh=headerH;
+ let dh=2*deckPad+ui.scoreHeight+2*deckGap+buttonH+extraH;
+ let dy=H-safe.bottom-ui.deckBottom-dh;
+ let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
  let hx=off+pad,hw=inner,sx=off+pad,sw=inner,dx=off+pad,dw=inner;
  if(landscape){
-  const left=Math.min(205,width*.25),right=Math.min(255,width*.30);
+  const left=clamp(width*.24,145,205),right=clamp(width*.30,195,260);
   hy=8;hh=64;dy=8;dh=H-16;sy=8;sh=H-16;
-  hx=off+8;hw=left;sx=off+left+18;sw=width-left-right-38;
+  hx=off+8;hw=left;sx=off+left+14;sw=Math.max(0,width-left-right-36);
   dx=off+width-right-8;dw=right;
  }
- const bw=Math.max(20,Math.min(305,sw-103,(sh-2)/2)),bh=bw*2;
- const bx=sx+Math.max(0,(sw-bw-103)/2),by=sy+Math.max(0,(sh-bh)/2);
- return {safe,landscape,width,off,pad,inner,hy,hh,hx,hw,
-  sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
-  sideX:bx+bw+10,sideW:93,dx,dy,dw,dh,footerY:H-safe.bottom-18};
+ const bw=Math.max(0,Math.min(305,sw-ui.side-ui.sideGap,sh/2)),bh=bw*2;
+ const bx=sx+Math.max(0,(sw-bw-ui.sideGap-ui.side)/2),by=sy+Math.max(0,(sh-bh)/2);
+ return {safe,landscape,short,compact,width,off,pad,inner,gap,hy,hh,hx,hw,sy,sh,sx,sw,
+  boardX:bx,boardY:by,boardW:bw,boardH:bh,
+  sideX:bx+bw+ui.sideGap,sideW:ui.side,dx,dy,dw,dh,
+  deckPad,deckGap,buttonH,extraH,footerY:H-safe.bottom-18};
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
  rect(0,0,W,H,C.bg);
  panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
- text('TETRIS SYSTEM',r.hx+13,r.hy+r.hh/2,
-  r.landscape?13:Math.min(21,Math.max(16,W*.05)),C.ink,'left',Math.max(10,r.hw-116));
- const tx=r.hx+r.hw-100,th=Math.min(46,r.hh-16);
- key('◐',tx,r.hy+9,44,th,'theme',{size:17});
- key('☷',tx+51,r.hy+9,44,th,'options',{size:17});
+ const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
+ text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
+  r.hy+r.hh/2+UI_SPACE.headTitleDrop,titleSize,
+  C.ink,'left',Math.max(10,r.hw-116),titleSize*.13);
+ const th=r.landscape?37:r.short?42:UI_SPACE.headIcons;
+ const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
+ const ty=r.hy+(r.hh-th)/2;
+ key('◐',tx,ty,th,th,'theme',{size:17});
+ key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{size:17});
  stage(r);
- const short=H<=730,holdH=(short?43:60)+26,queueH=short?159:177;
- const sx=r.sideX,sw=Math.max(8,Math.min(93,r.sx+r.sw-r.sideX));
+ const short=r.short,holdH=short?70:UI_SPACE.holdHeight;
+ const queueH=short?136:UI_SPACE.nextHeight;
+ const sx=r.sideX,sw=Math.max(8,Math.min(UI_SPACE.side,r.sx+r.sw-r.sideX));
  panel(sx,r.boardY,sw,holdH,9,C.panel);
- text('HOLD',sx+sw/2,r.boardY+13,9,C.weak,'center');
- smallPiece(game.hold,sx+(sw-80)/2,r.boardY+23,80,Math.min(50,holdH-25));
+ text('HOLD',sx+sw/2,r.boardY+13,9,C.weak,'center',Infinity,1.08);
+ smallPiece(game.hold,sx+(sw-80)/2,r.boardY+23,80,short?43:60,'hold');
  const qy=r.boardY+holdH+6;
  panel(sx,qy,sw,queueH,9,C.panel);
- text('NEXT',sx+sw/2,qy+13,9,C.weak,'center');
- for(let i=0;i<3;i++)smallPiece(game.queue[i],sx+(sw-80)/2,qy+27+i*((queueH-33)/3),80,Math.min(44,(queueH-33)/3));
- const statsH=short?73:84,statsY=r.boardY+r.boardH-statsH;
+ text('NEXT',sx+sw/2,qy+13,9,C.weak,'center',Infinity,1.08);
+ for(let i=0;i<3;i++){
+  const previewH=short?36:44;
+  smallPiece(game.queue[i],sx+(sw-80)/2,qy+26+i*(previewH+1),80,previewH,'next');
+ }
+ const statsH=short?73:UI_SPACE.statsHeight,statsY=r.boardY+r.boardH-statsH;
  panel(sx,statsY,sw,statsH,9,C.panel);
- text('BEST',sx+sw/2,statsY+12,9,C.weak,'center');
+ text('BEST',sx+sw/2,statsY+12,9,C.weak,'center',Infinity,1.08);
  text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,statsY+30,13,C.ink,'center');
- text('PIECES',sx+sw/2,statsY+50,9,C.weak,'center');
- text(game.pieces,sx+sw/2,statsY+67,13,C.ink,'center');
+ text('PIECES',sx+sw/2,statsY+52,9,C.weak,'center',Infinity,1.08);
+ text(game.pieces,sx+sw/2,statsY+70,13,C.ink,'center');
  panel(r.dx,r.dy,r.dw,r.dh,12,C.panel);
- const px=r.dx+9,pw=r.dw-18,ly=r.dy+16,s=Math.min(17,pw*.046);
- text('LEVEL',px+2,ly,9,C.weak);
- text('SCORE',px+pw/2,ly,9,C.weak,'center');
- text('LINES',px+pw-2,ly,9,C.weak,'right');
+ const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad,ly=r.dy+r.deckPad+7;
+ const s=Math.max(13,Math.min(17,pw*.046)),labelSpacing=9*.13;
+ text('LEVEL',px+2,ly,9,C.weak,'left',Infinity,labelSpacing);
+ text('SCORE',px+pw/2,ly,9,C.weak,'center',Infinity,labelSpacing);
+ text('LINES',px+pw-2,ly,9,C.weak,'right',Infinity,labelSpacing);
  text(fmt(game.level,2),px+2,ly+23,s);
  text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center');
  text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right');
- rect(px,r.dy+55,pw,1,C.border);
- const col=(pw-24)/5,cy=r.dy+64,ch=short?45:53;
+ rect(px,r.dy+r.deckPad+UI_SPACE.scoreHeight-1,pw,1,C.border);
+ const gap=UI_SPACE.padGap,col=(pw-gap*4)/5;
+ const cy=r.dy+r.deckPad+UI_SPACE.scoreHeight+r.deckGap,ch=r.buttonH;
  key('◀',px,cy,col,ch,'left',{light:true,size:18,repeat:true});
- key('DROP',px+col+6,cy,col*2+6,ch,'hard',{light:true,size:14});
- key('▶',px+col*3+18,cy,col,ch,'right',{light:true,size:18,repeat:true});
- key('↻',px+col*4+24,cy,col,ch,'cw',{size:22});
- const ey=cy+ch+7,ex=px+pw/2,ew=Math.min(180,pw*.4);
- key('HOLD',ex-4-ew,ey,ew,44,'hold');
- key('PAUSE',ex+4,ey,ew,44,'pause');
- text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63);
- text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34);
+ key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true,size:14});
+ key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,size:18,repeat:true});
+ key('↻',px+col*4+gap*4,cy,col,ch,'cw',{size:22});
+ const ey=cy+ch+r.deckGap,ex=px+pw/2,ew=Math.min(180,pw*.4);
+ key('HOLD',ex-UI_SPACE.extrasGap/2-ew,ey,ew,r.extraH,'hold');
+ key('PAUSE',ex+UI_SPACE.extrasGap/2,ey,ew,r.extraH,'pause');
+ text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,.63);
+ text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,.63);
  // The grayscale gameplay texture changes only when game, theme or size changes.
  baseRegions=regions.slice();
  texture.needsUpdate=true;
