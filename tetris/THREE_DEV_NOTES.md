@@ -107,3 +107,7 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - All button icon characters (`◀`, `▶`, `↻`, `◐`, `☷`), including the separate play arrow in START GAME / RESUME / PLAY AGAIN, use exactly **18px**. Standard button labels stay 14px; the three main-action labels stay 16px. No additional letter spacing.
 - All action buttons on the **game board itself** (START GAME / RESUME / PLAY AGAIN, plus paused NEW GAME and HIGH SCORE) are **85% of the full playfield width** (7.5% margin on either side), centered. They use the separate `UI_SPACE.overlayButtonWidthScale=.85` token.
 - HOLD and PAUSE controls **outside the game board** continue to use the existing 75%-width rule. All button heights, hit testing, spacing, gameplay, shaders, score handling, Home Screen update logic, and the permanent URL remain unchanged. Footer shows Version 011.
+
+## V012: Trial of reference phosphor tints
+- Apply the candidate CRT-inspired hue settings to the **existing full-screen GPU tint pass** only: green `#33FF33` (RGB multipliers `[0.2, 1, 0.2]`) and amber `#FFB000` (`[1, 176/255, 0]`). These are *approximate digital colour targets*, not measured or standardised CRT phosphor chromaticities; visual appearance also depends on the shader's luminance multiplication, bloom, colour-space handling and phone screen.
+- Keep all grayscale UI source luminance values, layout, gameplay, saved theme selection, existing shader order and optical effects unchanged. The footer reports Version 012, with the same bookmarked Home Screen URL.
