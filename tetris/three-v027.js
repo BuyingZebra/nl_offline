@@ -22,13 +22,14 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='006'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='007'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
-// Drop's original 14px font defines all button typography. Filled primary
-// actions use exactly 125% of that size; drawing and hitboxes stay unchanged.
-const BUTTON_FONT_SIZE=14,PRIMARY_BUTTON_FONT_SCALE=1.25;
+// Every button uses 14px text or character icons, regardless of face luminance.
+// Only the three main game-entry actions use 16px for both label and arrow.
+const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
+const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN']);
 const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
@@ -296,7 +297,7 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,spacing
 function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
 function region(x,y,w,h,act,opts={}){regions.push({x,y,w,h,act,...opts});}
 function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false}={}){
- const size=BUTTON_FONT_SIZE*(light?PRIMARY_BUTTON_FONT_SCALE:1);
+ const size=MAIN_ACTION_LABELS.has(String(label))?MAIN_ACTION_FONT_SIZE:BUTTON_FONT_SIZE;
  const down=pressed?.action===act&&pressed?.box?.x===x;
  panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
  text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14),size*.08);
