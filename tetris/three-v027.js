@@ -67,6 +67,8 @@ const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getC
 const pauseSnapshot=document.createElement('canvas'),pauseBlurCanvas=document.createElement('canvas');
 const pauseSnapshotContext=pauseSnapshot.getContext('2d',{alpha:false});
 const pauseBlurContext=pauseBlurCanvas.getContext('2d',{alpha:true});
+const pauseSmallCanvas=document.createElement('canvas');
+const pauseSmallContext=pauseSmallCanvas.getContext('2d',{willReadFrequently:true});
 if(!g||!modalContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
@@ -370,6 +372,37 @@ function cell(x,y,col,row,size,kind,isGhost=false){
  }
  tileFace(px,py,size,size,kind);
 }
+// Three separable box passes approximate a smooth Gaussian on Safari/iOS
+// where CanvasRenderingContext2D.filter is not normally enabled.
+// Work on the small grayscale board only, never the full UI or menu.
+function boxBlurGray(values,width,height,radius){
+ const total=width*height,diameter=radius*2+1;
+ let inputGray=values;
+ const horizontal=new Uint8ClampedArray(total),vertical=new Uint8ClampedArray(total);
+ for(let pass=0;pass<3;pass++){
+  for(let y=0;y<height;y++){
+   const start=y*width;
+   let sum=0;
+   for(let k=-radius;k<=radius;k++)sum+=inputGray[start+Math.max(0,Math.min(width-1,k))];
+   for(let x=0;x<width;x++){
+    horizontal[start+x]=Math.round(sum/diameter);
+    sum+=inputGray[start+Math.min(width-1,x+radius+1)]-
+      inputGray[start+Math.max(0,x-radius)];
+   }
+  }
+  for(let x=0;x<width;x++){
+   let sum=0;
+   for(let k=-radius;k<=radius;k++)sum+=horizontal[Math.max(0,Math.min(height-1,k))*width+x];
+   for(let y=0;y<height;y++){
+    vertical[y*width+x]=Math.round(sum/diameter);
+    sum+=horizontal[Math.min(height-1,y+radius+1)*width+x]-
+      horizontal[Math.max(0,y-radius)*width+x];
+   }
+  }
+  inputGray=vertical;
+ }
+ return vertical;
+}
 function blurPausedBoard(x,y,w,h){
  g.save();g.beginPath();g.roundRect(x,y,w,h,6);g.clip();
  if(pauseSnapshotContext&&pauseBlurContext&&w>0&&h>0){
@@ -386,21 +419,31 @@ function blurPausedBoard(x,y,w,h){
    pauseBlurContext.filter='blur('+(PAUSE_BOARD_FX.blurRadius*DPR).toFixed(2)+'px)';
    pauseBlurContext.drawImage(pauseSnapshot,0,0);
    pauseBlurContext.filter='none';
-  }else{
-   // Graceful fallback on older canvases with no 2D filter support.
+  }else if(pauseSmallContext){
+   // iOS Safari normally disables Canvas2D filters. Perform a true image
+   // convolution on a reduced-resolution board, not a scale-only simulation.
+   const factor=.45,dw=Math.max(1,Math.round(pw*factor)),dh=Math.max(1,Math.round(ph*factor));
+   if(pauseSmallCanvas.width!==dw||pauseSmallCanvas.height!==dh){
+    pauseSmallCanvas.width=dw;pauseSmallCanvas.height=dh;
+   }
+   pauseSmallContext.setTransform(1,0,0,1,0,0);
+   pauseSmallContext.imageSmoothingEnabled=true;
+   pauseSmallContext.imageSmoothingQuality='high';
+   pauseSmallContext.drawImage(pauseSnapshot,0,0,dw,dh);
+   const pixels=pauseSmallContext.getImageData(0,0,dw,dh);
+   const sourceGray=new Uint8ClampedArray(dw*dh);
+   for(let i=0;i<sourceGray.length;i++)sourceGray[i]=pixels.data[i*4];
+   const radius=Math.max(1,Math.round(PAUSE_BOARD_FX.blurRadius*DPR*factor));
+   const result=boxBlurGray(sourceGray,dw,dh,radius);
+   for(let i=0;i<result.length;i++){
+    const k=i*4;pixels.data[k]=result[i];
+    pixels.data[k+1]=result[i];pixels.data[k+2]=result[i];pixels.data[k+3]=255;
+   }
+   pauseSmallContext.putImageData(pixels,0,0);
    pauseBlurContext.imageSmoothingEnabled=true;
    pauseBlurContext.imageSmoothingQuality='high';
-   const factor=.32;
-   const dw=Math.max(1,Math.floor(pw*factor)),dh=Math.max(1,Math.floor(ph*factor));
-   const reduced=document.createElement('canvas');
-   reduced.width=dw;reduced.height=dh;
-   const rc=reduced.getContext('2d');
-   if(rc){
-    rc.imageSmoothingEnabled=true;rc.imageSmoothingQuality='high';
-    rc.drawImage(pauseSnapshot,0,0,dw,dh);
-    pauseBlurContext.drawImage(reduced,0,0,pw,ph);
-   }else pauseBlurContext.drawImage(pauseSnapshot,0,0);
-  }
+   pauseBlurContext.drawImage(pauseSmallCanvas,0,0,pw,ph);
+  }else pauseBlurContext.drawImage(pauseSnapshot,0,0);
   g.globalAlpha=PAUSE_BOARD_FX.blurMix;
   g.drawImage(pauseBlurCanvas,x,y,w,h);
   g.globalAlpha=1;
