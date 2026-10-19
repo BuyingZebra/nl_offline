@@ -22,7 +22,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='008'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='009'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -300,7 +300,7 @@ function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false}={}){
  const size=MAIN_ACTION_LABELS.has(String(label))?MAIN_ACTION_FONT_SIZE:BUTTON_FONT_SIZE;
  const down=pressed?.action===act&&pressed?.box?.x===x;
  panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
- text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14),size*.08);
+ text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14));
  if(arrow)text('▶',x+17,y+h/2,size,light?C.dark:C.ink,'center');
  region(x,y,w,h,act,{repeat});
 }
@@ -373,8 +373,9 @@ function stage(r){
   text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
   text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
   // All board overlay buttons share the same 75% width scale and are
-  // centered as one vertical stack; heights retain their V003 sizing.
-  const inset=UI_SPACE.unit,primaryH=r.buttonH,secondaryH=r.overlaySecondaryH;
+  // Primary game-entry key matches bottom-row HOLD / PAUSE height across sizes.
+  // Keep the existing centered 75%-width overlay-button stack and gaps.
+  const inset=UI_SPACE.unit,primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
   const bw=(w-2*inset)*UI_SPACE.buttonWidthScale;
   const bx=x+(w-bw)/2,normalY=y+h/2+14;
   const clusterH=primaryH+2*secondaryH+2*inset;
