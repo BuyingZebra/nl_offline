@@ -73,3 +73,9 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - V005 uses `layout().headerButtonH` as the single source of truth for phosphor, settings, HOLD and PAUSE button heights (46px regular portrait, 42px short portrait, 37px landscape). Keep the 75% widths and center alignment from V004.
 - START/RESUME and the other board-overlay buttons retain their prior heights; START/RESUME still equal the top gameplay controls. The CRT effects, settings and shader pipeline are unchanged.
 - Verified mock startup and touch workflows across five portrait and landscape viewport configurations; device testing remains necessary.
+
+## V006: Unified button typography and centered title
+- `TETRIS SYSTEM` now uses the exact vertical midpoint of its existing header; the previous 6px downward text offset is removed. Horizontal positioning and header dimensions are untouched.
+- All Canvas2D `key()` buttons use the former DROP font size of **14px**. Buttons with the existing bright fill (`light: true`), including DROP, movement controls and primary confirmation actions, draw labels at **17.5px** (125%). Icon glyphs in buttons follow the same rule.
+- Per-call font overrides were removed to prevent inconsistent button labels across settings, game overlays and dialogs. Existing width, height, spacing, centering, hit regions, CRT passes and FX defaults are unchanged.
+- Version indicator increments from `005` to `006`; the permanent `three-v027.html` link and timestamped module reload remain intact. Static checks passed; actual phone visual verification remains pending.
