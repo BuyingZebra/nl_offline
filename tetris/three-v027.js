@@ -22,19 +22,19 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='010'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='011'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
 // Text stays 14px on standard buttons and 16px on START/RESUME/PLAY AGAIN.
-// Character icons are 2px larger than their respective button text.
+// All button character icons share one 18px size, independent of their labels.
 // Face luminance (solid/default) never changes typography.
 const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
-const BUTTON_ICON_FONT_SIZE=16,MAIN_ACTION_ICON_FONT_SIZE=18;
+const BUTTON_ICON_FONT_SIZE=18;
 const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN']);
 const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷']);
 const UI_SPACE=Object.freeze({
- unit:UI_GAP,buttonWidthScale:.75,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
+ unit:UI_GAP,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
  headTitleInset:17,
  deckBottom:30,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
@@ -305,7 +305,7 @@ function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false}={}){
  const down=pressed?.action===act&&pressed?.box?.x===x;
  panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
  text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14));
- if(arrow)text('▶',x+17,y+h/2,MAIN_ACTION_ICON_FONT_SIZE,light?C.dark:C.ink,'center');
+ if(arrow)text('▶',x+17,y+h/2,BUTTON_ICON_FONT_SIZE,light?C.dark:C.ink,'center');
  region(x,y,w,h,act,{repeat});
 }
 // V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
@@ -376,10 +376,11 @@ function stage(r){
   const copy=type==='paused'?'YOUR GAME IS SAFE UNTIL YOU RETURN':type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
   text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
   text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
-  // All board overlay buttons retain 75%-width scaling and a centered stack.
-  // Primary game-entry height matches bottom-row HOLD / PAUSE across sizes.
+  // Center all board-overlay buttons at exactly 85% of the board width.
+  // HOLD and PAUSE retain their independent 75%-width scaling.
+  // Primary game-entry height still matches bottom-row HOLD / PAUSE.
   const inset=UI_SPACE.unit,primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
-  const bw=(w-2*inset)*UI_SPACE.buttonWidthScale;
+  const bw=w*UI_SPACE.overlayButtonWidthScale;
   const bx=x+(w-bw)/2,normalY=y+h/2+14;
   const clusterH=primaryH+2*secondaryH+2*inset;
   const by=type==='paused'?Math.min(normalY,y+h-inset-clusterH):normalY;
