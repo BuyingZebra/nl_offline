@@ -624,7 +624,7 @@ screen.addEventListener('pointermove',e=>{
  const ax=Math.abs(dx),ay=Math.abs(dy);
  if(touch.mode==='pending'&&(ax>DRAG_DEADZONE||ay>DRAG_DEADZONE)){
   if(touch.inOptions&&ay>DRAG_DEADZONE&&ay>ax*.78)touch.mode='scroll';
-  else if(r?.slider&&ax>DRAG_DEADZONE&&ax>=ay*.78)touch.mode='slider';
+  else if(r?.act==='slider'&&ax>DRAG_DEADZONE&&ax>=ay*.78)touch.mode='slider';
   else touch.mode='cancelled';
  }
  if(touch.mode==='scroll'){
@@ -653,11 +653,11 @@ function releaseTouch(e){
     const same=Math.abs(dx)<=DRAG_DEADZONE&&Math.abs(dy)<=DRAG_DEADZONE;
     if(same){
      const r=touch.region;
-     if(r.slider)setSlider(r,p.x);
+     if(r.act==='slider')setSlider(r,p.x);
      else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
      else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
     }
-   }else if(touch.mode==='slider'&&touch.region?.slider){
+   }else if(touch.mode==='slider'&&touch.region?.act==='slider'){
     setSlider(touch.region,p.x);
    }
   }
