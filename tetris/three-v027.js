@@ -704,6 +704,8 @@ function releaseTouch(e){
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
  const touch=pressed,p=eventPoint(e);pressed=null;
+ // Release feedback on game buttons must repaint the stationary base once.
+ if(!modal)baseDirty=true;
  try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(err){}
  if(modal){
   if(e.type==='pointerup'){
