@@ -126,3 +126,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - The UI drawing palette swaps **background** and **panel** values only: `C.bg` changes from `#151515` to near-black `#080808`; `C.panel` changes from `#080808` to `#151515`. The Three.js scene background also switches from `0x151515` to `0x080808`.
 - Preserve `C.button='#151515'`, all other grayscale entries, text, border, grid and solid key brightness. This first trial isolates the relationship between the darker screen field and brighter content panels.
 - Both approved phosphor tints (green `[.2, 1, .2]`, amber `[185/255, 79/255, 9/255]`), post-processing effects, layout, controls, offline update checker, and permanent URL remain unchanged. Footer shows Version 015.
+
+## V016: Default buttons match near-black, panels lifted 3 percentage points
+- Set the **normal, non-solid button face** to the exact same grayscale value as the background: `#080808`. Both `C.bg` and `C.button` use the same `SCREEN_BLACK` constant to prevent them drifting apart. Default button pressed feedback remains as before.
+- Increase the **lighter panel/container grayscale** from `#151515` (21/255) to `#1D1D1D` (29/255), approximately **+3 percentage points of the full grayscale scale**, not a 3% relative increase. Buttons are not brightened with the panels.
+- Do not change the approved solid button fill, text, border, board layout, green or amber shader tints, FX, or the existing permanent Home Screen link. Footer displays **Version 016**.
