@@ -22,15 +22,16 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='002'; // Increment per approved layout/render test.
-// V027 layout contract: flexible stage bounded by measured header/deck,
-// 11px app insets, 93px sidebar, consistent 6/7/8/9px spacing.
+const THREE_BUILD_VERSION='003'; // Increment per approved layout/render test.
+// Use one spacing unit for adjacent containers and buttons inside panels.
+// Vertically centered header buttons and flexible sidebar space preserve V027.
+const UI_GAP=6;
 const UI_SPACE=Object.freeze({
- appMax:520,padX:11,stackGap:9,side:93,sideGap:10,
- headHeight:80,headIcons:46,headIconGap:7,headRightPad:13,
+ unit:UI_GAP,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
+ headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
  headTitleInset:17,headTitleDrop:6,
- deckBottom:30,deckPad:9,scoreHeight:45,deckGap:7,
- padGap:6,padHeight:53,extrasHeight:44,extrasGap:8,
+ deckBottom:30,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
+ padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
  holdHeight:88,nextHeight:162,statsHeight:92
 });
 const PREF='fieldAtlasThreeV027FX01';
@@ -366,11 +367,16 @@ function stage(r){
   const copy=type==='paused'?'YOUR GAME IS SAFE UNTIL YOU RETURN':type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
   text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
   text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
-  const by=y+h/2+14,bw=w-32;
-  key(caption,x+16,by,bw,50,'start',{light:true,size:Math.min(13,bw*.05),arrow:true});
+  // V003: START / RESUME exactly match the height of the top control row.
+  // Their button-to-panel gaps share the same 6px layout spacing token.
+  const inset=UI_SPACE.unit,primaryH=r.buttonH,secondaryH=r.extraH;
+  const bx=x+inset,bw=w-2*inset,normalY=y+h/2+14;
+  const clusterH=primaryH+2*secondaryH+2*inset;
+  const by=type==='paused'?Math.min(normalY,y+h-inset-clusterH):normalY;
+  key(caption,bx,by,bw,primaryH,'start',{light:true,size:Math.min(13,bw*.05),arrow:true});
   if(type==='paused'){
-   key('NEW GAME',x+16,by+64,bw,40,'restart');
-   key('HIGH SCORE',x+16,by+111,bw,40,'scores');
+   key('NEW GAME',bx,by+primaryH+inset,bw,secondaryH,'restart');
+   key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores');
   }
  }
 }
@@ -382,8 +388,8 @@ function insets(){
 function layout(){
  const safe=insets(),landscape=W>H&&H<=600,ui=UI_SPACE;
  const width=landscape?W:Math.min(W,ui.appMax),off=(W-width)/2,pad=ui.padX,inner=width-2*pad;
- const short=H<=730,compact=H<=620,gap=compact?4:short?6:ui.stackGap;
- const deckPad=short?7:ui.deckPad,deckGap=compact?4:short?5:ui.deckGap;
+ const short=H<=730,compact=H<=620,gap=ui.stackGap;
+ const deckPad=ui.deckPad,deckGap=ui.deckGap;
  const buttonH=compact?42:short?45:ui.padHeight,extraH=compact?39:short?40:ui.extrasHeight;
  const headerH=compact?50:short?58:ui.headHeight;
  // Portrait: header + gap + flex:1 stage + gap + measured deck + bottom safe inset.
@@ -405,9 +411,9 @@ function layout(){
  const sxSide=bx+bw+ui.sideGap,swSide=Math.max(0,Math.min(ui.side,sx+sw-sxSide));
  const holdH=Math.min(short?70:ui.holdHeight,Math.max(40,bh*.33));
  const statsH=Math.min(short?73:ui.statsHeight,Math.max(52,bh*.36));
- const queueH=Math.max(0,Math.min(short?136:ui.nextHeight,bh-holdH-statsH-12));
+ const queueH=Math.max(0,Math.min(short?136:ui.nextHeight,bh-holdH-statsH-2*ui.unit));
  const holdPanel={x:sxSide,y:by,w:swSide,h:holdH};
- const nextPanel={x:sxSide,y:by+holdH+6,w:swSide,h:queueH};
+ const nextPanel={x:sxSide,y:by+holdH+ui.unit,w:swSide,h:queueH};
  const statsPanel={x:sxSide,y:by+bh-statsH,w:swSide,h:statsH};
  return {safe,landscape,short,compact,width,off,pad,inner,gap,hy,hh,hx,hw,sy,sh,sx,sw,
   boardX:bx,boardY:by,boardW:bw,boardH:bh,
@@ -461,9 +467,10 @@ function paintBaseGame(){
  key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true,size:14});
  key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,size:18,repeat:true});
  key('↻',px+col*4+gap*4,cy,col,ch,'cw',{size:22});
- const ey=cy+ch+r.deckGap,ex=px+pw/2,ew=Math.min(180,pw*.4);
- key('HOLD',ex-UI_SPACE.extrasGap/2-ew,ey,ew,r.extraH,'hold');
- key('PAUSE',ex+UI_SPACE.extrasGap/2,ey,ew,r.extraH,'pause');
+ const ey=cy+ch+r.deckGap,extraGap=UI_SPACE.extrasGap;
+ const ew=(pw-extraGap)/2;
+ key('HOLD',px,ey,ew,r.extraH,'hold');
+ key('PAUSE',px+ew+extraGap,ey,ew,r.extraH,'pause');
  text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,.63);
  text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,.63);
  // The grayscale gameplay texture changes only when game, theme or size changes.
