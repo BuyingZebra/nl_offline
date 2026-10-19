@@ -67,3 +67,9 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Bottom HOLD and PAUSE controls now fill their panel interior in two equal columns, with 6px between and 6px from both walls. Modal button scroll and CRT effects stay unchanged.
 - Parent-to-viewport gutters (11px) remain separate from the inter-container spacing rule. As in V027, the stats panel remains anchored to the bottom of the sidebar, leaving flexible empty space beneath NEXT, but all *adjacent* panels maintain at least a 6px gap.
 - Keep the approved compositor shaders/values, the effects laboratory and the canonical Pixi app unchanged unless specifically requested.
+
+## V005: Shared header and secondary-control height
+- In V004, HOLD, PAUSE and the board-overlay action buttons were reduced to 75% of their previous widths and centered in their parent panels.
+- V005 uses `layout().headerButtonH` as the single source of truth for phosphor, settings, HOLD and PAUSE button heights (46px regular portrait, 42px short portrait, 37px landscape). Keep the 75% widths and center alignment from V004.
+- START/RESUME and the other board-overlay buttons retain their prior heights; START/RESUME still equal the top gameplay controls. The CRT effects, settings and shader pipeline are unchanged.
+- Verified mock startup and touch workflows across five portrait and landscape viewport configurations; device testing remains necessary.
