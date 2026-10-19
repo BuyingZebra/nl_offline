@@ -53,3 +53,17 @@ Processing order: **grayscale Canvas2D source → vertical roll (optional) → g
 - Header: 46px icons at 7px gap, 13px right inset. Text supports V027 letter spacing (heading 0.13em, buttons 0.08em, captions 0.12em).
 - Tested mocked layout and game interaction in 393x852, 375x667, 320x568, 430x932 and 852x393. **Real iPhone comparison still required** before claiming exact visual parity.
 - CRT compositor shader code, approved effect values, and preserved laboratory are unchanged.
+
+## V003: Permanent test URL and six-pixel spacing
+
+**Save this one URL for every subsequent test build:**
+https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
+
+- GitHub Pages is enabled. This is the **branch-following Pages URL** for the existing experimental Three.js build, not a commit-pinned `raw.githack.com` URL.
+- GitHub Pages may take a short time to publish new commits. The page now loads `three-v027.js` using a **timestamped dynamic module URL on each new page load** to avoid returning an old locally cached JS module. Close the page and reopen the *same URL*, or reload it. Don't create fresh bookmark links with a new commit hash every iteration.
+- The `THREE_BUILD_VERSION` constant is the single version identifier displayed in the bottom-right footer. Increment it sequentially with each shipped test build: 001 → 002 → 003, etc.
+- New uniform layout spacing token: `UI_GAP = 6` CSS/logical pixels. Derived values include header-to-stage, stage-to-controls, board-to-sidebar, HOLD-to-NEXT, game control gaps, buttons-to-panel horizontal insets, and START/RESUME insets. Avoid introducing unrelated margin literals.
+- **START / RESUME / PLAY AGAIN** get their height directly from `layout().buttonH`, the same value used by LEFT / DROP / RIGHT / ROTATE. This naturally follows compact-height responsive rules (53 / 45 / 42 CSS pixels).
+- Bottom HOLD and PAUSE controls now fill their panel interior in two equal columns, with 6px between and 6px from both walls. Modal button scroll and CRT effects stay unchanged.
+- Parent-to-viewport gutters (11px) remain separate from the inter-container spacing rule. As in V027, the stats panel remains anchored to the bottom of the sidebar, leaving flexible empty space beneath NEXT, but all *adjacent* panels maintain at least a 6px gap.
+- Keep the approved compositor shaders/values, the effects laboratory and the canonical Pixi app unchanged unless specifically requested.
