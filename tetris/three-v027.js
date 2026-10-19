@@ -400,9 +400,18 @@ function layout(){
  }
  const bw=Math.max(0,Math.min(305,sw-ui.side-ui.sideGap,sh/2)),bh=bw*2;
  const bx=sx+Math.max(0,(sw-bw-ui.sideGap-ui.side)/2),by=sy+Math.max(0,(sh-bh)/2);
+ // Sidebar is a flex-column constrained to the board, so its three
+ // panels cannot overlap on shorter portrait or landscape viewports.
+ const sxSide=bx+bw+ui.sideGap,swSide=Math.max(0,Math.min(ui.side,sx+sw-sxSide));
+ const holdH=Math.min(short?70:ui.holdHeight,Math.max(40,bh*.33));
+ const statsH=Math.min(short?73:ui.statsHeight,Math.max(52,bh*.36));
+ const queueH=Math.max(0,Math.min(short?136:ui.nextHeight,bh-holdH-statsH-12));
+ const holdPanel={x:sxSide,y:by,w:swSide,h:holdH};
+ const nextPanel={x:sxSide,y:by+holdH+6,w:swSide,h:queueH};
+ const statsPanel={x:sxSide,y:by+bh-statsH,w:swSide,h:statsH};
  return {safe,landscape,short,compact,width,off,pad,inner,gap,hy,hh,hx,hw,sy,sh,sx,sw,
   boardX:bx,boardY:by,boardW:bw,boardH:bh,
-  sideX:bx+bw+ui.sideGap,sideW:ui.side,dx,dy,dw,dh,
+  sideX:sxSide,sideW:swSide,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
   deckPad,deckGap,buttonH,extraH,footerY:H-safe.bottom-18};
 }
 function paintBaseGame(){
@@ -419,25 +428,23 @@ function paintBaseGame(){
  key('◐',tx,ty,th,th,'theme',{size:17});
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{size:17});
  stage(r);
- const short=r.short,holdH=short?70:UI_SPACE.holdHeight;
- const queueH=short?136:UI_SPACE.nextHeight;
- const sx=r.sideX,sw=Math.max(8,Math.min(UI_SPACE.side,r.sx+r.sw-r.sideX));
- panel(sx,r.boardY,sw,holdH,9,C.panel);
- text('HOLD',sx+sw/2,r.boardY+13,9,C.weak,'center',Infinity,1.08);
- smallPiece(game.hold,sx+(sw-80)/2,r.boardY+23,80,short?43:60,'hold');
- const qy=r.boardY+holdH+6;
- panel(sx,qy,sw,queueH,9,C.panel);
- text('NEXT',sx+sw/2,qy+13,9,C.weak,'center',Infinity,1.08);
+ const short=r.short;
+ const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
+ const sx=hold.x,sw=hold.w;
+ panel(hold.x,hold.y,hold.w,hold.h,9,C.panel);
+ text('HOLD',sx+sw/2,hold.y+13,9,C.weak,'center',Infinity,1.08);
+ smallPiece(game.hold,sx+(sw-80)/2,hold.y+23,80,Math.min(short?43:60,Math.max(12,hold.h-26)),'hold');
+ panel(next.x,next.y,next.w,next.h,9,C.panel);
+ text('NEXT',sx+sw/2,next.y+13,9,C.weak,'center',Infinity,1.08);
+ const previewH=Math.min(short?36:44,Math.max(9,(next.h-32)/3));
  for(let i=0;i<3;i++){
-  const previewH=short?36:44;
-  smallPiece(game.queue[i],sx+(sw-80)/2,qy+26+i*(previewH+1),80,previewH,'next');
+  smallPiece(game.queue[i],sx+(sw-80)/2,next.y+26+i*(previewH+1),80,previewH,'next');
  }
- const statsH=short?73:UI_SPACE.statsHeight,statsY=r.boardY+r.boardH-statsH;
- panel(sx,statsY,sw,statsH,9,C.panel);
- text('BEST',sx+sw/2,statsY+12,9,C.weak,'center',Infinity,1.08);
- text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,statsY+30,13,C.ink,'center');
- text('PIECES',sx+sw/2,statsY+52,9,C.weak,'center',Infinity,1.08);
- text(game.pieces,sx+sw/2,statsY+70,13,C.ink,'center');
+ panel(stats.x,stats.y,stats.w,stats.h,9,C.panel);
+ text('BEST',sx+sw/2,stats.y+12,9,C.weak,'center',Infinity,1.08);
+ text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center');
+ text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center',Infinity,1.08);
+ text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center');
  panel(r.dx,r.dy,r.dw,r.dh,12,C.panel);
  const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad,ly=r.dy+r.deckPad+7;
  const s=Math.max(13,Math.min(17,pw*.046)),labelSpacing=9*.13;
