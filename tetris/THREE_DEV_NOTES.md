@@ -31,3 +31,9 @@ Processing order: **grayscale Canvas2D source → vertical roll (optional) → g
 - JavaScript module syntax was checked.
 - A mocked startup/render check initialized the Canvas2D UI, legacy engine, Three.js passes, and first render with no exception.
 - Real iPhone screenshot/interaction, renderer performance, colour and font parity against original V027 remain for user approval.
+
+## Migration interpretation and interaction contract
+- V027 is the **visual/layout and gameplay behaviour reference**, not a mandate to carry its older renderer or interface code forward. The new application draws a unified grayscale screen to Canvas2D and performs **all CRT post-processing in Three.js**. The shared pure-JavaScript `core.js` game rules and `scores.js` format remain reusable.
+- Continue iterating on `three-v027.html` / `three-v027.js` using small, testable changes. **Never replace the effects laboratory** or the current production Tetris without explicit approval.
+- The October 18 gesture refinement uses **one pointer recognizer**: menu actions activate on touch-up, vertical swipes scroll even when starting over switches or sliders, horizontal drags change sliders, long-running scrolls ease out with momentum, and repeated game movement buttons continue to act immediately.
+- Geometry hit testing and on-screen drawing must use the same logical-pixel coordinates. Test menu input on real iPhones and Android phones; mocked input tests do not substitute for device verification.
