@@ -22,7 +22,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='004'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='005'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -369,7 +369,7 @@ function stage(r){
   text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
   // All board overlay buttons share the same 75% width scale and are
   // centered as one vertical stack; heights retain their V003 sizing.
-  const inset=UI_SPACE.unit,primaryH=r.buttonH,secondaryH=r.extraH;
+  const inset=UI_SPACE.unit,primaryH=r.buttonH,secondaryH=r.overlaySecondaryH;
   const bw=(w-2*inset)*UI_SPACE.buttonWidthScale;
   const bx=x+(w-bw)/2,normalY=y+h/2+14;
   const clusterH=primaryH+2*secondaryH+2*inset;
@@ -391,7 +391,13 @@ function layout(){
  const width=landscape?W:Math.min(W,ui.appMax),off=(W-width)/2,pad=ui.padX,inner=width-2*pad;
  const short=H<=730,compact=H<=620,gap=ui.stackGap;
  const deckPad=ui.deckPad,deckGap=ui.deckGap;
- const buttonH=compact?42:short?45:ui.padHeight,extraH=compact?39:short?40:ui.extrasHeight;
+ const buttonH=compact?42:short?45:ui.padHeight;
+ // Header phosphor/settings, HOLD and PAUSE share one height token at every
+ // breakpoint, including landscape: 46 / 42 / 37 logical CSS pixels.
+ const headerButtonH=landscape?37:short?42:ui.headIcons;
+ const extraH=headerButtonH;
+ // Board-only secondary actions keep their approved independent heights.
+ const overlaySecondaryH=compact?39:short?40:ui.extrasHeight;
  const headerH=compact?50:short?58:ui.headHeight;
  // Portrait: header + gap + flex:1 stage + gap + measured deck + bottom safe inset.
  let hy=safe.top+(compact?4:short?9:0),hh=headerH;
@@ -419,7 +425,7 @@ function layout(){
  return {safe,landscape,short,compact,width,off,pad,inner,gap,hy,hh,hx,hw,sy,sh,sx,sw,
   boardX:bx,boardY:by,boardW:bw,boardH:bh,
   sideX:sxSide,sideW:swSide,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
-  deckPad,deckGap,buttonH,extraH,footerY:H-safe.bottom-18};
+  deckPad,deckGap,buttonH,headerButtonH,extraH,overlaySecondaryH,footerY:H-safe.bottom-18};
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
@@ -429,7 +435,7 @@ function paintBaseGame(){
  text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
   r.hy+r.hh/2+UI_SPACE.headTitleDrop,titleSize,
   C.ink,'left',Math.max(10,r.hw-116),titleSize*.13);
- const th=r.landscape?37:r.short?42:UI_SPACE.headIcons;
+ const th=r.headerButtonH;
  const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
  const ty=r.hy+(r.hh-th)/2;
  key('◐',tx,ty,th,th,'theme',{size:17});
