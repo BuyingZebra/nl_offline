@@ -91,3 +91,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Check at most once per 15 seconds and also while the idle app remains foregrounded (every 60 seconds). Offline/network failure leaves the current build running.
 - Only auto-reload in the **ready/new-game** state with no modal open. Never discard an in-progress game, paused game, or high-score dialog.
 - The existing bookmark, button typography, geometry, settings, shaders, score storage and production Pixi build are unchanged. A web app still running a pre-V008 script needs **one full reload or force-close-and-relaunch** before it can start self-checking on future resumes.
+
+## V009: No button tracking; primary game-entry height matches HOLD / PAUSE
+- Every `key()` button label (including character glyphs) now uses natural monospace spacing: no extra 0.08em letter spacing. Heading, HUD, and other non-button tracking are unchanged.
+- The **START GAME / RESUME / PLAY AGAIN** solid board-overlay key now uses `layout().extraH`, exactly matching the bottom-row **HOLD / PAUSE** height (46px normal portrait, 42px short portrait, 37px landscape). The top-row movement controls still use `layout().buttonH` (53 / 45 / 42px, according to viewport rules). Other overlay buttons keep their heights, 75%-width scaling, spacing and centered positioning.
+- Both button font sizes remain 14px normally, 16px for START GAME / RESUME / PLAY AGAIN including their play icon. Shader/compositor, gameplay, storage, and permanent URL are unchanged. The footer reports Version 009.
