@@ -22,6 +22,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
+const THREE_BUILD_VERSION='001'; // Increment for each approved Three.js test update.
 const PREF='fieldAtlasThreeV027FX01';
 const load=(key,fallback)=>{try{return localStorage.getItem(key)??fallback}catch(e){return fallback}};
 const store=(key,value)=>{try{localStorage.setItem(key,String(value))}catch(e){}};
@@ -415,9 +416,8 @@ function paintBaseGame(){
  const ey=cy+ch+7,ex=px+pw/2,ew=Math.min(180,pw*.4);
  key('HOLD',ex-4-ew,ey,ew,44,'hold');
  key('PAUSE',ex+4,ey,ew,44,'pause');
- text(game.status==='ready'?'READY / PRESS START':game.lastEvent+' / '+game.dropMs+' MS',
-   r.off+11,r.footerY,9,C.weak,'left',r.inner*.52);
- text('LOCAL ARCADE ENGINE / V027',r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.54);
+ text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63);
+ text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34);
  // The grayscale gameplay texture changes only when game, theme or size changes.
  baseRegions=regions.slice();
  texture.needsUpdate=true;
