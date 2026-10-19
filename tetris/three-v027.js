@@ -22,12 +22,12 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='003'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='004'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
 const UI_SPACE=Object.freeze({
- unit:UI_GAP,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
+ unit:UI_GAP,buttonWidthScale:.75,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
  headTitleInset:17,headTitleDrop:6,
  deckBottom:30,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
@@ -367,10 +367,11 @@ function stage(r){
   const copy=type==='paused'?'YOUR GAME IS SAFE UNTIL YOU RETURN':type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
   text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
   text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
-  // V003: START / RESUME exactly match the height of the top control row.
-  // Their button-to-panel gaps share the same 6px layout spacing token.
+  // All board overlay buttons share the same 75% width scale and are
+  // centered as one vertical stack; heights retain their V003 sizing.
   const inset=UI_SPACE.unit,primaryH=r.buttonH,secondaryH=r.extraH;
-  const bx=x+inset,bw=w-2*inset,normalY=y+h/2+14;
+  const bw=(w-2*inset)*UI_SPACE.buttonWidthScale;
+  const bx=x+(w-bw)/2,normalY=y+h/2+14;
   const clusterH=primaryH+2*secondaryH+2*inset;
   const by=type==='paused'?Math.min(normalY,y+h-inset-clusterH):normalY;
   key(caption,bx,by,bw,primaryH,'start',{light:true,size:Math.min(13,bw*.05),arrow:true});
@@ -468,9 +469,11 @@ function paintBaseGame(){
  key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,size:18,repeat:true});
  key('↻',px+col*4+gap*4,cy,col,ch,'cw',{size:22});
  const ey=cy+ch+r.deckGap,extraGap=UI_SPACE.extrasGap;
- const ew=(pw-extraGap)/2;
- key('HOLD',px,ey,ew,r.extraH,'hold');
- key('PAUSE',px+ew+extraGap,ey,ew,r.extraH,'pause');
+ // Shrink each secondary control to 75%, then center their group.
+ const ew=(pw-extraGap)/2*UI_SPACE.buttonWidthScale;
+ const groupW=ew*2+extraGap,groupX=px+(pw-groupW)/2;
+ key('HOLD',groupX,ey,ew,r.extraH,'hold');
+ key('PAUSE',groupX+ew+extraGap,ey,ew,r.extraH,'pause');
  text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,.63);
  text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,.63);
  // The grayscale gameplay texture changes only when game, theme or size changes.
