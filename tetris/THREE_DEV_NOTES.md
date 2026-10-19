@@ -96,3 +96,9 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Every `key()` button label (including character glyphs) now uses natural monospace spacing: no extra 0.08em letter spacing. Heading, HUD, and other non-button tracking are unchanged.
 - The **START GAME / RESUME / PLAY AGAIN** solid board-overlay key now uses `layout().extraH`, exactly matching the bottom-row **HOLD / PAUSE** height (46px normal portrait, 42px short portrait, 37px landscape). The top-row movement controls still use `layout().buttonH` (53 / 45 / 42px, according to viewport rules). Other overlay buttons keep their heights, 75%-width scaling, spacing and centered positioning.
 - Both button font sizes remain 14px normally, 16px for START GAME / RESUME / PLAY AGAIN including their play icon. Shader/compositor, gameplay, storage, and permanent URL are unchanged. The footer reports Version 009.
+
+## V010: Character-icon typography increased by 2px
+- Button **text** stays 14px normally, 16px on START GAME / RESUME / PLAY AGAIN.
+- Standalone character icons `◀`, `▶`, `↻`, `◐`, `☷` draw at **16px** instead of 14px, whether solid or default.
+- The `▶` icon alongside START GAME / RESUME / PLAY AGAIN is **18px** instead of 16px, independently sized from the unchanged 16px caption.
+- No letter spacing on buttons, and no changes to button rectangles, centering, input regions, layout, rendering passes, Home Screen update logic, or permanent URL. Footer shows Version 010.
