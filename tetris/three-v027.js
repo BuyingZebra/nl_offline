@@ -22,7 +22,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomCutoff:.21,bloomStren
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='013'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='014'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -216,9 +216,10 @@ modalPlane.visible=false;scene.add(modalPlane);
  composer.addPass(new OutputPass());
 
 
-// Test phosphor tints: green #33FF33 (unchanged); Pip-Boy amber #B98532.
-// These are RGB multipliers applied to grayscale scene luminance, not UI colours.
-const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,133/255,50/255)};
+// Green phosphor is unchanged. Amber is display-compensated to reproduce the
+// darker Pip-Boy orange-gold mockup (#D69334 in bright rendered UI regions).
+// These are GPU tint multipliers of grayscale luminance, not UI source colours.
+const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
 function tone(freq=240,len=.04){
  if(!soundOn)return;
