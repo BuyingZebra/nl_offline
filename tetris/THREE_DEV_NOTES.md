@@ -137,3 +137,5 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - The 88% dark overlay is retained for READY/GAME OVER, untouched, because the requested change specifically concerns the paused board.
 - **Recreated tile surface:** one new independent grayscale `tileFace()` function constructs bevel rims, upper-left glints, an inset lower-luminance panel, and bottom shadows for all settled/falling board squares and HOLD/NEXT preview squares. Original V027 is only the visual inspiration; no Pixi graphics or renderer logic was copied.
 - Preserve approved green/amber GPU colour vectors, all other UI luminance tokens, layout, game input/hitboxes, button typography, effects and permanent URL. Footer shows Version 017.
+
+- **iOS Safari compatibility follow-up:** since Canvas2D `ctx.filter` is disabled by default in iOS Safari, provide a real, separable **three-pass box-convolution blur** on a reusable downsampled board snapshot. This approximates Gaussian blur using the same 65%-blend and 8%-dim constants. Filter-enabled browsers can use the native blur directly. No blur is applied to the menu controls, and no UI/phosphor changes are made.
