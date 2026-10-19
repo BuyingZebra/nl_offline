@@ -121,3 +121,8 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Amber only:** change the current GPU tint vector from `[185/255, 133/255, 50/255]` to `[185/255, 79/255, 9/255]`. Green remains **exactly** `[.2, 1, .2]`.
 - Pixel sampling of the user's Version 013 screenshot found the bright filled-button output near **RGB (215, 186, 119)**, whereas the approved bottom-right image study was near **RGB (214, 147, 52)**. The new coefficients preserve red intensity while reducing green and blue roughly by the amount expected under sRGB transfer curves. This is a **visual trial**, not a claim that the app's final emitted light exactly equals the mockup.
 - No changes to grayscale source values, interface luminance constants, layout, gameplay, stored preferences, bloom/CRT effects, compositor pass order, or Home Screen refresh. The footer shows **Version 014** at the unchanged `tetris/three-v027.html` URL.
+
+## V015: Reverse grayscale field and container luminance
+- The UI drawing palette swaps **background** and **panel** values only: `C.bg` changes from `#151515` to near-black `#080808`; `C.panel` changes from `#080808` to `#151515`. The Three.js scene background also switches from `0x151515` to `0x080808`.
+- Preserve `C.button='#151515'`, all other grayscale entries, text, border, grid and solid key brightness. This first trial isolates the relationship between the darker screen field and brighter content panels.
+- Both approved phosphor tints (green `[.2, 1, .2]`, amber `[185/255, 79/255, 9/255]`), post-processing effects, layout, controls, offline update checker, and permanent URL remain unchanged. Footer shows Version 015.
