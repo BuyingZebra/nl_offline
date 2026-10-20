@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='033'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='034'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -67,7 +67,7 @@ let theme=load('fieldAtlasThemeV06','green')==='amber'?'amber':'green';
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0,pressed=null,repeatDelay=null,repeatInterval=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null,gamepadDrag=null;
+let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
@@ -759,110 +759,8 @@ const MENU=[
  ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
  ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
  ['heading','DISPLAY PRESET'],
- ['button','RESTORE APPROVED VALUES','resetFX'],
- ['heading','DIAGNOSTICS'],
- ['button','VIEWPORT MEASUREMENTS','viewportDiagnostics']
+ ['button','RESTORE APPROVED VALUES','resetFX']
 ];
-// V031: read-only viewport diagnostics. All measurements are taken inside
-// this exact running iPhone Home Screen app (not in another tab/page), so we
-// can compare WebKit CSS units against the full display and renderer bounds
-// before changing or deleting any of the existing viewport rules.
-function viewportMeasurements(){
- const pretty=n=>Number.isFinite(n)?Number(n).toFixed(1):'n/a';
- const displayRect=display.getBoundingClientRect();
- const canvasRect=screen.getBoundingClientRect();
- const rootRect=document.documentElement.getBoundingClientRect();
- const bodyRect=document.body.getBoundingClientRect();
- const safeStyle=getComputedStyle(safeProbe);
- const safeTop=parseFloat(safeStyle.paddingTop)||0;
- const safeBottom=parseFloat(safeStyle.paddingBottom)||0;
- const cssUnitHeight=unit=>{
-  const probe=document.createElement('div');
-  probe.style.cssText='position:absolute;top:0;left:0;width:1px;height:100'+unit+';visibility:hidden;pointer-events:none';
-  document.body.appendChild(probe);
-  const h=probe.getBoundingClientRect().height;
-  probe.remove();
-  return h;
- };
- const vh=cssUnitHeight('vh'),dvh=cssUnitHeight('dvh');
- const svh=cssUnitHeight('svh'),lvh=cssUnitHeight('lvh');
- const vv=window.visualViewport;
- const standalone=window.matchMedia('(display-mode: standalone)').matches;
- const iosStandalone=navigator.standalone===true;
- const gap=window.screen.height-displayRect.bottom;
- return [
-  'BUILD / '+THREE_BUILD_VERSION,
-  'DISPLAY MODE / '+(standalone?'STANDALONE':'BROWSER'),
-  'IOS STANDALONE / '+(iosStandalone?'YES':'NO'),
-  'IOS HEIGHT FIX / '+(document.documentElement.classList.contains('ios-standalone')?'ACTIVE':'INACTIVE'),
-  'SCREEN W x H / '+pretty(window.screen.width)+' x '+pretty(window.screen.height),
-  'SCREEN AVAILABLE H / '+pretty(window.screen.availHeight),
-  'WINDOW INNER H / '+pretty(window.innerHeight),
-  'WINDOW OUTER H / '+pretty(window.outerHeight),
-  'HTML CLIENT H / '+pretty(document.documentElement.clientHeight),
-  'HTML RECT H / '+pretty(rootRect.height),
-  'BODY RECT H / '+pretty(bodyRect.height),
-  'DOCUMENT SCROLL H / '+pretty(document.documentElement.scrollHeight),
-  'CSS 100vh / '+pretty(vh),
-  'CSS 100dvh / '+pretty(dvh),
-  'CSS 100svh / '+pretty(svh),
-  'CSS 100lvh / '+pretty(lvh),
-  'VISUAL VIEWPORT H / '+pretty(vv?.height),
-  'VISUAL VIEWPORT TOP / '+pretty(vv?.offsetTop),
-  'SAFE TOP / '+pretty(safeTop),
-  'SAFE BOTTOM / '+pretty(safeBottom),
-  'DISPLAY TOP / '+pretty(displayRect.top),
-  'DISPLAY HEIGHT / '+pretty(displayRect.height),
-  'DISPLAY BOTTOM / '+pretty(displayRect.bottom),
-  'SCREEN - DISPLAY BOTTOM / '+pretty(gap),
-  'CANVAS TOP / '+pretty(canvasRect.top),
-  'CANVAS HEIGHT / '+pretty(canvasRect.height),
-  'GAME BOARD H / '+pretty(layoutInfo?.boardH),
-  'FOOTER Y / '+pretty(layoutInfo?.footerY),
-  'DEVICE PIXEL RATIO / '+pretty(window.devicePixelRatio)
- ].join('\n');
-}
-function showViewportDiagnostics(){
- // This is a separate temporary developer overlay: no game input or renderer
- // geometry is resized, no preferences are persisted, and no navigation occurs.
- const backdrop=document.createElement('div');
- backdrop.id='tetris-viewport-diagnostics';
- backdrop.style.cssText='position:fixed;inset:0;z-index:2147483000;overflow:auto;overscroll-behavior:contain;touch-action:pan-y;background:rgba(8,8,8,.97);padding:max(18px,env(safe-area-inset-top,0px)) 15px max(20px,env(safe-area-inset-bottom,0px));color:#e3e3e3;font:700 12px/1.55 '+FONT;
- const panelEl=document.createElement('section');
- panelEl.style.cssText='max-width:520px;margin:0 auto;padding:15px;background:#1d1d1d;border:1px solid #6a6a6a;border-radius:12px';
- const heading=document.createElement('div');
- heading.textContent='VIEWPORT MEASUREMENTS';
- heading.style.cssText='font-size:15px;letter-spacing:.13em;margin-bottom:9px';
- const explanation=document.createElement('p');
- explanation.textContent='Screenshot this report in the Home Screen app and send it here. These values reveal why the footer is cut short.';
- explanation.style.cssText='margin:0 0 13px;color:#aeaeae;font-size:11px';
- const readings=document.createElement('pre');
- readings.style.cssText='font:700 11px/1.75 '+FONT+';white-space:pre-wrap;overflow-wrap:anywhere;letter-spacing:.05em;margin:0 0 14px';
- const controls=document.createElement('div');
- controls.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
- const makeButton=(label,fn)=>{
-  const btn=document.createElement('button');
-  btn.type='button';btn.textContent=label;
-  btn.style.cssText='min-height:42px;flex:1 1 110px;border:1px solid #6a6a6a;border-radius:8px;background:#080808;color:#e3e3e3;font:700 12px '+FONT+';letter-spacing:.13em';
-  btn.addEventListener('click',fn);controls.appendChild(btn);
- };
- const status=document.createElement('p');
- status.style.cssText='color:#aeaeae;margin:11px 0 0;font-size:11px';
- const refresh=()=>{readings.textContent=viewportMeasurements();status.textContent='';};
- makeButton('REFRESH',refresh);
- makeButton('COPY',()=>{
-  if(!navigator.clipboard?.writeText){status.textContent='Clipboard unavailable. Please screenshot the report.';return;}
-  navigator.clipboard.writeText(readings.textContent)
-   .then(()=>{status.textContent='Report copied.';})
-   .catch(()=>{status.textContent='Clipboard blocked. Please screenshot the report.';});
- });
- makeButton('RETURN',()=>backdrop.remove());
- panelEl.append(heading,explanation,readings,controls,status);
- backdrop.appendChild(panelEl);
- document.body.appendChild(backdrop);
- refresh();
-}
-
 function settingValue(k){
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
@@ -1045,7 +943,6 @@ function handleAction(act){
  if(act==='typeInitials'){initialsInput.focus();return;}
  if(act==='patternPrev'){cycleScanlinePreset(-1);return;}
  if(act==='patternNext'){cycleScanlinePreset(1);return;}
- if(act==='viewportDiagnostics'){showViewportDiagnostics();return;}
  if(act==='resetFX'){FX={...DEFAULT};persist();baseDirty=true;invalidate();return;}
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
