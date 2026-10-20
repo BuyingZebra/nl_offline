@@ -25,7 +25,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='023'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='024'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -152,7 +152,7 @@ modalPlane.visible=false;scene.add(modalPlane);
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uStep:{value:1},
     uComposite:{value:composite?1:0},
-    uFade:{value:.76},uFadeTo:{value:new THREE.Color(0x101010)}
+    uFade:{value:.87},uFadeTo:{value:new THREE.Color(0x101010)}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
   });
@@ -298,7 +298,7 @@ const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
 // Popup blur remains one 0–100% control. Both GPU axes use dense,
 // regularly spaced normalized Gaussian samples. At high settings we enlarge
 // the sampling footprint, while 47% uses nearly pixel-adjacent taps.
-const BOARD_POPUP_FADE=.76;
+const BOARD_POPUP_FADE=.87;
 function boardBlurParams(){
  const p=clamp(Number(FX.boardBlur)||0,0,100)/100;
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
@@ -511,22 +511,31 @@ function paintBoardPopup(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  g=boardPopupContext;
  try{
-  const type=game.status;
+  const type=status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
-  const copy=type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
-  text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
-  // Keep the PAUSED overlay clean: no small subtitle below its heading.
-  // START GAME and GAME OVER still display their existing supporting text.
-  if(type!=='paused')text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
-  // Center all board-overlay buttons at exactly 85% of the board width.
-  // HOLD and PAUSE retain their independent 75%-width scaling.
-  // Primary game-entry height still matches bottom-row HOLD / PAUSE.
-  const inset=UI_SPACE.unit,primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
-  const bw=w*UI_SPACE.overlayButtonWidthScale;
-  const bx=x+(w-bw)/2,normalY=y+h/2+14;
-  const clusterH=primaryH+2*secondaryH+2*inset;
-  const by=type==='paused'?Math.min(normalY,y+h-inset-clusterH):normalY;
+  // Align every primary button's TOP to the play-board midpoint, not its
+  // center. On unusually short screens, keep the pause stack in bounds.
+  const inset=UI_SPACE.unit,headingGap=2*UI_SPACE.unit;
+  const primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
+  const bw=w*UI_SPACE.overlayButtonWidthScale,bx=x+(w-bw)/2;
+  const midpoint=y+h/2,clusterH=primaryH+2*secondaryH+2*inset;
+  const by=type==='paused'?Math.min(midpoint,y+h-inset-clusterH):midpoint;
+  const headingSize=Math.min(21,w*.079);
+  // A compact 12px gap (twice the standard 6px panel gap) between title
+  // and button. The start-screen tagline retains two such compact gaps.
+  if(type==='ready'){
+   const subSize=Math.min(10,w*.034);
+   const subY=by-headingGap-subSize/2;
+   const titleY=subY-subSize/2-headingGap-headingSize/2;
+   text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
+   text('SURVIVE THE SOVIET CHALLENGE',x+w/2,subY,subSize,C.weak,'center',w-18);
+  }else{
+   const titleY=by-headingGap-headingSize/2;
+   text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
+  }
+  // Popup buttons retain their approved 85%-width scale and standard 6px
+  // spacing between the RESUME, NEW GAME, and HIGH SCORE actions.
   key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true});
   if(type==='paused'){
    key('NEW GAME',bx,by+primaryH+inset,bw,secondaryH,'restart');
