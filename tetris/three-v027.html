@@ -9,19 +9,22 @@
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="color-scheme" content="dark">
+<script>
+// iOS Home Screen mode is confirmed by navigator.standalone on this device;
+// the CSS (display-mode: standalone) media query incorrectly returns false.
+// Apply the class before styles are evaluated; Safari tabs keep 100dvh.
+if(navigator.standalone===true)document.documentElement.classList.add('ios-standalone');
+</script>
 <title>FIELD ATLAS — Tetris V027 / Three.js Rebuild</title>
 <style>
 :root{color-scheme:dark;background:#080808}
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}
 #display{position:fixed;inset:0;width:100%;height:100dvh;overflow:hidden;touch-action:none}
-/* Installed iPhone web apps with black-translucent status bars can move the
-   canvas origin behind the clock while leaving 100dvh shorter by the status
-   safe-area height. Recover that height without altering JS content insets,
-   and cap at the physical full viewport. Safari tabs retain 100dvh. */
-@media (display-mode: standalone){
- #display{height:min(100vh,calc(100dvh + env(safe-area-inset-top,0px)))}
-}
+/* iOS Home Screen may report (display-mode: standalone)=false even when
+   navigator.standalone=true. The measured 100vh is the full 852px screen,
+   whereas 100dvh is only 793px on the affected device. */
+html.ios-standalone #display{height:100vh}
 #screen{display:block;width:100%;height:100%;touch-action:none}
 #safeArea{position:absolute;visibility:hidden;pointer-events:none;
  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
