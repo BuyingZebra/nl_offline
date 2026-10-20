@@ -1,47 +1,24 @@
-# FIELD ATLAS · Three.js CRT Lab & Tetris V027 rebuild
+# FIELD ATLAS · Tetris System / Three.js
 
-## Stable development entry points
-- **CRT effects laboratory:** `tetris/three-effects-lab.html` — preserved snapshot of the working standalone Three.js shader test. **Keep for experimenting** with future artifact layers. The earlier `three-crt-test.html` is still present.
-- **V027 re-creation in Three.js:** `tetris/three-v027.html` + `tetris/three-v027.js` — experimental full-game recreation. Do not replace the canonical `tetris/index.html` / Pixi build before visual and functional approval.
-- **Shared engine and local scores:** `tetris/core.js` and `tetris/scores.js`. Their rules and storage schema are unchanged.
+## Current production architecture (V037)
+- **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
+- **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
+- **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
+- **Display renderer:** Grayscale Canvas2D gameplay texture, transparent Canvas2D modal texture, and one modal scrim are combined by a single Three.js `RenderPass`. Full-screen GPU effects then process every visible layer consistently.
+- **Only one modal at a time:** `modal` is the current dialog ID (`options`, `scores`, `restart`, `entry`) or `null`. `modalBounds(name)` is the single source of dialog bounds, drawing and hitbox geometry. Switching dialog types clears a full-screen transparent texture before drawing the next active dialog. Dialog heights differ to fit content; width and horizontal alignment follow one shared rule.
+- **Effects pipeline (in order):** board popup horizontal and vertical Gaussian blur/fade when applicable; analog ghosting; luminance-based green/amber phosphor; GPU bloom; edge softness; vignette; selected grayscale CRT mask overlay; output. Noise and vertical roll were deleted in V029 and must not be reintroduced accidentally.
+- **Approved settings:** Persist under `fieldAtlasThreeV027FX01`; the precise phosphor tint vectors, 47% default menu blur, 87% fade, 5 selectable CRT masks, 0.13em typography, spacing tokens and approved iPhone full-height viewport behaviour remain intact. Top-five scores use their existing `scores.js` local storage key.
+- **iPhone Home Screen:** `navigator.standalone` adds `ios-standalone` to the root. Both root/body and `#display` use measured `100vh` to preserve the display footer; Safari tabs retain `100dvh`. Header/footer positions are derived from safe-area insets.
+- **Offline caveat:** Three.js is imported from a CDN and there is no new Three.js service-worker cache. The short `tetris/sw.js` file is a retirement tombstone for the previous arcade worker, not an active offline shell.
+- **Performance:** During menu interaction, the stable gameplay CanvasTexture is reused when possible. The V037 modal overlay texture covers the screen to avoid stale cropped content when modal height changes; its larger upload size is a measured trade-off for correctness. Continue monitoring actual phone responsiveness before further optimizations.
 
-## Approved visual baseline (from iPhone screenshots)
-| Effect | Enabled | Values |
-|---|---|---|
-| Phosphor | yes | monochrome green; derived from source grayscale luminance |
-| Bloom | yes | threshold 0.21, strength 0.30 |
-| Ghosting | yes | X +2 px, Y 0 px, strength 22% |
-| Noise | no | amount 20%, size 2 logical px, rate 15 Hz |
-| Edge softness | yes | blur strength 0.64, radius 3.0 logical px |
-| Vignette | yes | darkening 0.39, fade spread 0.57 |
-| Vertical roll | no | speed 20%/s, offset 0% |
-| Scanlines, flicker, horizontal tearing, raster sweep, persistence | removed | Do not reintroduce by default |
+## Validation and safety
+- Keep `tetris/three-v027.html` unchanged as a permanent user link and increment `THREE_BUILD_VERSION` for renderer changes.
+- Test the same Home Screen installation and ordinary Safari, portrait/landscape, settings scroll and sliders, paused-board actions, Top Five, restart confirmation, high-score entry, and all dialog transitions.
+- The mobile Playwright smoke suite in `tests/test_tetris_browser.py` includes settings, scores, restart screenshot captures. These are preliminary regression checks, not a substitute for iPhone visual validation.
+- Treat the versioned notes below as **historical snapshots**, not statements of the current architecture. Many old instructions about PixiJS, standalone experiments, removed effects and modal cropping have been superseded.
 
-Processing order: **grayscale Canvas2D source → vertical roll (optional) → ghosting → luminance-gated noise → phosphor → thresholded GPU bloom → Gaussian edge softness → vignette → final output**.
-
-## Architecture and implementation boundaries
-- Draw all of the app (board, previews, controls, score, dialogs) as **one high-density grayscale Canvas2D texture** at device pixel density. Three.js post-processing samples that screen as a coherent framebuffer, like a Blender compositor.
-- Maintain full-resolution text and pointer interaction; do not use SVG filters to simulate whole-screen effects.
-- A temporary input field is allowed for iOS initials entry, but the composited dialog itself is drawn as grayscale source content.
-- Effect settings for the experimental full game are stored under `fieldAtlasThreeV027FX01`, separate from the legacy Pixi settings. Game scores continue using `fieldAtlasTetrisTopFiveV01`.
-- The Three.js prototype currently imports libraries from CDN and is therefore **not offline-ready yet**. Vendor/bundle Three.js and addon modules locally, update service-worker caching and validate offline/iOS performance **before promoting to the real PWA**.
-- Current Pixi `tetris/index.html` stays unchanged during the experiment. Avoid branching/maintaining duplicate production versions after approval.
-
-## Validation
-- JavaScript module syntax was checked.
-- A mocked startup/render check initialized the Canvas2D UI, legacy engine, Three.js passes, and first render with no exception.
-- Real iPhone screenshot/interaction, renderer performance, colour and font parity against original V027 remain for user approval.
-
-## Migration interpretation and interaction contract
-- V027 is the **visual/layout and gameplay behaviour reference**, not a mandate to carry its older renderer or interface code forward. The new application draws a unified grayscale screen to Canvas2D and performs **all CRT post-processing in Three.js**. The shared pure-JavaScript `core.js` game rules and `scores.js` format remain reusable.
-- Continue iterating on `three-v027.html` / `three-v027.js` using small, testable changes. **Never replace the effects laboratory** or the current production Tetris without explicit approval.
-- The October 18 gesture refinement uses **one pointer recognizer**: menu actions activate on touch-up, vertical swipes scroll even when starting over switches or sliders, horizontal drags change sliders, long-running scrolls ease out with momentum, and repeated game movement buttons continue to act immediately.
-- Geometry hit testing and on-screen drawing must use the same logical-pixel coordinates. Test menu input on real iPhones and Android phones; mocked input tests do not substitute for device verification.
-
-## Rendering performance — menu texture isolation
-- Three.js now renders the gameplay source and menu as **separate high-resolution grayscale CanvasTextures in one Scene**, along with a transparent dimming scrim. A **single RenderPass and the existing CRT effect pipeline** processes the combined image. This is not an unfiltered DOM overlay.
-- While the menu scrolls, only the smaller modal canvas is repainted and uploaded. The large gameplay canvas is cached until gameplay, theme, game options or viewport size actually changes.
-- Continue measuring actual phone smoothness: although canvas uploads are reduced, the full-screen GPU effects are still evaluated for every rendered animation frame. Any further GPU optimization must preserve approved optical appearance.
+## Historical development log (archived)
 
 ## V002: V027 layout contract
 - **V027 original CSS is authoritative** for geometry and spacing. Version 002 introduces one `UI_SPACE` token object and a `layout()` function; render and pointer hitboxes use the same computed rectangles.
@@ -301,3 +278,10 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Removed the unnecessary `[...regions].reverse()` temporary array allocation for every pointer/touch hit test. `regionAt()` now iterates `regions` backward, preserving newest-overlaid hitbox priority and options-menu clip-region checks. It returns `undefined` on a miss as before.
 - Source-delta reconstruction verified that those two substitutions plus the version string are the **only code changes**. JavaScript static parsing passed. Six representative touch/hitbox tests, including overlapping rectangles and clipped modal controls, returned the exact same region objects as V035.
 - Keep the previously confirmed iPhone root/canvas 100vh fix, permanent URL `tetris/three-v027.html`, 0.13em typography, 5 CRT masks, palette, gameplay, high scores and FX preference keys as-is. Update footer to **Version 036**. iPhone visual test should confirm no regressions.
+
+## V037: Canonical modal geometry and full-screen dialog texture
+- Reported from iPhone V036 screenshots: inconsistent apparent menu positions and sizes, including **simultaneous visual remnants of Settings + New High Score and Top Five + Restart**, plus apparent high-score elements when pausing. This indicates a modal-rendering/texture lifecycle issue, not merely a style preference. JS holds one modal ID at a time, so stale visual content was suspected.
+- Replace modal-by-modal crop/texture resizing with **one full-screen transparent modal CanvasTexture** and full-screen modal plane. Clear its entire pixel area on each update; paint the active modal with an unshifted screen-space Canvas2D transform. Remove per-modal GPU plane translation and scaling. This removes a source of competing positions and stale cropped contents.
+- Refactor four dialog painters and the composer to derive their shared panel rectangle once using `modalBounds(name)` and pass `q` through, instead of calculating matching but separate rectangles for the texture and the Canvas2D content. Each dialog retains its own intended content-height; panel radius, body/button size, labels, controls and spacing are unchanged.
+- The active production shader sequence, iPhone fullscreen CSS, old-link redirect, gameplay core, scoring, persistence keys and all optical settings stay unchanged. Footer version increments from 036 to **037** at the same permanent page URL.
+- JavaScript syntax parsing and independent reference-viewport geometry tests passed. Browser regression coverage adds UI touch transitions from Settings → Ready → Playing/Paused → Top Five → Restart and corresponding screenshots; these tests require real CI execution. **User's iPhone visual validation remains necessary**, especially rapid modal changes and High Score entry after game over.
