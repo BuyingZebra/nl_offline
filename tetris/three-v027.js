@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='031'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='032'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -794,6 +794,7 @@ function viewportMeasurements(){
   'BUILD / '+THREE_BUILD_VERSION,
   'DISPLAY MODE / '+(standalone?'STANDALONE':'BROWSER'),
   'IOS STANDALONE / '+(iosStandalone?'YES':'NO'),
+  'IOS HEIGHT FIX / '+(document.documentElement.classList.contains('ios-standalone')?'ACTIVE':'INACTIVE'),
   'SCREEN W x H / '+pretty(window.screen.width)+' x '+pretty(window.screen.height),
   'SCREEN AVAILABLE H / '+pretty(window.screen.availHeight),
   'WINDOW INNER H / '+pretty(window.innerHeight),
