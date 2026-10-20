@@ -282,3 +282,15 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Left the `tetris/sw.js` tombstone to unregister old installations, the redirecting `tetris/index.html`, active `three-v027.html` and `three-v027.js`, shared `core.js`, and `scores.js` intact. Do not delete the tombstone prematurely; old installations may still need it.
 - **No new game build:** the visible version remains **035** because no gameplay, renderer, GUI, layout, iOS safe-area rule, settings, scores, or script-import changes were made. Permanent link remains `tetris/three-v027.html`.
 - Separate follow-up candidates: duplicated Three.js CRT lab/test pages and unreferenced `three-v027-crt.js` should be assessed on their own, not deleted as part of this Pixi cleanup.
+
+## Post-V035: Purge confirmed orphaned Three.js/CSS CRT experiments
+- Following successful PixiJS retirement, audited current `tetris/` entry points (`three-v027.html`, `index.html` redirect), active `three-v027.js`, shared `core.js`/`scores.js`, legacy worker tombstone, browser test/workflow, 32 inspected workflow/test files, FIELD ATLAS main/map previews and relevant mobile source files. No runtime, import, route, workflow or test references to the candidates were found; historical development notes can remain as an audit trail.
+- Purged four archived/unused stand-alone experiments from the active `main` tree:
+  - `tetris/three-v027-crt.js` — unimported stand-alone CRT compositor module
+  - `tetris/three-crt-test.html` — old standalone CRT test page
+  - `tetris/three-effects-lab.html` — byte-for-byte duplicate of `three-crt-test.html` (same Git blob SHA)
+  - `tetris/crt-css-test.html` — superseded CSS CRT stress test
+- Approximate source bytes removed: **61,875 bytes** in the Git tree (around 60 KiB). These source files remain available through Git history. The production renderer and all needed Three.js dependencies are self-contained in `three-v027.js` and the Three.js import map in its HTML.
+- Kept **`tetris/sw.js`** deliberately as a tiny retirement script for old PWA installations, plus `tetris/index.html` to redirect legacy bookmarks. Kept `THREE_DEV_NOTES.md` for prior development/reference history.
+- **No game version bump:** existing Version **035**, CSS iPhone status/footer fix, game logic, high scores, persistent settings, compositor effects, runtime assets, browser tests, and permanent `tetris/three-v027.html` URL are unchanged. The deleted lab/test URLs themselves are intentionally retired.
+- Any further cleanup should focus on proven unused code *inside* the current production JS, with isolated regression tests, rather than broadly deleting the remaining core, notes or service-worker migration.
