@@ -179,3 +179,11 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Remove only the small explanatory line beneath **PAUSED**. The `PAUSED` heading and its **RESUME, NEW GAME, HIGH SCORE** buttons stay unchanged; the Start Game and Game Over captions remain.
 - No pulse animation is added yet; keep the title static for visual consistency and readability.
 - Preserve approved green/amber phosphors, grayscale UI values, layout and controls, completed-row flash, detailed board/HOLD/NEXT tiles, and the permanent URL. Footer shows **Version 023**.
+
+## V024: Increase popup fade and anchor overlay buttons
+- Change `BOARD_POPUP_FADE` and the Gaussian compositing shader's initial `uFade` value to **87%** (previously 76%); retain **47%** blur, fade toward `#101010`, and the approved green/amber tint vectors.
+- Remove the Game Over **SCORE / LINES** subtitle; PAUSED already has no subtitle. Retain the Start Game tagline, which is now positioned with compact spacing rather than large fixed offsets.
+- The **top edge** of START GAME, RESUME, and PLAY AGAIN is on the play board's vertical halfway line. On very short boards only, shift the RESUME stack upward sufficiently to keep NEW GAME and HIGH SCORE inside the board. Secondary buttons maintain the existing 6px vertical gap and 85%-board-width scale.
+- The visible gap between popup headings and their immediately following element is **twice the parent container gap**: `2*UI_SPACE.unit = 12 CSS px`. On the READY screen this applies both between TETRIS/tagline and tagline/START GAME; for PAUSED/GAME OVER the title sits directly 12px above the primary action.
+- Preserve existing game, input regions, Tetris tile details, row-clear flash, graphics pipeline, phosphor values, and permanent URL. Footer shows Version 024.
+- Static JS parser check and popup layout tests for normal portrait, compact, and very short board dimensions passed. iPhone visual check remains necessary.
