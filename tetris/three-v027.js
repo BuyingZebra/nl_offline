@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='037'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='038'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -735,10 +735,10 @@ function paintGame(){
  dirty=false;
 }
 
+// Settings are grouped by function; persistent field names and values stay unchanged.
 const MENU=[
  ['heading','GAMEPLAY'],
  ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound'],
- ['range','MENU BLUR','boardBlur',0,100,1,'%'],
  ['heading','CRT EMISSION'],
  ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
  ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
@@ -748,7 +748,7 @@ const MENU=[
  ['range','GHOST X','ghostX',-32,32,1,' px'],
  ['range','GHOST Y','ghostY',-32,32,1,' px'],
  ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%'],
- ['heading','CRT PATTERN OVERLAY'],
+ ['heading','CRT MASK'],
  ['switch','SCANLINE OVERLAY','scanlines'],
  ['pattern','PATTERN PRESET','scanlinePreset'],
  ['range','PATTERN SCALE','scanlineScale',.5,3,.25,'x'],
@@ -760,6 +760,7 @@ const MENU=[
  ['switch','VIGNETTE','vignette'],
  ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
  ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
+ ['range','MENU BLUR','boardBlur',0,100,1,'%'],
  ['heading','DISPLAY PRESET'],
  ['button','RESTORE APPROVED VALUES','resetFX']
 ];
@@ -785,122 +786,139 @@ function displayValue(value,step,unit){
  const digits=step<.1?2:step<1?1:0;
  return Number(value).toFixed(digits)+unit;
 }
+// Menu geometry shares the six-pixel unit and the existing 46/42/37px
+// phosphor/settings, HOLD and PAUSE button height.
 function modalBounds(name){
- // One geometry source for hitboxes, dialog drawing and the compositor.
- const safe=insets();
- const hWanted=name==='options'?Math.min(680,H*.82):
-  name==='scores'?Math.min(430,H*.7):name==='restart'?215:275;
- const w=Math.max(190,Math.min(410,W-26));
- const h=Math.min(hWanted,H-safe.top-safe.bottom-22);
- return {w,h,x:(W-w)/2,y:(H-h)/2};
+ const safe=insets(),pad=UI_SPACE.unit,gap=UI_SPACE.unit;
+ const buttonH=layout().headerButtonH;
+ const usable=Math.max(0,H-safe.top-safe.bottom);
+ const wanted=name==='options'?Math.min(680,H*.82):
+  name==='scores'?2*pad+2*buttonH+5*54+5*gap+14:
+  name==='restart'?2*pad+2*buttonH+2*gap+40:
+  2*pad+4*buttonH+4*gap+18;
+ const w=Math.max(0,Math.min(410,W-2*UI_SPACE.padX));
+ const h=Math.max(0,Math.min(wanted,usable-2*gap));
+ return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,gap,buttonH};
 }
 function modalPanel(title,q){
  regions=[];region(0,0,W,H,'block');
  panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
- text(title,q.x+17,q.y+25,14,C.bright,'left',q.w-34);
- return q;
+ text(title,q.x+q.pad,q.y+q.pad+q.buttonH/2,14,C.bright,'left',q.w-2*q.pad);
+}
+function modalBodyTop(q){return q.y+q.pad+q.buttonH+q.gap;}
+function modalActionRow(q,items){
+ const x=q.x+q.pad,y=q.y+q.h-q.pad-q.buttonH;
+ const width=q.w-2*q.pad,n=items.length;
+ const buttonW=(width-(n-1)*q.gap)/n;
+ items.forEach(([label,act,light],i)=>
+  key(label,x+i*(buttonW+q.gap),y,buttonW,q.buttonH,act,{light:Boolean(light)}));
+ return y;
 }
 function drawOptions(q){
  modalPanel('FIELD ATLAS / DISPLAY SETTINGS',q);
- const {x,y,w,h}=q;
- key('RETURN TO GAME',x+15,y+43,w-30,43,'close');
- const top=y+97,bottom=y+h-15,vheight=bottom-top;
- modalView={x:x+12,y:top,w:w-24,h:vheight};
- g.save();g.beginPath();g.rect(modalView.x,top,modalView.w,vheight);g.clip();
- region(modalView.x,top,modalView.w,vheight,'scroll',{scroll:true});
- let yy=top+8-optionsScroll;
- for(const item of MENU){
-  const [kind,name,k,min,max,step,unit]=item;
-  if(kind==='heading'){
-   if(yy+22>=top&&yy<=bottom)
-    text(name,x+25,yy+11,10,C.weak);
-   yy+=34;continue;
-  }
-  if(kind==='button'){
-   if(yy+44>=top&&yy<=bottom)key(name,x+25,yy+3,w-50,38,k);
-   yy+=60;continue;
-  }
-  if(kind==='switch'){
+ const {x,y,w,h,pad,gap,buttonH}=q;
+ const contentX=x+pad,contentW=w-2*pad;
+ const backY=modalBodyTop(q);
+ key('RETURN TO GAME',contentX,backY,contentW,buttonH,'close');
+ const top=backY+buttonH+gap,bottom=y+h-pad,vheight=Math.max(0,bottom-top);
+ modalView={x:contentX,y:top,w:contentW,h:vheight};
+ g.save();g.beginPath();g.rect(contentX,top,contentW,vheight);g.clip();
+ region(contentX,top,contentW,vheight,'scroll',{scroll:true});
+ const headingH=Math.max(20,Math.round(buttonH*.6));
+ const rangeH=buttonH+3*gap,patternH=2*buttonH+gap;
+ let yy=top-optionsScroll;
+ for(const [kind,name,k,min,max,step,unit] of MENU){
+  const height=kind==='heading'?headingH:
+   kind==='range'?rangeH:kind==='pattern'?patternH:buttonH;
+  const visible=yy+height>=top&&yy<=bottom;
+  if(visible&&kind==='heading'){
+   text(name,contentX+pad,yy+height/2,10,C.weak,'left',contentW-2*pad);
+   rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.border);
+  }else if(visible&&kind==='button'){
+   key(name,contentX,yy,contentW,height,k,{modalControl:true});
+  }else if(visible&&kind==='switch'){
    const value=settingValue(k);
-   if(yy+43>=top&&yy<=bottom){
-    text(name,x+25,yy+17,11,C.ink);
-    const tx=x+w-53,ty=yy+7;
-    panel(tx,ty,22,22,3,value?C.bright:C.button,C.border);
-    if(value)text('✓',tx+11,ty+11,17,C.dark,'center');
-    region(x+18,yy,w-35,41,'toggle',{field:k,modalControl:true});
-   }
-   yy+=46;continue;
+   panel(contentX,yy,contentW,height,8,C.button,C.border);
+   text(name,contentX+pad,yy+height/2,11,C.ink,'left',contentW-2*pad-30);
+   const boxSize=22,tx=contentX+contentW-pad-boxSize,ty=yy+(height-boxSize)/2;
+   panel(tx,ty,boxSize,boxSize,3,value?C.bright:C.button,C.border);
+   if(value)text('✓',tx+boxSize/2,ty+boxSize/2,17,C.dark,'center');
+   region(contentX,yy,contentW,height,'toggle',{field:k,modalControl:true});
+  }else if(visible&&kind==='pattern'){
+   text(name,contentX+pad,yy+buttonH/2,11,C.ink,'left',contentW-2*pad);
+   const cy=yy+buttonH+gap,arrowW=buttonH;
+   key('◀',contentX,cy,arrowW,buttonH,'patternPrev',{modalControl:true});
+   const centerX=contentX+arrowW+gap;
+   const centerW=Math.max(0,contentW-2*arrowW-2*gap);
+   panel(centerX,cy,centerW,buttonH,8,C.button,C.border);
+   text(activeScanlinePreset().name,centerX+centerW/2,cy+buttonH/2,10,C.ink,
+    'center',Math.max(1,centerW-2*pad));
+   region(centerX,cy,centerW,buttonH,'patternNext',{modalControl:true});
+   key('▶',contentX+contentW-arrowW,cy,arrowW,buttonH,'patternNext',{modalControl:true});
+  }else if(visible&&kind==='range'){
+   const value=Number(settingValue(k));
+   panel(contentX,yy,contentW,height,8,C.button,C.border);
+   text(name,contentX+pad,yy+15,11,C.ink,'left',contentW*.7);
+   text(displayValue(value,step,unit),contentX+contentW-pad,yy+15,10,C.weak,'right');
+   const trackX=contentX+pad+9,trackW=Math.max(1,contentW-2*(pad+9));
+   const trackY=yy+height-15;
+   rect(trackX,trackY-2,trackW,5,C.border);
+   const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
+   rect(trackX,trackY-2,trackW*fraction,5,C.bright);
+   panel(cx-9,trackY-9,18,19,6,C.bright,null);
+   region(trackX-9,trackY-13,trackW+18,26,'slider',
+    {field:k,min,max,step,trackX,trackW,modalControl:true});
   }
-  if(kind==='pattern'){
-   if(yy+78>=top&&yy<=bottom){
-    text(name,x+25,yy+12,10,C.ink);
-    const ix=x+25,iw=w-50,buttonW=43,buttonGap=UI_SPACE.unit;
-    const cy=yy+31,ch=39;
-    key('◀',ix,cy,buttonW,ch,'patternPrev',{modalControl:true});
-    const centerX=ix+buttonW+buttonGap;
-    const centerW=Math.max(30,iw-2*buttonW-2*buttonGap);
-    panel(centerX,cy,centerW,ch,7,C.button,C.border);
-    text(activeScanlinePreset().name,centerX+centerW/2,cy+ch/2,10,C.ink,'center',centerW-8);
-    region(centerX,cy,centerW,ch,'patternNext',{modalControl:true});
-    key('▶',ix+iw-buttonW,cy,buttonW,ch,'patternNext',{modalControl:true});
-   }
-   yy+=83;continue;
-  }
-  if(kind==='range'){
-   const val=Number(settingValue(k));
-   if(yy+60>=top&&yy<=bottom){
-    text(name,x+25,yy+12,10,C.ink);
-    text(displayValue(val,step,unit),x+w-25,yy+12,10,C.weak,'right');
-    const lx=x+27,trackW=w-54,sy=yy+39;
-    rect(lx,sy,trackW,5,C.border);
-    const fraction=clamp((val-min)/(max-min),0,1),cx=lx+trackW*fraction;
-    rect(lx,sy,trackW*fraction,5,C.bright);
-    panel(cx-9,sy-7,18,19,6,C.bright,null);
-    region(lx,yy+20,trackW,36,'slider',{field:k,min,max,step,trackX:lx,trackW,modalControl:true});
-   }
-   yy+=66;continue;
-  }
+  yy+=height+gap;
  }
- const contentHeight=yy+optionsScroll-top;
- optionsMaxScroll=Math.max(0,contentHeight-vheight+12);
+ const contentHeight=Math.max(0,yy+optionsScroll-top-gap);
+ optionsMaxScroll=Math.max(0,contentHeight-vheight);
  g.restore();
- // Scroll indicator shows that additional settings are below.
- if(optionsMaxScroll>0){
-  const railH=vheight-15,thumbH=Math.max(28,railH*vheight/(vheight+optionsMaxScroll));
-  const thumbY=top+7+(railH-thumbH)*clamp(optionsScroll/optionsMaxScroll,0,1);
-  rect(x+w-7,thumbY,2,thumbH,C.weak);
+ if(optionsMaxScroll>0&&vheight>0){
+  const railH=Math.max(0,vheight-2*gap);
+  const thumbH=Math.min(railH,Math.max(28,railH*vheight/(vheight+optionsMaxScroll)));
+  const thumbY=top+gap+(railH-thumbH)*clamp(optionsScroll/optionsMaxScroll,0,1);
+  rect(x+w-4,thumbY,2,thumbH,C.weak);
  }
- // Buttons/slider regions outside the viewport must never intercept touches.
 }
 function drawScores(q){
  modalPanel('FIELD ATLAS / TOP FIVE',q);
- const {x,y,w,h}=q;
+ const {x,w,pad,gap}=q;
+ const footerY=modalActionRow(q,[['RETURN','close']]);
+ const noteH=14,noteY=footerY-gap-noteH/2;
+ text('HIGH SCORES ARE SAVED ON THIS DEVICE',x+w/2,noteY,9,C.weak,'center',w-2*pad);
+ const startY=modalBodyTop(q),endY=footerY-gap-noteH-gap;
+ const rowH=Math.max(0,(endY-startY-4*gap)/5);
  for(let i=0;i<5;i++){
-  const score=highs[i],ry=y+60+i*54;
-  text(fmt(i+1,2),x+20,ry,12,C.bright);
-  text(score?.name||'---',x+73,ry,12,C.ink);
-  text(score?Number(score.score).toLocaleString('en-CA'):'------',x+w-17,ry,12,C.ink,'right');
-  text(score?score.lines+' LINES / LV '+score.level:'NO RECORD',x+74,ry+19,9,C.weak);
-  if(i!==4)rect(x+17,ry+29,w-34,1,'#303030');
+  const score=highs[i],ry=startY+i*(rowH+gap);
+  panel(x+pad,ry,w-2*pad,rowH,8,C.button,C.border);
+  text(fmt(i+1,2),x+2*pad,ry+rowH*.32,12,C.bright);
+  text(score?.name||'---',x+2*pad+47,ry+rowH*.32,12,C.ink);
+  text(score?Number(score.score).toLocaleString('en-CA'):'------',
+   x+w-2*pad,ry+rowH*.32,12,C.ink,'right');
+  text(score?score.lines+' LINES / LV '+score.level:'NO RECORD',
+   x+2*pad+47,ry+rowH*.74,9,C.weak);
  }
- text('HIGH SCORES ARE SAVED ON THIS DEVICE',x+w/2,y+h-77,9,C.weak,'center',w-30);
- key('RETURN',x+16,y+h-57,w-32,41,'close');
 }
 function drawRestart(q){
  modalPanel('START NEW GAME?',q);
- const {x,y,w,h}=q;
- text('Your current game and score will be lost.',x+w/2,y+72,10,C.weak,'center',w-25);
- key('CANCEL',x+15,y+h-69,(w-39)/2,46,'close');
- key('YES, RESTART',x+(w-39)/2+24,y+h-69,(w-39)/2,46,'restartYes',{light:true});
+ const footerY=modalActionRow(q,[['CANCEL','close'],['YES, RESTART','restartYes',true]]);
+ const bodyTop=modalBodyTop(q);
+ text('Your current game and score will be lost.',q.x+q.w/2,
+  (bodyTop+footerY-q.gap)/2,10,C.weak,'center',q.w-2*q.pad);
 }
 function drawEntry(q){
  modalPanel('NEW HIGH SCORE',q);
- const {x,y,w,h}=q;
- text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,y+69,12,C.bright,'center');
- text('INITIALS / UP TO THREE',x+w/2,y+105,10,C.weak,'center');
- key(initialsInput.value||'TAP TO ENTER',x+35,y+126,w-70,43,'typeInitials');
- key('SKIP',x+15,y+h-65,(w-39)/2,45,'skipScore');
- key('SAVE SCORE',x+24+(w-39)/2,y+h-65,(w-39)/2,45,'saveScore',{light:true});
+ const {x,w,pad,gap,buttonH}=q;
+ const top=modalBodyTop(q);
+ panel(x+pad,top,w-2*pad,buttonH,8,C.button,C.border);
+ text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,top+buttonH/2,
+  12,C.bright,'center',w-4*pad);
+ const labelY=top+buttonH+gap;
+ text('INITIALS / UP TO THREE',x+w/2,labelY+9,10,C.weak,'center',w-2*pad);
+ const inputY=labelY+18+gap;
+ key(initialsInput.value||'TAP TO ENTER',x+pad,inputY,w-2*pad,buttonH,'typeInitials');
+ modalActionRow(q,[['SKIP','skipScore'],['SAVE SCORE','saveScore',true]]);
 }
 function paintModal(q){
  if(modal==='options')drawOptions(q);
