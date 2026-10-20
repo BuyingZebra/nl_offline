@@ -223,3 +223,11 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Edge Softness **BLUR STRENGTH** now displays **0–100%** with 1% steps, transparently converting to the unchanged internal 0–1 shader strength. Existing default 0.64 stays 64%. Edge Blur Radius remains 0–10px.
 - Unchanged: Green/amber phosphor, 87% menu fade, 47% menu Gaussian, 5 scanline presets, vignette, ghosting, 0.13em typography, gameplay/board layout, and same permanent `tetris/three-v027.html` link. Version **029**.
 - JavaScript parsing and unit/static checks passed, including old-value clamping, saved settings continuity, percentage conversion and complete removal of the two obsolete effects. iPhone visual check still necessary.
+
+## V030: iPhone standalone full-height viewport correction
+- Reported: After reinstalling as a translucent-status-bar Home Screen app, the CRT canvas extended behind the status bar but its `100dvh` box stopped early at the bottom, leaving a plain black footer band. Because the layout uses the canvas height, the actual game board also became smaller, while the header itself remained correctly located.
+- Preserve `viewport-fit=cover`, `black-translucent`, the permanent GitHub Pages path, all safe-area spacing and the original renderer/layout arithmetic; make **only** an installed-app CSS viewport-height adjustment:
+  `@media (display-mode: standalone){ #display{height:min(100vh,calc(100dvh + env(safe-area-inset-top,0px)))} }`
+- Compensates for WebKit reporting a standalone `100dvh` that excludes the top status-bar safe area even though the canvas origin moved to screen top. Capped at `100vh`, it avoids overshooting on corrected WebKit. For an older Home Screen install with no status-bar inset, the old `100dvh` sizing remains unchanged. In ordinary Safari tabs, `100dvh` continues unchanged.
+- JS layout still honors `safe.top` and `safe.bottom`, so the header retains its physical position and the regained viewport height goes toward expanding the playfield and restoring footer positioning. **No other JS change except Version 030**; no preferences or score storage changes.
+- CSS existence and JS unchanged-body checks and simulated viewport-height cases passed. Requires iPhone Home Screen visual review before asserting the fix works across iOS versions.
