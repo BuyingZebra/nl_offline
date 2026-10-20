@@ -58,8 +58,28 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # Exit via RETURN TO GAME, start play, then open Top Five and Restart.
-    tap(195, 146)  # Settings back button (dialog centered at y=82)
+    # Test the GAMEPLAY switch using the approved 6px menu gaps and button
+    # height. The exact hit region should persist and be reversible.
+    page_height = page.evaluate("window.innerHeight")
+    safe_bottom = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
+    )
+    modal_height = min(680, page_height * .82)
+    modal_top = top_inset + (page_height - top_inset - safe_bottom - modal_height) / 2
+    menu_button_height = 46 if page_height > 730 else 42 if page_height > 620 else 42
+    heading_height = max(20, round(menu_button_height * .6))
+    ghost_y = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6 + heading_height + 6 + menu_button_height / 2
+    before = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost') || 'yes'")
+    tap(345, ghost_y)
+    after = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')")
+    assert after in ("yes", "no") and after != before, "Ghost Piece switch did not save"
+    tap(345, ghost_y)
+    restored = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')")
+    assert restored == before, "Ghost Piece setting did not restore"
+
+    # Exit via the shared menu-height RETURN TO GAME button.
+    back_y = modal_top + 6 + menu_button_height + 6 + menu_button_height / 2
+    tap(195, back_y)
     tap(145, top_inset + 386)  # START GAME button on the board
     page.keyboard.press("p")  # PAUSE via the normal keyboard input
     page.wait_for_timeout(260)
