@@ -23,9 +23,10 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
+ scanlines:true,scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='025'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='026'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -287,6 +288,65 @@ modalPlane.visible=false;scene.add(modalPlane);
  composer.addPass(edgeSoftness);
 
  composer.addPass(edgeVignette);
+ // Faithful 3x6 grayscale tile based on the Photoshop reference:
+ // white highlight (1x2), gray #595959 field, black lower 3 rows.
+ // The literal source pixels are the texture, not an analytic line effect.
+ const scanlineTile=document.createElement('canvas');
+ scanlineTile.width=3;scanlineTile.height=6;
+ const tileContext=scanlineTile.getContext('2d',{alpha:false});
+ if(!tileContext)throw Error('Scanline texture canvas unsupported');
+ const tilePixels=tileContext.createImageData(3,6);
+ const scanlinePattern=[
+  [255,89,89],
+  [255,89,89],
+  [89,89,89],
+  [0,0,0],
+  [0,0,0],
+  [0,0,0]
+ ];
+ scanlinePattern.forEach((row,y)=>row.forEach((luminance,x)=>{
+  const p=(y*3+x)*4;
+  tilePixels.data[p]=luminance;
+  tilePixels.data[p+1]=luminance;
+  tilePixels.data[p+2]=luminance;
+  tilePixels.data[p+3]=255;
+ }));
+ tileContext.putImageData(tilePixels,0,0);
+ const scanlineTexture=new THREE.CanvasTexture(scanlineTile);
+ scanlineTexture.wrapS=THREE.RepeatWrapping;
+ scanlineTexture.wrapT=THREE.RepeatWrapping;
+ scanlineTexture.magFilter=THREE.NearestFilter;
+ scanlineTexture.minFilter=THREE.NearestFilter;
+ scanlineTexture.generateMipmaps=false;
+
+ // Photoshop-like repeating texture layer: scale tile in CSS pixels,
+ // then blend it over the finished composite with independently adjustable
+ // layer opacity. Multiply only source brightness, so no RGB tint is added.
+ const scanlineOverlay=new ShaderPass({
+  uniforms:{
+   tDiffuse:{value:null},
+   uPattern:{value:scanlineTexture},
+   uOpacity:{value:.20},
+   uScale:{value:1},
+   uDpr:{value:1},
+   uScreenHeight:{value:1}
+  },
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse,uPattern;
+   uniform float uOpacity,uScale,uDpr,uScreenHeight;
+   void main(){
+    vec3 image=texture2D(tDiffuse,vUv).rgb;
+    vec2 pixel=vec2(gl_FragCoord.x,uScreenHeight-gl_FragCoord.y);
+    vec2 period=max(.25,uScale)*max(1.0,uDpr)*vec2(3.0,6.0);
+    float luminance=texture2D(uPattern,pixel/period).r;
+    gl_FragColor=vec4(image*mix(1.0,luminance,clamp(uOpacity,0.0,1.0)),1.0);
+   }`
+ });
+ // ShaderPass clones textures on creation. Rebind the live 3x6 source.
+ scanlineOverlay.uniforms.uPattern.value=scanlineTexture;
+ scanlineOverlay.enabled=false;
+ composer.addPass(scanlineOverlay);
  composer.addPass(new OutputPass());
 
 
@@ -684,6 +744,10 @@ const MENU=[
  ['range','NOISE AMOUNT','noiseAmount',0,100,1,'%'],
  ['range','NOISE SIZE','noiseSize',.5,8,.5,' px'],
  ['range','NOISE RATE','noiseRate',1,60,1,' Hz'],
+ ['heading','CRT PATTERN OVERLAY'],
+ ['switch','SCANLINE OVERLAY','scanlines'],
+ ['range','PATTERN SCALE','scanlineScale',.5,3,.25,'x'],
+ ['range','OVERLAY OPACITY','scanlineOpacity',0,100,1,'%'],
  ['heading','DISPLAY OPTICS'],
  ['switch','EDGE SOFTNESS','softness'],
  ['range','BLUR STRENGTH','softnessStrength',0,1,.01,''],
@@ -1070,6 +1134,12 @@ function syncFX(now){
  edgeVignette.enabled=FX.vignette;
  edgeVignette.uniforms.uAmount.value=FX.vignetteAmount;
  edgeVignette.uniforms.uStart.value=FX.vignetteSpread;
+ scanlineOverlay.enabled=FX.scanlines&&FX.scanlineOpacity>0;
+ scanlineOverlay.uniforms.uPattern.value=scanlineTexture;
+ scanlineOverlay.uniforms.uOpacity.value=clamp(FX.scanlineOpacity/100,0,1);
+ scanlineOverlay.uniforms.uScale.value=FX.scanlineScale;
+ scanlineOverlay.uniforms.uDpr.value=DPR;
+ scanlineOverlay.uniforms.uScreenHeight.value=H*DPR;
 }
 function requestFrame(){
  if(!queued&&!document.hidden){queued=true;requestAnimationFrame(frame);}
