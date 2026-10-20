@@ -818,7 +818,7 @@ function viewportMeasurements(){
   'GAME BOARD H / '+pretty(layoutInfo?.boardH),
   'FOOTER Y / '+pretty(layoutInfo?.footerY),
   'DEVICE PIXEL RATIO / '+pretty(window.devicePixelRatio)
- ].join('\\n');
+ ].join('\n');
 }
 function showViewportDiagnostics(){
  // This is a separate temporary developer overlay: no game input or renderer
