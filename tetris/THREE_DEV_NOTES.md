@@ -215,3 +215,11 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Prevent accidental squeeze/compression: instead of `CanvasRenderingContext2D.fillText(..., maxWidth)`, generically measure the natural width and only wrap if a label genuinely exceeds the available width. This is **one universal rule**, not a per-screen or per-label special case. Main-screen text remains single-line at normal phone sizes.
 - Preserve all UI geometry, 87% popup fade, 47% board blur, existing tile styling, five selectable CRT mask presets, line-clear animation and precise green/amber phosphor values. The permanent `tetris/three-v027.html` URL remains unchanged, with footer build number **028**.
 - Verified parse, invariants, single-line examples of normal game-screen content and generic wrap behavior in a Canvas2D mock. iPhone visual confirmation remains outstanding.
+
+## V029: Delete noise/vertical roll; simplify remaining effects
+- Delete Noise and Vertical Roll **entirely**, including their shaders, compositor passes, defaults, slider controls, uniforms, animation frame scheduling, and resize processing. Old saved keys are ignored while retaining other user settings.
+- Rename **BOARD POPUP BLUR** to **MENU BLUR**; retain `boardBlur` key and existing 47% default and real two-pass Gaussian effect.
+- Both Bloom Cutoff and Bloom Strength sliders now range **0 to 1**; Bloom Strength formerly reached 3. Older stored values exceeding 1 are clamped to 1.
+- Edge Softness **BLUR STRENGTH** now displays **0–100%** with 1% steps, transparently converting to the unchanged internal 0–1 shader strength. Existing default 0.64 stays 64%. Edge Blur Radius remains 0–10px.
+- Unchanged: Green/amber phosphor, 87% menu fade, 47% menu Gaussian, 5 scanline presets, vignette, ghosting, 0.13em typography, gameplay/board layout, and same permanent `tetris/three-v027.html` link. Version **029**.
+- JavaScript parsing and unit/static checks passed, including old-value clamping, saved settings continuity, percentage conversion and complete removal of the two obsolete effects. iPhone visual check still necessary.
