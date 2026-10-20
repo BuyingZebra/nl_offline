@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='035'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='036'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -191,7 +191,7 @@ modalPlane.visible=false;scene.add(modalPlane);
 
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.2,1,.2)}},
-  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  vertexShader:passVertex,
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
  composer.addPass(tint);
@@ -955,13 +955,16 @@ function eventPoint(e){
  return {x:(e.clientX-rect.left)*W/rect.width,y:(e.clientY-rect.top)*H/rect.height};
 }
 function regionAt(p){
- return [...regions].reverse().find(r=>{
-  if(!(p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h))return false;
-  if(modal==='options'&&r.modalControl&&modalView){
-   if(p.y<modalView.y||p.y>modalView.y+modalView.h)return false;
-  }
-  return true;
- });
+ // Search newest to oldest for identical overlay/touch priority without
+ // allocating and reversing a copy of the hitbox array on every event.
+ for(let i=regions.length-1;i>=0;i--){
+  const r=regions[i];
+  if(!(p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h))continue;
+  if(modal==='options'&&r.modalControl&&modalView&&
+    (p.y<modalView.y||p.y>modalView.y+modalView.h))continue;
+  return r;
+ }
+ return undefined;
 }
 function setSlider(r,x){
  const f=clamp((x-r.trackX)/Math.max(1,r.trackW),0,1);
