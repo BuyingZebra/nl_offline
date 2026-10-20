@@ -54,6 +54,22 @@ html.ios-standalone #display{height:100vh}
 <div id="error" role="alert" hidden></div>
 <script src="./core.js?three=v027-r1"></script>
 <script src="./scores.js?three=v027-r1"></script>
+<script>
+// Retire an old PixiJS Tetris worker if this installation still has one.
+// Never unregister other repository service workers or clear saved scores.
+if('serviceWorker' in navigator){
+ navigator.serviceWorker.getRegistration(new URL('./',location.href)).then(reg=>{
+  const script=reg?.active?.scriptURL||reg?.waiting?.scriptURL||reg?.installing?.scriptURL;
+  if(script&&new URL(script).pathname===new URL('./sw.js',location.href).pathname)
+   return reg.unregister();
+ }).catch(()=>{});
+}
+if('caches' in window){
+ caches.keys().then(keys=>Promise.all(
+  keys.filter(key=>key.startsWith('field-atlas-arcade-')).map(key=>caches.delete(key))
+ )).catch(()=>{});
+}
+</script>
 <script type="module">
 // Permanent bookmarkable URL: reload always requests the latest committed
 // renderer module rather than reusing an old browser module-cache entry.
