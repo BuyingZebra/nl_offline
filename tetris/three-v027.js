@@ -25,7 +25,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='022'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='023'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -152,7 +152,7 @@ modalPlane.visible=false;scene.add(modalPlane);
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uStep:{value:1},
     uComposite:{value:composite?1:0},
-    uFade:{value:.70},uFadeTo:{value:new THREE.Color(0x101010)}
+    uFade:{value:.76},uFadeTo:{value:new THREE.Color(0x101010)}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
   });
@@ -298,7 +298,7 @@ const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
 // Popup blur remains one 0–100% control. Both GPU axes use dense,
 // regularly spaced normalized Gaussian samples. At high settings we enlarge
 // the sampling footprint, while 47% uses nearly pixel-adjacent taps.
-const BOARD_POPUP_FADE=.70;
+const BOARD_POPUP_FADE=.76;
 function boardBlurParams(){
  const p=clamp(Number(FX.boardBlur)||0,0,100)/100;
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
@@ -514,9 +514,11 @@ function paintBoardPopup(r){
   const type=game.status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
-  const copy=type==='paused'?'YOUR GAME IS SAFE UNTIL YOU RETURN':type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
+  const copy=type==='over'?'SCORE '+game.score+' / '+game.lines+' LINES':'SURVIVE THE SOVIET CHALLENGE';
   text(title,x+w/2,y+h/2-64,Math.min(21,w*.079),C.bright,'center',w-18);
-  text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
+  // Keep the PAUSED overlay clean: no small subtitle below its heading.
+  // START GAME and GAME OVER still display their existing supporting text.
+  if(type!=='paused')text(copy,x+w/2,y+h/2-27,Math.min(10,w*.034),C.weak,'center',w-18);
   // Center all board-overlay buttons at exactly 85% of the board width.
   // HOLD and PAUSE retain their independent 75%-width scaling.
   // Primary game-entry height still matches bottom-row HOLD / PAUSE.
