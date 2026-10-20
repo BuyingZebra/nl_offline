@@ -23,10 +23,10 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
- scanlines:true,scanlineScale:1,scanlineOpacity:20,
+ scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='026'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='027'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -288,36 +288,61 @@ modalPlane.visible=false;scene.add(modalPlane);
  composer.addPass(edgeSoftness);
 
  composer.addPass(edgeVignette);
- // Faithful 3x6 grayscale tile based on the Photoshop reference:
- // white highlight (1x2), gray #595959 field, black lower 3 rows.
- // The literal source pixels are the texture, not an analytic line effect.
- const scanlineTile=document.createElement('canvas');
- scanlineTile.width=3;scanlineTile.height=6;
- const tileContext=scanlineTile.getContext('2d',{alpha:false});
- if(!tileContext)throw Error('Scanline texture canvas unsupported');
- const tilePixels=tileContext.createImageData(3,6);
- const scanlinePattern=[
-  [255,89,89],
-  [255,89,89],
-  [89,89,89],
-  [0,0,0],
-  [0,0,0],
-  [0,0,0]
+ // Five small literal grayscale CRT patterns, nearest-neighbor tiled.
+ // ORIGINAL is pixel-for-pixel the previously approved 3x6 Photoshop tile.
+ const SCANLINE_PRESETS=[
+  {id:'original',name:'ORIGINAL',rows:[
+   [255,89,89],[255,89,89],[89,89,89],[0,0,0],[0,0,0],[0,0,0]
+  ]},
+  {id:'horizontal',name:'HORIZONTAL SCANLINES',rows:[
+   [220],[110],[40],[0]
+  ]},
+  {id:'aperture',name:'APERTURE GRILLE',rows:[
+   [255,120,60]
+  ]},
+  {id:'slot',name:'SLOT MASK',rows:[
+   [220,110,220,110],[220,110,220,110],[70,0,70,0],
+   [110,220,110,220],[110,220,110,220],[0,0,0,0]
+  ]},
+  {id:'dot',name:'DOT SHADOW MASK',rows:[
+   [220,60,220,60],[60,0,60,0],[220,60,220,60],[60,0,60,0]
+  ]}
  ];
- scanlinePattern.forEach((row,y)=>row.forEach((luminance,x)=>{
-  const p=(y*3+x)*4;
-  tilePixels.data[p]=luminance;
-  tilePixels.data[p+1]=luminance;
-  tilePixels.data[p+2]=luminance;
-  tilePixels.data[p+3]=255;
- }));
- tileContext.putImageData(tilePixels,0,0);
- const scanlineTexture=new THREE.CanvasTexture(scanlineTile);
- scanlineTexture.wrapS=THREE.RepeatWrapping;
- scanlineTexture.wrapT=THREE.RepeatWrapping;
- scanlineTexture.magFilter=THREE.NearestFilter;
- scanlineTexture.minFilter=THREE.NearestFilter;
- scanlineTexture.generateMipmaps=false;
+ function makeScanlineTexture(rows){
+  const height=rows.length,width=rows[0].length;
+  if(!rows.every(row=>row.length===width))throw Error('Invalid CRT mask tile');
+  const tile=document.createElement('canvas');
+  tile.width=width;tile.height=height;
+  const ctx=tile.getContext('2d',{alpha:false});
+  if(!ctx)throw Error('CRT mask texture canvas missing');
+  const pixels=ctx.createImageData(width,height);
+  rows.forEach((row,y)=>row.forEach((luminance,x)=>{
+   const p=(y*width+x)*4;
+   pixels.data[p]=luminance;
+   pixels.data[p+1]=luminance;
+   pixels.data[p+2]=luminance;
+   pixels.data[p+3]=255;
+  }));
+  ctx.putImageData(pixels,0,0);
+  const texture=new THREE.CanvasTexture(tile);
+  texture.wrapS=THREE.RepeatWrapping;
+  texture.wrapT=THREE.RepeatWrapping;
+  texture.magFilter=THREE.NearestFilter;
+  texture.minFilter=THREE.NearestFilter;
+  texture.generateMipmaps=false;
+  return texture;
+ }
+ const scanlineTextures=Object.fromEntries(
+  SCANLINE_PRESETS.map(p=>[p.id,makeScanlineTexture(p.rows)])
+ );
+ function activeScanlinePreset(){
+  return SCANLINE_PRESETS.find(p=>p.id===FX.scanlinePreset)||SCANLINE_PRESETS[0];
+ }
+ function cycleScanlinePreset(direction){
+  const index=SCANLINE_PRESETS.indexOf(activeScanlinePreset());
+  const next=(index+direction+SCANLINE_PRESETS.length)%SCANLINE_PRESETS.length;
+  setSetting('scanlinePreset',SCANLINE_PRESETS[next].id);
+ }
 
  // Photoshop-like repeating texture layer: scale tile in CSS pixels,
  // then blend it over the finished composite with independently adjustable
@@ -325,7 +350,8 @@ modalPlane.visible=false;scene.add(modalPlane);
  const scanlineOverlay=new ShaderPass({
   uniforms:{
    tDiffuse:{value:null},
-   uPattern:{value:scanlineTexture},
+   uPattern:{value:scanlineTextures.original},
+   uPatternSize:{value:new THREE.Vector2(3,6)},
    uOpacity:{value:.20},
    uScale:{value:1},
    uDpr:{value:1},
@@ -335,16 +361,17 @@ modalPlane.visible=false;scene.add(modalPlane);
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPattern;
    uniform float uOpacity,uScale,uDpr,uScreenHeight;
+   uniform vec2 uPatternSize;
    void main(){
     vec3 image=texture2D(tDiffuse,vUv).rgb;
     vec2 pixel=vec2(gl_FragCoord.x,uScreenHeight-gl_FragCoord.y);
-    vec2 period=max(.25,uScale)*max(1.0,uDpr)*vec2(3.0,6.0);
+    vec2 period=max(.25,uScale)*max(1.0,uDpr)*uPatternSize;
     float luminance=texture2D(uPattern,pixel/period).r;
     gl_FragColor=vec4(image*mix(1.0,luminance,clamp(uOpacity,0.0,1.0)),1.0);
    }`
  });
- // ShaderPass clones textures on creation. Rebind the live 3x6 source.
- scanlineOverlay.uniforms.uPattern.value=scanlineTexture;
+ // ShaderPass clones textures on creation. Rebind the original source.
+ scanlineOverlay.uniforms.uPattern.value=scanlineTextures.original;
  scanlineOverlay.enabled=false;
  composer.addPass(scanlineOverlay);
  composer.addPass(new OutputPass());
@@ -470,14 +497,14 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,spacing
 }
 function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
 function region(x,y,w,h,act,opts={}){regions.push({x,y,w,h,act,...opts});}
-function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false}={}){
+function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false,modalControl=false}={}){
  const size=MAIN_ACTION_LABELS.has(String(label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
  const down=pressed?.action===act&&pressed?.box?.x===x;
  panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
  text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14));
  if(arrow)text('▶',x+17,y+h/2,BUTTON_ICON_FONT_SIZE,light?C.dark:C.ink,'center');
- region(x,y,w,h,act,{repeat});
+ region(x,y,w,h,act,{repeat,modalControl});
 }
 // V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
 // displayed as 80x60 and 80x44 CSS pixels. Match their real visual sizes,
@@ -746,6 +773,7 @@ const MENU=[
  ['range','NOISE RATE','noiseRate',1,60,1,' Hz'],
  ['heading','CRT PATTERN OVERLAY'],
  ['switch','SCANLINE OVERLAY','scanlines'],
+ ['pattern','PATTERN PRESET','scanlinePreset'],
  ['range','PATTERN SCALE','scanlineScale',.5,3,.25,'x'],
  ['range','OVERLAY OPACITY','scanlineOpacity',0,100,1,'%'],
  ['heading','DISPLAY OPTICS'],
@@ -825,6 +853,21 @@ function drawOptions(){
     region(x+18,yy,w-35,41,'toggle',{field:k,modalControl:true});
    }
    yy+=46;continue;
+  }
+  if(kind==='pattern'){
+   if(yy+78>=top&&yy<=bottom){
+    text(name,x+25,yy+12,10,C.ink);
+    const ix=x+25,iw=w-50,buttonW=43,buttonGap=UI_SPACE.unit;
+    const cy=yy+31,ch=39;
+    key('◀',ix,cy,buttonW,ch,'patternPrev',{modalControl:true});
+    const centerX=ix+buttonW+buttonGap;
+    const centerW=Math.max(30,iw-2*buttonW-2*buttonGap);
+    panel(centerX,cy,centerW,ch,7,C.button,C.border);
+    text(activeScanlinePreset().name,centerX+centerW/2,cy+ch/2,10,C.ink,'center',centerW-8);
+    region(centerX,cy,centerW,ch,'patternNext',{modalControl:true});
+    key('▶',ix+iw-buttonW,cy,buttonW,ch,'patternNext',{modalControl:true});
+   }
+   yy+=83;continue;
   }
   if(kind==='range'){
    const val=Number(settingValue(k));
@@ -925,6 +968,8 @@ function handleAction(act){
  if(act==='skipScore'){initialsInput.blur();openModal(null);return;}
  if(act==='saveScore'){saveScore();return;}
  if(act==='typeInitials'){initialsInput.focus();return;}
+ if(act==='patternPrev'){cycleScanlinePreset(-1);return;}
+ if(act==='patternNext'){cycleScanlinePreset(1);return;}
  if(act==='resetFX'){FX={...DEFAULT};persist();baseDirty=true;invalidate();return;}
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
@@ -1135,7 +1180,9 @@ function syncFX(now){
  edgeVignette.uniforms.uAmount.value=FX.vignetteAmount;
  edgeVignette.uniforms.uStart.value=FX.vignetteSpread;
  scanlineOverlay.enabled=FX.scanlines&&FX.scanlineOpacity>0;
- scanlineOverlay.uniforms.uPattern.value=scanlineTexture;
+ const scanlinePreset=activeScanlinePreset();
+ scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];
+ scanlineOverlay.uniforms.uPatternSize.value.set(scanlinePreset.rows[0].length,scanlinePreset.rows.length);
  scanlineOverlay.uniforms.uOpacity.value=clamp(FX.scanlineOpacity/100,0,1);
  scanlineOverlay.uniforms.uScale.value=FX.scanlineScale;
  scanlineOverlay.uniforms.uDpr.value=DPR;
