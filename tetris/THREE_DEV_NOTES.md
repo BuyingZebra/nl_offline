@@ -250,3 +250,19 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Per matching April 2026 iOS PWA reports and July 2026 OpenChamber bug #2287, `black-translucent` + `viewport-fit=cover` + root `height:100%` can create exactly a status-bar-sized black chin gap. Keep all regular Safari rules unchanged and, **only when the already working `navigator.standalone===true` class is present**, set `html.ios-standalone, html.ios-standalone body { height:100vh }`. This gives the root and the existing V032 game canvas the same measured full physical viewport height.
 - No changes to the header, board size, footer position, safe-area calculations, gameplay, effect passes, colours, cache strategy, preference keys or scores. Permanent page remains `tetris/three-v027.html`. Bump version to **033**. Add `DOCUMENT SCROLL H` to viewport diagnostic report to distinguish the CSS root from the actual document scroll extent.
 - Verified JS syntax, strict source-delta (only the new root CSS rule, version bump and one diagnostics metric), geometric explanation and expected footer fit in full 852px viewport. Actual iPhone render must be tested; don't claim success until the user confirms.
+
+## V034: Conservative post-viewport cleanup and dependency audit
+
+**Audit summary of `tetris/` at the start of V034:**
+- **Current production route:** `three-v027.html` uses `three-v027.js` plus shared `core.js` and `scores.js`. Preserve these exact paths, Three.js dependency import map, persistent `fieldAtlasThreeV027FX01` FX key and score keys, and the proven V033 iOS standalone `100vh` root/canvas rules.
+- **Separate older arcade still has references:** `index.html` actively imports `pixi-ui.js`, `pixi-crt.js`, `vendor/pixi.min.js`, `core.js` and `scores.js`; it registers `sw.js` with scope `./`, which can intercept navigation throughout `tetris/`. Those files and the service worker **must not** be deleted blindly. Retiring the service worker later requires intentional unregister/cache migration, not deleting a script.
+- **Historical development artifacts for possible future archive:** `three-v027-crt.js` has no references from the currently examined Tetris HTML/JS sources, while `three-crt-test.html`, `three-effects-lab.html` and `crt-css-test.html` are standalone experiment pages. Their use elsewhere in FIELD ATLAS or bookmarks has not been ruled out, so V034 does **not** delete them.
+- **Other production code:** The grayscale tile face renderer, CRT passes, GUI typography, menu options, bloom, ghosting, edge softness, vignette, five mask presets, and responsive layout all have active references. Do not strip them as though they were unused.
+
+**Small safe cleanup completed in V034:**
+- Remove the temporary V031–V033 `VIEWPORT MEASUREMENTS` entry, its temporary DOM report/clipboard/refresh overlay, and its action handler from `three-v027.js`. The measurement outcome and geometry calculations remain documented in V031–V033 development notes and GitHub history, so the diagnostic can be restored when needed without burdening the live game.
+- Remove the one-off `gamepadDrag=null` variable, verified to have no reads or writes anywhere in the production renderer.
+- No HTML, CSS, game mechanics, UI layout, postprocessing, saved settings, caches, or older arcade files modified. Source version indicator advances to **034** at the unchanged permanent `tetris/three-v027.html` URL.
+- Verified byte-for-byte reconstruction of the V033 source from V034 plus these precise removals, JavaScript syntax parsing, and production invariants; runtime/iPhone visual check still required.
+
+**Next audit pass (after the user confirms V034):** decide whether the old Pixi route is still needed. Only then plan archive/deletion of unused experiment assets and deliberate service-worker retirement. Keep this separate from viewport or rendering changes.
