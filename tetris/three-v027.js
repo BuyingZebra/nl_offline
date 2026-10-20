@@ -22,11 +22,11 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
- ghost:true,ghostX:2,ghostY:0,ghostStrength:22,noise:false,noiseAmount:20,noiseRate:15,noiseSize:2,
+ ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
- vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='028'; // Increment per approved layout/render test.
+ vignette:true,vignetteAmount:.39,vignetteSpread:.57});
+const THREE_BUILD_VERSION='029'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -50,6 +50,9 @@ const load=(key,fallback)=>{try{return localStorage.getItem(key)??fallback}catch
 const store=(key,value)=>{try{localStorage.setItem(key,String(value))}catch(e){}};
 let FX={...DEFAULT};
 try{const s=JSON.parse(load(PREF,'null'));if(s&&typeof s==='object')for(const [k,v] of Object.entries(DEFAULT))if(typeof s[k]===typeof v)FX[k]=s[k];}catch(e){}
+// Older saved bloom values may exceed the new slider upper bound.
+FX.bloomCutoff=clamp(Number(FX.bloomCutoff)||0,0,1);
+FX.bloomStrength=clamp(Number(FX.bloomStrength)||0,0,1);
 const persist=()=>store(PREF,JSON.stringify(FX));
 // Upgrade popup blur to 47% once; later user adjustments remain persistent.
 const BOARD_POPUP_V020='fieldAtlasBoardPopupV020';
@@ -64,7 +67,7 @@ let theme=load('fieldAtlasThemeV06','green')==='amber'?'amber':'green';
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0,pressed=null,repeatDelay=null,repeatInterval=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),lastDraw=0,rollPhase=0,audioCtx=null,gamepadDrag=null;
+let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null,gamepadDrag=null;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
@@ -168,17 +171,6 @@ modalPlane.visible=false;scene.add(modalPlane);
  composer.addPass(boardBlurHorizontal);
  composer.addPass(boardPopupPass);
 
- // Vertical-sync roll: real image sampling with repeated UV coordinates.
- const verticalRoll=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uOffset:{value:0}},
-  vertexShader:passVertex,
-  fragmentShader:`
-   varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uOffset;
-   void main(){gl_FragColor=texture2D(tDiffuse,vec2(vUv.x,fract(vUv.y+uOffset)));}`
- });
- verticalRoll.enabled=false;
- composer.addPass(verticalRoll);
-
  // Analog ghost is a displaced image sample, not a duplicate HTML element.
  const ghostPass=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uX:{value:8},uY:{value:0},uStrength:{value:.22},uSize:{value:new THREE.Vector2(1,1)}},
@@ -196,41 +188,6 @@ modalPlane.visible=false;scene.add(modalPlane);
  });
  ghostPass.enabled=false;
  composer.addPass(ghostPass);
-
- // Luminance-dependent monochrome noise belongs to the incoming signal.
- const grain=new ShaderPass({
-  uniforms:{
-   tDiffuse:{value:null},
-   uAmount:{value:.20},
-   uTick:{value:0},
-   uDpr:{value:1},
-   uGrainSize:{value:2}
-  },
-  vertexShader:passVertex,
-  fragmentShader:`
-   varying vec2 vUv;
-   uniform sampler2D tDiffuse;
-   uniform float uAmount,uTick,uDpr,uGrainSize;
-   float hash12(vec2 p){
-    vec3 p3=fract(vec3(p.xyx)*0.1031);
-    p3+=dot(p3,p3.yzx+33.33);
-    return fract((p3.x+p3.y)*p3.z);
-   }
-   void main(){
-    vec3 sourceColor=texture2D(tDiffuse,vUv).rgb;
-    vec2 grainCell=floor(gl_FragCoord.xy/max(1.0,uDpr*uGrainSize));
-    vec2 seed=grainCell+vec2(uTick*17.31,uTick*41.83);
-    // Derive visibility from the noise-free signal. No external masks.
-    float lum=dot(sourceColor,vec3(.2126,.7152,.0722));
-    float visibility=smoothstep(.02,.95,lum);
-    float mixAmount=clamp(uAmount,0.0,1.0)*visibility;
-    float mono=(hash12(seed)+hash12(seed+vec2(31.7,92.3))
-               +hash12(seed+vec2(69.4,14.9)))/3.0;
-    gl_FragColor=vec4(mix(sourceColor,vec3(mono),mixAmount),1.0);
-   }`
- });
- grain.enabled=false;
- composer.addPass(grain);
 
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.2,1,.2)}},
@@ -779,21 +736,16 @@ function paintGame(){
 const MENU=[
  ['heading','GAMEPLAY'],
  ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound'],
- ['range','BOARD POPUP BLUR','boardBlur',0,100,1,'%'],
+ ['range','MENU BLUR','boardBlur',0,100,1,'%'],
  ['heading','CRT EMISSION'],
  ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
  ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
- ['range','BLOOM STRENGTH','bloomStrength',0,3,.05,''],
+ ['range','BLOOM STRENGTH','bloomStrength',0,1,.05,''],
  ['heading','SIGNAL GHOSTING'],
  ['switch','GHOSTING','ghost'],
  ['range','GHOST X','ghostX',-32,32,1,' px'],
  ['range','GHOST Y','ghostY',-32,32,1,' px'],
  ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%'],
- ['heading','SIGNAL NOISE'],
- ['switch','MOVING NOISE','noise'],
- ['range','NOISE AMOUNT','noiseAmount',0,100,1,'%'],
- ['range','NOISE SIZE','noiseSize',.5,8,.5,' px'],
- ['range','NOISE RATE','noiseRate',1,60,1,' Hz'],
  ['heading','CRT PATTERN OVERLAY'],
  ['switch','SCANLINE OVERLAY','scanlines'],
  ['pattern','PATTERN PRESET','scanlinePreset'],
@@ -801,21 +753,18 @@ const MENU=[
  ['range','OVERLAY OPACITY','scanlineOpacity',0,100,1,'%'],
  ['heading','DISPLAY OPTICS'],
  ['switch','EDGE SOFTNESS','softness'],
- ['range','BLUR STRENGTH','softnessStrength',0,1,.01,''],
+ ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px'],
  ['switch','VIGNETTE','vignette'],
  ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
  ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
- ['heading','VERTICAL SYNCHRONIZATION'],
- ['switch','VERTICAL ROLL','roll'],
- ['range','ROLL SPEED','rollSpeed',-100,100,1,'%/s'],
- ['range','ROLL POSITION','rollOffset',0,100,1,'%'],
  ['heading','DISPLAY PRESET'],
  ['button','RESTORE APPROVED VALUES','resetFX']
 ];
 function settingValue(k){
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
+ if(k==='softnessStrength')return Math.round(FX.softnessStrength*100);
  return FX[k];
 }
 function setSetting(k,value){
@@ -824,7 +773,8 @@ function setSetting(k,value){
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{
-  FX[k]=value;persist();
+  FX[k]=k==='softnessStrength'?clamp(value/100,0,1):value;
+  persist();
   if(k==='boardBlur'&&game.status!=='playing')baseDirty=true;
  }
  invalidate();
@@ -1159,21 +1109,11 @@ window.addEventListener('pageshow',()=>{void checkForNewBuild();});
 window.addEventListener('focus',()=>{void checkForNewBuild();});
 // Some standalone sessions never report another foreground transition.
 setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
-function syncFX(now){
- verticalRoll.enabled=FX.roll;
- if(FX.roll){
-  const step=(now-lastDraw)/1000;
-  rollPhase=(rollPhase+Math.max(0,Math.min(.1,step))*FX.rollSpeed/100)%1;
-  verticalRoll.uniforms.uOffset.value=(rollPhase+FX.rollOffset/100+2)%1;
- }
+function syncFX(){
  ghostPass.enabled=FX.ghost;
  ghostPass.uniforms.uX.value=FX.ghostX;
  ghostPass.uniforms.uY.value=FX.ghostY;
  ghostPass.uniforms.uStrength.value=FX.ghostStrength/100;
- grain.enabled=FX.noise;
- grain.uniforms.uAmount.value=FX.noiseAmount/100;
- grain.uniforms.uTick.value=Math.floor(now/1000*FX.noiseRate);
- grain.uniforms.uGrainSize.value=FX.noiseSize;
  tint.uniforms.uEnabled.value=FX.phosphor?1:0;
  tint.uniforms.uTint.value.copy(hues[theme]);
  glow.enabled=FX.bloom;
@@ -1232,10 +1172,6 @@ function frame(now){
    else if(game.pieces>prior)tone(180,.04);
    onOver();
   }
-  const animateNoise=FX.noise&&FX.noiseAmount>0;
-  const animateRoll=FX.roll&&FX.rollSpeed!==0;
-  const animated=animateNoise||animateRoll;
-  const frameInterval=animateNoise?Math.max(16,1000/FX.noiseRate):30;
   if(modal==='options'&&Math.abs(scrollVelocity)>.015){
    const before=optionsScroll;
    optionsScroll=clamp(optionsScroll+scrollVelocity*dt,0,optionsMaxScroll);
@@ -1243,14 +1179,12 @@ function frame(now){
    if(optionsScroll===before||optionsScroll===0||optionsScroll===optionsMaxScroll)scrollVelocity=0;
    else dirty=true;
   }else scrollVelocity=0;
-  const update=dirty||(animated&&now-lastDraw>=frameInterval);
-  if(update){
-   if(dirty)paintGame();
-   syncFX(now);
+  if(dirty){
+   paintGame();
+   syncFX();
    composer.render();
-   lastDraw=now;
   }
-  if(game.status==='playing'||animated||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
@@ -1270,7 +1204,6 @@ function resize(){
  edgeSoftness.uniforms.uSize.value.set(W,H);
  boardBlurHorizontal.uniforms.uSize.value.set(W,H);
  boardPopupPass.uniforms.uSize.value.set(W,H);
- grain.uniforms.uDpr.value=DPR;
  baseDirty=true;dirty=true;invalidate();
 }
 new ResizeObserver(resize).observe(display);
