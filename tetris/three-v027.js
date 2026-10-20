@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='036'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='037'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -106,6 +106,8 @@ modalTexture.generateMipmaps=false;
 const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:modalTexture,transparent:true,depthTest:false,
   depthWrite:false}));
+// The transparent modal texture spans the entire screen. Keeping its image
+// dimensions stable across dialog types prevents stale cropped texture data.
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
@@ -783,21 +785,23 @@ function displayValue(value,step,unit){
  const digits=step<.1?2:step<1?1:0;
  return Number(value).toFixed(digits)+unit;
 }
-function modalBounds(height){
+function modalBounds(name){
+ // One geometry source for hitboxes, dialog drawing and the compositor.
  const safe=insets();
+ const hWanted=name==='options'?Math.min(680,H*.82):
+  name==='scores'?Math.min(430,H*.7):name==='restart'?215:275;
  const w=Math.max(190,Math.min(410,W-26));
- const h=Math.min(height,H-safe.top-safe.bottom-22);
+ const h=Math.min(hWanted,H-safe.top-safe.bottom-22);
  return {w,h,x:(W-w)/2,y:(H-h)/2};
 }
-function modalPanel(title,height){
- const q=modalBounds(height);
+function modalPanel(title,q){
  regions=[];region(0,0,W,H,'block');
  panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
  text(title,q.x+17,q.y+25,14,C.bright,'left',q.w-34);
  return q;
 }
-function drawOptions(){
- const q=modalPanel('FIELD ATLAS / DISPLAY SETTINGS',Math.min(680,H*.82));
+function drawOptions(q){
+ modalPanel('FIELD ATLAS / DISPLAY SETTINGS',q);
  const {x,y,w,h}=q;
  key('RETURN TO GAME',x+15,y+43,w-30,43,'close');
  const top=y+97,bottom=y+h-15,vheight=bottom-top;
@@ -868,8 +872,8 @@ function drawOptions(){
  }
  // Buttons/slider regions outside the viewport must never intercept touches.
 }
-function drawScores(){
- const q=modalPanel('FIELD ATLAS / TOP FIVE',Math.min(430,H*.7));
+function drawScores(q){
+ modalPanel('FIELD ATLAS / TOP FIVE',q);
  const {x,y,w,h}=q;
  for(let i=0;i<5;i++){
   const score=highs[i],ry=y+60+i*54;
@@ -882,15 +886,15 @@ function drawScores(){
  text('HIGH SCORES ARE SAVED ON THIS DEVICE',x+w/2,y+h-77,9,C.weak,'center',w-30);
  key('RETURN',x+16,y+h-57,w-32,41,'close');
 }
-function drawRestart(){
- const q=modalPanel('START NEW GAME?',215);
+function drawRestart(q){
+ modalPanel('START NEW GAME?',q);
  const {x,y,w,h}=q;
  text('Your current game and score will be lost.',x+w/2,y+72,10,C.weak,'center',w-25);
  key('CANCEL',x+15,y+h-69,(w-39)/2,46,'close');
  key('YES, RESTART',x+(w-39)/2+24,y+h-69,(w-39)/2,46,'restartYes',{light:true});
 }
-function drawEntry(){
- const q=modalPanel('NEW HIGH SCORE',275);
+function drawEntry(q){
+ modalPanel('NEW HIGH SCORE',q);
  const {x,y,w,h}=q;
  text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,y+69,12,C.bright,'center');
  text('INITIALS / UP TO THREE',x+w/2,y+105,10,C.weak,'center');
@@ -898,32 +902,26 @@ function drawEntry(){
  key('SKIP',x+15,y+h-65,(w-39)/2,45,'skipScore');
  key('SAVE SCORE',x+24+(w-39)/2,y+h-65,(w-39)/2,45,'saveScore',{light:true});
 }
-function paintModal(){
- if(modal==='options')drawOptions();
- else if(modal==='scores')drawScores();
- else if(modal==='restart')drawRestart();
- else if(modal==='entry')drawEntry();
+function paintModal(q){
+ if(modal==='options')drawOptions(q);
+ else if(modal==='scores')drawScores(q);
+ else if(modal==='restart')drawRestart(q);
+ else if(modal==='entry')drawEntry(q);
 }
 function paintModalOverlay(){
- const wantedHeight=modal==='options'?Math.min(680,H*.82):
-  modal==='scores'?Math.min(430,H*.7):
-  modal==='restart'?215:275;
- const q=modalBounds(wantedHeight);
- const cw=Math.max(1,Math.round(q.w*DPR));
- const ch=Math.max(1,Math.round(q.h*DPR));
+ // Repaint exactly one active dialog. Always clear the entire backing image
+ // so no pixels from a previous modal remain after a menu transition.
+ const q=modalBounds(modal);
+ const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
   modalCanvas.width=cw;modalCanvas.height=ch;
  }
- // Redraw only the modal's physical pixels; its rectangular backing stays
- // transparent so the separate Three.js scrim and game remain visible.
  modalContext.setTransform(1,0,0,1,0,0);
  modalContext.clearRect(0,0,cw,ch);
- modalContext.setTransform(DPR,0,0,DPR,-q.x*DPR,-q.y*DPR);
- modalPlane.position.set((q.x+q.w/2)/W*2-1,1-(q.y+q.h/2)/H*2,.03);
- modalPlane.scale.set(q.w/W,q.h/H,1);
+ modalContext.setTransform(DPR,0,0,DPR,0,0);
  modalPlane.visible=true;scrimPlane.visible=true;
  g=modalContext;
- try{paintModal();}
+ try{paintModal(q);}
  finally{g=baseContext;}
  modalTexture.needsUpdate=true;
 }
