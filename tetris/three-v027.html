@@ -20,6 +20,12 @@ if(navigator.standalone===true)document.documentElement.classList.add('ios-stand
 :root{color-scheme:dark;background:#080808}
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}
+/* iOS black-translucent Home Screen viewport correction: navigator.standalone
+   is reliable on this device, but height:100% on html/body resolves to the
+   793px layout viewport rather than the measured full 852px screen. This
+   clips the 800px game footer even when #display itself is 100vh. Match the
+   root and document heights to the actual full viewport, exclusively in PWA. */
+html.ios-standalone,html.ios-standalone body{height:100vh}
 #display{position:fixed;inset:0;width:100%;height:100dvh;overflow:hidden;touch-action:none}
 /* iOS Home Screen may report (display-mode: standalone)=false even when
    navigator.standalone=true. The measured 100vh is the full 852px screen,
