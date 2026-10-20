@@ -39,6 +39,43 @@ with sync_playwright() as p:
     illuminated = sum(1 for rgb in image.getdata() if max(rgb) > 85)
     assert illuminated > 1000, ("Three.js compositor appears blank", illuminated)
 
+    # Exercise the real touch/keyboard menu transitions that previously left
+    # mismatched or overlapping dialog artwork. Screenshots are CI artifacts.
+    # Coordinates are reference touch targets for the 390x844 mobile viewport.
+    def tap(x, y):
+        page.touchscreen.tap(x, y)
+        page.wait_for_timeout(260)
+
+    def capture(label):
+        path = out / (browser_name + "-" + label + ".png")
+        page.screenshot(path=str(path))
+        return Image.open(path).convert("RGB")
+
+    top_inset = page.evaluate(
+        "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingTop)||0"
+    )
+    tap(350, top_inset + 40)  # Header's display-settings button
+    settings_shot = capture("three-settings")
+    assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
+
+    # Exit via RETURN TO GAME, start play, then open Top Five and Restart.
+    tap(195, 146)  # Settings back button (dialog centered at y=82)
+    tap(145, top_inset + 386)  # START GAME button on the board
+    page.keyboard.press("p")  # PAUSE via the normal keyboard input
+    page.wait_for_timeout(260)
+    tap(145, top_inset + 487)  # HIGH SCORE in paused-board popup
+    scores_shot = capture("three-scores")
+    assert scores_shot.tobytes() != settings_shot.tobytes(), (
+        "Top Five did not replace Settings"
+    )
+    tap(195, 600)  # RETURN on the Top Five dialog
+    tap(145, top_inset + 437)  # NEW GAME on paused-board popup
+    restart_shot = capture("three-restart")
+    assert restart_shot.tobytes() != scores_shot.tobytes(), (
+        "Restart did not replace Top Five"
+    )
+    tap(110, 484)  # CANCEL should return to paused-board popup
+
     # Verify the single canvas continues to use the same responsive geometry.
     page.set_viewport_size({"width": 844, "height": 390})
     page.wait_for_function(
