@@ -26,13 +26,13 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57,roll:false,rollSpeed:20,rollOffset:0});
-const THREE_BUILD_VERSION='027'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='028'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
-// Text stays 14px on standard buttons and 16px on START/RESUME/PLAY AGAIN.
-// All button character icons share one 18px size, independent of their labels.
-// Face luminance (solid/default) never changes typography.
+// Font sizes remain 14px for standard buttons and 16px for primary actions;
+// all button icons remain 18px. Every label uses the same 0.13em tracking.
+const LETTER_SPACING_EM=.13; // Global 13%-of-font-size tracking; no exceptions.
 const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
 const BUTTON_ICON_FONT_SIZE=18;
 const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN']);
@@ -486,13 +486,36 @@ function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  if(fill){g.fillStyle=fill;g.fill();}
  if(border){g.strokeStyle=border;g.lineWidth=1;g.stroke();}
 }
-function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,spacing=0){
+// No per-label overrides. Canvas fillText(maxWidth) compresses glyph widths,
+// so measure naturally and wrap only text that exceeds a caller's available width.
+function wrapText(source,maxWidth){
+ const paragraphs=String(source).split('\n');
+ if(!Number.isFinite(maxWidth))return paragraphs;
+ const limit=Math.max(1,maxWidth),lines=[];
+ for(const paragraph of paragraphs){
+  if(g.measureText(paragraph).width<=limit){lines.push(paragraph);continue;}
+  let line='';
+  for(const word of paragraph.trim().split(/\s+/)){
+   const joined=line?line+' '+word:word;
+   if(g.measureText(joined).width<=limit){line=joined;continue;}
+   if(line){lines.push(line);line='';}
+   if(g.measureText(word).width<=limit){line=word;continue;}
+   for(const ch of Array.from(word)){
+    if(line&&g.measureText(line+ch).width>limit){lines.push(line);line='';}
+    line+=ch;
+   }
+  }
+  lines.push(line);
+ }
+ return lines;
+}
+function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity){
  g.font='700 '+size+'px '+FONT;g.textAlign=align;g.textBaseline='middle';
- // Decorative tracking remains for headings and HUD labels; button labels use zero tracking.
- g.letterSpacing=spacing?spacing.toFixed(2)+'px':'0px';
+ g.letterSpacing=(size*LETTER_SPACING_EM).toFixed(3)+'px';
  g.fillStyle=color;
- if(Number.isFinite(maxWidth))g.fillText(String(str),x,y,Math.max(1,maxWidth));
- else g.fillText(String(str),x,y);
+ const lines=wrapText(str,maxWidth),step=size*1.2;
+ for(let i=0;i<lines.length;i++)
+  g.fillText(lines[i],x,y+(i-(lines.length-1)/2)*step);
  g.letterSpacing='0px';
 }
 function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
@@ -687,7 +710,7 @@ function paintBaseGame(){
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
  text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
   r.hy+r.hh/2,titleSize,
-  C.ink,'left',Math.max(10,r.hw-116),titleSize*.13);
+  C.ink,'left',Math.max(10,r.hw-116));
  const th=r.headerButtonH;
  const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
  const ty=r.hy+(r.hh-th)/2;
@@ -698,25 +721,25 @@ function paintBaseGame(){
  const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
  const sx=hold.x,sw=hold.w;
  panel(hold.x,hold.y,hold.w,hold.h,9,C.panel);
- text('HOLD',sx+sw/2,hold.y+13,9,C.weak,'center',Infinity,1.08);
+ text('HOLD',sx+sw/2,hold.y+13,9,C.weak,'center');
  smallPiece(game.hold,sx+(sw-80)/2,hold.y+23,80,Math.min(short?43:60,Math.max(12,hold.h-26)),'hold');
  panel(next.x,next.y,next.w,next.h,9,C.panel);
- text('NEXT',sx+sw/2,next.y+13,9,C.weak,'center',Infinity,1.08);
+ text('NEXT',sx+sw/2,next.y+13,9,C.weak,'center');
  const previewH=Math.min(short?36:44,Math.max(9,(next.h-32)/3));
  for(let i=0;i<3;i++){
   smallPiece(game.queue[i],sx+(sw-80)/2,next.y+26+i*(previewH+1),80,previewH,'next');
  }
  panel(stats.x,stats.y,stats.w,stats.h,9,C.panel);
- text('BEST',sx+sw/2,stats.y+12,9,C.weak,'center',Infinity,1.08);
+ text('BEST',sx+sw/2,stats.y+12,9,C.weak,'center');
  text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center');
- text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center',Infinity,1.08);
+ text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center');
  text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center');
  panel(r.dx,r.dy,r.dw,r.dh,12,C.panel);
  const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad,ly=r.dy+r.deckPad+7;
- const s=Math.max(13,Math.min(17,pw*.046)),labelSpacing=9*.13;
- text('LEVEL',px+2,ly,9,C.weak,'left',Infinity,labelSpacing);
- text('SCORE',px+pw/2,ly,9,C.weak,'center',Infinity,labelSpacing);
- text('LINES',px+pw-2,ly,9,C.weak,'right',Infinity,labelSpacing);
+ const s=Math.max(13,Math.min(17,pw*.046));
+ text('LEVEL',px+2,ly,9,C.weak,'left');
+ text('SCORE',px+pw/2,ly,9,C.weak,'center');
+ text('LINES',px+pw-2,ly,9,C.weak,'right');
  text(fmt(game.level,2),px+2,ly+23,s);
  text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center');
  text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right');
@@ -733,8 +756,8 @@ function paintBaseGame(){
  const groupW=ew*2+extraGap,groupX=px+(pw-groupW)/2;
  key('HOLD',groupX,ey,ew,r.extraH,'hold');
  key('PAUSE',groupX+ew+extraGap,ey,ew,r.extraH,'pause');
- text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,.63);
- text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,.63);
+ text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63);
+ text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34);
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
