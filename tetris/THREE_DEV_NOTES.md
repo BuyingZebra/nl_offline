@@ -173,3 +173,9 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Increase `BOARD_POPUP_FADE` from `.29` to `.70` and match the popup shader's initial `uFade` uniform to `.70`. The blurred game board now retains only 30% of its original signal relative to the board's `#101010` grayscale surface, so luminous pieces recede behind popup labels and buttons.
 - Keep the existing **47% Gaussian blur** and both horizontal/vertical GPU passes; retain the live-popup texture fix, precise green and amber phosphors, underlying grayscale style, all board-menu states, tile detailing, and line-clear effect. Only the fade intensity and displayed version number change.
 - Footer reports **Version 022** at the existing permanent URL.
+
+## V023: Finalize board-popup fade and simplify PAUSED label
+- Increase `BOARD_POPUP_FADE` from `.70` to **`.76`**, including the shader's initial `uFade` uniform. Keep the same **47%** two-pass GPU Gaussian blur and near-black fade target.
+- Remove only the small explanatory line beneath **PAUSED**. The `PAUSED` heading and its **RESUME, NEW GAME, HIGH SCORE** buttons stay unchanged; the Start Game and Game Over captions remain.
+- No pulse animation is added yet; keep the title static for visual consistency and readability.
+- Preserve approved green/amber phosphors, grayscale UI values, layout and controls, completed-row flash, detailed board/HOLD/NEXT tiles, and the permanent URL. Footer shows **Version 023**.
