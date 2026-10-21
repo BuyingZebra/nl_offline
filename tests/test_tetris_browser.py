@@ -80,7 +80,11 @@ with sync_playwright() as p:
     # on-screen theme button, not a duplicate colour menu.
     def fx_value(key):
         return page.evaluate(
-            "(key) => JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01'))[key]",
+            """(key) => {
+                const saved = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
+                const defaults = {phosphor:true, scanlines:true, scanlinePreset:'original'};
+                return saved[key] ?? defaults[key];
+            }""",
             key,
         )
 
