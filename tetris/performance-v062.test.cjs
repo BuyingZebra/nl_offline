@@ -125,5 +125,5 @@ test('V062 retains DPR, original compositor, popup, debug action and stable URL'
  assert.ok(main.includes("textureUploads.upload(controlsTexture,'controls')"));
  assert.ok(main.includes("textureUploads.upload(sidebarTexture,'sidebar')"));
  assert.ok(read('compositor.js').includes('composer.addPass(new OutputPass())'));
- assert.ok(read('three-v027.html').includes('Tetris System V063'));
+ assert.ok(read('three-v027.html').includes('<title>NOMAD — Tetris System</title>'));
 });
