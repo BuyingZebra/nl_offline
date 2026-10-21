@@ -8,7 +8,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   'Build: V'+value(version),
   'Captured: '+value(createdAt),
   'Browser: '+value(platform),
-  'Viewport: '+(viewport?[viewport.width+'x'+viewport.height,'DPR '+viewport.dpr].join(' / '):'n/a'),
+  'Viewport: '+(viewport?[viewport.width+'x'+viewport.height,'render DPR '+viewport.dpr,'device DPR '+value(viewport.deviceDpr)].join(' / '):'n/a'),
   'State: '+value(game?.status)+' / level '+value(game?.level)+' / score '+value(game?.score)+' / lines '+value(game?.lines),
   'Display: '+value(display?.theme)+' phosphor / '+value(display?.orientation)+' / '+value(display?.phosphor?'on':'off')+' tint',
   '',
