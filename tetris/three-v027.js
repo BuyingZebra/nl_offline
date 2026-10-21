@@ -4,6 +4,8 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v051';
+import {createCanvasUI} from './canvas-ui.js?v052';
+import {createInputController} from './input-controller.js?v052';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -25,7 +27,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='051'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='052'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -58,7 +60,8 @@ let showGhost=load('fieldAtlasTetrisGhost','yes')!=='no';
 let soundOn=load('fieldAtlasTetrisSound','yes')!=='no';
 let theme=load('fieldAtlasThemeV06','green')==='amber'?'amber':'green';
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
-let optionsScroll=0,optionsMaxScroll=0,pressed=null,repeatDelay=null,repeatInterval=null;
+let optionsScroll=0,optionsMaxScroll=0;
+let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
@@ -146,7 +149,7 @@ game.lockPiece=function(){
  }
 };
 function openModal(name){
- modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;scanlineMenuOpen=false;stopRepeat();pressed=null;
+ modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;scanlineMenuOpen=false;inputController?.cancel();
  if(!modal)regions=baseRegions.slice();
  invalidate();
 }
@@ -199,55 +202,11 @@ initialsInput.addEventListener('input',()=>{
  invalidate();
 });
 initialsInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveScore();}});
-function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
- if(w<=0||h<=0)return;
- g.beginPath();g.roundRect(x+.5,y+.5,Math.max(1,w-1),Math.max(1,h-1),Math.min(r,w/2,h/2));
- if(fill){g.fillStyle=fill;g.fill();}
- if(border){g.strokeStyle=border;g.lineWidth=1;g.stroke();}
-}
-// No per-label overrides. Canvas fillText(maxWidth) compresses glyph widths,
-// so measure naturally and wrap only text that exceeds a caller's available width.
-function wrapText(source,maxWidth){
- const paragraphs=String(source).split('\n');
- if(!Number.isFinite(maxWidth))return paragraphs;
- const limit=Math.max(1,maxWidth),lines=[];
- for(const paragraph of paragraphs){
-  if(g.measureText(paragraph).width<=limit){lines.push(paragraph);continue;}
-  let line='';
-  for(const word of paragraph.trim().split(/\s+/)){
-   const joined=line?line+' '+word:word;
-   if(g.measureText(joined).width<=limit){line=joined;continue;}
-   if(line){lines.push(line);line='';}
-   if(g.measureText(word).width<=limit){line=word;continue;}
-   for(const ch of Array.from(word)){
-    if(line&&g.measureText(line+ch).width>limit){lines.push(line);line='';}
-    line+=ch;
-   }
-  }
-  lines.push(line);
- }
- return lines;
-}
-function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity){
- g.font='700 '+size+'px '+FONT;g.textAlign=align;g.textBaseline='middle';
- g.letterSpacing=(size*LETTER_SPACING_EM).toFixed(3)+'px';
- g.fillStyle=color;
- const lines=wrapText(str,maxWidth),step=size*1.2;
- for(let i=0;i<lines.length;i++)
-  g.fillText(lines[i],x,y+(i-(lines.length-1)/2)*step);
- g.letterSpacing='0px';
-}
-function rect(x,y,w,h,color){g.fillStyle=color;g.fillRect(x,y,w,h);}
-function region(x,y,w,h,act,opts={}){regions.push({x,y,w,h,act,...opts});}
-function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false,modalControl=false}={}){
- const size=MAIN_ACTION_LABELS.has(String(label))?MAIN_ACTION_FONT_SIZE:
-  BUTTON_ICON_LABELS.has(String(label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- const down=pressed?.action===act&&pressed?.box?.x===x;
- panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
- text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14));
- if(arrow)text('▶',x+17,y+h/2,BUTTON_ICON_FONT_SIZE,light?C.dark:C.ink,'center');
- region(x,y,w,h,act,{repeat,modalControl});
-}
+const {panel,wrapText,text,rect,region,key}=createCanvasUI({
+ getContext:()=>g,getRegions:()=>regions,getPressed:()=>inputController?.pressed,
+ C,FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
+ MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
+});
 // V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
 // displayed as 80x60 and 80x44 CSS pixels. Match their real visual sizes,
 // instead of drawing 20px cells directly in CSS pixels.
@@ -908,143 +867,16 @@ function handleAction(act){
  }
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
-function stopRepeat(){
- if(repeatDelay!==null){clearTimeout(repeatDelay);repeatDelay=null;}
- if(repeatInterval!==null){clearInterval(repeatInterval);repeatInterval=null;}
-}
-function eventPoint(e){
- const rect=screen.getBoundingClientRect();
- return {x:(e.clientX-rect.left)*W/rect.width,y:(e.clientY-rect.top)*H/rect.height};
-}
-function regionAt(p){
- // Search newest to oldest for identical overlay/touch priority without
- // allocating and reversing a copy of the hitbox array on every event.
- for(let i=regions.length-1;i>=0;i--){
-  const r=regions[i];
-  if(!(p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h))continue;
-  if(modal==='options'&&r.modalControl&&modalView&&
-    (p.y<modalView.y||p.y>modalView.y+modalView.h))continue;
-  return r;
- }
- return undefined;
-}
-function setSlider(r,x){
- const f=clamp((x-r.trackX)/Math.max(1,r.trackW),0,1);
- const v=r.min+f*(r.max-r.min);
- const stepped=Math.round(v/r.step)*r.step;
- setSetting(r.field,Number(stepped.toFixed(4)));
-}
-// One pointer recognizer for the entire grayscale display. Menus defer activation
-// until touch-up; axis-aware intent makes scroll work from sliders and switches.
-const DRAG_DEADZONE=8;
-const optionPoint=p=>modal==='options'&&modalView&&
- p.x>=modalView.x&&p.x<=modalView.x+modalView.w&&
- p.y>=modalView.y&&p.y<=modalView.y+modalView.h;
-const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
-screen.addEventListener('pointerdown',e=>{
- if(e.pointerType==='mouse'&&e.button!==0)return;
- e.preventDefault();
- if(pressed)return; // One active touch: prevents accidental multi-touch changes.
- const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
- stopRepeat();scrollVelocity=0;
- pressed={
-  id:e.pointerId,region:r,start:p,last:p,action:r?.act,
-  box:r,scroll:optionsScroll,mode:modal?'pending':'game',
-  inOptions,time:eventStamp(e),velocity:0
- };
- try{screen.setPointerCapture(e.pointerId)}catch(err){}
- // Game buttons stay immediate, including auto-repeat movement.
- if(!modal&&r&&!r.board){
-  baseDirty=true;
-  handleAction(r.act);
-  if(r.repeat)repeatDelay=setTimeout(()=>{
-   repeatInterval=setInterval(()=>handleAction(r.act),82);
-  },210);
- }
- invalidate();
-});
-screen.addEventListener('pointermove',e=>{
- if(!pressed||pressed.id!==e.pointerId)return;
- const p=eventPoint(e),r=pressed.region,touch=pressed;
- if(!modal)return;
- const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
- const ax=Math.abs(dx),ay=Math.abs(dy);
- if(touch.mode==='pending'&&(ax>DRAG_DEADZONE||ay>DRAG_DEADZONE)){
-  if(touch.inOptions&&ay>DRAG_DEADZONE&&ay>ax*.78)touch.mode='scroll';
-  else if(r?.act==='slider'&&ax>DRAG_DEADZONE&&ax>=ay*.78)touch.mode='slider';
-  else touch.mode='cancelled';
- }
- if(touch.mode==='scroll'){
-  optionsScroll=clamp(touch.scroll-dy,0,optionsMaxScroll);
-  const dt=Math.max(1,eventStamp(e)-touch.time);
-  const v=clamp((touch.last.y-p.y)/dt,-2.3,2.3);
-  touch.velocity=touch.velocity*.5+v*.5;
-  invalidate();
- }else if(touch.mode==='slider'){
-  setSlider(r,p.x);
- }
- touch.last=p;touch.time=eventStamp(e);
-});
-function releaseTouch(e){
- if(!pressed||pressed.id!==e.pointerId)return;
- stopRepeat();
- const touch=pressed,p=eventPoint(e);pressed=null;
- // Release feedback on game buttons must repaint the stationary base once.
- if(!modal)baseDirty=true;
- try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(err){}
- if(modal){
-  if(e.type==='pointerup'){
-   if(touch.mode==='scroll'){
-    const elapsed=Math.max(0,eventStamp(e)-touch.time);
-    if(elapsed<105&&optionsMaxScroll>0)scrollVelocity=touch.velocity;
-   }else if(touch.mode==='pending'&&touch.region){
-    const dy=p.y-touch.start.y,dx=p.x-touch.start.x;
-    const same=Math.abs(dx)<=DRAG_DEADZONE&&Math.abs(dy)<=DRAG_DEADZONE;
-    if(same){
-     const r=touch.region;
-     if(r.act==='slider')setSlider(r,p.x);
-     else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
-     else if(r.act==='patternSelect'&&optionPoint(p))toggleScanlineMenu();
-     else if(r.act==='scanlineChoice'&&optionPoint(p))chooseScanline(r.field);
-     else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
-    }
-   }else if(touch.mode==='slider'&&touch.region?.act==='slider'){
-    setSlider(touch.region,p.x);
-   }
-  }
- }else if(touch.action==='board'&&e.type==='pointerup'){
-  baseDirty=true;
-  const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
-  if(Math.abs(dx)<16&&Math.abs(dy)<16)perform('cw');
-  else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
-   for(let i=0;i<clamp(Math.round(Math.abs(dx)/32),1,5);i++)
-    perform(dx>0?'right':'left');
-  }else if(dy>25)perform('hard');
- }
- invalidate();
-}
-screen.addEventListener('pointerup',releaseTouch);
-screen.addEventListener('pointercancel',releaseTouch);
-window.addEventListener('blur',stopRepeat);
-screen.addEventListener('wheel',e=>{
- if(modal==='options'){
-  e.preventDefault();optionsScroll=clamp(optionsScroll+e.deltaY,0,optionsMaxScroll);invalidate();
- }
-},{passive:false});
-const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
- ArrowDown:'hard',Space:'hard',KeyC:'hold',ShiftLeft:'hold',
- KeyP:'pause',Escape:'pause'};
-document.addEventListener('keydown',e=>{
- if(document.activeElement===initialsInput)return;
- if(modal){
-  if(e.code==='Escape'){e.preventDefault();openModal(null);}
-  return;
- }
- const a=KEYS[e.code];
- if(!a)return;
- e.preventDefault();
- if(e.repeat&&['hard','hold','pause','start'].includes(a))return;
- perform(a);
+inputController=createInputController({
+ screen,document,window,initialsInput,
+ getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
+ getModal:()=>modal,getModalView:()=>modalView,
+ getOptionsScroll:()=>optionsScroll,setOptionsScroll:v=>{optionsScroll=v;},
+ getOptionsMaxScroll:()=>optionsMaxScroll,
+ setScrollVelocity:v=>{scrollVelocity=v;},
+ setBaseDirty:()=>{baseDirty=true;},
+ handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
+ chooseScanline,openModal,invalidate,clamp
 });
 // iOS Home Screen web apps can resume a suspended page without reloading it.
 // Check the running renderer against the published build on reactivation.
