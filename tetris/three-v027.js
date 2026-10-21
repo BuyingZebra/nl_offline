@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='049'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='050'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -767,7 +767,7 @@ function setSetting(k,value){
  }else{
   FX[k]=['softnessStrength','vignetteAmount','bloomStrength'].includes(k)?
    clamp(value/100,0,1):value;
-  persist();
+  persist();refreshEffectPreview(k);
  }
  invalidate();
 }
@@ -810,6 +810,8 @@ function modalActionRow(q,items){
 // treatment. Per-effect rendering alters ONLY the effect, not the subject.
 // The same real T tetromino and dim grayscale phosphor screen appear in every
 // effect preview. These neutral pixels are tinted later by the EXISTING GPU.
+// Independent, live procedural previews: slider values drive these small
+// Canvas2D illustrations regardless of whether the viewport effect is on.
 function effectPreview(id){
  const canvas=document.createElement('canvas');
  canvas.width=PREVIEW_SIZE;canvas.height=PREVIEW_SIZE;
@@ -819,9 +821,7 @@ function effectPreview(id){
  p.fillStyle=gray(31);
  for(let v=8;v<n;v+=8){p.fillRect(v,0,1,n);p.fillRect(0,v,n,1);}
  if(id==='phosphor'){
-  // A single fully solid inset square; the edge gap is intentionally empty.
-  p.fillStyle=gray(173);p.fillRect(13,13,n-26,n-26);
-  return canvas;
+  p.fillStyle=gray(173);p.fillRect(13,13,n-26,n-26);return canvas;
  }
  if(id==='sound'){
   p.fillStyle=gray(193);
@@ -841,7 +841,6 @@ function effectPreview(id){
     p.strokeRect(x+2,y+2,size-4,size-4);
     p.fillStyle=gray(58);p.fillRect(x+4,y+4,size-8,size-8);
    }else{
-    // Bright outline and dark face emulate the approved Fallout thumbnail.
     p.fillStyle=gray(201);p.fillRect(x+1,y+1,size-2,size-2);
     p.fillStyle=gray(94);p.fillRect(x+3,y+4,size-6,size-7);
     p.fillStyle=gray(229);p.fillRect(x+3,y+2,size-6,2);
@@ -851,25 +850,49 @@ function effectPreview(id){
   p.restore();
  };
  if(id==='ghost'){
-  p.save();p.globalAlpha=.33;p.translate(-8,2);drawPiece();p.restore();
-  p.save();p.globalAlpha=.48;p.translate(8,-2);drawPiece();p.restore();
-  drawPiece();
+  const ox=clamp(FX.ghostX*.65,-20,20),oy=clamp(FX.ghostY*.65,-20,20);
+  p.save();p.globalAlpha=clamp(FX.ghostStrength/100,0,1)*.9;
+  p.translate(ox,oy);drawPiece();p.restore();drawPiece();
  }else if(id==='softness'){
-  p.save();p.filter='blur(4.2px)';drawPiece();p.restore();
+  const amount=clamp(FX.softnessStrength,0,1);
+  p.save();p.globalAlpha=1-amount;drawPiece();p.restore();
+  p.save();p.globalAlpha=amount;
+  p.filter='blur('+Math.max(.001,FX.softnessRadius*.95)+'px)';
+  drawPiece();p.restore();
  }else if(id==='bloom'){
-  p.save();p.shadowColor=gray(240);p.shadowBlur=22;drawPiece();p.restore();
-  p.save();p.globalAlpha=.24;p.filter='blur(7px)';drawPiece();p.restore();
- }else if(id==='piece'){drawPiece(true);}
- else{
+  const amount=clamp(FX.bloomStrength,0,1);
+  if(amount>0){
+   p.save();p.shadowColor=gray(240);p.shadowBlur=3+amount*33;
+   p.globalAlpha=amount;drawPiece();p.restore();
+   p.save();p.globalAlpha=amount*.4;p.filter='blur('+(amount*8)+'px)';
+   drawPiece();p.restore();
+  }
+  drawPiece();
+ }else if(id==='piece'){
+  drawPiece(true);
+ }else if(id==='depth'){
+  const delta=2+depthSettings.strength/100*13;
+  p.save();p.globalAlpha=.4;p.translate(-delta*.7,delta*.4);drawPiece(true);p.restore();
+  p.save();p.globalAlpha=.55;p.translate(delta*.7,-delta*.4);drawPiece(true);p.restore();
+  drawPiece();
+ }else{
   drawPiece();
   if(id==='scanlines'){
-   p.fillStyle='rgba(0,0,0,.68)';
-   for(let y=0;y<n;y+=5)p.fillRect(0,y,n,2);
+   // The actual chosen CRT mask is previewed independently of FX.scanlines.
+   const preset=SCANLINE_PRESETS.find(v=>v.id===FX.scanlinePreset)||SCANLINE_PRESETS[0];
+   const rows=preset.rows,op=clamp(FX.scanlineOpacity/100,0,1),cell=2;
+   for(let y=0;y<n;y+=cell)for(let x=0;x<n;x+=cell){
+    const lum=rows[Math.floor(y/cell)%rows.length]
+     [Math.floor(x/cell)%rows[0].length]/255;
+    const dark=(1-lum)*op;
+    if(dark>.005){p.fillStyle='rgba(0,0,0,'+dark+')';p.fillRect(x,y,cell,cell);}
+   }
   }else if(id==='vignette'){
+   const amount=clamp(FX.vignetteAmount,0,1);
    const mask=p.createRadialGradient(48,48,8,48,48,66);
    mask.addColorStop(0,'rgba(0,0,0,0)');
-   mask.addColorStop(.45,'rgba(0,0,0,.09)');
-   mask.addColorStop(1,'rgba(0,0,0,.98)');
+   mask.addColorStop(.45,'rgba(0,0,0,'+(amount*.12)+')');
+   mask.addColorStop(1,'rgba(0,0,0,'+amount+')');
    p.fillStyle=mask;p.fillRect(0,0,n,n);
   }
  }
@@ -877,6 +900,13 @@ function effectPreview(id){
 }
 const EFFECT_PREVIEWS=Object.fromEntries(
  DISPLAY_EFFECTS.map(effect=>[effect.id,effectPreview(effect.id)]));
+function refreshEffectPreview(field){
+ const effect=DISPLAY_EFFECTS.find(e=>e.sliders?.some(slider=>slider[1]===field));
+ if(effect)EFFECT_PREVIEWS[effect.id]=effectPreview(effect.id);
+}
+function refreshAllEffectPreviews(){
+ for(const effect of DISPLAY_EFFECTS)EFFECT_PREVIEWS[effect.id]=effectPreview(effect.id);
+}
 // Match the existing rounded panel outline around every thumbnail, with a
 // subtle 1px light-top/left and dark-bottom/right rim for terminal-style bevel.
 function drawEffectThumbnail(id,x,y,size){
@@ -910,7 +940,8 @@ function chooseScanline(id){
  if(!SCANLINE_CHOICES.some(choice=>choice.id===id))return;
  FX.scanlines=id!=='off';
  if(id!=='off')FX.scanlinePreset=id;
- scanlineMenuOpen=false;persist();scrollVelocity=0;invalidate();
+ scanlineMenuOpen=false;persist();scrollVelocity=0;
+ refreshEffectPreview('scanlineOpacity');invalidate();
 }
 function settingSquare(x,y,size,active){
  g.lineWidth=1;
@@ -1156,6 +1187,7 @@ function handleAction(act){
   store('fieldAtlasTetrisSound','yes');
   optionsScroll=0;
   scanlineMenuOpen=false;scrollVelocity=0;
+  refreshAllEffectPreviews();
   baseDirty=true;invalidate();return;
  }
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
