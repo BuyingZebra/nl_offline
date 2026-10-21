@@ -14,8 +14,7 @@ import {formatDebugReport} from './debug-report.js?v062';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v063';
-import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,
- effectSettingToStored} from './display-settings-catalog.js?v063';
+import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,effectSettingToStored} from './display-settings-catalog.js?v063';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
