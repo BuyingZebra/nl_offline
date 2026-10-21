@@ -1,6 +1,7 @@
-/* Tetris V054: opt-in, low-overhead diagnostics. Enable with ?perf=1.
- * CPU render submission is not GPU execution time. RAF is not display FPS.
- * No network requests, persistent data, or diagnostic DOM when disabled.
+/* Tetris System — low-overhead in-memory performance recorder.
+ * V055 enables recording quietly for explicit user-initiated debug copies.
+ * CPU render submission is not GPU execution time; RAF is not display FPS.
+ * No network requests or persistent data are made by this module.
  */
 export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  log=summary=>console.info('[TETRIS PERF]',summary),
@@ -84,36 +85,4 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  return Object.freeze({enabled,startFrame,endFrame,startRender,endRender,
   textureChanged,recordRaf,resetPacing,setViewport,setGPUStats,
   snapshot:()=>last,currentSnapshot});
-}
-
-// This diagnostic HUD lives outside the Three.js compositor. It has no layout
-// footprint, consumes no pointer events, and is created only when requested.
-export function createPerfHud({enabled=false,document,container}={}){
- if(!enabled)return Object.freeze({update:()=>{},dispose:()=>{}});
- const el=document.createElement('div');
- el.setAttribute('aria-label','Tetris performance diagnostics');
- el.style.cssText=[
-  'position:absolute','left:8px','top:calc(env(safe-area-inset-top, 0px) + 8px)',
-  'z-index:4','pointer-events:none','white-space:pre',
-  'font:10px/1.5 ui-monospace,monospace','color:#d5d5d5',
-  'background:rgba(0,0,0,.92)','border:1px solid #777',
-  'padding:6px','border-radius:4px','max-width:calc(100% - 16px)'
- ].join(';');
- el.textContent='PERF V054  ·  collecting samples…';
- container.appendChild(el);
- function update(s){
-  const image=s.viewport?(`${s.viewport.width}×${s.viewport.height} @${s.viewport.dpr}x`):'unknown';
-  const pacing=s.avgRafMs==null?'—':s.avgRafMs+' ms';
-  const gpu=s.gpu?(`${s.gpu.activePasses ?? '?'} / ${s.gpu.totalPasses ?? '?'} passes · ${s.gpu.textures ?? '?'} textures`):'pending';
-  el.textContent=[
-   'PERF V054  ·  '+image,
-   'RAF interval '+pacing+'  ·  slow '+s.slowRafTicks,
-   'CPU frame '+s.avgFrameCpuMs+' ms  ·  max '+s.maxFrameCpuMs+' ms',
-   'GPU submit '+s.avgRenderSubmitMs+' ms  ·  draws '+s.draws,
-   'Uploads B/P/M '+s.baseUploadRequests+'/'+s.popupUploadRequests+'/'+s.modalUploadRequests,
-   'Pipeline '+gpu
-  ].join('\n');
- }
- function dispose(){el.remove();}
- return Object.freeze({update,dispose});
 }
