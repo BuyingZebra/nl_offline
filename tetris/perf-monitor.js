@@ -37,6 +37,23 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    programs:stats?.programs??null,activePasses:stats?.activePasses??null,
    totalPasses:stats?.totalPasses??null};
  }
+ function buildSnapshot(period=now()-started){
+  const rounded=value=>+value.toFixed(2);
+  return {seconds:rounded(Math.max(0,period)/1000),
+   frameTicks:counters.ticks,draws:counters.draws,
+   avgFrameCpuMs:+(counters.frameMs/Math.max(1,counters.ticks)).toFixed(3),
+   maxFrameCpuMs:+counters.maxFrameMs.toFixed(3),
+   avgRenderSubmitMs:+(counters.renderMs/Math.max(1,counters.draws)).toFixed(3),
+   rafSamples:counters.rafSamples,
+   avgRafMs:counters.rafSamples?rounded(counters.rafDeltaTotal/counters.rafSamples):null,
+   maxRafMs:counters.rafSamples?rounded(counters.maxRafDelta):null,
+   slowRafTicks:counters.slowRafTicks,
+   baseUploadRequests:counters.baseUploadRequests,
+   popupUploadRequests:counters.popupUploadRequests,
+   modalUploadRequests:counters.modalUploadRequests,
+   viewport:viewport?{...viewport}:null,gpu:gpu?{...gpu}:null};
+ }
+ function currentSnapshot(){return enabled?buildSnapshot():null;}
  function startFrame(){return enabled?now():0;}
  function endFrame(start){
   if(!enabled)return;
@@ -46,23 +63,10 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   counters.maxFrameMs=Math.max(counters.maxFrameMs,elapsed);
   const period=now()-started;
   if(period>=intervalMs){
-   const rounded=value=>+value.toFixed(2);
-   const value={seconds:rounded(period/1000),
-    frameTicks:counters.ticks,draws:counters.draws,
-    avgFrameCpuMs:+(counters.frameMs/Math.max(1,counters.ticks)).toFixed(3),
-    maxFrameCpuMs:+counters.maxFrameMs.toFixed(3),
-    avgRenderSubmitMs:+(counters.renderMs/Math.max(1,counters.draws)).toFixed(3),
-    rafSamples:counters.rafSamples,
-    avgRafMs:counters.rafSamples?rounded(counters.rafDeltaTotal/counters.rafSamples):null,
-    maxRafMs:counters.rafSamples?rounded(counters.maxRafDelta):null,
-    slowRafTicks:counters.slowRafTicks,
-    baseUploadRequests:counters.baseUploadRequests,
-    popupUploadRequests:counters.popupUploadRequests,
-    modalUploadRequests:counters.modalUploadRequests,
-    viewport:viewport?{...viewport}:null,gpu:gpu?{...gpu}:null};
+   const value=buildSnapshot(period);
    last=value;
    try{log(value);}catch(err){/* Diagnostics must never break gameplay. */}
-   try{onSample(value);}catch(err){/* Ignore debug overlay failure. */}
+   try{onSample(value);}catch(err){/* Ignore diagnostics errors. */}
    counters=fresh();started=now();
   }
  }
@@ -79,7 +83,7 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  }
  return Object.freeze({enabled,startFrame,endFrame,startRender,endRender,
   textureChanged,recordRaf,resetPacing,setViewport,setGPUStats,
-  snapshot:()=>last});
+  snapshot:()=>last,currentSnapshot});
 }
 
 // This diagnostic HUD lives outside the Three.js compositor. It has no layout
