@@ -84,15 +84,22 @@ test('DISPLAY SYSTEM keeps exact title, header buttons and restore action',()=>{
  assert.ok(ui.maxScroll>0);
 });
 test('settings preserve eight effect controls and slider hitboxes',()=>{
- const {ui,events}=setup();ui.paintModal(ui.modalBounds('options'));
- const toggles=events.filter(v=>v.type==='region'&&v.args[4]==='toggle');
- assert.equal(toggles.length,8);
- assert.deepEqual(toggles.map(v=>v.args[5].field),
-  ['phosphor','scanlines','vignette','bloom','ghost','softness','pieceGhost','sound']);
- const sliders=events.filter(v=>v.type==='region'&&v.args[4]==='slider');
- assert.ok(sliders.length>=7);
- assert.ok(sliders.some(v=>v.args[5].field==='bloomStrength'));
- assert.ok(sliders.some(v=>v.args[5].field==='ghostX'));
+ const {ui,events}=setup();const q=ui.modalBounds('options');
+ // Each viewport draws only visible rows; test across the entire list.
+ ui.paintModal(q);const scrollMax=ui.maxScroll;
+ const toggles=new Set(),sliders=new Set();
+ for(let i=0;i<=10;i++){
+  events.length=0;ui.scroll=scrollMax*i/10;ui.paintModal(q);
+  for(const v of events){
+   if(v.type==='region'&&v.args[4]==='toggle')toggles.add(v.args[5].field);
+   if(v.type==='region'&&v.args[4]==='slider')sliders.add(v.args[5].field);
+  }
+ }
+ assert.deepEqual([...toggles].sort(),
+  ['phosphor','scanlines','vignette','bloom','ghost','softness','pieceGhost','sound'].sort());
+ assert.ok(sliders.size>=7);
+ assert.ok(sliders.has('bloomStrength'));
+ assert.ok(sliders.has('ghostX'));
 });
 test('scanline picker expands choices and persists a valid choice only',()=>{
  const t=setup(),q=t.ui.modalBounds('options');
