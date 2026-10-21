@@ -8,8 +8,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'perf-monitor.js'),'utf8')
  .replace(/export function /g,'function ');
-const {createPerfMonitor,createPerfHud}=new Function(source+
- '\nreturn {createPerfMonitor,createPerfHud};')();
+const createPerfMonitor=new Function(source+
+ '\nreturn createPerfMonitor;')();
 const main=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
 const comp=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
 
@@ -61,37 +61,25 @@ test('resource stats are snapshots and diagnostic exceptions cannot break gamepl
  assert.equal(sample.viewport.height,852);
  assert.equal(sample.viewport.dpr,3);
 });
-test('disabled monitoring never stores GPU/viewport data or creates HUD',()=>{
- let createCount=0;
- const fakeDocument={createElement(){createCount++;return {};}};
- const hud=createPerfHud({enabled:false,document:fakeDocument,container:{}});
+test('disabled monitoring does not record frame or resource data',()=>{
  const perf=createPerfMonitor({enabled:false});
  perf.setViewport(390,844,3);
  perf.setGPUStats({textures:4});
  perf.recordRaf(10);
  perf.recordRaf(30);
- hud.update({});hud.dispose();
- assert.equal(createCount,0);
  assert.equal(perf.snapshot(),null);
+ assert.equal(perf.currentSnapshot(),null);
 });
-test('debug HUD is non-interactive and removes itself cleanly',()=>{
- const nodes=[],container={appendChild(node){nodes.push(node);}};
- const doc={createElement(){return {
-  style:{cssText:''},textContent:'',setAttribute(){},
-  remove(){const i=nodes.indexOf(this);if(i>=0)nodes.splice(i,1);}
- };}};
- const hud=createPerfHud({enabled:true,document:doc,container});
- assert.equal(nodes.length,1);
- assert.ok(nodes[0].style.cssText.includes('pointer-events:none'));
- hud.update({viewport:{width:393,height:852,dpr:3},avgRafMs:16.67,
-  slowRafTicks:0,avgFrameCpuMs:2.3,maxFrameCpuMs:9.1,
-  avgRenderSubmitMs:1.2,draws:20,baseUploadRequests:2,
-  popupUploadRequests:1,modalUploadRequests:0,
-  gpu:{activePasses:7,totalPasses:10,textures:12}});
- assert.ok(nodes[0].textContent.includes('PERF V054'));
- assert.ok(nodes[0].textContent.includes('393×852 @3x'));
- assert.ok(nodes[0].textContent.includes('7 / 10 passes'));
- hud.dispose();assert.equal(nodes.length,0);
+test('in-progress performance reports can be captured without a DOM overlay',()=>{
+ let clock=0;
+ const perf=createPerfMonitor({enabled:true,now:()=>clock,intervalMs:2000,log:()=>{}});
+ perf.recordRaf(0);perf.recordRaf(16);
+ const start=perf.startFrame();clock=17;perf.endFrame(start);
+ const snap=perf.currentSnapshot();
+ assert.equal(snap.frameTicks,1);
+ assert.equal(snap.rafSamples,1);
+ assert.equal(snap.avgRafMs,16);
+ assert.equal(perf.snapshot(),null);
 });
 test('diagnostics collect silently for an on-demand copy without changing shaders',()=>{
  assert.ok(main.includes('const recentPerf=[];'));
