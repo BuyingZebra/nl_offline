@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='048'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='049'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -877,6 +877,31 @@ function effectPreview(id){
 }
 const EFFECT_PREVIEWS=Object.fromEntries(
  DISPLAY_EFFECTS.map(effect=>[effect.id,effectPreview(effect.id)]));
+// Match the existing rounded panel outline around every thumbnail, with a
+// subtle 1px light-top/left and dark-bottom/right rim for terminal-style bevel.
+function drawEffectThumbnail(id,x,y,size){
+ panel(x,y,size,size,9,C.panel,C.border);
+ const inset=3,inner=Math.max(1,size-2*inset);
+ g.save();
+ g.beginPath();
+ g.roundRect(x+inset,y+inset,inner,inner,Math.min(6,inner/2));
+ g.clip();
+ g.drawImage(EFFECT_PREVIEWS[id],x+inset,y+inset,inner,inner);
+ g.restore();
+ g.save();
+ g.lineWidth=1;
+ g.strokeStyle=gray(128);
+ g.beginPath();
+ g.moveTo(x+9,y+1.5);g.lineTo(x+size-9,y+1.5);
+ g.moveTo(x+1.5,y+9);g.lineTo(x+1.5,y+size-9);
+ g.stroke();
+ g.strokeStyle=gray(45);
+ g.beginPath();
+ g.moveTo(x+9,y+size-1.5);g.lineTo(x+size-9,y+size-1.5);
+ g.moveTo(x+size-1.5,y+9);g.lineTo(x+size-1.5,y+size-9);
+ g.stroke();
+ g.restore();
+}
 function selectedScanlineChoice(){return FX.scanlines?activeScanlinePreset().id:'off';}
 function toggleScanlineMenu(){
  scanlineMenuOpen=!scanlineMenuOpen;scrollVelocity=0;invalidate();
@@ -958,15 +983,16 @@ function drawOptions(q){
  // retaining the approved title, X and Restore Defaults geometry.
  const pageW=Math.max(0,Math.min(W-2*UI_SPACE.padX,
   UI_SPACE.appMax-2*UI_SPACE.padX));
- const pageX=(W-pageW)/2,headerY=q.safeTop+gap;
+ const pageX=(W-pageW)/2,headerY=r.hy;
+ // Use the very same panel radius, fill, border, header centre, font size,
+ // colour, tracking and title inset as the TETRIS SYSTEM home-screen header.
+ panel(pageX,headerY,pageW,headH,12,C.panel);
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
  text('DISPLAY SYSTEM',pageX+UI_SPACE.headTitleInset,
   headerY+headH/2,titleSize,C.ink,'left',
-  Math.max(10,pageW-UI_SPACE.headTitleInset-q.buttonH-2*gap));
+  Math.max(10,pageW-116));
  const closeX=pageX+pageW-UI_SPACE.headRightPad-q.buttonH;
  key('X',closeX,headerY+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
- rect(pageX+UI_SPACE.headTitleInset,headerY+headH-gap,
-  Math.max(1,pageW-2*UI_SPACE.headTitleInset),1,C.border);
  const restoreW=Math.min(pageW-2*pad,
   r.boardW*UI_SPACE.overlayButtonWidthScale);
  const restoreY=H-q.safeBottom-gap-r.extraH;
@@ -988,8 +1014,7 @@ function drawOptions(q){
   // Centre thumbnail and content block independently in the SAME measured row.
   const previewX=contentX+gap;
   const previewY=y+(row.rowHeight-previewSize)/2;
-  g.drawImage(EFFECT_PREVIEWS[effect.id],previewX,previewY,
-   previewSize,previewSize);
+  drawEffectThumbnail(effect.id,previewX,previewY,previewSize);
   const ctrlX=previewX+previewSize+gap;
   const ctrlW=contentX+contentW-gap-ctrlX;
   const blockTop=y+(row.rowHeight-row.contentHeight)/2;
