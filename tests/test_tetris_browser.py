@@ -89,7 +89,7 @@ with sync_playwright() as p:
         return page.evaluate(
             """(key) => {
                 const saved = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
-                const defaults = {phosphor:true,scanlines:true,scanlinePreset:'original',
+                const defaults = {phosphor:true,bloom:true,scanlines:true,scanlinePreset:'original',
                     ghostX:2,ghostY:0,bloomStrength:.30};
                 return saved[key] ?? defaults[key];
             }""", key,
