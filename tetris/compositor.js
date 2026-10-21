@@ -294,6 +294,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupSt
   composer.dispose();
   for(const texture of Object.values(scanlineTextures))texture.dispose();
  }
- return Object.freeze({syncFX,resize,render:()=>composer.render(),dispose,
+ // Sampling is opt-in; do not scan the pipeline during normal gameplay.
+ function passStats(){
+  let activePasses=0;
+  for(const pass of composer.passes)if(pass.enabled!==false)activePasses++;
+  return {activePasses,totalPasses:composer.passes.length};
+ }
+ return Object.freeze({syncFX,resize,render:()=>composer.render(),dispose,passStats,
   activeScanlinePreset,SCANLINE_PRESETS});
 }
