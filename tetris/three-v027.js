@@ -177,6 +177,14 @@ function animateDepth(dt){
   for(const plane of [surface,scrimPlane,modalPlane]){
    plane.position.x=camera.position.x;plane.position.y=camera.position.y;
   }
+  // The depth planes track the virtual eye by their distance fraction;
+  // only the difference in Z creates the parallax. At maximum sensitivity
+  // this limits the board to ~3.3px and the sidebar to ~2px displacement.
+  for(const layer of [boardLayer,sideLayer]){
+   const factor=(CAMERA_Z-layer.z)/CAMERA_Z;
+   layer.mesh.position.x=camera.position.x*factor;
+   layer.mesh.position.y=camera.position.y*factor;
+  }
  }
  return moving;
 }
