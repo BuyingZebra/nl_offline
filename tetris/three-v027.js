@@ -57,6 +57,14 @@ try{const s=JSON.parse(load(PREF,'null'));if(s&&typeof s==='object')for(const [k
 // Older saved bloom values may exceed the new slider upper bound.
 FX.bloomStrength=clamp(Number(FX.bloomStrength)||0,0,1);
 const persist=()=>store(PREF,JSON.stringify(FX));
+const DEPTH_PREF='fieldAtlasTetrisDepthV050';
+const DEPTH_DEFAULT_STRENGTH=45;
+let depthSettings={enabled:load(DEPTH_PREF+'Enabled','no')==='yes',
+ strength:clamp(Number(load(DEPTH_PREF+'Strength','45'))||0,0,100)};
+const saveDepth=()=>{
+ store(DEPTH_PREF+'Enabled',depthSettings.enabled?'yes':'no');
+ store(DEPTH_PREF+'Strength',depthSettings.strength);
+};
 const game=new Core.Game();
 let highs=Scores.read(window.localStorage),overOffered=false;
 let showGhost=load('fieldAtlasTetrisGhost','yes')!=='no';
@@ -89,6 +97,103 @@ const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
 const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
 surface.frustumCulled=false;scene.add(surface);
+// Real, independent depth planes. Each is a separate transparent CanvasTexture,
+// kept registered in the same scene and rendered through the same CRT pipeline.
+const CAMERA_Z=2,CAMERA_FOV=50,BOARD_DEPTH_Z=.17,SIDE_DEPTH_Z=.105;
+function makeDepthLayer(z,order){
+ const canvas=document.createElement('canvas');
+ const context=canvas.getContext('2d',{alpha:true});
+ if(!context)throw Error('Depth layer Canvas2D missing');
+ const texture=new THREE.CanvasTexture(canvas);
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
+ texture.generateMipmaps=false;
+ const mesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+  new THREE.MeshBasicMaterial({map:texture,transparent:true,
+   depthTest:false,depthWrite:false}));
+ mesh.frustumCulled=false;mesh.position.z=z;mesh.renderOrder=order;
+ mesh.visible=false;scene.add(mesh);
+ return {canvas,context,texture,mesh,z};
+}
+const sideLayer=makeDepthLayer(SIDE_DEPTH_Z,1);
+const boardLayer=makeDepthLayer(BOARD_DEPTH_Z,2);
+let motionNeutral=null,motionTargetX=0,motionTargetY=0,motionX=0,motionY=0;
+let motionRequestPending=false;
+function depthOrientation(e){
+ if(!depthSettings.enabled||!Number.isFinite(e.beta)||!Number.isFinite(e.gamma))return;
+ if(!motionNeutral)motionNeutral={beta:e.beta,gamma:e.gamma};
+ const diff=(a,b)=>((a-b+540)%360)-180;
+ const horizontal=clamp(diff(e.gamma,motionNeutral.gamma)/12,-1,1);
+ const vertical=clamp(diff(e.beta,motionNeutral.beta)/12,-1,1);
+ const screenAngle=Number(window.screen?.orientation?.angle??window.orientation??0);
+ const angle=screenAngle*Math.PI/180;
+ const dx=horizontal*Math.cos(angle)-vertical*Math.sin(angle);
+ const dy=vertical*Math.cos(angle)+horizontal*Math.sin(angle);
+ const limit=5*depthSettings.strength/100;
+ motionTargetX=clamp(dx,-1,1)*limit;
+ motionTargetY=clamp(dy,-1,1)*limit;
+ invalidate();
+}
+window.addEventListener('deviceorientation',depthOrientation,{passive:true});
+function enableDepthMotion(){
+ if(motionRequestPending)return;
+ motionNeutral=null;
+ const grant=()=>{
+  motionRequestPending=false;depthSettings.enabled=true;saveDepth();invalidate();
+ };
+ const decline=()=>{
+  motionRequestPending=false;depthSettings.enabled=false;saveDepth();invalidate();
+ };
+ if(typeof DeviceOrientationEvent==='undefined'){decline();return;}
+ const ask=DeviceOrientationEvent.requestPermission;
+ if(typeof ask==='function'){
+  motionRequestPending=true;
+  // Call synchronously from the checkbox's pointerup event for iOS.
+  try{Promise.resolve(ask.call(DeviceOrientationEvent))
+   .then(state=>state==='granted'?grant():decline()).catch(decline);}
+  catch(e){decline();}
+ }else grant();
+}
+function animateDepth(dt){
+ const active=depthSettings.enabled&&modal===null&&game.status==='playing';
+ const tx=active?motionTargetX:0,ty=active?motionTargetY:0;
+ const alpha=1-Math.exp(-Math.max(1,dt)/120);
+ const oldX=motionX,oldY=motionY;
+ motionX+=(tx-motionX)*alpha;motionY+=(ty-motionY)*alpha;
+ if(Math.abs(motionX-tx)<.006)motionX=tx;
+ if(Math.abs(motionY-ty)<.006)motionY=ty;
+ const moving=Math.abs(motionX-oldX)>.0001||Math.abs(motionY-oldY)>.0001;
+ if(moving){
+  const h=2*CAMERA_Z*Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV/2));
+  const w=h*W/Math.max(1,H);
+  camera.position.x=-motionX*w/Math.max(1,W);
+  camera.position.y=motionY*h/Math.max(1,H);
+  camera.lookAt(camera.position.x,camera.position.y,0);
+  // Keep the glass/HUD fixed; nearby scene planes move relative to it.
+  for(const plane of [surface,scrimPlane,modalPlane]){
+   plane.position.x=camera.position.x;plane.position.y=camera.position.y;
+  }
+ }
+ return moving;
+}
+function captureDepthLayers(r){
+ for(const [layer,b] of [
+  [boardLayer,{x:r.boardX,y:r.boardY,w:r.boardW,h:r.boardH}],
+  [sideLayer,{x:r.sideX,y:r.boardY,w:r.sideW,h:r.boardH}]
+ ]){
+  const ctx=layer.context,c=layer.canvas;
+  const x=Math.round(b.x*DPR),y=Math.round(b.y*DPR);
+  const width=Math.max(0,Math.round(b.w*DPR));
+  const height=Math.max(0,Math.round(b.h*DPR));
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,c.width,c.height);
+  if(width>0&&height>0){
+   ctx.drawImage(input,x,y,width,height,x,y,width,height);
+   g.fillStyle=C.bg;g.fillRect(b.x,b.y,b.w,b.h);
+  }
+  layer.texture.needsUpdate=true;
+ }
+}
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
 // smaller transparent modal texture into ONE framebuffer before CRT shaders.
 // Dragging a menu no longer repaints or reuploads the fullscreen game texture.
