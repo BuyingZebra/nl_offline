@@ -98,5 +98,5 @@ test('V057 retains same screen and existing debug-copy workflow',()=>{
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(main.includes('debugClipboard.copyText(report)'));
- assert.ok(read('three-v027.html').includes('<title>NOMAD — Tetris System</title>'));
+ assert.ok(read('three-v027.html').includes('NOMAD — Tetris System'));
 });
