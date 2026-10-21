@@ -32,7 +32,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='060'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='061'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -72,7 +72,7 @@ let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
+let dirty=true,baseDirty=true,boardDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
 // Attribute actual draws instead of assuming every RAF tick triggers painting.
 const pendingRedrawReasons=new Set(['startup']);
 // Small rolling history: no overlay, network, persistent storage, or console spam.
@@ -89,14 +89,20 @@ let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
 let lineClearFX=null,lastPaintedBoardPopupStatus=null;
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
+const boardCanvas=document.createElement('canvas');
+const boardContext=boardCanvas.getContext('2d',{alpha:false});
 let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
 // Sharp board popup UI is a separate grayscale layer composed after GPU blur.
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
-if(!g||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+if(!g||!boardContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
+const boardTexture=new THREE.CanvasTexture(boardCanvas);
+boardTexture.colorSpace=THREE.SRGBColorSpace;
+boardTexture.minFilter=THREE.LinearFilter;boardTexture.magFilter=THREE.LinearFilter;
+boardTexture.generateMipmaps=false;
 const boardPopupTexture=new THREE.CanvasTexture(boardPopupCanvas);
 boardPopupTexture.colorSpace=THREE.SRGBColorSpace;boardPopupTexture.minFilter=THREE.LinearFilter;
 boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps=false;
@@ -112,6 +118,12 @@ const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
 const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
 surface.frustumCulled=false;scene.add(surface);
+// Cropped board overlays the unchanged full-screen interface before CRT FX.
+const boardPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+ new THREE.MeshBasicMaterial({map:boardTexture,side:THREE.DoubleSide,
+  depthTest:false,depthWrite:false}));
+boardPlane.frustumCulled=false;boardPlane.renderOrder=.5;boardPlane.position.z=.01;
+scene.add(boardPlane);
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
 // smaller transparent modal texture into ONE framebuffer before CRT shaders.
 // Dragging a menu no longer repaints or reuploads the fullscreen game texture.
@@ -177,7 +189,7 @@ game.lockPiece=function(){
   snapshot.forEach((row,y)=>{if(row.every(Boolean))rows.push(y);});
   if(rows.length){
    lineClearFX={board:snapshot,rows:new Set(rows),elapsed:0};
-   baseDirty=true;invalidate();
+   boardDirty=true;baseDirty=true;invalidate();
   }
  }
 };
@@ -207,7 +219,7 @@ function perform(type){
  else if(type==='pause')ok=game.pause();
  else if(type==='start')ok=game.start();
  if(ok){
-  baseDirty=true;
+  boardDirty=true;baseDirty=true;
   if(was==='over'&&game.status==='playing')overOffered=false;
   if(game.lines>lines)tone(610,.14);
   else if(game.pieces>pieces)tone(175);
@@ -220,7 +232,7 @@ function perform(type){
 }
 function restart(){
  lineClearFX=null;
- game.reset();game.start();baseDirty=true;overOffered=false;openModal(null);invalidate();
+ game.reset();game.start();boardDirty=true;baseDirty=true;overOffered=false;openModal(null);invalidate();
 }
 function options(){if(game.status==='playing')perform('pause');openModal('options');}
 function scores(){if(game.status==='playing')perform('pause');openModal('scores');}
@@ -289,7 +301,7 @@ function cell(x,y,col,row,size,kind,isGhost=false){
  }
  tileFace(px,py,size,size,kind);
 }
-function stage(r){
+function stage(r,drawPieces=true,recordRegion=true){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  panel(x,y,w,h,7,C.panel);
  const offX=x+2,offY=y+2,tile=(w-4)/10;
@@ -301,6 +313,7 @@ function stage(r){
  g.stroke();g.globalAlpha=1;
  // Blink freshly completed rows between the detailed tiles and empty
  // outlined cubes before revealing the core's already-cleared board.
+ if(drawPieces){
  const displayBoard=lineClearFX?.board||game.board;
  const clearIsEmpty=lineClearFX&&Math.floor(lineClearFX.elapsed/LINE_FLASH_TOGGLE_MS)%2===1;
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
@@ -319,8 +332,9 @@ function stage(r){
   }
   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{if(kind)cell(offX,offY,p.x+rx,p.y+ry,tile,kind);}));
  }
+ }
  g.restore();
- region(x,y,w,h,'board',{board:true});
+ if(recordRegion)region(x,y,w,h,'board',{board:true});
 
 }
 function paintBoardPopup(r){
@@ -378,6 +392,24 @@ function insets(){
 function layout(){
  return cachedLayout||(cachedLayout=ScreenLayout.computeLayout(W,H,insets(),UI_SPACE));
 }
+// Independent cropped CanvasTexture shares CSS layout geometry with base.
+function paintBoardLayer(){
+ const r=layout(),x=r.boardX,y=r.boardY,w=r.boardW,h=r.boardH;
+ const pixelW=Math.max(1,Math.round(w*DPR)),pixelH=Math.max(1,Math.round(h*DPR));
+ if(boardCanvas.width!==pixelW||boardCanvas.height!==pixelH){
+  boardCanvas.width=pixelW;boardCanvas.height=pixelH;
+ }
+ boardContext.setTransform(DPR,0,0,DPR,-x*DPR,-y*DPR);
+ const previous=g;g=boardContext;
+ try{
+  rect(x,y,w,h,C.bg);
+  stage(r,true,false);
+ }finally{g=previous;}
+ boardPlane.scale.set(w/W,h/H,1);
+ boardPlane.position.set(-1+(2*x+w)/W,1-(2*y+h)/H,.01);
+ boardTexture.needsUpdate=true;
+ perf.textureChanged('board');
+}
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
  // The popup isn't sampled while playing. Avoid clearing and uploading
@@ -399,7 +431,7 @@ function paintBaseGame(){
  const ty=r.hy+(r.hh-th)/2;
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
- stage(r);
+ stage(r,false,true);
  const short=r.short;
  const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
  const sx=hold.x,sw=hold.w;
@@ -472,13 +504,18 @@ function paintGame(){
   paintBaseGame();baseDirty=false;
   perf.recordDuration('base',performance.now()-started);
  }
+ if(boardDirty){
+  const started=performance.now();
+  paintBoardLayer();boardDirty=false;
+  perf.recordDuration('board',performance.now()-started);
+ }
  if(modal){
   const started=performance.now();
   paintModalOverlay();
   perf.recordDuration('modal',performance.now()-started);
  }
  else{
-  surface.visible=true;
+  surface.visible=true;boardPlane.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions;
  }
@@ -517,7 +554,7 @@ function settingValue(k){
 }
 function setSetting(k,value){
  if(k==='pieceGhost'){
-  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');baseDirty=true;
+  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');boardDirty=true;baseDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{
@@ -920,7 +957,7 @@ function paintModalOverlay(){
  // so no pixels from a previous modal remain after a menu transition.
  // Options is now its own screen: hide the game rather than darken it.
  const standaloneSettings=modal==='options';
- surface.visible=!standaloneSettings;
+ surface.visible=!standaloneSettings;boardPlane.visible=!standaloneSettings;
  const q=modalBounds(modal);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
@@ -1031,11 +1068,17 @@ function frame(now){
    const finished=lineClearFX.elapsed>=LINE_FLASH_MS;
    if(finished)lineClearFX=null;
    if(finished||flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS)!==previousPhase){
-    dirty=true;baseDirty=true;pendingRedrawReasons.add('flash');
+    dirty=true;boardDirty=true;pendingRedrawReasons.add('flash');
    }
   }
   if(visualChanged){
-   dirty=true;baseDirty=true;pendingRedrawReasons.add('gravity');
+   dirty=true;boardDirty=true;
+   // Ordinary gravity shifts only the board, not the surrounding UI.
+   if(game.score!==prior.score||game.lines!==prior.lines||
+    game.level!==prior.level||game.pieces!==prior.pieces||
+    game.hold!==prior.hold||game.status!==prior.status||
+    game.current!==prior.piece)baseDirty=true;
+   pendingRedrawReasons.add('gravity');
    if(game.lines>prior.lines)tone(590,.1);
    else if(game.pieces>prior.pieces)tone(180,.04);
    onOver();
@@ -1058,6 +1101,7 @@ function frame(now){
    // Only initialize canvas textures which will actually be sampled.
    // Each revision is uploaded at most once, with no extra draw commands.
    if(surface.visible)textureUploads.upload(texture,'base');
+   if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
    if(!modal&&game.status!=='playing')
     textureUploads.upload(boardPopupTexture,'popup');
@@ -1084,7 +1128,7 @@ function resize(forceLayout=false){
  const d=Math.min(MAX_RENDER_DPR,Math.max(1,window.devicePixelRatio||1));
  // A pending redraw must never force another allocation at the same size.
  if(w===W&&h===H&&d===DPR){
-  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;invalidate('resize');}
+  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;boardDirty=true;invalidate('resize');}
   return;
  }
  W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
@@ -1094,7 +1138,7 @@ function resize(forceLayout=false){
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  compositor.resize(W,H,DPR);
  perf.setViewport(W,H,DPR);
- baseDirty=true;dirty=true;invalidate('resize');
+ baseDirty=true;boardDirty=true;dirty=true;invalidate('resize');
 }
 new ResizeObserver(()=>resize()).observe(display);
 window.addEventListener('orientationchange',()=>resize(true));
