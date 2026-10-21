@@ -47,8 +47,8 @@ test('cropped renderer keeps original CSS geometry and needsUpdate exactly once'
  assert.equal(texture.needsUpdate,true);
 });
 test('original sidebar and controls painting is reused in full base and cropped layers',()=>{
- assert.ok(main.includes('function drawSidebar(r){'));
- assert.ok(main.includes('function drawControls(r){'));
+ assert.ok(read('hud-drawing.js').includes('function drawSidebar(r){'));
+ assert.ok(read('hud-drawing.js').includes('function drawControls(r){'));
  assert.ok(main.includes(' drawSidebar(r);\n drawControls(r);'));
  assert.ok(main.includes('function paintSidebarLayer(){'));
  assert.ok(main.includes('function paintControlsLayer(){'));
@@ -62,22 +62,22 @@ test('touch feedback invalidates cropped controls but keeps header clicks on bac
  assert.ok(input.includes('setBaseDirty(r.act);'));
  assert.ok(input.includes('setBaseDirty(touch.action);'));
  assert.ok(input.includes("setBaseDirty('board');"));
- assert.ok(main.includes("if(act==='theme'||act==='options')baseDirty=true;"));
- assert.ok(main.includes("else if(act==='board')boardDirty=true;"));
- assert.ok(main.includes("else if(act)controlsDirty=true;"));
+ assert.ok(main.includes("if(act==='theme'||act==='options')layers.mark('base');"));
+ assert.ok(main.includes("else if(act==='board')layers.mark('board');"));
+ assert.ok(main.includes("else if(act)layers.mark('controls');"));
 });
 test('piece gravity never flags fullscreen base unless popup state changes',()=>{
  const start=main.indexOf('if(visualChanged){');
  const end=main.indexOf('perf.recordGameChanges',start);
  const frame=main.slice(start,end);
- assert.ok(frame.includes('dirty=true;boardDirty=true;'));
- assert.ok(frame.includes('controlsDirty=true;'));
- assert.ok(frame.includes('sidebarDirty=true;'));
- assert.ok(frame.includes('if(game.status!==prior.status)baseDirty=true;'));
- assert.ok(!frame.includes('game.current!==prior.piece)baseDirty=true'));
+ assert.ok(frame.includes("layers.mark('board');"));
+ assert.ok(frame.includes("layers.mark('controls');"));
+ assert.ok(frame.includes("layers.mark('sidebar');"));
+ assert.ok(frame.includes("if(game.status!==prior.status)layers.mark('base');"));
+ assert.ok(!frame.includes("game.current!==prior.piece)layers.mark('base')"));
 });
 test('pause and ready screens keep popup hitboxes and visible layers',()=>{
- assert.ok(main.includes('if(game.status!==lastPaintedBoardPopupStatus)baseDirty=true;'));
+ assert.ok(main.includes("if(game.status!==lastPaintedBoardPopupStatus)layers.mark('base');"));
  assert.ok(main.includes('paintBoardPopup(r);'));
  assert.ok(main.includes('baseRegions=regions;'));
  assert.ok(main.includes('sidebarPlane.visible=!standaloneSettings;controlsPlane.visible=!standaloneSettings;'));
