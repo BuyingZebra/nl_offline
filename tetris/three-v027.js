@@ -6,7 +6,9 @@ import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v051';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor,createPerfHud} from './perf-monitor.js?v054';
+import {createPerfMonitor} from './perf-monitor.js?v054';
+import {formatDebugReport} from './debug-report.js?v055';
+import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -28,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='054'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='055'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -38,7 +40,7 @@ const LETTER_SPACING_EM=.13; // Global 13%-of-font-size tracking; no exceptions.
 const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
 const BUTTON_ICON_FONT_SIZE=18;
 const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN']);
-const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷','X']);
+const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷','X','✓','!']);
 const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
@@ -65,10 +67,15 @@ let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
-const perfEnabled=new URLSearchParams(location.search).get('perf')==='1';
-const perfHud=createPerfHud({enabled:perfEnabled,document,container:display});
-const perf=createPerfMonitor({enabled:perfEnabled,intervalMs:2000,onSample:perfHud.update});
-if(perf.enabled)window.FieldAtlasPerf=perf;
+// Small rolling history: no overlay, network, persistent storage, or console spam.
+const recentPerf=[];
+const perf=createPerfMonitor({enabled:true,intervalMs:2000,log:()=>{},
+ onSample:sample=>{
+  recentPerf.push(sample);
+  if(recentPerf.length>8)recentPerf.shift();
+ }});
+const debugClipboard=createDebugClipboard({navigator,document});
+let debugCopyState='idle';
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
@@ -154,7 +161,7 @@ game.lockPiece=function(){
  }
 };
 function openModal(name){
- modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;scanlineMenuOpen=false;inputController?.cancel();
+ modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;scanlineMenuOpen=false;debugCopyState='idle';inputController?.cancel();
  if(!modal)regions=baseRegions;
  invalidate();
 }
@@ -692,6 +699,43 @@ function drawSettingsSlider(x,y,w,setting){
  region(trackX-size/2,y-14,trackW+size,28,'slider',
   {field,min,max,step,trackX,trackW,modalControl:true});
 }
+// Monochrome 16px bug glyph, so no multicolour system emoji enters our CRT.
+function drawDebugBug(cx,cy){
+ g.save();
+ g.strokeStyle=C.ink;g.lineWidth=1.5;g.lineCap='round';g.lineJoin='round';
+ g.beginPath();
+ g.ellipse(cx,cy+1.5,4.5,6,0,0,Math.PI*2);
+ g.moveTo(cx-3,cy-5);g.lineTo(cx-5,cy-8);
+ g.moveTo(cx+3,cy-5);g.lineTo(cx+5,cy-8);
+ for(const dy of [-3,1,5]){
+  g.moveTo(cx-4.5,cy+dy);g.lineTo(cx-8,cy+dy-2);
+  g.moveTo(cx+4.5,cy+dy);g.lineTo(cx+8,cy+dy-2);
+ }
+ g.moveTo(cx-4,cy);g.lineTo(cx+4,cy);
+ g.stroke();g.restore();
+}
+function createDebugReport(){
+ const memory=renderer.info.memory;
+ const gpu={...compositor.passStats(),textures:memory?.textures,
+  geometries:memory?.geometries,programs:renderer.info.programs?.length};
+ return formatDebugReport({
+  version:THREE_BUILD_VERSION,createdAt:new Date().toISOString(),
+  platform:navigator.userAgent,
+  viewport:{width:W,height:H,dpr:DPR},
+  game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
+  display:{theme,orientation:W>H?'landscape':'portrait',phosphor:FX.phosphor,
+   settings:JSON.stringify({...FX,pieceGhost:showGhost,sound:soundOn})},
+  gpu,samples:recentPerf,current:perf.currentSnapshot()
+ });
+}
+function copyDebugReport(){
+ debugCopyState='pending';
+ // Clipboard access must start inside the original touch-up user gesture.
+ const report=createDebugReport();
+ debugClipboard.copyText(report).then(success=>{
+  debugCopyState=success?'copied':'failed';invalidate();
+ },()=>{debugCopyState='failed';invalidate();});
+}
 function drawOptions(q){
  // The whole WebGL surface is a separate black terminal page. No outer
  // rounded panel, no translucent scrim and no game artwork beneath it.
@@ -708,11 +752,18 @@ function drawOptions(q){
  // colour, tracking and title inset as the TETRIS SYSTEM home-screen header.
  panel(pageX,headerY,pageW,headH,12,C.panel);
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
+ const closeX=pageX+pageW-UI_SPACE.headRightPad-q.buttonH;
+ const debugX=closeX-q.buttonH-UI_SPACE.headIconGap;
  text('DISPLAY SYSTEM',pageX+UI_SPACE.headTitleInset,
   headerY+headH/2,titleSize,C.ink,'left',
-  Math.max(10,pageW-116));
- const closeX=pageX+pageW-UI_SPACE.headRightPad-q.buttonH;
- key('X',closeX,headerY+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
+  Math.max(10,debugX-pageX-UI_SPACE.headTitleInset-gap));
+ const headerButtonY=headerY+(headH-q.buttonH)/2;
+ key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug');
+ if(debugCopyState==='copied'||debugCopyState==='failed')
+  text(debugCopyState==='copied'?'✓':'!',debugX+q.buttonH/2,
+   headerButtonY+q.buttonH/2,BUTTON_ICON_FONT_SIZE,C.ink,'center');
+ else drawDebugBug(debugX+q.buttonH/2,headerButtonY+q.buttonH/2);
+ key('X',closeX,headerButtonY,q.buttonH,q.buttonH,'close');
  const restoreW=Math.min(pageW-2*pad,
   r.boardW*UI_SPACE.overlayButtonWidthScale);
  const restoreY=H-q.safeBottom-gap-r.extraH;
@@ -859,6 +910,7 @@ function paintModalOverlay(){
 function handleAction(act){
  if(act==='block'||act==='scroll'||act==='board')return;
  if(act==='close'){openModal(null);return;}
+ if(act==='copyDebug'){copyDebugReport();return;}
  if(act==='options'){options();return;}
  if(act==='scores'){scores();return;}
  if(act==='theme'){
@@ -964,12 +1016,10 @@ function frame(now){
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
-   if(perf.enabled){
-    const memory=renderer.info.memory;
-    perf.setGPUStats({...compositor.passStats(),
-     textures:memory?.textures,geometries:memory?.geometries,
-     programs:renderer.info.programs?.length});
-   }
+   const memory=renderer.info.memory;
+   perf.setGPUStats({...compositor.passStats(),
+    textures:memory?.textures,geometries:memory?.geometries,
+    programs:renderer.info.programs?.length});
   }
   perf.endFrame(frameStarted);
   if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
