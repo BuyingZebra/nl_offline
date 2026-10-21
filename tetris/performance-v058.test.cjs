@@ -93,7 +93,7 @@ test('V058 preserves the user controls and only guarded gravity drives a redraw'
  assert.ok(js.includes("from './game-visual-state.js?v058'"));
  assert.ok(js.includes('const visualChanged=gameVisualStateChanged(prior,game);'));
  assert.ok(js.includes('if(visualChanged){'));
- assert.ok(js.includes("pendingRedrawReasons.add('gravity')"));
+ assert.ok(js.includes("layers.reason('gravity')"));
  assert.ok(js.includes('if(finished||flashPhase('));
  assert.ok(js.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(read('three-v027.html').includes('Tetris System V063'));
