@@ -93,7 +93,8 @@ boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps
 const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:true,alpha:false,powerPreference:'high-performance'});
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080808);
-const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
+const camera=new THREE.PerspectiveCamera(50,1,.1,10);
+camera.position.z=2;camera.lookAt(0,0,0);
 const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
 surface.frustumCulled=false;scene.add(surface);
@@ -200,7 +201,7 @@ function captureDepthLayers(r){
 const scrimPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.77,
   depthTest:false,depthWrite:false}));
-scrimPlane.frustumCulled=false;scrimPlane.renderOrder=1;scrimPlane.position.z=.02;
+scrimPlane.frustumCulled=false;scrimPlane.renderOrder=3;scrimPlane.position.z=.02;
 scrimPlane.visible=false;scene.add(scrimPlane);
 const modalTexture=new THREE.CanvasTexture(modalCanvas);
 modalTexture.colorSpace=THREE.SRGBColorSpace;
@@ -211,7 +212,7 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
   depthWrite:false}));
 // The transparent modal texture spans the entire screen. Keeping its image
 // dimensions stable across dialog types prevents stale cropped texture data.
-modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
+modalPlane.frustumCulled=false;modalPlane.renderOrder=4;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
  const composer=new EffectComposer(renderer);
@@ -819,6 +820,7 @@ function paintBaseGame(){
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
  baseRegions=regions.slice();
+ captureDepthLayers(r);
  texture.needsUpdate=true;
  boardPopupTexture.needsUpdate=true;
 }
@@ -828,6 +830,7 @@ function paintGame(){
  if(modal)paintModalOverlay();
  else{
   surface.visible=true;
+  boardLayer.mesh.visible=true;sideLayer.mesh.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions.slice();
  }
@@ -852,20 +855,33 @@ const DISPLAY_EFFECTS=[
   sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
    ['RADIUS','softnessRadius',0,10,.5,'px']]},
  {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost'},
- {id:'sound',title:'SOUND',toggle:'sound'}
+ {id:'sound',title:'SOUND',toggle:'sound'},
+ {id:'depth',title:'DEPTH PARALLAX',toggle:'depthOn',
+  sliders:[['','depthStrength',0,100,1,'%']]}
 ];
 const SCANLINE_CHOICES=[{id:'off',name:'OFF'},
  ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))];
 const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
 let scanlineMenuOpen=false;
 function settingValue(k){
+ if(k==='depthOn')return depthSettings.enabled;
+ if(k==='depthStrength')return depthSettings.strength;
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
  if(['softnessStrength','vignetteAmount','bloomStrength'].includes(k))return Math.round(FX[k]*100);
  return FX[k];
 }
 function setSetting(k,value){
- if(k==='pieceGhost'){
+ if(k==='depthOn'){
+  if(value)enableDepthMotion();
+  else{
+   depthSettings.enabled=false;motionNeutral=null;
+   motionTargetX=motionTargetY=0;saveDepth();
+  }
+ }else if(k==='depthStrength'){
+  depthSettings.strength=clamp(Number(value)||0,0,100);
+  saveDepth();refreshEffectPreview(k);
+ }else if(k==='pieceGhost'){
   showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');baseDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
@@ -1257,6 +1273,8 @@ function paintModalOverlay(){
  // Options is now its own screen: hide the game rather than darken it.
  const standaloneSettings=modal==='options';
  surface.visible=!standaloneSettings;
+ boardLayer.mesh.visible=!standaloneSettings;
+ sideLayer.mesh.visible=!standaloneSettings;
  const q=modalBounds(modal);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
@@ -1288,6 +1306,8 @@ function handleAction(act){
  if(act==='resetFX'){
   FX={...DEFAULT};persist();
   showGhost=true;soundOn=true;
+  depthSettings.enabled=false;depthSettings.strength=DEPTH_DEFAULT_STRENGTH;
+  motionNeutral=null;motionTargetX=motionTargetY=0;saveDepth();
   store('fieldAtlasTetrisGhost','yes');
   store('fieldAtlasTetrisSound','yes');
   optionsScroll=0;
@@ -1535,12 +1555,14 @@ function frame(now){
    if(optionsScroll===before||optionsScroll===0||optionsScroll===optionsMaxScroll)scrollVelocity=0;
    else dirty=true;
   }else scrollVelocity=0;
+  const depthMoved=animateDepth(dt);
+  if(depthMoved)dirty=true;
   if(dirty){
    paintGame();
    syncFX();
    composer.render();
   }
-  if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||dirty||depthMoved||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
@@ -1556,6 +1578,18 @@ function resize(){
  g.setTransform(DPR,0,0,DPR,0,0);
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  composer.setPixelRatio(DPR);composer.setSize(W,H);
+ camera.aspect=W/H;camera.updateProjectionMatrix();
+ const viewH=2*CAMERA_Z*Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV/2));
+ const viewW=viewH*W/H;
+ for(const [mesh,z] of [[surface,0],[sideLayer.mesh,SIDE_DEPTH_Z],
+  [boardLayer.mesh,BOARD_DEPTH_Z],[scrimPlane,.02],[modalPlane,.03]]){
+  const depthScale=(CAMERA_Z-z)/CAMERA_Z;
+  mesh.scale.set(viewW*depthScale/2,viewH*depthScale/2,1);
+ }
+ for(const layer of [boardLayer,sideLayer]){
+  layer.canvas.width=Math.round(W*DPR);
+  layer.canvas.height=Math.round(H*DPR);
+ }
  ghostPass.uniforms.uSize.value.set(W,H);
  edgeSoftness.uniforms.uSize.value.set(W,H);
  boardBlurHorizontal.uniforms.uSize.value.set(W,H);
