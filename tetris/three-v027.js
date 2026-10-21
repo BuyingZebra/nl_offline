@@ -7,6 +7,7 @@ import {createCompositor} from './compositor.js?v056';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
 import {createPerfMonitor} from './perf-monitor.js?v057';
+import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v057';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
@@ -30,7 +31,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='057'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='058'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -1008,22 +1009,29 @@ function frame(now){
  const frameStarted=perf.startFrame();
  try{
   const dt=clamp(now-lastTime,0,100);lastTime=now;
-  const prior=game.pieces,priorLines=game.lines,priorStatus=game.status;
-  // Freeze gravity until the completed rows have finished blinking.
+  const prior=captureGameVisualState(game);
+  // Only redraw gameplay pixels when the *visible state* really changes.
+  // Gravity timers may advance on every RAF tick without moving a piece.
   const tickStarted=performance.now();
   const advanced=lineClearFX?false:game.tick(dt);
+  const visualChanged=gameVisualStateChanged(prior,game);
   perf.recordDuration('logic',performance.now()-tickStarted);
   if(lineClearFX&&game.status==='playing'){
+   const previousPhase=flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS);
    lineClearFX.elapsed+=dt;
-   if(lineClearFX.elapsed>=LINE_FLASH_MS)lineClearFX=null;
-   dirty=true;baseDirty=true;pendingRedrawReasons.add('flash');
+   const finished=lineClearFX.elapsed>=LINE_FLASH_MS;
+   if(finished)lineClearFX=null;
+   if(finished||flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS)!==previousPhase){
+    dirty=true;baseDirty=true;pendingRedrawReasons.add('flash');
+   }
   }
-  if(advanced||game.pieces!==prior||game.lines!==prior||priorStatus!==game.status){
+  if(visualChanged){
    dirty=true;baseDirty=true;pendingRedrawReasons.add('gravity');
-   if(game.lines>priorLines)tone(590,.1);
-   else if(game.pieces>prior)tone(180,.04);
+   if(game.lines>prior.lines)tone(590,.1);
+   else if(game.pieces>prior.pieces)tone(180,.04);
    onOver();
   }
+  perf.recordGameChanges({advanced,visualChanged});
   if(modal==='options'&&Math.abs(scrollVelocity)>.015){
    const before=optionsScroll;
    optionsScroll=clamp(optionsScroll+scrollVelocity*dt,0,optionsMaxScroll);
