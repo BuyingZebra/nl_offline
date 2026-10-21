@@ -94,9 +94,9 @@ test('copied report makes stationary and cropped texture requests identifiable',
 test('V061 retains DPR2, same controls, passes, debug copy, URL and version',()=>{
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
- assert.ok(main.includes('const THREE_BUILD_VERSION=\'062\''));
+ assert.ok(main.includes('const THREE_BUILD_VERSION=\'063\''));
  assert.ok(main.includes("textureUploads.upload(boardTexture,'board')"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
  assert.ok(comp.includes('composer.addPass(new OutputPass())'));
- assert.ok(read('three-v027.html').includes('Tetris System V062'));
+ assert.ok(read('three-v027.html').includes('Tetris System V063'));
 });
