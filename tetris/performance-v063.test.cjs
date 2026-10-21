@@ -106,6 +106,6 @@ test('HTML title and accessibility label share one authoritative JS version',()=
  assert.ok(main.includes("const THREE_BUILD_VERSION='063'"));
  assert.ok(main.includes("document.title='NOMAD — Tetris System V'+THREE_BUILD_VERSION"));
  assert.ok(main.includes("display.setAttribute('aria-label','Tetris System — Three.js V'+THREE_BUILD_VERSION)"));
- assert.ok(html.includes('<title>NOMAD — Tetris System</title>'));
+ assert.ok(html.includes('<title>NOMAD — Tetris System V063</title>'));
  assert.ok(!html.includes('Tetris System V062'));
 });
