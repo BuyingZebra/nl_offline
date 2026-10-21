@@ -21,12 +21,16 @@ const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.21,bloomStrength:.30,
+// Persist only user-facing settings; interface treatment is fixed design.
+const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
- scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
+ scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
- vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='040'; // Increment per approved layout/render test.
+ vignette:true,vignetteAmount:.39});
+const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
+const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
+const BLOOM_LUMINANCE_THRESHOLD=0;
+const THREE_BUILD_VERSION='041'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -51,14 +55,8 @@ const store=(key,value)=>{try{localStorage.setItem(key,String(value))}catch(e){}
 let FX={...DEFAULT};
 try{const s=JSON.parse(load(PREF,'null'));if(s&&typeof s==='object')for(const [k,v] of Object.entries(DEFAULT))if(typeof s[k]===typeof v)FX[k]=s[k];}catch(e){}
 // Older saved bloom values may exceed the new slider upper bound.
-FX.bloomCutoff=clamp(Number(FX.bloomCutoff)||0,0,1);
 FX.bloomStrength=clamp(Number(FX.bloomStrength)||0,0,1);
 const persist=()=>store(PREF,JSON.stringify(FX));
-// Upgrade popup blur to 47% once; later user adjustments remain persistent.
-const BOARD_POPUP_V020='fieldAtlasBoardPopupV020';
-if(load(BOARD_POPUP_V020,'')!=='applied'){
- FX.boardBlur=47;persist();store(BOARD_POPUP_V020,'applied');
-}
 const game=new Core.Game();
 let highs=Scores.read(window.localStorage),overOffered=false;
 let showGhost=load('fieldAtlasTetrisGhost','yes')!=='no';
@@ -113,7 +111,11 @@ modalPlane.visible=false;scene.add(modalPlane);
 
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
- const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
+ // Extract bloom from grayscale luminance before colourization.
+const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
+glow.threshold=BLOOM_LUMINANCE_THRESHOLD;
+// Avoid degenerate smoothstep(0,0,x) without a visible brightness cutoff.
+if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0001;
 
  const passVertex='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 
@@ -196,7 +198,6 @@ modalPlane.visible=false;scene.add(modalPlane);
   vertexShader:passVertex,
   fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
  });
- composer.addPass(tint);
 
  // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
  const edgeSoftness=new ShaderPass({
@@ -242,8 +243,9 @@ modalPlane.visible=false;scene.add(modalPlane);
    }`
  });
  edgeVignette.enabled=false;
- // Bloom remains upstream of screen optics, as in the approved test.
+ // Grayscale luminance produces bloom, then phosphor tint colours both.
  composer.addPass(glow);
+ composer.addPass(tint);
  composer.addPass(edgeSoftness);
 
  composer.addPass(edgeVignette);
@@ -297,12 +299,6 @@ modalPlane.visible=false;scene.add(modalPlane);
  function activeScanlinePreset(){
   return SCANLINE_PRESETS.find(p=>p.id===FX.scanlinePreset)||SCANLINE_PRESETS[0];
  }
- function cycleScanlinePreset(direction){
-  const index=SCANLINE_PRESETS.indexOf(activeScanlinePreset());
-  const next=(index+direction+SCANLINE_PRESETS.length)%SCANLINE_PRESETS.length;
-  setSetting('scanlinePreset',SCANLINE_PRESETS[next].id);
- }
-
  // Photoshop-like repeating texture layer: scale tile in CSS pixels,
  // then blend it over the finished composite with independently adjustable
  // layer opacity. Multiply only source brightness, so no RGB tint is added.
@@ -341,12 +337,9 @@ modalPlane.visible=false;scene.add(modalPlane);
 // These are GPU tint multipliers of grayscale luminance, not UI source colours.
 const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
 const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
-// Popup blur remains one 0–100% control. Both GPU axes use dense,
-// regularly spaced normalized Gaussian samples. At high settings we enlarge
-// the sampling footprint, while 47% uses nearly pixel-adjacent taps.
-const BOARD_POPUP_FADE=.87;
+// Pause/ready/game-over overlay is a fixed 47% blur and 87% fade.
 function boardBlurParams(){
- const p=clamp(Number(FX.boardBlur)||0,0,100)/100;
+ const p=MENU_BLUR_PERCENT/100;
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
 }
 function tone(freq=240,len=.04){
@@ -386,7 +379,7 @@ game.lockPiece=function(){
  }
 };
 function openModal(name){
- modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;stopRepeat();pressed=null;
+ modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;scanlineMenuOpen=false;stopRepeat();pressed=null;
  if(!modal)regions=baseRegions.slice();
  invalidate();
 }
@@ -736,39 +729,39 @@ function paintGame(){
 }
 
 // Single data schema defines every settings category, item and value domain.
+// A single declarative schema owns the remaining visible settings.
 const SETTINGS_GROUPS=[
  {id:'gameplay',title:'GAMEPLAY',items:[
   ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound']]},
- {id:'emission',title:'CRT EMISSION',items:[
-  ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
-  ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
-  ['range','BLOOM STRENGTH','bloomStrength',0,1,.05,'']]},
- {id:'ghosting',title:'SIGNAL GHOSTING',items:[
+ {id:'overlays',title:'SCREEN OVERLAYS',items:[
+  ['switch','PHOSPHOR COLOR','phosphor'],
+  ['patternSelect','CRT SCANLINES','scanlinePreset'],
+  ['range','SCANLINE INTENSITY','scanlineOpacity',0,100,1,'%'],
+  ['switch','SCREEN VIGNETTE','vignette'],
+  ['range','VIGNETTE STRENGTH','vignetteAmount',0,100,1,'%'],
+  ['switch','PHOSPHOR BLOOM','bloom'],
+  ['range','BLOOM STRENGTH','bloomStrength',0,100,1,'%']]},
+ {id:'distortion',title:'SIGNAL DISTORTION',items:[
   ['switch','GHOSTING','ghost'],
   ['range','GHOST X','ghostX',-32,32,1,' px'],
   ['range','GHOST Y','ghostY',-32,32,1,' px'],
   ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%']]},
- {id:'mask',title:'CRT MASK',items:[
-  ['switch','SCANLINE OVERLAY','scanlines'],
-  ['pattern','PATTERN PRESET','scanlinePreset'],
-  ['range','PATTERN SCALE','scanlineScale',.5,3,.25,'x'],
-  ['range','OVERLAY OPACITY','scanlineOpacity',0,100,1,'%']]},
  {id:'optics',title:'DISPLAY OPTICS',items:[
   ['switch','EDGE SOFTNESS','softness'],
   ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
-  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px'],
-  ['switch','VIGNETTE','vignette'],
-  ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
-  ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
-  ['range','MENU BLUR','boardBlur',0,100,1,'%']]},
+  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]},
  {id:'preset',title:'DISPLAY PRESET',items:[
   ['button','RESTORE APPROVED VALUES','resetFX']]}
 ];
-let expandedSettingsGroup='gameplay';
+const SCANLINE_CHOICES=[
+ {id:'off',name:'OFF'},
+ ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))
+];
+let expandedSettingsGroup='overlays',scanlineMenuOpen=false;
 function settingValue(k){
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
- if(k==='softnessStrength')return Math.round(FX.softnessStrength*100);
+ if(['softnessStrength','vignetteAmount','bloomStrength'].includes(k))return Math.round(FX[k]*100);
  return FX[k];
 }
 function setSetting(k,value){
@@ -777,9 +770,9 @@ function setSetting(k,value){
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{
-  FX[k]=k==='softnessStrength'?clamp(value/100,0,1):value;
+  FX[k]=['softnessStrength','vignetteAmount','bloomStrength'].includes(k)?
+   clamp(value/100,0,1):value;
   persist();
-  if(k==='boardBlur'&&game.status!=='playing')baseDirty=true;
  }
  invalidate();
 }
@@ -828,6 +821,12 @@ function settingsRows(buttonH,gap){
    const height=item[0]==='range'?rangeH:item[0]==='pattern'?patternH:buttonH;
    rows.push({kind:item[0],item,group,offset,height});
    offset+=height+gap;
+   if(item[0]==='patternSelect'&&scanlineMenuOpen){
+    for(const option of SCANLINE_CHOICES){
+     rows.push({kind:'scanlineChoice',item,group,option,offset,height:buttonH});
+     offset+=buttonH+gap;
+    }
+   }
   }
  }
  return {rows,height:Math.max(0,offset-gap)};
@@ -835,11 +834,22 @@ function settingsRows(buttonH,gap){
 function toggleSettingsGroup(groupId){
  if(!SETTINGS_GROUPS.some(group=>group.id===groupId))return;
  expandedSettingsGroup=expandedSettingsGroup===groupId?null:groupId;
- scrollVelocity=0;
+ scanlineMenuOpen=false;scrollVelocity=0;
  const model=settingsRows(layout().headerButtonH,UI_SPACE.unit);
  const heading=model.rows.find(row=>row.kind==='group'&&row.group.id===groupId);
  if(heading)optionsScroll=heading.offset;
  invalidate();
+}
+function selectedScanlineChoice(){return FX.scanlines?activeScanlinePreset().id:'off';}
+function toggleScanlineMenu(){
+ scanlineMenuOpen=!scanlineMenuOpen;
+ scrollVelocity=0;invalidate();
+}
+function chooseScanline(id){
+ if(!SCANLINE_CHOICES.some(option=>option.id===id))return;
+ FX.scanlines=id!=='off';
+ if(id!=='off')FX.scanlinePreset=id;
+ scanlineMenuOpen=false;persist();scrollVelocity=0;invalidate();
 }
 function settingSquare(x,y,size,active){
  // Binary options: solid square = enabled, outline square = disabled.
@@ -884,6 +894,14 @@ function drawOptions(q){
    rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.border);
    region(contentX,yy,contentW,height,'settingsGroup',
     {field:row.group.id,modalControl:true});
+  }else if(kind==='scanlineChoice'){
+   const chosen=row.option.id===selectedScanlineChoice();
+   panel(contentX,yy,contentW,height,7,C.button,C.border);
+   settingSquare(contentX+pad,yy+(height-16)/2,16,chosen);
+   text(row.option.name,contentX+2*pad+16,yy+height/2,11,
+    chosen?C.bright:C.ink,'left',contentW-3*pad-16);
+   region(contentX,yy,contentW,height,'scanlineChoice',
+    {field:row.option.id,modalControl:true});
   }else{
    const [type,name,k,min,max,step,unit]=row.item;
    if(type==='button'){
@@ -894,18 +912,16 @@ function drawOptions(q){
     settingSquare(squareX,yy+(height-square)/2,square,Boolean(settingValue(k)));
     rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.grid);
     region(contentX,yy,contentW,height,'toggle',{field:k,modalControl:true});
-   }else if(type==='pattern'){
+   }else if(type==='patternSelect'){
     text(name,contentX+pad,yy+buttonH/2,11,C.ink,'left',contentW-2*pad);
-    const cy=yy+buttonH+gap,arrowW=buttonH;
-    key('◀',contentX,cy,arrowW,buttonH,'patternPrev',{modalControl:true});
-    const centerX=contentX+arrowW+gap;
-    const centerW=Math.max(0,contentW-2*arrowW-2*gap);
-    panel(centerX,cy,centerW,buttonH,7,C.button,C.border);
-    text(activeScanlinePreset().name,centerX+centerW/2,cy+buttonH/2,10,
-     C.ink,'center',Math.max(1,centerW-2*pad));
-    region(centerX,cy,centerW,buttonH,'patternNext',{modalControl:true});
-    key('▶',contentX+contentW-arrowW,cy,arrowW,buttonH,'patternNext',
-     {modalControl:true});
+    const cy=yy+buttonH+gap;
+    panel(contentX,cy,contentW,buttonH,7,C.button,C.border);
+    const selected=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
+    text(selected?.name||'ORIGINAL',contentX+pad,cy+buttonH/2,11,
+     C.ink,'left',contentW-3*pad-BUTTON_ICON_FONT_SIZE);
+    settingsExpandArrow(contentX+contentW-pad-BUTTON_ICON_FONT_SIZE/2,
+     cy+buttonH/2,scanlineMenuOpen,C.ink);
+    region(contentX,cy,contentW,buttonH,'patternSelect',{modalControl:true});
    }else if(type==='range'){
     const value=Number(settingValue(k));
     const captionY=yy+12;
@@ -1007,8 +1023,6 @@ function handleAction(act){
  if(act==='skipScore'){initialsInput.blur();openModal(null);return;}
  if(act==='saveScore'){saveScore();return;}
  if(act==='typeInitials'){initialsInput.focus();return;}
- if(act==='patternPrev'){cycleScanlinePreset(-1);return;}
- if(act==='patternNext'){cycleScanlinePreset(1);return;}
  if(act==='resetFX'){FX={...DEFAULT};persist();baseDirty=true;invalidate();return;}
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
@@ -1109,6 +1123,8 @@ function releaseTouch(e){
      if(r.act==='slider')setSlider(r,p.x);
      else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
      else if(r.act==='settingsGroup'&&optionPoint(p))toggleSettingsGroup(r.field);
+     else if(r.act==='patternSelect'&&optionPoint(p))toggleScanlineMenu();
+     else if(r.act==='scanlineChoice'&&optionPoint(p))chooseScanline(r.field);
      else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
     }
    }else if(touch.mode==='slider'&&touch.region?.act==='slider'){
@@ -1187,7 +1203,7 @@ function syncFX(){
  tint.uniforms.uEnabled.value=FX.phosphor?1:0;
  tint.uniforms.uTint.value.copy(hues[theme]);
  glow.enabled=FX.bloom;
- glow.threshold=FX.bloomCutoff;glow.strength=FX.bloomStrength;
+ glow.strength=FX.bloomStrength;
  edgeSoftness.enabled=FX.softness;
  edgeSoftness.uniforms.uAmount.value=FX.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=FX.softnessRadius;
@@ -1211,13 +1227,13 @@ function syncFX(){
  }
  edgeVignette.enabled=FX.vignette;
  edgeVignette.uniforms.uAmount.value=FX.vignetteAmount;
- edgeVignette.uniforms.uStart.value=FX.vignetteSpread;
+ edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
  scanlineOverlay.enabled=FX.scanlines&&FX.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset();
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];
  scanlineOverlay.uniforms.uPatternSize.value.set(scanlinePreset.rows[0].length,scanlinePreset.rows.length);
  scanlineOverlay.uniforms.uOpacity.value=clamp(FX.scanlineOpacity/100,0,1);
- scanlineOverlay.uniforms.uScale.value=FX.scanlineScale;
+ scanlineOverlay.uniforms.uScale.value=CRT_PATTERN_SCALE;
  scanlineOverlay.uniforms.uDpr.value=DPR;
  scanlineOverlay.uniforms.uScreenHeight.value=H*DPR;
 }
