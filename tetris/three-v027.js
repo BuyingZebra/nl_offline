@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='046'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='047'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -804,68 +804,68 @@ function modalActionRow(q,items){
 }
 // All visual previews share the very same T tetromino matrix and base image
 // treatment. Per-effect rendering alters ONLY the effect, not the subject.
+// The same real T tetromino and dim grayscale phosphor screen appear in every
+// effect preview. These neutral pixels are tinted later by the EXISTING GPU.
 function effectPreview(id){
  const canvas=document.createElement('canvas');
  canvas.width=PREVIEW_SIZE;canvas.height=PREVIEW_SIZE;
- const p=canvas.getContext('2d');
- if(!p)return canvas;
+ const p=canvas.getContext('2d');if(!p)return canvas;
  const n=PREVIEW_SIZE;
- // The dim gray background reads as a faint green/amber phosphor field
- // after the existing full-screen GPU tint, and stays neutral if tint is off.
- p.fillStyle=gray(40);p.fillRect(0,0,n,n);
+ p.fillStyle=gray(26);p.fillRect(0,0,n,n);
+ p.fillStyle=gray(31);
+ for(let v=8;v<n;v+=8){p.fillRect(v,0,1,n);p.fillRect(0,v,n,1);}
  if(id==='phosphor'){
-  p.fillStyle=gray(168);p.fillRect(11,11,n-22,n-22);
+  // A single fully solid inset square; the edge gap is intentionally empty.
+  p.fillStyle=gray(173);p.fillRect(13,13,n-26,n-26);
   return canvas;
  }
  if(id==='sound'){
-  p.fillStyle=gray(190);
+  p.fillStyle=gray(193);
   [16,27,43,54,35,23].forEach((h,i)=>p.fillRect(15+i*12,70-h,7,h));
   return canvas;
  }
- const matrix=Core.SHAPES.T;
- const cells=[];
- for(let y=0;y<matrix.length;y++)
-  for(let x=0;x<matrix[y].length;x++)
-   if(matrix[y][x])cells.push([x,y]);
- const cell=19,offX=19,offY=29;
- // Shared game-piece silhouette, bevel highlights and ghost styling.
+ const matrix=Core.SHAPES.T,cells=[],size=20;
+ for(let ry=0;ry<matrix.length;ry++)
+  for(let rx=0;rx<matrix[ry].length;rx++)
+   if(matrix[ry][rx])cells.push([rx,ry]);
  const drawPiece=(ghost=false)=>{
-  p.save();
-  if(ghost)p.globalAlpha=.40;
+  p.save();if(ghost)p.globalAlpha=.43;
   for(const [cx,cy] of cells){
-   const x=offX+cx*cell,y=offY+cy*cell;
+   const x=18+cx*size,y=28+cy*size;
    if(ghost){
-    p.strokeStyle=gray(180);p.lineWidth=2;
-    p.strokeRect(x+1,y+1,cell-2,cell-2);
-    p.fillStyle=gray(95);p.fillRect(x+3,y+3,cell-6,cell-6);
+    p.strokeStyle=gray(222);p.lineWidth=2;
+    p.strokeRect(x+2,y+2,size-4,size-4);
+    p.fillStyle=gray(58);p.fillRect(x+4,y+4,size-8,size-8);
    }else{
-    p.fillStyle=gray(173);p.fillRect(x+1,y+1,cell-2,cell-2);
-    p.fillStyle=gray(207);p.fillRect(x+2,y+2,cell-4,2);
-    p.fillStyle=gray(112);p.fillRect(x+4,y+5,cell-8,cell-9);
+    // Bright outline and dark face emulate the approved Fallout thumbnail.
+    p.fillStyle=gray(201);p.fillRect(x+1,y+1,size-2,size-2);
+    p.fillStyle=gray(94);p.fillRect(x+3,y+4,size-6,size-7);
+    p.fillStyle=gray(229);p.fillRect(x+3,y+2,size-6,2);
+    p.fillStyle=gray(165);p.fillRect(x+3,y+4,2,size-7);
    }
   }
   p.restore();
  };
  if(id==='ghost'){
-  p.save();p.globalAlpha=.25;p.translate(-7,1);drawPiece();p.restore();
-  p.save();p.globalAlpha=.39;p.translate(7,-1);drawPiece();p.restore();
+  p.save();p.globalAlpha=.33;p.translate(-8,2);drawPiece();p.restore();
+  p.save();p.globalAlpha=.48;p.translate(8,-2);drawPiece();p.restore();
   drawPiece();
  }else if(id==='softness'){
-  p.save();p.filter='blur(3px)';drawPiece();p.restore();
+  p.save();p.filter='blur(4.2px)';drawPiece();p.restore();
  }else if(id==='bloom'){
-  p.save();p.shadowColor=gray(230);p.shadowBlur=16;drawPiece();p.restore();
- }else if(id==='piece'){
-  drawPiece(true);
- }else{
+  p.save();p.shadowColor=gray(240);p.shadowBlur=22;drawPiece();p.restore();
+  p.save();p.globalAlpha=.24;p.filter='blur(7px)';drawPiece();p.restore();
+ }else if(id==='piece'){drawPiece(true);}
+ else{
   drawPiece();
   if(id==='scanlines'){
-   p.fillStyle='rgba(0,0,0,.55)';
+   p.fillStyle='rgba(0,0,0,.68)';
    for(let y=0;y<n;y+=5)p.fillRect(0,y,n,2);
   }else if(id==='vignette'){
-   const mask=p.createRadialGradient(48,48,15,48,48,67);
+   const mask=p.createRadialGradient(48,48,8,48,48,66);
    mask.addColorStop(0,'rgba(0,0,0,0)');
-   mask.addColorStop(.55,'rgba(0,0,0,.16)');
-   mask.addColorStop(1,'rgba(0,0,0,.94)');
+   mask.addColorStop(.45,'rgba(0,0,0,.09)');
+   mask.addColorStop(1,'rgba(0,0,0,.98)');
    p.fillStyle=mask;p.fillRect(0,0,n,n);
   }
  }
@@ -892,24 +892,30 @@ function settingsExpandArrow(x,y,expanded,color){
  g.save();g.translate(x,y);if(expanded)g.rotate(Math.PI/2);
  text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');g.restore();
 }
-// Preview size and spacing use one shared geometry model for all rows.
+// Five 6px units is the fixed, *largest* visual gap between each terminal
+// effect, independent of how many sliders the effect owns.
+const SETTINGS_ROW_GAP=UI_SPACE.unit*5; // 30px of unboxed black space.
+const SETTINGS_TITLE_H=20,SETTINGS_CONTROL_H=28,SETTINGS_SELECT_H=30;
 function settingsPreviewSize(width){
  return Math.min(68,Math.max(56,Math.round(width*.185)));
 }
 function settingsRows(buttonH,gap,width){
- const image=settingsPreviewSize(width),minCardH=image+2*gap;
- const rows=[];let offset=0;
+ const image=settingsPreviewSize(width),rows=[];let offset=0;
  for(const effect of DISPLAY_EFFECTS){
-  const cardHeight=Math.max(minCardH,
-   effect.id==='scanlines'?116:
-   effect.id==='ghost'||effect.id==='softness'?112:80);
+  // Ghosting's X+Y fit on one line and strength on the next.
+  const controls=effect.id==='ghost'||effect.id==='softness'?2:
+   effect.sliders?.length?1:0;
+  const contentHeight=SETTINGS_TITLE_H+
+   controls*(SETTINGS_CONTROL_H+gap)+
+   (effect.pattern?(SETTINGS_SELECT_H+gap):0);
+  const rowHeight=Math.max(image,contentHeight+2*gap);
   const choiceHeight=Math.max(34,buttonH-8);
   const expanded=effect.pattern&&scanlineMenuOpen;
-  const height=cardHeight+(expanded?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
-  rows.push({kind:'effect',effect,offset,height,cardHeight,choiceHeight});
-  offset+=height+gap;
+  const height=rowHeight+(expanded?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
+  rows.push({kind:'effect',effect,offset,height,rowHeight,contentHeight,choiceHeight});
+  offset+=height+SETTINGS_ROW_GAP;
  }
- return {rows,height:Math.max(0,offset-gap)};
+ return {rows,height:Math.max(0,offset-SETTINGS_ROW_GAP)};
 }
 // One uniform slider primitive everywhere: 15px square, 6px gaps, real
 // persisted values and full remaining row width from image to right inset.
@@ -920,7 +926,7 @@ function drawSettingsSlider(x,y,w,setting){
  const valueText=displayValue(value,step,unit);
  const labelW=label?(label==='X'||label==='Y'?12:label==='RADIUS'?51:65):0;
  const valueW=Math.max(30,Math.ceil(valueText.length*6.8));
- if(label)text(label,x,y,9,C.ink,'left',labelW);
+ if(label)text(label,x,y,10,C.ink,'left',labelW);
  const trackX=x+labelW+(label?gap:0)+size/2;
  const trackEnd=x+w-valueW-gap-size/2;
  const trackW=Math.max(1,trackEnd-trackX);
@@ -928,12 +934,12 @@ function drawSettingsSlider(x,y,w,setting){
  rect(trackX,y-1.5,trackW,3,C.border);
  rect(trackX,y-1.5,trackW*fraction,3,C.bright);
  rect(trackX+trackW*fraction-size/2,y-size/2,size,size,C.bright);
- text(valueText,x+w,y,9,C.bright,'right',valueW);
+ text(valueText,x+w,y,10,C.bright,'right',valueW);
  region(trackX-size/2,y-14,trackW+size,28,'slider',
   {field,min,max,step,trackX,trackW,modalControl:true});
 }
 function drawOptions(q){
- // Existing game header, now the only DISPLAY SYSTEM header and X control.
+ // Keep the approved DISPLAY SYSTEM header, inset rule, X and solid reset.
  regions=[];region(0,0,W,H,'block');
  const r=layout(),pad=q.pad,gap=q.gap,headH=r.hh;
  panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
@@ -945,7 +951,6 @@ function drawOptions(q){
  key('X',closeX,q.y+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
  rect(q.x+UI_SPACE.headTitleInset,q.y+headH-gap,
   Math.max(1,q.w-2*UI_SPACE.headTitleInset),1,C.border);
- // RESTORE DEFAULTS remains exactly START GAME-sized and non-scrolling.
  const restoreW=Math.min(q.w-2*pad,r.boardW*UI_SPACE.overlayButtonWidthScale);
  const restoreY=q.y+q.h-pad-r.extraH;
  key('RESTORE DEFAULTS',q.x+(q.w-restoreW)/2,restoreY,
@@ -962,57 +967,58 @@ function drawOptions(q){
  for(const row of model.rows){
   const y=top+row.offset-optionsScroll;
   if(y+row.height<top||y>bottom)continue;
-  const effect=row.effect,cardH=row.cardHeight;
-  panel(contentX,y,contentW,row.height,10,C.button,C.border);
-  const previewSize=settingsPreviewSize(contentW);
-  const previewX=contentX+gap,previewY=y+gap;
-  panel(previewX,previewY,previewSize,previewSize,7,C.button,C.border);
-  g.save();g.beginPath();
-  g.rect(previewX+2,previewY+2,previewSize-4,previewSize-4);g.clip();
-  g.drawImage(EFFECT_PREVIEWS[effect.id],previewX+2,previewY+2,
-   previewSize-4,previewSize-4);
-  g.restore();
+  const effect=row.effect,previewSize=settingsPreviewSize(contentW);
+  // Centre thumbnail and content block independently in the SAME measured row.
+  const previewX=contentX+gap;
+  const previewY=y+(row.rowHeight-previewSize)/2;
+  g.drawImage(EFFECT_PREVIEWS[effect.id],previewX,previewY,
+   previewSize,previewSize);
   const ctrlX=previewX+previewSize+gap;
   const ctrlW=contentX+contentW-gap-ctrlX;
-  const titleY=y+23;
+  const blockTop=y+(row.rowHeight-row.contentHeight)/2;
+  const titleY=blockTop+SETTINGS_TITLE_H/2;
   settingSquare(ctrlX,titleY-SETTINGS_SQUARE_SIZE/2,
    SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)));
-  text(effect.title,ctrlX+SETTINGS_SQUARE_SIZE+gap,titleY,11,C.bright,
+  text(effect.title,ctrlX+SETTINGS_SQUARE_SIZE+gap,titleY,12,C.bright,
    'left',Math.max(10,ctrlW-SETTINGS_SQUARE_SIZE-gap));
-  region(ctrlX,titleY-18,ctrlW,34,'toggle',
+  region(ctrlX,titleY-17,ctrlW,34,'toggle',
    {field:effect.toggle,modalControl:true});
+  const firstY=blockTop+SETTINGS_TITLE_H+gap+SETTINGS_CONTROL_H/2;
   if(effect.id==='ghost'){
-   const half=(ctrlW-gap)/2;
-   drawSettingsSlider(ctrlX,y+56,half,effect.sliders[0]);
-   drawSettingsSlider(ctrlX+half+gap,y+56,half,effect.sliders[1]);
-   drawSettingsSlider(ctrlX,y+86,ctrlW,effect.sliders[2]);
+   const half=(ctrlW-2*gap)/2;
+   drawSettingsSlider(ctrlX,firstY,half,effect.sliders[0]);
+   drawSettingsSlider(ctrlX+half+2*gap,firstY,half,effect.sliders[1]);
+   drawSettingsSlider(ctrlX,firstY+SETTINGS_CONTROL_H+gap,
+    ctrlW,effect.sliders[2]);
   }else if(effect.id==='softness'){
-   drawSettingsSlider(ctrlX,y+56,ctrlW,effect.sliders[0]);
-   drawSettingsSlider(ctrlX,y+86,ctrlW,effect.sliders[1]);
+   drawSettingsSlider(ctrlX,firstY,ctrlW,effect.sliders[0]);
+   drawSettingsSlider(ctrlX,firstY+SETTINGS_CONTROL_H+gap,
+    ctrlW,effect.sliders[1]);
   }else if(effect.sliders?.length){
-   drawSettingsSlider(ctrlX,y+54,ctrlW,effect.sliders[0]);
+   drawSettingsSlider(ctrlX,firstY,ctrlW,effect.sliders[0]);
   }
   if(effect.pattern){
-   // The selector is a local third line, not a section/category heading.
-   const selectY=y+78,selectH=26;
+   // Pattern picker belongs to Scanlines; no new category or separate row.
+   const selectY=blockTop+SETTINGS_TITLE_H+gap+
+    SETTINGS_CONTROL_H+gap,selectH=SETTINGS_SELECT_H;
    panel(ctrlX,selectY,ctrlW,selectH,5,C.button,C.border);
    const current=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
    const shortNames={horizontal:'HORIZONTAL',aperture:'APERTURE',
     slot:'SLOT MASK',dot:'DOT MASK'};
    text(shortNames[current?.id]||current?.name||'ORIGINAL',
-    ctrlX+gap,selectY+selectH/2,9,C.ink,'left',
+    ctrlX+gap,selectY+selectH/2,10,C.ink,'left',
     Math.max(10,ctrlW-3*gap-BUTTON_ICON_FONT_SIZE));
    settingsExpandArrow(ctrlX+ctrlW-gap-BUTTON_ICON_FONT_SIZE/2,
     selectY+selectH/2,scanlineMenuOpen,C.ink);
    region(ctrlX,selectY,ctrlW,selectH,'patternSelect',{modalControl:true});
    if(scanlineMenuOpen)SCANLINE_CHOICES.forEach((option,i)=>{
-    const cy=y+cardH+i*(row.choiceHeight+gap);
+    const cy=y+row.rowHeight+i*(row.choiceHeight+gap);
     const chosen=option.id===selectedScanlineChoice();
     settingSquare(contentX+3*gap,
      cy+(row.choiceHeight-SETTINGS_SQUARE_SIZE)/2,
      SETTINGS_SQUARE_SIZE,chosen);
     text(option.name,contentX+5*gap+SETTINGS_SQUARE_SIZE,
-     cy+row.choiceHeight/2,10,chosen?C.bright:C.ink,
+     cy+row.choiceHeight/2,11,chosen?C.bright:C.ink,
      'left',contentW-8*gap-SETTINGS_SQUARE_SIZE);
     region(contentX+2*gap,cy,contentW-4*gap,row.choiceHeight,
      'scanlineChoice',{field:option.id,modalControl:true});
@@ -1020,14 +1026,7 @@ function drawOptions(q){
   }
  }
  g.restore();
- if(optionsMaxScroll>0&&visibleH>0){
-  const railH=Math.max(0,visibleH-2*gap);
-  const thumbH=Math.min(railH,Math.max(28,
-   railH*visibleH/(visibleH+optionsMaxScroll)));
-  const thumbY=top+gap+(railH-thumbH)*
-   clamp(optionsScroll/optionsMaxScroll,0,1);
-  rect(q.x+q.w-4,thumbY,2,thumbH,C.weak);
- }
+ // Keep scroll input and momentum; omit decorative scrollbar/row separators.
 }
 function drawScores(q){
  modalPanel('FIELD ATLAS / TOP FIVE',q);
