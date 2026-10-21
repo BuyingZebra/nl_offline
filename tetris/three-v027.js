@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='043'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='044'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -730,37 +730,40 @@ function paintGame(){
 
 // Single data schema defines every settings category, item and value domain.
 // A single declarative schema owns the remaining visible settings.
+// A group contains independently configurable effects. Their UI layout is
+// derived from the same schema, so a toggle, description and sliders never
+// become detached by inserting another setting.
 const SETTINGS_GROUPS=[
- {id:'gameplay',title:'GAMEPLAY',items:[
-  ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound']]},
- {id:'overlays',title:'SCREEN OVERLAYS',items:[
-  ['switch','PHOSPHOR COLOR','phosphor'],
-  ['patternSelect','CRT SCANLINES','scanlinePreset'],
-  ['range','SCANLINE INTENSITY','scanlineOpacity',0,100,1,'%'],
-  ['switch','SCREEN VIGNETTE','vignette'],
-  ['range','VIGNETTE STRENGTH','vignetteAmount',0,100,1,'%'],
-  ['switch','PHOSPHOR BLOOM','bloom'],
-  ['range','BLOOM STRENGTH','bloomStrength',0,100,1,'%']]},
- {id:'experimental',title:'SCREEN OVERLAY (EXPERIMENTAL)',items:[
-  ['switch','GHOSTING','ghost'],
-  ['range','GHOST X','ghostX',-32,32,1,' px'],
-  ['range','GHOST Y','ghostY',-32,32,1,' px'],
-  ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%'],
-  ['switch','EDGE SOFTNESS','softness'],
-  ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
-  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]}
+ {id:'gameplay',title:'GAMEPLAY',effects:[
+  {title:'GHOST PIECE',toggle:'pieceGhost'},
+  {title:'SOUND',toggle:'sound'}
+ ]},
+ {id:'overlays',title:'SCREEN OVERLAYS',effects:[
+  {title:'PHOSPHOR COLOR',toggle:'phosphor',
+   description:'Enable phosphor tint. Choose green or amber in the viewport.'},
+  {title:'CRT SCANLINES',status:'scanlines',valueField:'scanlineOpacity',
+   description:'A grayscale CRT pattern across the entire screen.',
+   controls:[['patternSelect','PATTERN','scanlinePreset'],
+    ['range','INTENSITY','scanlineOpacity',0,100,1,'%']]},
+  {title:'SCREEN VIGNETTE',toggle:'vignette',valueField:'vignetteAmount',
+   description:'Darkens the outer edges of the display.',
+   controls:[['range','VIGNETTE','vignetteAmount',0,100,1,'%']]},
+  {title:'PHOSPHOR BLOOM',toggle:'bloom',valueField:'bloomStrength',
+   description:'Bloom follows interface luminance and pixel brightness.',
+   controls:[['range','BLOOM','bloomStrength',0,100,1,'%']]}
+ ]},
+ {id:'experimental',title:'SCREEN OVERLAY (EXPERIMENTAL)',effects:[
+  {title:'SIGNAL GHOSTING',toggle:'ghost',valueField:'ghostStrength',
+   description:'Analog image echoes shift and fade behind the display.',
+   controls:[['range','GHOST X','ghostX',-32,32,1,' px'],
+    ['range','GHOST Y','ghostY',-32,32,1,' px'],
+    ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%']]},
+  {title:'EDGE SOFTNESS',toggle:'softness',valueField:'softnessStrength',
+   description:'Softens screen detail while retaining a sharp source.',
+   controls:[['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
+    ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]}
+ ]}
 ];
-// Descriptions are view-only and keyed to the same authoritative setting fields.
-const SETTINGS_DESCRIPTIONS=Object.freeze({
- scanlineOpacity:'Controls how visible the CRT mask is across the screen.',
- vignetteAmount:'Darkens the outer edges while keeping the centre clear.',
- bloomStrength:'Brighter pixels produce a stronger phosphor glow.',
- ghostX:'Moves the analog signal ghost horizontally.',
- ghostY:'Moves the analog signal ghost vertically.',
- ghostStrength:'Controls the visibility of the ghosted image.',
- softnessStrength:'Blends optical blur with the original display.',
- softnessRadius:'Adjusts the distance covered by optical blur.'
-});
 const SCANLINE_CHOICES=[
  {id:'off',name:'OFF'},
  ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))
@@ -816,25 +819,38 @@ function modalActionRow(q,items){
   key(label,x+i*(buttonW+q.gap),y,buttonW,q.buttonH,act,{light:Boolean(light)}));
  return y;
 }
-// One row model drives visible category geometry, scrolling and hitboxes.
+// The 6px spacing token owns every gap between complete effect blocks,
+// and the 20px square is shared by switches, selected options and slider thumbs.
+const SETTINGS_SQUARE_SIZE=20;
 function settingsRows(buttonH,gap){
- const headingH=Math.max(30,buttonH-2*gap),rangeH=buttonH+7*gap;
- const patternH=2*buttonH+gap,rows=[];
- let offset=0;
+ const groupH=Math.max(30,buttonH-2*gap);
+ const effectHeadingH=28,descriptionH=28;
+ const sliderH=Math.max(30,buttonH-10);
+ const dropdownH=buttonH;
+ const optionH=Math.max(32,buttonH-6);
+ const rows=[];let offset=0;
  for(const group of SETTINGS_GROUPS){
-  rows.push({kind:'group',group,offset,height:headingH});
-  offset+=headingH+gap;
+  rows.push({kind:'group',group,offset,height:groupH});
+  offset+=groupH+gap;
   if(group.id!==expandedSettingsGroup)continue;
-  for(const item of group.items){
-   const height=item[0]==='range'?rangeH:item[0]==='patternSelect'?patternH:buttonH;
-   rows.push({kind:item[0],item,group,offset,height});
-   offset+=height+gap;
-   if(item[0]==='patternSelect'&&scanlineMenuOpen){
-    for(const option of SCANLINE_CHOICES){
-     rows.push({kind:'scanlineChoice',item,group,option,offset,height:buttonH});
-     offset+=buttonH+gap;
+  for(const effect of group.effects){
+   const headerH=effectHeadingH+(effect.description?descriptionH:0);
+   rows.push({kind:'effect',group,effect,offset,height:headerH,headingH:effectHeadingH});
+   offset+=headerH+gap;
+   for(const item of effect.controls||[]){
+    const kind=item[0],height=kind==='range'?sliderH:dropdownH;
+    rows.push({kind,item,group,effect,offset,height});
+    offset+=height+gap;
+    if(kind==='patternSelect'&&scanlineMenuOpen){
+     for(const option of SCANLINE_CHOICES){
+      rows.push({kind:'scanlineChoice',item,effect,option,offset,height:optionH});
+      offset+=optionH+gap;
+     }
     }
    }
+   // Divider is part of the effect block, never attached to a single slider.
+   rows.push({kind:'effectDivider',group,effect,offset,height:1});
+   offset+=1+gap;
   }
  }
  return {rows,height:Math.max(0,offset-gap)};
@@ -860,7 +876,7 @@ function chooseScanline(id){
  scanlineMenuOpen=false;persist();scrollVelocity=0;invalidate();
 }
 function settingSquare(x,y,size,active){
- // Binary options: solid square = enabled, outline square = disabled.
+ // Solid = enabled / selected; outline = disabled / unselected.
  g.lineWidth=1;
  if(active){
   g.fillStyle=C.bright;g.fillRect(x,y,size,size);
@@ -869,7 +885,6 @@ function settingSquare(x,y,size,active){
  }
 }
 function settingsExpandArrow(x,y,expanded,color){
- // Use the exact 18px START/RESUME arrow glyph and rotate it when expanded.
  g.save();
  g.translate(x,y);
  if(expanded)g.rotate(Math.PI/2);
@@ -882,7 +897,6 @@ function drawOptions(q){
  const contentX=x+pad,contentW=w-2*pad;
  const backY=modalBodyTop(q);
  key('RETURN TO GAME',contentX,backY,contentW,buttonH,'close');
- // The bottom action is pinned outside the scrolling category viewport.
  const restoreY=y+h-pad-buttonH;
  key('RESTORE DEFAULTS',contentX,restoreY,contentW,buttonH,'resetFX');
  const top=backY+buttonH+gap,bottom=restoreY-gap;
@@ -897,62 +911,70 @@ function drawOptions(q){
   const {kind,height,offset}=row,yy=top+offset-optionsScroll;
   if(yy+height<top||yy>bottom)continue;
   if(kind==='group'){
-   const selected=expandedSettingsGroup===row.group.id;
-   const iconSlot=BUTTON_ICON_FONT_SIZE,iconX=contentX+pad;
-   const color=selected?C.bright:C.weak;
-   settingsExpandArrow(iconX+iconSlot/2,yy+height/2,selected,color);
-   text(row.group.title,iconX+iconSlot+gap,yy+height/2,11,
-    color,'left',contentW-2*pad-iconSlot-gap);
+   const expanded=expandedSettingsGroup===row.group.id;
+   const iconX=contentX+pad,color=expanded?C.bright:C.weak;
+   settingsExpandArrow(iconX+BUTTON_ICON_FONT_SIZE/2,yy+height/2,expanded,color);
+   text(row.group.title,iconX+BUTTON_ICON_FONT_SIZE+gap,yy+height/2,11,
+    color,'left',contentW-2*pad-BUTTON_ICON_FONT_SIZE-gap);
    rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.border);
    region(contentX,yy,contentW,height,'settingsGroup',
     {field:row.group.id,modalControl:true});
+  }else if(kind==='effect'){
+   const effect=row.effect,topRowY=yy+row.headingH/2;
+   let titleX=contentX+pad;
+   if(effect.toggle||effect.status){
+    const squareX=titleX,squareY=topRowY-SETTINGS_SQUARE_SIZE/2;
+    settingSquare(squareX,squareY,SETTINGS_SQUARE_SIZE,
+     Boolean(settingValue(effect.toggle||effect.status)));
+    titleX+=SETTINGS_SQUARE_SIZE+gap;
+   }
+   const value=effect.valueField?displayValue(Number(settingValue(effect.valueField)),1,'%'):null;
+   const valueReserve=value?Math.max(44,value.length*8):0;
+   text(effect.title,titleX,topRowY,11,C.ink,'left',
+    Math.max(10,contentX+contentW-pad-titleX-valueReserve-gap));
+   if(value)text(value,contentX+contentW-pad,topRowY,11,C.bright,'right');
+   if(effect.description)text(effect.description,contentX+pad,
+    yy+row.headingH+14,10,C.weak,'left',contentW-2*pad);
+   if(effect.toggle)region(contentX,yy,contentW,row.headingH,'toggle',
+    {field:effect.toggle,modalControl:true});
+  }else if(kind==='effectDivider'){
+   rect(contentX+pad,yy,contentW-2*pad,1,C.border);
   }else if(kind==='scanlineChoice'){
    const chosen=row.option.id===selectedScanlineChoice();
-   panel(contentX,yy,contentW,height,7,C.button,C.border);
-   settingSquare(contentX+pad,yy+(height-16)/2,16,chosen);
-   text(row.option.name,contentX+2*pad+16,yy+height/2,11,
-    chosen?C.bright:C.ink,'left',contentW-3*pad-16);
+   settingSquare(contentX+pad,yy+(height-SETTINGS_SQUARE_SIZE)/2,
+    SETTINGS_SQUARE_SIZE,chosen);
+   text(row.option.name,contentX+2*pad+SETTINGS_SQUARE_SIZE,
+    yy+height/2,11,chosen?C.bright:C.ink,'left',
+    contentW-3*pad-SETTINGS_SQUARE_SIZE);
    region(contentX,yy,contentW,height,'scanlineChoice',
     {field:row.option.id,modalControl:true});
-  }else{
+  }else if(kind==='patternSelect'){
+   const [type,name,k]=row.item;
+   const controlX=contentX+pad+Math.max(62,name.length*7.1);
+   const controlW=Math.max(40,contentX+contentW-pad-controlX);
+   text(name,contentX+pad,yy+height/2,11,C.ink,'left',controlX-contentX-pad-gap);
+   panel(controlX,yy+3,controlW,height-6,6,C.button,C.border);
+   const selected=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
+   text(selected?.name||'ORIGINAL',controlX+pad,yy+height/2,10,C.ink,
+    'left',Math.max(10,controlW-3*pad-BUTTON_ICON_FONT_SIZE));
+   settingsExpandArrow(controlX+controlW-pad-BUTTON_ICON_FONT_SIZE/2,
+    yy+height/2,scanlineMenuOpen,C.ink);
+   region(controlX,yy,controlW,height,'patternSelect',{modalControl:true});
+  }else if(kind==='range'){
    const [type,name,k,min,max,step,unit]=row.item;
-   if(type==='button'){
-    key(name,contentX,yy,contentW,height,k,{modalControl:true});
-   }else if(type==='switch'){
-    text(name,contentX+pad,yy+height/2,11,C.ink,'left',contentW-3*pad-24);
-    const square=20,squareX=contentX+contentW-pad-square;
-    settingSquare(squareX,yy+(height-square)/2,square,Boolean(settingValue(k)));
-    rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.grid);
-    region(contentX,yy,contentW,height,'toggle',{field:k,modalControl:true});
-   }else if(type==='patternSelect'){
-    text(name,contentX+pad,yy+buttonH/2,11,C.ink,'left',contentW-2*pad);
-    const cy=yy+buttonH+gap;
-    panel(contentX,cy,contentW,buttonH,7,C.button,C.border);
-    const selected=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
-    text(selected?.name||'ORIGINAL',contentX+pad,cy+buttonH/2,11,
-     C.ink,'left',contentW-3*pad-BUTTON_ICON_FONT_SIZE);
-    settingsExpandArrow(contentX+contentW-pad-BUTTON_ICON_FONT_SIZE/2,
-     cy+buttonH/2,scanlineMenuOpen,C.ink);
-    region(contentX,cy,contentW,buttonH,'patternSelect',{modalControl:true});
-   }else if(type==='range'){
-    const value=Number(settingValue(k));
-    // V027-style stack: label and value, muted explanation, then slider.
-    const captionY=yy+14;
-    text(name,contentX+pad,captionY,11,C.ink,'left',contentW*.7);
-    text(displayValue(value,step,unit),contentX+contentW-pad,captionY,
-     11,C.bright,'right');
-    const description=SETTINGS_DESCRIPTIONS[k];
-    if(description)text(description,contentX+pad,yy+42,10,C.weak,'left',
-     contentW-2*pad);
-    const trackX=contentX+pad+9,trackW=Math.max(1,contentW-2*(pad+9));
-    const trackY=yy+height-12;
-    rect(trackX,trackY-2,trackW,4,C.border);
-    const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
-    rect(trackX,trackY-2,trackW*fraction,4,C.bright);
-    rect(cx-8,trackY-8,16,16,C.bright);
-    region(trackX-9,trackY-13,trackW+18,26,'slider',
-     {field:k,min,max,step,trackX,trackW,modalControl:true});
-   }
+   const labelW=Math.max(70,Math.min(132,name.length*7.4+gap));
+   const value=Number(settingValue(k));
+   text(name,contentX+pad,yy+height/2,10,C.ink,'left',labelW-gap);
+   const trackX=contentX+pad+labelW+gap+SETTINGS_SQUARE_SIZE/2;
+   const trackW=Math.max(1,contentX+contentW-pad-SETTINGS_SQUARE_SIZE/2-trackX);
+   const trackY=yy+height/2;
+   rect(trackX,trackY-2,trackW,4,C.border);
+   const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
+   rect(trackX,trackY-2,trackW*fraction,4,C.bright);
+   const square=SETTINGS_SQUARE_SIZE;
+   rect(cx-square/2,trackY-square/2,square,square,C.bright);
+   region(trackX-square/2,trackY-16,trackW+square,32,'slider',
+    {field:k,min,max,step,trackX,trackW,modalControl:true});
   }
  }
  g.restore();
