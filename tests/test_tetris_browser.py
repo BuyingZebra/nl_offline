@@ -58,8 +58,9 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # V046: one uninterrupted list of 8 effect cards, no category headings
-    # or descriptions. All slider thumbs and toggles are the same 15px square.
+    # V047: an unboxed Fallout-style terminal list. Every effect uses the
+    # tallest content group's 102px row slot plus one 6px inter-row gap.
+    # This produces equally spaced square thumbnails without divider lines.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
@@ -69,15 +70,16 @@ with sync_playwright() as p:
     header_height = 80 if page_height > 730 else 58
     content_top = modal_top + header_height + 6
 
-    # The first preview card starts immediately below DISPLAY SYSTEM:
-    # phosphor (80), scanlines (116), vignette (80), bloom (80), ghost (112).
+    row_height, row_gap = 102, 6
     phosphor_y = content_top
-    scanline_y = phosphor_y + 80 + 6
-    vignette_y = scanline_y + 116 + 6
-    bloom_y = vignette_y + 80 + 6
-    ghost_y = bloom_y + 80 + 6
-    phosphor_switch = (111, phosphor_y + 23)
-    scanline_selector = (180, scanline_y + 91)
+    scanline_y = content_top + (row_height + row_gap)
+    vignette_y = content_top + 2 * (row_height + row_gap)
+    bloom_y = content_top + 3 * (row_height + row_gap)
+    ghost_y = content_top + 4 * (row_height + row_gap)
+    # The simple Phosphor title/toggle block is centered vertically.
+    phosphor_switch = (111, phosphor_y + row_height / 2)
+    # Scanline's title, slider and pattern selector fill the largest block.
+    scanline_selector = (180, scanline_y + 81)
     choice_height = max(34, menu_button_height - 8)
 
     def fx_value(key):
@@ -103,7 +105,7 @@ with sync_playwright() as p:
     assert chooser_shot.tobytes() != settings_shot.tobytes(), (
         "CRT pattern selector failed to open"
     )
-    off_y = scanline_y + 116 + choice_height / 2
+    off_y = scanline_y + row_height + choice_height / 2
     tap(120, off_y)
     assert fx_value("scanlines") is False, "CRT OFF selection failed"
     tap(*scanline_selector)
@@ -115,8 +117,8 @@ with sync_playwright() as p:
     # half-width sliders, with a separate full-width Strength slider.
     ghost_x_before = fx_value("ghostX")
     ghost_y_before = fx_value("ghostY")
-    tap(122, ghost_y + 56)
-    tap(269, ghost_y + 56)
+    tap(122, ghost_y + 47)
+    tap(269, ghost_y + 47)
     assert fx_value("ghostX") != ghost_x_before, "Ghost X slider did not change"
     assert fx_value("ghostY") != ghost_y_before, "Ghost Y slider did not change"
 
