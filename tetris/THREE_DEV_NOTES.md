@@ -1,6 +1,6 @@
 # FIELD ATLAS · Tetris System / Three.js
 
-## Current production architecture (V038)
+## Current production architecture (V039)
 - **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
 - **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
@@ -17,6 +17,15 @@
 - Test the same Home Screen installation and ordinary Safari, portrait/landscape, settings scroll and sliders, paused-board actions, Top Five, restart confirmation, high-score entry, and all dialog transitions.
 - The mobile Playwright smoke suite in `tests/test_tetris_browser.py` includes settings, scores, restart screenshot captures. These are preliminary regression checks, not a substitute for iPhone visual validation.
 - Treat the versioned notes below as **historical snapshots**, not statements of the current architecture. Many old instructions about PixiJS, standalone experiments, removed effects and modal cropping have been superseded.
+
+## V039: Compact, collapsible Fallout-style Settings
+- Compared the user's iPhone Version 038 Settings screenshot with the earlier flatter screen. The problem was excessive per-control bordered panels and an overwhelming continuous settings list, not insufficient space. The approved visual direction is a compact information hierarchy with lighter borders and a consistent square-state vocabulary.
+- Replaced the flat `MENU` array with one `SETTINGS_GROUPS` schema for **Gameplay**, **CRT Emission**, **Signal Ghosting**, **CRT Mask**, **Display Optics**, and **Display Preset**. Each category expands/collapses with a single active group at a time; **Gameplay** opens by default, and selecting the current category can collapse all groups. Every option retains the same persistent field key, value range, default and shader effect.
+- A single `settingsRows(buttonH,gap)` produces row heights and offsets for layout and scrolling; offscreen rows are skipped while interactive hits are kept inside the options scroll viewport. Switching categories recalculates the scroll range and tries to bring the chosen group toward the top without scrolling past the actual content limits.
+- Every binary Settings switch now uses an exact grayscale **filled square** (enabled) or **outlined square** (disabled); group headers use the same squares for expanded/collapsed states. Slider thumbs are square too. The pattern selector keeps its direction arrows, since they indicate previous/next rather than binary state. No checkmark glyphs remain in Settings.
+- The Settings interior uses 6px gaps and compact, unboxed control rows rather than large rounded panels around every property. Primary Return and Restore actions keep the established button dimensions; category headings remain smaller, with thin separators. The full-screen CRT composite, source luminance, phosphor values and gameplay layer are untouched.
+- Source JavaScript parse and mocked 393×852 accordion tests passed for 6 headings, unique expansion, correct switch/slider groups, Restore visibility, all-collapsed mode, and valid scroll bounds. The browser QA test includes toggling/restoring Ghost Piece and switching to CRT Emission. Actual iPhone rendering still needs validation after GitHub Pages publishes Version **039**.
+- Retained Version 033 root/viewport fix, the permanent `tetris/three-v027.html` link, saved highscores, gameplay/scoring, all effects, and persistence. No related CSS or core engine changes.
 
 ## Historical development log (archived)
 
