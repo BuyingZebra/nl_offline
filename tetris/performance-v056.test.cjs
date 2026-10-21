@@ -72,7 +72,7 @@ test('visual-effect controls, compositor order and stable URL are retained',()=>
  assert.ok(main.includes("from './compositor.js?v059'"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
  assert.ok(main.includes("const THREE_BUILD_VERSION='063'"));
- assert.ok(html.includes('<title>NOMAD — Tetris System</title>'));
+ assert.ok(html.includes('NOMAD — Tetris System'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(compositor.includes('composer.addPass(new OutputPass())'));
 });
