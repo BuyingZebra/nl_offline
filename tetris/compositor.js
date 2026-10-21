@@ -10,6 +10,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
 // Fixed V049 optical constants; unchanged by modularization.
+const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 function boardBlurParams(){
