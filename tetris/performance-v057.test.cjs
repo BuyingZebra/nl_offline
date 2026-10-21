@@ -94,9 +94,9 @@ test('ordinary unattended game ticks do not move the piece every frame',()=>{
  assert.ok(advanced>0,'the piece should still fall');
 });
 test('V057 retains same screen and existing debug-copy workflow',()=>{
- assert.ok(main.includes("const THREE_BUILD_VERSION='062'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='063'"));
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(main.includes('debugClipboard.copyText(report)'));
- assert.ok(read('three-v027.html').includes('Tetris System V062'));
+ assert.ok(read('three-v027.html').includes('Tetris System V063'));
 });
