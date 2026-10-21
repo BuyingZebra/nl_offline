@@ -5,11 +5,12 @@
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v059';
 import {createCanvasUI} from './canvas-ui.js?v052';
-import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor} from './perf-monitor.js?v061';
+import {createInputController} from './input-controller.js?v062';
+import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
+import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v061';
+import {formatDebugReport} from './debug-report.js?v062';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
@@ -32,7 +33,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='061'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='062'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -72,7 +73,7 @@ let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let dirty=true,baseDirty=true,boardDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
+let dirty=true,baseDirty=true,boardDirty=true,sidebarDirty=true,controlsDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
 // Attribute actual draws instead of assuming every RAF tick triggers painting.
 const pendingRedrawReasons=new Set(['startup']);
 // Small rolling history: no overlay, network, persistent storage, or console spam.
@@ -91,18 +92,29 @@ let lineClearFX=null,lastPaintedBoardPopupStatus=null;
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
 const boardCanvas=document.createElement('canvas');
 const boardContext=boardCanvas.getContext('2d',{alpha:false});
+const sidebarCanvas=document.createElement('canvas');
+const sidebarContext=sidebarCanvas.getContext('2d',{alpha:false});
+const controlsCanvas=document.createElement('canvas');
+const controlsContext=controlsCanvas.getContext('2d',{alpha:false});
 let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
 // Sharp board popup UI is a separate grayscale layer composed after GPU blur.
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
-if(!g||!boardContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+if(!g||!boardContext||!sidebarContext||!controlsContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const boardTexture=new THREE.CanvasTexture(boardCanvas);
 boardTexture.colorSpace=THREE.SRGBColorSpace;
 boardTexture.minFilter=THREE.LinearFilter;boardTexture.magFilter=THREE.LinearFilter;
 boardTexture.generateMipmaps=false;
+const sidebarTexture=new THREE.CanvasTexture(sidebarCanvas);
+const controlsTexture=new THREE.CanvasTexture(controlsCanvas);
+for(const t of [sidebarTexture,controlsTexture]){
+ t.colorSpace=THREE.SRGBColorSpace;
+ t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
+ t.generateMipmaps=false;
+}
 const boardPopupTexture=new THREE.CanvasTexture(boardPopupCanvas);
 boardPopupTexture.colorSpace=THREE.SRGBColorSpace;boardPopupTexture.minFilter=THREE.LinearFilter;
 boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps=false;
@@ -124,6 +136,17 @@ const boardPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
   depthTest:false,depthWrite:false}));
 boardPlane.frustumCulled=false;boardPlane.renderOrder=.5;boardPlane.position.z=.01;
 scene.add(boardPlane);
+// Sidebar and deck are cropped opaque UI layers. Both are composited before
+// bloom/phosphor/CRT effects; the full-screen base remains unchanged.
+function makeUILayer(texture,order,z){
+ const plane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,
+   depthTest:false,depthWrite:false}));
+ plane.frustumCulled=false;plane.renderOrder=order;plane.position.z=z;
+ scene.add(plane);return plane;
+}
+const sidebarPlane=makeUILayer(sidebarTexture,.6,.011);
+const controlsPlane=makeUILayer(controlsTexture,.7,.012);
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
 // smaller transparent modal texture into ONE framebuffer before CRT shaders.
 // Dragging a menu no longer repaints or reuploads the fullscreen game texture.
@@ -189,7 +212,7 @@ game.lockPiece=function(){
   snapshot.forEach((row,y)=>{if(row.every(Boolean))rows.push(y);});
   if(rows.length){
    lineClearFX={board:snapshot,rows:new Set(rows),elapsed:0};
-   boardDirty=true;baseDirty=true;invalidate();
+   boardDirty=true;sidebarDirty=true;controlsDirty=true;invalidate();
   }
  }
 };
@@ -209,7 +232,7 @@ function onOver(){
 function perform(type){
  // Allow pause during the line-clear animation; block gameplay moves.
  if(lineClearFX&&game.status==='playing'&&['left','right','cw','hard','hold'].includes(type))return false;
- const was=game.status,pieces=game.pieces,lines=game.lines;
+ const was=game.status,pieces=game.pieces,lines=game.lines,score=game.score,held=game.hold;
  let ok=false;
  if(type==='left')ok=game.move(-1);
  else if(type==='right')ok=game.move(1);
@@ -219,7 +242,10 @@ function perform(type){
  else if(type==='pause')ok=game.pause();
  else if(type==='start')ok=game.start();
  if(ok){
-  boardDirty=true;baseDirty=true;
+  boardDirty=true;controlsDirty=true;
+  if(game.pieces!==pieces||game.hold!==held)sidebarDirty=true;
+  if(game.score!==score||game.lines!==lines)controlsDirty=true;
+  if(game.status!==was)baseDirty=true; // refresh READY/PAUSED/OVER popup
   if(was==='over'&&game.status==='playing')overOffered=false;
   if(game.lines>lines)tone(610,.14);
   else if(game.pieces>pieces)tone(175);
@@ -232,7 +258,7 @@ function perform(type){
 }
 function restart(){
  lineClearFX=null;
- game.reset();game.start();boardDirty=true;baseDirty=true;overOffered=false;openModal(null);invalidate();
+ game.reset();game.start();boardDirty=true;sidebarDirty=true;controlsDirty=true;baseDirty=true;overOffered=false;openModal(null);invalidate();
 }
 function options(){if(game.status==='playing')perform('pause');openModal('options');}
 function scores(){if(game.status==='playing')perform('pause');openModal('scores');}
@@ -240,7 +266,7 @@ function saveScore(){
  const tag=Scores.initials(initialsInput.value);
  highs=Scores.save(window.localStorage,Scores.add(highs,
   {name:tag,score:game.score,lines:game.lines,level:game.level,at:Date.now()}));
- store('fieldAtlasTetrisInitials',tag);initialsInput.blur();baseDirty=true;openModal('scores');
+ store('fieldAtlasTetrisInitials',tag);initialsInput.blur();sidebarDirty=true;openModal('scores');
 }
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -410,28 +436,8 @@ function paintBoardLayer(){
  boardTexture.needsUpdate=true;
  perf.textureChanged('board');
 }
-function paintBaseGame(){
- regions=[];const r=layout();layoutInfo=r;
- // The popup isn't sampled while playing. Avoid clearing and uploading
- // an entire full-resolution transparent texture for every falling piece.
- if(game.status!=='playing'){
-  boardPopupContext.setTransform(1,0,0,1,0,0);
-  boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
-  boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
- }
- g=baseContext;
- rect(0,0,W,H,C.bg);
- panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
- const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
- text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
-  r.hy+r.hh/2,titleSize,
-  C.ink,'left',Math.max(10,r.hw-116));
- const th=r.headerButtonH;
- const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
- const ty=r.hy+(r.hh-th)/2;
- key('◐',tx,ty,th,th,'theme');
- key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
- stage(r,false,true);
+// Keep all original drawing commands and labels; only their render target changes.
+function drawSidebar(r){
  const short=r.short;
  const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
  const sx=hold.x,sw=hold.w;
@@ -449,6 +455,8 @@ function paintBaseGame(){
  text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center');
  text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center');
  text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center');
+}
+function drawControls(r){
  panel(r.dx,r.dy,r.dw,r.dh,12,C.panel);
  const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad,ly=r.dy+r.deckPad+7;
  const s=Math.max(13,Math.min(17,pw*.046));
@@ -484,6 +492,55 @@ function paintBaseGame(){
  const groupW=ew*2+extraGap,groupX=px+(pw-groupW)/2;
  key('HOLD',groupX,ey,ew,r.extraH,'hold');
  key('PAUSE',groupX+ew+extraGap,ey,ew,r.extraH,'pause');
+}
+// Cached opaque crops cover stale duplicates on the full-screen base. The
+// temporary hitbox list prevents dynamic repaints from changing input priority.
+function paintUIRegion(canvas,context,plane,layerTexture,bounds,kind,draw){
+ const priorContext=g,priorRegions=regions;
+ g=context;regions=[];
+ try{
+  drawCroppedCanvas({canvas,context,plane,texture:layerTexture,bounds,
+   dpr:DPR,width:W,height:H,draw:region=>{
+    rect(region.x,region.y,region.w,region.h,C.bg);
+    draw(layoutInfo||layout());
+   }});
+ }finally{g=priorContext;regions=priorRegions;}
+ perf.textureChanged(kind);
+}
+function paintSidebarLayer(){
+ const r=layoutInfo||layout();
+ paintUIRegion(sidebarCanvas,sidebarContext,sidebarPlane,sidebarTexture,
+  sidebarBounds(r,W,H,DPR),'sidebar',drawSidebar);
+}
+function paintControlsLayer(){
+ const r=layoutInfo||layout();
+ paintUIRegion(controlsCanvas,controlsContext,controlsPlane,controlsTexture,
+  controlsBounds(r,W,H,DPR),'controls',drawControls);
+}
+function paintBaseGame(){
+ regions=[];const r=layout();layoutInfo=r;
+ // The popup isn't sampled while playing. Avoid clearing and uploading
+ // an entire full-resolution transparent texture for every falling piece.
+ if(game.status!=='playing'){
+  boardPopupContext.setTransform(1,0,0,1,0,0);
+  boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
+  boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
+ }
+ g=baseContext;
+ rect(0,0,W,H,C.bg);
+ panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
+ const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
+ text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
+  r.hy+r.hh/2,titleSize,
+  C.ink,'left',Math.max(10,r.hw-116));
+ const th=r.headerButtonH;
+ const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
+ const ty=r.hy+(r.hh-th)/2;
+ key('◐',tx,ty,th,th,'theme');
+ key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
+ stage(r,false,true);
+ drawSidebar(r);
+ drawControls(r);
  text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63);
  text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34);
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
@@ -509,13 +566,23 @@ function paintGame(){
   paintBoardLayer();boardDirty=false;
   perf.recordDuration('board',performance.now()-started);
  }
+ if(sidebarDirty){
+  const started=performance.now();
+  paintSidebarLayer();sidebarDirty=false;
+  perf.recordDuration('sidebar',performance.now()-started);
+ }
+ if(controlsDirty){
+  const started=performance.now();
+  paintControlsLayer();controlsDirty=false;
+  perf.recordDuration('controls',performance.now()-started);
+ }
  if(modal){
   const started=performance.now();
   paintModalOverlay();
   perf.recordDuration('modal',performance.now()-started);
  }
  else{
-  surface.visible=true;boardPlane.visible=true;
+  surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;controlsPlane.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions;
  }
@@ -554,7 +621,7 @@ function settingValue(k){
 }
 function setSetting(k,value){
  if(k==='pieceGhost'){
-  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');boardDirty=true;baseDirty=true;
+  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');boardDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{
@@ -958,6 +1025,7 @@ function paintModalOverlay(){
  // Options is now its own screen: hide the game rather than darken it.
  const standaloneSettings=modal==='options';
  surface.visible=!standaloneSettings;boardPlane.visible=!standaloneSettings;
+ sidebarPlane.visible=!standaloneSettings;controlsPlane.visible=!standaloneSettings;
  const q=modalBounds(modal);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
@@ -1006,7 +1074,11 @@ inputController=createInputController({
  getOptionsScroll:()=>optionsScroll,setOptionsScroll:v=>{optionsScroll=v;},
  getOptionsMaxScroll:()=>optionsMaxScroll,
  setScrollVelocity:v=>{scrollVelocity=v;},
- setBaseDirty:()=>{baseDirty=true;},
+ setBaseDirty:(act)=>{
+  if(act==='theme'||act==='options')baseDirty=true;
+  else if(act==='board')boardDirty=true;
+  else if(act)controlsDirty=true;
+ },
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp
 });
@@ -1075,9 +1147,10 @@ function frame(now){
    dirty=true;boardDirty=true;
    // Ordinary gravity shifts only the board, not the surrounding UI.
    if(game.score!==prior.score||game.lines!==prior.lines||
-    game.level!==prior.level||game.pieces!==prior.pieces||
-    game.hold!==prior.hold||game.status!==prior.status||
-    game.current!==prior.piece)baseDirty=true;
+    game.level!==prior.level)controlsDirty=true;
+   if(game.pieces!==prior.pieces||game.hold!==prior.hold||
+    game.current!==prior.piece)sidebarDirty=true;
+   if(game.status!==prior.status)baseDirty=true;
    pendingRedrawReasons.add('gravity');
    if(game.lines>prior.lines)tone(590,.1);
    else if(game.pieces>prior.pieces)tone(180,.04);
@@ -1102,6 +1175,8 @@ function frame(now){
    // Each revision is uploaded at most once, with no extra draw commands.
    if(surface.visible)textureUploads.upload(texture,'base');
    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
+   if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
+   if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
    if(!modal&&game.status!=='playing')
     textureUploads.upload(boardPopupTexture,'popup');
@@ -1128,7 +1203,7 @@ function resize(forceLayout=false){
  const d=Math.min(MAX_RENDER_DPR,Math.max(1,window.devicePixelRatio||1));
  // A pending redraw must never force another allocation at the same size.
  if(w===W&&h===H&&d===DPR){
-  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;boardDirty=true;invalidate('resize');}
+  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;boardDirty=true;sidebarDirty=true;controlsDirty=true;invalidate('resize');}
   return;
  }
  W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
@@ -1138,7 +1213,7 @@ function resize(forceLayout=false){
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  compositor.resize(W,H,DPR);
  perf.setViewport(W,H,DPR);
- baseDirty=true;boardDirty=true;dirty=true;invalidate('resize');
+ baseDirty=true;boardDirty=true;sidebarDirty=true;controlsDirty=true;dirty=true;invalidate('resize');
 }
 new ResizeObserver(()=>resize()).observe(display);
 window.addEventListener('orientationchange',()=>resize(true));
