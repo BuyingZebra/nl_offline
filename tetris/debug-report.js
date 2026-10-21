@@ -3,8 +3,6 @@
  */
 export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
- const line=(name,v)=>name+': '+value(v);
- const n=v=>typeof v==='number'&&Number.isFinite(v)?v.toFixed(2):'n/a';
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
   'Build: V'+value(version),
@@ -18,7 +16,8 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
   'RAF interval = pacing between scheduled frames, not physical display refresh rate.'
  ];
- const observed=samples.length?samples:(current?[current]:[]);
+ const observed=samples.slice(-8);
+ if(current&&current.frameTicks>0)observed.push(current);
  if(!observed.length)rows.push('No complete sample yet. Start a game for a few seconds, then copy again.');
  observed.forEach((s,i)=>{
   rows.push('Sample '+(i+1)+': '+value(s.seconds,'s')+
