@@ -8,6 +8,7 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -18,7 +19,7 @@ function boardBlurParams(){
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
 }
 
-export function createCompositor({renderer,scene,camera,boardPopupTexture}){
+export function createCompositor({renderer,scene,camera,boardPopupTexture,onPassTiming=()=>{}}){
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
  // Extract bloom from grayscale luminance before colourization.
@@ -248,6 +249,12 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  scanlineOverlay.enabled=false;
  composer.addPass(scanlineOverlay);
  composer.addPass(new OutputPass());
+ // Keep the exact pass order, source textures and FX behavior. Measure the
+ // CPU time spent issuing each pass only; no extra GL renders or readbacks.
+ const passProfiler=instrumentCompositorPasses(composer.passes,[
+  'Scene + uploads','Board blur H','Board popup','Ghost','Bloom',
+  'Phosphor','Edge softness','Vignette','CRT mask','Output'
+ ],onPassTiming);
  const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
@@ -303,6 +310,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupSt
  }
  // Dispose is explicit; never dispose source textures owned by the game UI.
  function dispose(){
+  passProfiler.dispose();
   composer.dispose();
   for(const texture of Object.values(scanlineTextures))texture.dispose();
  }
