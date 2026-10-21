@@ -93,12 +93,13 @@ test('failed clipboard writes return false for visual failure feedback',async()=
 test('debug button sits left of X and copies on user activation',()=>{
  const code=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
- assert.ok(code.includes('const debugX=closeX-q.buttonH-UI_SPACE.headIconGap;'));
+ const modalUI=fs.readFileSync(path.join(__dirname,'modal-ui.js'),'utf8');
+ assert.ok(modalUI.includes('const debugX=closeX-q.buttonH-UI_SPACE.headIconGap;'));
  assert.ok(fs.readFileSync(path.join(__dirname,'modal-ui.js'),'utf8').includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(code.includes("if(act==='copyDebug'){copyDebugReport();return;}"));
  assert.ok(code.includes('debugClipboard.copyText(report)'));
- assert.ok(code.includes("debugCopyState=success?'copied':'failed'"));
- assert.ok(code.includes('function drawDebugBug(cx,cy){'));
+ assert.ok(code.includes("modalUI.debugCopyState=success?'copied':'failed'"));
+ assert.ok(modalUI.includes('function drawDebugBug(cx,cy){'));
  assert.ok(!code.includes('createPerfHud({enabled:perfEnabled'));
  assert.ok(code.includes("const THREE_BUILD_VERSION='064'"));
  assert.ok(html.includes('NOMAD — Tetris System'));
