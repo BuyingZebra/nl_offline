@@ -116,6 +116,15 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
    uniform float uAmount,uRadius;uniform vec2 uSize;
+   // This is exactly the same separable Gaussian kernel (sigma=1.25),
+   // with its constant weights calculated once instead of 49 exp() calls
+   // per pixel. Keep 7x7 sampling and all edge falloff settings unchanged.
+   float gaussianWeight(int k){
+    if(k==0)return 1.0;
+    if(k==1||k==-1)return .7261490371;
+    if(k==2||k==-2)return .2780373005;
+    return .0561347628;
+   }
    void main(){
     vec4 sharp=texture2D(tDiffuse,vUv);
     vec2 distPx=min(vUv,1.0-vUv)*uSize;
@@ -126,9 +135,10 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     float interval=max(.001,uRadius)/3.0;
     vec4 sum=vec4(0.0);float weights=0.0;
     for(int y=-3;y<=3;y++){
+     float wy=gaussianWeight(y);
      for(int x=-3;x<=3;x++){
       vec2 offset=vec2(float(x),float(y));
-      float weight=exp(-dot(offset,offset)/(2.0*1.25*1.25));
+      float weight=gaussianWeight(x)*wy;
       sum+=texture2D(tDiffuse,clamp(vUv+offset*interval*pixel,vec2(0.0),vec2(1.0)))*weight;
       weights+=weight;
      }
