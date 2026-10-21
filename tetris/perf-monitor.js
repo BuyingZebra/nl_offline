@@ -14,7 +14,7 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   logicMs:0,logicCalls:0,basePaintMs:0,basePaintCount:0,
   modalPaintMs:0,modalPaintCount:0,syncMs:0,syncCount:0,
   redrawReasons:{},frameStates:{},gravityTickAdvances:0,visualStateChanges:0,
-  passTimes:{},webglCalls:0,renderSubmissions:0});
+  passTimes:{},webglCalls:0,renderSubmissions:0,uploadTimes:{}});
  let counters=fresh();
  function recordRaf(timestamp){
   if(!enabled||!Number.isFinite(timestamp))return;
@@ -65,6 +65,9 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    gravityTickAdvances:counters.gravityTickAdvances,
    visualStateChanges:counters.visualStateChanges,
    avgWebglCalls:+(counters.webglCalls/Math.max(1,counters.renderSubmissions)).toFixed(2),
+   uploadTimes:Object.fromEntries(Object.entries(counters.uploadTimes).map(([name,v])=>
+    [name,{calls:v.calls,avgCpuMs:+(v.cpuMs/v.calls).toFixed(3),
+     maxCpuMs:+v.maxCpuMs.toFixed(3),totalCpuMs:+v.cpuMs.toFixed(2)}])),
    passTimes:Object.fromEntries(Object.entries(counters.passTimes).map(([name,v])=>
     [name,{calls:v.calls,avgCpuMs:+(v.cpuMs/v.calls).toFixed(3),
      maxCpuMs:+v.maxCpuMs.toFixed(3),totalCpuMs:+v.cpuMs.toFixed(2)}])),
@@ -87,6 +90,12 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    const key=['startup','input','gravity','flash','scroll','resize','unknown'].includes(name)?name:'unknown';
    counters.redrawReasons[key]=(counters.redrawReasons[key]||0)+1;
   }
+ }
+ function recordUpload(name,elapsed){
+  if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
+  const key=['base','popup','modal'].includes(name)?name:'other';
+  const v=counters.uploadTimes[key]||(counters.uploadTimes[key]={calls:0,cpuMs:0,maxCpuMs:0});
+  v.calls++;v.cpuMs+=elapsed;v.maxCpuMs=Math.max(v.maxCpuMs,elapsed);
  }
  function recordPass(name,elapsed){
   if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
@@ -138,5 +147,5 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  return Object.freeze({enabled,startFrame,endFrame,startRender,endRender,
   textureChanged,recordRaf,resetPacing,setViewport,setGPUStats,
   recordDuration,recordRedrawReasons,recordGameChanges,recordState,
-  recordPass,recordWebglCalls,snapshot:()=>last,currentSnapshot});
+  recordUpload,recordPass,recordWebglCalls,snapshot:()=>last,currentSnapshot});
 }
