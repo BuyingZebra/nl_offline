@@ -1,0 +1,125 @@
+/* Run: node --test tetris/compositor.test.cjs
+ * GPU shader appearance still requires a real-phone visual pass.
+ */
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+
+function setup(){
+ const instances=[];
+ class Vec2{constructor(x,y){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
+ class Vec3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}copy(o){this.x=o.x;this.y=o.y;this.z=o.z;return this;}}
+ class Vec4{constructor(x,y,z,w){this.x=x;this.y=y;this.z=z;this.w=w;}set(x,y,z,w){Object.assign(this,{x,y,z,w});return this;}}
+ class Color{constructor(value){this.value=value;}}
+ class Texture{constructor(canvas){this.canvas=canvas;this.disposed=false;}dispose(){this.disposed=true;}}
+ class EffectComposer{
+  constructor(){this.passes=[];this.renderCount=0;this.disposed=false;instances.push(this);}
+  addPass(p){this.passes.push(p);}
+  render(){this.renderCount++;}
+  setPixelRatio(dpr){this.dpr=dpr;}
+  setSize(w,h){this.size=[w,h];}
+  dispose(){this.disposed=true;}
+ }
+ class RenderPass{constructor(){this.label='RENDER';}}
+ class UnrealBloomPass{constructor(){this.label='BLOOM';this.highPassUniforms={smoothWidth:{value:0}};}}
+ class ShaderPass{
+  constructor(shader){
+   this.uniforms=shader.uniforms;
+   const u=this.uniforms;
+   this.label='uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
+    'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
+    'uRadius' in u?'SOFTNESS':'uStart' in u?'VIGNETTE':
+    'uPattern' in u?'CRT':'UNKNOWN';
+  }
+ }
+ class OutputPass{constructor(){this.label='OUTPUT';}}
+ const THREE={
+  Vector2:Vec2,Vector3:Vec3,Vector4:Vec4,Color,CanvasTexture:Texture,
+  RepeatWrapping:'repeat',NearestFilter:'nearest'
+ };
+ const document={createElement:()=>({
+  width:0,height:0,
+  getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(){}})
+ })};
+ const file=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
+ const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
+ assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
+ const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document',
+  standalone+'\nreturn createCompositor;')
+  (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document);
+ const externalPopup={external:true};
+ const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
+ return {pipeline,composer:instances[0],externalPopup,instances};
+}
+const states={
+ phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
+ softness:true,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.39,
+ scanlines:true,scanlineOpacity:20,scanlinePreset:'original'
+};
+const update=(pipeline,override={})=>pipeline.syncFX({
+ fx:{...states,...override},theme:'green',width:393,height:852,dpr:3,
+ boardStatus:'playing',popupStatus:'ready',modalOpen:false,
+ layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}
+});
+test('pass order remains exactly the approved version',()=>{
+ const {composer}=setup();
+ assert.deepEqual(composer.passes.map(p=>p.label),[
+  'RENDER','BOARD BLUR','BOARD POPUP','GHOST','BLOOM','PHOSPHOR',
+  'SOFTNESS','VIGNETTE','CRT','OUTPUT'
+ ]);
+});
+test('display effect settings target their own passes',()=>{
+ const {pipeline,composer}=setup();
+ update(pipeline);
+ const p=composer.passes;
+ assert.equal(p[3].enabled,true);
+ assert.equal(p[3].uniforms.uStrength.value,.22);
+ assert.equal(p[4].enabled,true);
+ assert.equal(p[4].strength,.3);
+ assert.equal(p[5].uniforms.uEnabled.value,1);
+ assert.equal(p[6].enabled,true);
+ assert.equal(p[7].enabled,true);
+ assert.equal(p[8].enabled,true);
+ assert.equal(p[8].uniforms.uScreenHeight.value,2556);
+ update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false});
+ for(const i of [3,4,6,7,8])assert.equal(p[i].enabled,false);
+ assert.equal(p[5].uniforms.uEnabled.value,0);
+});
+test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
+ const {pipeline,composer}=setup();
+ const state={fx:states,theme:'green',width:393,height:852,dpr:3,
+  boardStatus:'ready',popupStatus:'ready',modalOpen:false,
+  layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
+ pipeline.syncFX(state);
+ assert.equal(composer.passes[1].enabled,true);
+ assert.equal(composer.passes[2].enabled,true);
+ assert.ok(composer.passes[2].uniforms.uRect.value.z>composer.passes[2].uniforms.uRect.value.x);
+ state.modalOpen=true;
+ pipeline.syncFX(state);
+ assert.equal(composer.passes[1].enabled,false);
+ assert.equal(composer.passes[2].enabled,false);
+});
+test('CRT patterns have stable original order and fallback',()=>{
+ const {pipeline}=setup();
+ assert.deepEqual(pipeline.SCANLINE_PRESETS.map(p=>p.id),
+  ['original','horizontal','aperture','slot','dot']);
+ assert.equal(pipeline.activeScanlinePreset('invalid').id,'original');
+ assert.equal(pipeline.activeScanlinePreset('dot').id,'dot');
+});
+test('resize updates GPU sampling sizes and disposal releases owned textures',()=>{
+ const {pipeline,composer,externalPopup}=setup();
+ pipeline.resize(844,390,3);
+ assert.deepEqual(composer.size,[844,390]);
+ assert.equal(composer.dpr,3);
+ for(const i of [1,2,3,6]){
+  assert.equal(composer.passes[i].uniforms.uSize.value.x,844);
+  assert.equal(composer.passes[i].uniforms.uSize.value.y,390);
+ }
+ pipeline.render();
+ assert.equal(composer.renderCount,1);
+ pipeline.dispose();
+ assert.equal(composer.disposed,true);
+ assert.equal(externalPopup.disposed,undefined);
+});
