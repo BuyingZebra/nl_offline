@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='047'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='048'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -722,6 +722,7 @@ function paintGame(){
  if(baseDirty){paintBaseGame();baseDirty=false;}
  if(modal)paintModalOverlay();
  else{
+  surface.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions.slice();
  }
@@ -779,9 +780,12 @@ function displayValue(value,step,unit){
 function modalBounds(name){
  const safe=insets(),pad=UI_SPACE.unit,gap=UI_SPACE.unit;
  const buttonH=layout().headerButtonH;
+ // Display System is its own full-screen view, not a 410px floating dialog.
+ // Its title and fixed bottom control still respect the iPhone safe areas.
+ if(name==='options')return {w:W,h:H,x:0,y:0,pad,gap,buttonH,
+  safeTop:safe.top,safeBottom:safe.bottom};
  const usable=Math.max(0,H-safe.top-safe.bottom);
- const wanted=name==='options'?Math.max(0,usable-2*gap):
-  name==='scores'?2*pad+2*buttonH+5*54+5*gap+14:
+ const wanted=name==='scores'?2*pad+2*buttonH+5*54+5*gap+14:
   name==='restart'?2*pad+2*buttonH+2*gap+40:
   2*pad+4*buttonH+4*gap+18;
  const w=Math.max(0,Math.min(410,W-2*UI_SPACE.padX));
@@ -944,24 +948,32 @@ function drawSettingsSlider(x,y,w,setting){
   {field,min,max,step,trackX,trackW,modalControl:true});
 }
 function drawOptions(q){
- // Keep the approved DISPLAY SYSTEM header, inset rule, X and solid reset.
+ // The whole WebGL surface is a separate black terminal page. No outer
+ // rounded panel, no translucent scrim and no game artwork beneath it.
  regions=[];region(0,0,W,H,'block');
  const r=layout(),pad=q.pad,gap=q.gap,headH=r.hh;
- panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
+ rect(0,0,W,H,C.bg);
+ // Centre the same content column (<=520px) in portrait and landscape.
+ // On phones its X coordinates are identical to the previous dialog,
+ // retaining the approved title, X and Restore Defaults geometry.
+ const pageW=Math.max(0,Math.min(W-2*UI_SPACE.padX,
+  UI_SPACE.appMax-2*UI_SPACE.padX));
+ const pageX=(W-pageW)/2,headerY=q.safeTop+gap;
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
- text('DISPLAY SYSTEM',q.x+UI_SPACE.headTitleInset,
-  q.y+headH/2,titleSize,C.ink,'left',
-  Math.max(10,q.w-UI_SPACE.headTitleInset-q.buttonH-2*gap));
- const closeX=q.x+q.w-UI_SPACE.headRightPad-q.buttonH;
- key('X',closeX,q.y+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
- rect(q.x+UI_SPACE.headTitleInset,q.y+headH-gap,
-  Math.max(1,q.w-2*UI_SPACE.headTitleInset),1,C.border);
- const restoreW=Math.min(q.w-2*pad,r.boardW*UI_SPACE.overlayButtonWidthScale);
- const restoreY=q.y+q.h-pad-r.extraH;
- key('RESTORE DEFAULTS',q.x+(q.w-restoreW)/2,restoreY,
+ text('DISPLAY SYSTEM',pageX+UI_SPACE.headTitleInset,
+  headerY+headH/2,titleSize,C.ink,'left',
+  Math.max(10,pageW-UI_SPACE.headTitleInset-q.buttonH-2*gap));
+ const closeX=pageX+pageW-UI_SPACE.headRightPad-q.buttonH;
+ key('X',closeX,headerY+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
+ rect(pageX+UI_SPACE.headTitleInset,headerY+headH-gap,
+  Math.max(1,pageW-2*UI_SPACE.headTitleInset),1,C.border);
+ const restoreW=Math.min(pageW-2*pad,
+  r.boardW*UI_SPACE.overlayButtonWidthScale);
+ const restoreY=H-q.safeBottom-gap-r.extraH;
+ key('RESTORE DEFAULTS',pageX+(pageW-restoreW)/2,restoreY,
   restoreW,r.extraH,'resetFX',{light:true});
- const contentX=q.x+pad,contentW=q.w-2*pad;
- const top=q.y+headH+gap,bottom=restoreY-gap;
+ const contentX=pageX+pad,contentW=pageW-2*pad;
+ const top=headerY+headH+gap,bottom=restoreY-gap;
  const visibleH=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:visibleH};
  const model=settingsRows(q.buttonH,gap,contentW);
@@ -1081,6 +1093,9 @@ function paintModal(q){
 function paintModalOverlay(){
  // Repaint exactly one active dialog. Always clear the entire backing image
  // so no pixels from a previous modal remain after a menu transition.
+ // Options is now its own screen: hide the game rather than darken it.
+ const standaloneSettings=modal==='options';
+ surface.visible=!standaloneSettings;
  const q=modalBounds(modal);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
@@ -1089,7 +1104,7 @@ function paintModalOverlay(){
  modalContext.setTransform(1,0,0,1,0,0);
  modalContext.clearRect(0,0,cw,ch);
  modalContext.setTransform(DPR,0,0,DPR,0,0);
- modalPlane.visible=true;scrimPlane.visible=true;
+ modalPlane.visible=true;scrimPlane.visible=!standaloneSettings;
  g=modalContext;
  try{paintModal(q);}
  finally{g=baseContext;}
