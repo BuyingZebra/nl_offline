@@ -82,7 +82,8 @@ test('region snapshots remain immutable while modal hitboxes are constructed',()
 });
 test('render diagnostics are opt-in, with unchanged shaders and live version',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
- assert.ok(main.includes("get('perf')==='1'"));
+ assert.ok(main.includes('const recentPerf=[];'));
+ assert.ok(main.includes('copyDebugReport()'));
  assert.ok(main.includes('const renderStarted=perf.startRender();'));
  assert.ok(main.includes('perf.endRender(renderStarted);'));
  assert.ok(/const THREE_BUILD_VERSION='[0-9]+'/.test(main));
