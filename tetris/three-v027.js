@@ -33,6 +33,9 @@ const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 // Persist only user-facing settings; interface treatment is fixed design.
 const DEFAULT=DEFAULT_EFFECTS;
 const THREE_BUILD_VERSION='063'; // Increment per approved layout/render test.
+// One authoritative build label: HTML metadata is derived from this value.
+document.title='NOMAD — Tetris System V'+THREE_BUILD_VERSION;
+display.setAttribute('aria-label','Tetris System — Three.js V'+THREE_BUILD_VERSION);
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
