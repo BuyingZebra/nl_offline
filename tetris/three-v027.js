@@ -30,7 +30,11 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='055'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='056'; // Increment per approved layout/render test.
+// Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
+// Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
+// render target share this cap to avoid uploading unnecessarily large images.
+const MAX_RENDER_DPR=2;
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -92,7 +96,9 @@ texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;tex
 const boardPopupTexture=new THREE.CanvasTexture(boardPopupCanvas);
 boardPopupTexture.colorSpace=THREE.SRGBColorSpace;boardPopupTexture.minFilter=THREE.LinearFilter;
 boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps=false;
-const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:true,alpha:false,powerPreference:'high-performance'});
+// All scene meshes are fullscreen textured planes; MSAA cannot smooth a
+// geometry silhouette that doesn't exist. Avoid an unused AA backbuffer.
+const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:false,alpha:false,powerPreference:'high-performance'});
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080808);
 const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
@@ -721,7 +727,7 @@ function createDebugReport(){
  return formatDebugReport({
   version:THREE_BUILD_VERSION,createdAt:new Date().toISOString(),
   platform:navigator.userAgent,
-  viewport:{width:W,height:H,dpr:DPR},
+  viewport:{width:W,height:H,dpr:DPR,deviceDpr:Math.max(1,window.devicePixelRatio||1)},
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
   display:{theme,orientation:W>H?'landscape':'portrait',phosphor:FX.phosphor,
    settings:JSON.stringify({...FX,pieceGhost:showGhost,sound:soundOn})},
@@ -1030,7 +1036,7 @@ function frame(now){
 }
 function resize(forceLayout=false){
  const b=display.getBoundingClientRect(),w=Math.max(1,Math.round(b.width)),h=Math.max(1,Math.round(b.height));
- const d=Math.max(1,window.devicePixelRatio||1);
+ const d=Math.min(MAX_RENDER_DPR,Math.max(1,window.devicePixelRatio||1));
  // A pending redraw must never force another allocation at the same size.
  if(w===W&&h===H&&d===DPR){
   if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;invalidate();}
