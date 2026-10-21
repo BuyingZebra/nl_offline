@@ -10,9 +10,10 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  let viewport=null,gpu=null;
  const fresh=()=>({ticks:0,draws:0,frameMs:0,renderMs:0,maxFrameMs:0,
   rafSamples:0,rafDeltaTotal:0,maxRafDelta:0,slowRafTicks:0,
-  baseUploadRequests:0,boardUploadRequests:0,popupUploadRequests:0,modalUploadRequests:0,
+  baseUploadRequests:0,boardUploadRequests:0,sidebarUploadRequests:0,controlsUploadRequests:0,popupUploadRequests:0,modalUploadRequests:0,
   logicMs:0,logicCalls:0,basePaintMs:0,basePaintCount:0,
-  boardPaintMs:0,boardPaintCount:0,
+  boardPaintMs:0,boardPaintCount:0,sidebarPaintMs:0,sidebarPaintCount:0,
+  controlsPaintMs:0,controlsPaintCount:0,
   modalPaintMs:0,modalPaintCount:0,syncMs:0,syncCount:0,
   redrawReasons:{},frameStates:{},gravityTickAdvances:0,visualStateChanges:0,
   passTimes:{},webglCalls:0,renderSubmissions:0,uploadTimes:{}});
@@ -56,14 +57,19 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    slowRafTicks:counters.slowRafTicks,
    baseUploadRequests:counters.baseUploadRequests,
    boardUploadRequests:counters.boardUploadRequests,
+   sidebarUploadRequests:counters.sidebarUploadRequests,
+   controlsUploadRequests:counters.controlsUploadRequests,
    popupUploadRequests:counters.popupUploadRequests,
    modalUploadRequests:counters.modalUploadRequests,
    avgLogicMs:+(counters.logicMs/Math.max(1,counters.logicCalls)).toFixed(3),
    avgBasePaintMs:+(counters.basePaintMs/Math.max(1,counters.basePaintCount)).toFixed(3),
    avgBoardPaintMs:+(counters.boardPaintMs/Math.max(1,counters.boardPaintCount)).toFixed(3),
+   avgSidebarPaintMs:+(counters.sidebarPaintMs/Math.max(1,counters.sidebarPaintCount)).toFixed(3),
+   avgControlsPaintMs:+(counters.controlsPaintMs/Math.max(1,counters.controlsPaintCount)).toFixed(3),
    avgModalPaintMs:+(counters.modalPaintMs/Math.max(1,counters.modalPaintCount)).toFixed(3),
    avgSyncMs:+(counters.syncMs/Math.max(1,counters.syncCount)).toFixed(3),
    basePaints:counters.basePaintCount,boardPaints:counters.boardPaintCount,
+   sidebarPaints:counters.sidebarPaintCount,controlsPaints:counters.controlsPaintCount,
    modalPaints:counters.modalPaintCount,
    redrawReasons:{...counters.redrawReasons},frameStates:{...counters.frameStates},
    gravityTickAdvances:counters.gravityTickAdvances,
@@ -85,6 +91,8 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   if(kind==='logic'){counters.logicCalls++;counters.logicMs+=elapsed;}
   else if(kind==='base'){counters.basePaintCount++;counters.basePaintMs+=elapsed;}
   else if(kind==='board'){counters.boardPaintCount++;counters.boardPaintMs+=elapsed;}
+  else if(kind==='sidebar'){counters.sidebarPaintCount++;counters.sidebarPaintMs+=elapsed;}
+  else if(kind==='controls'){counters.controlsPaintCount++;counters.controlsPaintMs+=elapsed;}
   else if(kind==='modal'){counters.modalPaintCount++;counters.modalPaintMs+=elapsed;}
   else if(kind==='sync'){counters.syncCount++;counters.syncMs+=elapsed;}
  }
@@ -98,7 +106,7 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  }
  function recordUpload(name,elapsed){
   if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
-  const key=['base','board','popup','modal'].includes(name)?name:'other';
+  const key=['base','board','sidebar','controls','popup','modal'].includes(name)?name:'other';
   const v=counters.uploadTimes[key]||(counters.uploadTimes[key]={calls:0,cpuMs:0,maxCpuMs:0});
   v.calls++;v.cpuMs+=elapsed;v.maxCpuMs=Math.max(v.maxCpuMs,elapsed);
  }
@@ -147,6 +155,8 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   if(!enabled)return;
   if(kind==='base')counters.baseUploadRequests++;
   else if(kind==='board')counters.boardUploadRequests++;
+  else if(kind==='sidebar')counters.sidebarUploadRequests++;
+  else if(kind==='controls')counters.controlsUploadRequests++;
   else if(kind==='popup')counters.popupUploadRequests++;
   else if(kind==='modal')counters.modalUploadRequests++;
  }
