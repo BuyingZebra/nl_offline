@@ -58,34 +58,68 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # Test the GAMEPLAY switch using the approved 6px menu gaps and button
-    # height. The exact hit region should persist and be reversible.
+    # Screen Overlays is the default expanded category in V041.
+    # Derive hit centers from the menu's shared 6px token and button height.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
     )
     modal_height = min(680, page_height * .82)
     modal_top = top_inset + (page_height - top_inset - safe_bottom - modal_height) / 2
-    menu_button_height = 46 if page_height > 730 else 42 if page_height > 620 else 42
-    # Accordion category rows are compact: button height minus two 6px gaps.
+    menu_button_height = 46 if page_height > 730 else 42
     heading_height = max(30, menu_button_height - 12)
-    ghost_y = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6 + heading_height + 6 + menu_button_height / 2
+    content_top = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6
+    gameplay_y = content_top + heading_height / 2
+    overlay_y = content_top + heading_height + 6 + heading_height / 2
+    phosphor_y = content_top + 2 * (heading_height + 6) + menu_button_height / 2
+    pattern_top = content_top + 2 * (heading_height + 6) + menu_button_height + 6
+    pattern_y = pattern_top + menu_button_height + 6 + menu_button_height / 2
+    off_y = pattern_top + 2 * menu_button_height + 2 * 6 + menu_button_height / 2
+
+    # The phosphor checkbox is a binary tint toggle. Hue still belongs to the
+    # on-screen theme button, not a duplicate colour menu.
+    def fx_value(key):
+        return page.evaluate(
+            "(key) => JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01'))[key]",
+            key,
+        )
+
+    phosphor_before = fx_value("phosphor")
+    tap(345, phosphor_y)
+    assert fx_value("phosphor") != phosphor_before, "Phosphor toggle did not persist"
+    tap(345, phosphor_y)
+    assert fx_value("phosphor") == phosphor_before, "Phosphor toggle did not restore"
+
+    # CRT pattern selector is one actual expandable choice list: OFF and all
+    # five available mask patterns. Selecting OFF must persist; selecting a
+    # pattern turns it back on.
+    tap(170, pattern_y)
+    chooser_shot = capture("three-scanline-picker")
+    assert chooser_shot.tobytes() != settings_shot.tobytes(), (
+        "CRT scanline dropdown did not expand"
+    )
+    tap(170, off_y)
+    assert fx_value("scanlines") is False, "OFF did not disable CRT scanlines"
+    tap(170, pattern_y)
+    tap(170, off_y + menu_button_height + 6)
+    assert fx_value("scanlines") is True, "Selecting a CRT pattern did not enable it"
+    assert fx_value("scanlinePreset") == "original", "Original CRT preset not selected"
+
+    # Changing categories must collapse the previous section. Gameplay's
+    # binary control still persists and can be toggled back.
+    tap(180, gameplay_y)
+    gameplay_shot = capture("three-gameplay")
+    assert gameplay_shot.tobytes() != chooser_shot.tobytes(), (
+        "Gameplay category did not replace Screen Overlays"
+    )
+    ghost_y = content_top + heading_height + 6 + menu_button_height / 2
     before = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost') || 'yes'")
     tap(345, ghost_y)
     after = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')")
     assert after in ("yes", "no") and after != before, "Ghost Piece switch did not save"
     tap(345, ghost_y)
-    restored = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')")
-    assert restored == before, "Ghost Piece setting did not restore"
-
-    # Selecting CRT EMISSION collapses GAMEPLAY and reveals its own controls.
-    # Screenshot the transition so a modal/accordion regression is reviewable.
-    content_top = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6
-    emission_y = content_top + heading_height + 6 + 2 * (menu_button_height + 6) + heading_height / 2
-    tap(190, emission_y)
-    emission_shot = capture("three-emission")
-    assert emission_shot.tobytes() != settings_shot.tobytes(), (
-        "Settings category did not expand and replace GAMEPLAY"
+    assert page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')") == before, (
+        "Ghost Piece setting did not restore"
     )
 
     # Exit via the shared menu-height RETURN TO GAME button.
