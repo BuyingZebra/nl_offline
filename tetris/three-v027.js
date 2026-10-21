@@ -130,7 +130,10 @@ function depthOrientation(e){
  const angle=screenAngle*Math.PI/180;
  const dx=horizontal*Math.cos(angle)-vertical*Math.sin(angle);
  const dy=vertical*Math.cos(angle)+horizontal*Math.sin(angle);
- const limit=5*depthSettings.strength/100;
+ // Perspective produces only z/(cameraZ-z) screen displacement. Allow a
+ // larger virtual camera shift so board movement stays around 0-3.3px
+ // and sidebar movement around 0-2px at maximum sensitivity.
+ const limit=36*depthSettings.strength/100;
  motionTargetX=clamp(dx,-1,1)*limit;
  motionTargetY=clamp(dy,-1,1)*limit;
  invalidate();
