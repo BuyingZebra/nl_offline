@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='038'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='039'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -735,35 +735,36 @@ function paintGame(){
  dirty=false;
 }
 
-// Settings are grouped by function; persistent field names and values stay unchanged.
-const MENU=[
- ['heading','GAMEPLAY'],
- ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound'],
- ['heading','CRT EMISSION'],
- ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
- ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
- ['range','BLOOM STRENGTH','bloomStrength',0,1,.05,''],
- ['heading','SIGNAL GHOSTING'],
- ['switch','GHOSTING','ghost'],
- ['range','GHOST X','ghostX',-32,32,1,' px'],
- ['range','GHOST Y','ghostY',-32,32,1,' px'],
- ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%'],
- ['heading','CRT MASK'],
- ['switch','SCANLINE OVERLAY','scanlines'],
- ['pattern','PATTERN PRESET','scanlinePreset'],
- ['range','PATTERN SCALE','scanlineScale',.5,3,.25,'x'],
- ['range','OVERLAY OPACITY','scanlineOpacity',0,100,1,'%'],
- ['heading','DISPLAY OPTICS'],
- ['switch','EDGE SOFTNESS','softness'],
- ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
- ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px'],
- ['switch','VIGNETTE','vignette'],
- ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
- ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
- ['range','MENU BLUR','boardBlur',0,100,1,'%'],
- ['heading','DISPLAY PRESET'],
- ['button','RESTORE APPROVED VALUES','resetFX']
+// Single data schema defines every settings category, item and value domain.
+const SETTINGS_GROUPS=[
+ {id:'gameplay',title:'GAMEPLAY',items:[
+  ['switch','GHOST PIECE','pieceGhost'],['switch','SOUND','sound']]},
+ {id:'emission',title:'CRT EMISSION',items:[
+  ['switch','PHOSPHOR','phosphor'],['switch','BLOOM','bloom'],
+  ['range','BLOOM CUTOFF','bloomCutoff',0,1,.01,''],
+  ['range','BLOOM STRENGTH','bloomStrength',0,1,.05,'']]},
+ {id:'ghosting',title:'SIGNAL GHOSTING',items:[
+  ['switch','GHOSTING','ghost'],
+  ['range','GHOST X','ghostX',-32,32,1,' px'],
+  ['range','GHOST Y','ghostY',-32,32,1,' px'],
+  ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%']]},
+ {id:'mask',title:'CRT MASK',items:[
+  ['switch','SCANLINE OVERLAY','scanlines'],
+  ['pattern','PATTERN PRESET','scanlinePreset'],
+  ['range','PATTERN SCALE','scanlineScale',.5,3,.25,'x'],
+  ['range','OVERLAY OPACITY','scanlineOpacity',0,100,1,'%']]},
+ {id:'optics',title:'DISPLAY OPTICS',items:[
+  ['switch','EDGE SOFTNESS','softness'],
+  ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
+  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px'],
+  ['switch','VIGNETTE','vignette'],
+  ['range','EDGE DARKNESS','vignetteAmount',0,1,.01,''],
+  ['range','FADE SPREAD','vignetteSpread',.2,.85,.01,''],
+  ['range','MENU BLUR','boardBlur',0,100,1,'%']]},
+ {id:'preset',title:'DISPLAY PRESET',items:[
+  ['button','RESTORE APPROVED VALUES','resetFX']]}
 ];
+let expandedSettingsGroup='gameplay';
 function settingValue(k){
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
@@ -814,6 +815,41 @@ function modalActionRow(q,items){
   key(label,x+i*(buttonW+q.gap),y,buttonW,q.buttonH,act,{light:Boolean(light)}));
  return y;
 }
+// One row model drives visible category geometry, scrolling and hitboxes.
+function settingsRows(buttonH,gap){
+ const headingH=Math.max(30,buttonH-2*gap),rangeH=buttonH+2*gap;
+ const patternH=2*buttonH+gap,rows=[];
+ let offset=0;
+ for(const group of SETTINGS_GROUPS){
+  rows.push({kind:'group',group,offset,height:headingH});
+  offset+=headingH+gap;
+  if(group.id!==expandedSettingsGroup)continue;
+  for(const item of group.items){
+   const height=item[0]==='range'?rangeH:item[0]==='pattern'?patternH:buttonH;
+   rows.push({kind:item[0],item,group,offset,height});
+   offset+=height+gap;
+  }
+ }
+ return {rows,height:Math.max(0,offset-gap)};
+}
+function toggleSettingsGroup(groupId){
+ if(!SETTINGS_GROUPS.some(group=>group.id===groupId))return;
+ expandedSettingsGroup=expandedSettingsGroup===groupId?null:groupId;
+ scrollVelocity=0;
+ const model=settingsRows(layout().headerButtonH,UI_SPACE.unit);
+ const heading=model.rows.find(row=>row.kind==='group'&&row.group.id===groupId);
+ if(heading)optionsScroll=heading.offset;
+ invalidate();
+}
+function settingSquare(x,y,size,active){
+ // Solid indicates enabled / open; outline indicates disabled / closed.
+ g.lineWidth=1;
+ if(active){
+  g.fillStyle=C.bright;g.fillRect(x,y,size,size);
+ }else{
+  g.strokeStyle=C.bright;g.strokeRect(x+.5,y+.5,size-1,size-1);
+ }
+}
 function drawOptions(q){
  modalPanel('FIELD ATLAS / DISPLAY SETTINGS',q);
  const {x,y,w,h,pad,gap,buttonH}=q;
@@ -822,57 +858,62 @@ function drawOptions(q){
  key('RETURN TO GAME',contentX,backY,contentW,buttonH,'close');
  const top=backY+buttonH+gap,bottom=y+h-pad,vheight=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:vheight};
+ const model=settingsRows(buttonH,gap);
+ optionsMaxScroll=Math.max(0,model.height-vheight);
+ optionsScroll=clamp(optionsScroll,0,optionsMaxScroll);
  g.save();g.beginPath();g.rect(contentX,top,contentW,vheight);g.clip();
  region(contentX,top,contentW,vheight,'scroll',{scroll:true});
- const headingH=Math.max(20,Math.round(buttonH*.6));
- const rangeH=buttonH+3*gap,patternH=2*buttonH+gap;
- let yy=top-optionsScroll;
- for(const [kind,name,k,min,max,step,unit] of MENU){
-  const height=kind==='heading'?headingH:
-   kind==='range'?rangeH:kind==='pattern'?patternH:buttonH;
-  const visible=yy+height>=top&&yy<=bottom;
-  if(visible&&kind==='heading'){
-   text(name,contentX+pad,yy+height/2,10,C.weak,'left',contentW-2*pad);
+ for(const row of model.rows){
+  const {kind,height,offset}=row,yy=top+offset-optionsScroll;
+  if(yy+height<top||yy>bottom)continue;
+  if(kind==='group'){
+   const selected=expandedSettingsGroup===row.group.id;
+   const square=14,squareX=contentX+pad,squareY=yy+(height-square)/2;
+   settingSquare(squareX,squareY,square,selected);
+   text(row.group.title,squareX+square+gap,yy+height/2,11,
+    selected?C.bright:C.weak,'left',contentW-2*pad-square-gap);
    rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.border);
-  }else if(visible&&kind==='button'){
-   key(name,contentX,yy,contentW,height,k,{modalControl:true});
-  }else if(visible&&kind==='switch'){
-   const value=settingValue(k);
-   panel(contentX,yy,contentW,height,8,C.button,C.border);
-   text(name,contentX+pad,yy+height/2,11,C.ink,'left',contentW-2*pad-30);
-   const boxSize=22,tx=contentX+contentW-pad-boxSize,ty=yy+(height-boxSize)/2;
-   panel(tx,ty,boxSize,boxSize,3,value?C.bright:C.button,C.border);
-   if(value)text('✓',tx+boxSize/2,ty+boxSize/2,17,C.dark,'center');
-   region(contentX,yy,contentW,height,'toggle',{field:k,modalControl:true});
-  }else if(visible&&kind==='pattern'){
-   text(name,contentX+pad,yy+buttonH/2,11,C.ink,'left',contentW-2*pad);
-   const cy=yy+buttonH+gap,arrowW=buttonH;
-   key('◀',contentX,cy,arrowW,buttonH,'patternPrev',{modalControl:true});
-   const centerX=contentX+arrowW+gap;
-   const centerW=Math.max(0,contentW-2*arrowW-2*gap);
-   panel(centerX,cy,centerW,buttonH,8,C.button,C.border);
-   text(activeScanlinePreset().name,centerX+centerW/2,cy+buttonH/2,10,C.ink,
-    'center',Math.max(1,centerW-2*pad));
-   region(centerX,cy,centerW,buttonH,'patternNext',{modalControl:true});
-   key('▶',contentX+contentW-arrowW,cy,arrowW,buttonH,'patternNext',{modalControl:true});
-  }else if(visible&&kind==='range'){
-   const value=Number(settingValue(k));
-   panel(contentX,yy,contentW,height,8,C.button,C.border);
-   text(name,contentX+pad,yy+15,11,C.ink,'left',contentW*.7);
-   text(displayValue(value,step,unit),contentX+contentW-pad,yy+15,10,C.weak,'right');
-   const trackX=contentX+pad+9,trackW=Math.max(1,contentW-2*(pad+9));
-   const trackY=yy+height-15;
-   rect(trackX,trackY-2,trackW,5,C.border);
-   const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
-   rect(trackX,trackY-2,trackW*fraction,5,C.bright);
-   panel(cx-9,trackY-9,18,19,6,C.bright,null);
-   region(trackX-9,trackY-13,trackW+18,26,'slider',
-    {field:k,min,max,step,trackX,trackW,modalControl:true});
+   region(contentX,yy,contentW,height,'settingsGroup',
+    {field:row.group.id,modalControl:true});
+  }else{
+   const [type,name,k,min,max,step,unit]=row.item;
+   if(type==='button'){
+    key(name,contentX,yy,contentW,height,k,{modalControl:true});
+   }else if(type==='switch'){
+    text(name,contentX+pad,yy+height/2,11,C.ink,'left',contentW-3*pad-24);
+    const square=20,squareX=contentX+contentW-pad-square;
+    settingSquare(squareX,yy+(height-square)/2,square,Boolean(settingValue(k)));
+    rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.grid);
+    region(contentX,yy,contentW,height,'toggle',{field:k,modalControl:true});
+   }else if(type==='pattern'){
+    text(name,contentX+pad,yy+buttonH/2,11,C.ink,'left',contentW-2*pad);
+    const cy=yy+buttonH+gap,arrowW=buttonH;
+    key('◀',contentX,cy,arrowW,buttonH,'patternPrev',{modalControl:true});
+    const centerX=contentX+arrowW+gap;
+    const centerW=Math.max(0,contentW-2*arrowW-2*gap);
+    panel(centerX,cy,centerW,buttonH,7,C.button,C.border);
+    text(activeScanlinePreset().name,centerX+centerW/2,cy+buttonH/2,10,
+     C.ink,'center',Math.max(1,centerW-2*pad));
+    region(centerX,cy,centerW,buttonH,'patternNext',{modalControl:true});
+    key('▶',contentX+contentW-arrowW,cy,arrowW,buttonH,'patternNext',
+     {modalControl:true});
+   }else if(type==='range'){
+    const value=Number(settingValue(k));
+    const captionY=yy+12;
+    text(name,contentX+pad,captionY,11,C.ink,'left',contentW*.7);
+    text(displayValue(value,step,unit),contentX+contentW-pad,captionY,
+     10,C.weak,'right');
+    const trackX=contentX+pad+9,trackW=Math.max(1,contentW-2*(pad+9));
+    const trackY=yy+height-13;
+    rect(trackX,trackY-2,trackW,4,C.border);
+    const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
+    rect(trackX,trackY-2,trackW*fraction,4,C.bright);
+    rect(cx-8,trackY-8,16,16,C.bright);
+    region(trackX-9,trackY-13,trackW+18,26,'slider',
+     {field:k,min,max,step,trackX,trackW,modalControl:true});
+   }
   }
-  yy+=height+gap;
  }
- const contentHeight=Math.max(0,yy+optionsScroll-top-gap);
- optionsMaxScroll=Math.max(0,contentHeight-vheight);
  g.restore();
  if(optionsMaxScroll>0&&vheight>0){
   const railH=Math.max(0,vheight-2*gap);
@@ -1058,6 +1099,7 @@ function releaseTouch(e){
      const r=touch.region;
      if(r.act==='slider')setSlider(r,p.x);
      else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
+     else if(r.act==='settingsGroup'&&optionPoint(p))toggleSettingsGroup(r.field);
      else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
     }
    }else if(touch.mode==='slider'&&touch.region?.act==='slider'){
