@@ -1,0 +1,38 @@
+/* Tetris System — diagnostics exported only by explicit user action.
+ * Pure formatter: no network, storage, automatic sharing or mutable state.
+ */
+export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,samples=[],current}={}){
+ const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
+ const line=(name,v)=>name+': '+value(v);
+ const n=v=>typeof v==='number'&&Number.isFinite(v)?v.toFixed(2):'n/a';
+ const rows=[
+  'TETRIS SYSTEM / DEBUG REPORT',
+  'Build: V'+value(version),
+  'Captured: '+value(createdAt),
+  'Browser: '+value(platform),
+  'Viewport: '+(viewport?[viewport.width+'x'+viewport.height,'DPR '+viewport.dpr].join(' / '):'n/a'),
+  'State: '+value(game?.status)+' / level '+value(game?.level)+' / score '+value(game?.score)+' / lines '+value(game?.lines),
+  'Display: '+value(display?.theme)+' phosphor / '+value(display?.orientation)+' / '+value(display?.phosphor?'on':'off')+' tint',
+  '',
+  'RECENT FRAME SAMPLES (2-second windows, newest last)',
+  'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
+  'RAF interval = pacing between scheduled frames, not physical display refresh rate.'
+ ];
+ const observed=samples.length?samples:(current?[current]:[]);
+ if(!observed.length)rows.push('No complete sample yet. Start a game for a few seconds, then copy again.');
+ observed.forEach((s,i)=>{
+  rows.push('Sample '+(i+1)+': '+value(s.seconds,'s')+
+   ' | frames '+value(s.frameTicks)+' | draws '+value(s.draws)+
+   ' | RAF avg/max '+value(s.avgRafMs,'ms')+'/'+value(s.maxRafMs,'ms')+
+   ' | slow '+value(s.slowRafTicks)+
+   ' | CPU avg/max '+value(s.avgFrameCpuMs,'ms')+'/'+value(s.maxFrameCpuMs,'ms')+
+   ' | submit '+value(s.avgRenderSubmitMs,'ms')+
+   ' | uploads B/P/M '+value(s.baseUploadRequests)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
+ });
+ const gfx=gpu||current?.gpu||samples.at(-1)?.gpu;
+ rows.push('', 'GPU RESOURCES (Three.js counters; not GPU utilization)');
+ rows.push('Textures: '+value(gfx?.textures)+' / geometries: '+value(gfx?.geometries)+' / programs: '+value(gfx?.programs));
+ rows.push('Active passes: '+value(gfx?.activePasses)+' / total passes: '+value(gfx?.totalPasses));
+ rows.push('Current settings: '+value(display?.settings));
+ return rows.join('\n');
+}
