@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='045'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='046'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -728,42 +728,29 @@ function paintGame(){
  dirty=false;
 }
 
-// Single data schema defines every settings category, item and value domain.
-// A single declarative schema owns the remaining visible settings.
-// A group contains independently configurable effects. Their UI layout is
-// derived from the same schema, so a toggle, description and sliders never
-// become detached by inserting another setting.
-// Canonical Display System rows, with each existing control represented once.
-// Sections mark purpose but never collapse; all settings remain accessible.
+// NOMAD Display System: one continuous full-width list (no category headings).
+// Keep the canonical game effect settings and existing storage keys unchanged.
 const DISPLAY_EFFECTS=[
- {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor',
-  description:'Enable phosphor tint. Choose green or amber in the viewport.'},
- {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',
-  description:'A grayscale CRT pattern across the display.',pattern:true,
-  sliders:[['INTENSITY','scanlineOpacity',0,100,1,'%']]},
+ {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
+ {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
+  sliders:[['','scanlineOpacity',0,100,1,'%']]},
  {id:'vignette',title:'SCREEN VIGNETTE',toggle:'vignette',
-  description:'Darkens the outer edges of the screen.',
-  sliders:[['VIGNETTE','vignetteAmount',0,100,1,'%']]},
+  sliders:[['','vignetteAmount',0,100,1,'%']]},
  {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
-  description:'Glow follows interface luminance and pixel brightness.',
-  sliders:[['BLOOM','bloomStrength',0,100,1,'%']]},
+  sliders:[['','bloomStrength',0,100,1,'%']]},
  {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
-  description:'Analog signal echoes and shifted image copies.',
-  sliders:[['GHOST X','ghostX',-32,32,1,' px'],
-   ['GHOST Y','ghostY',-32,32,1,' px'],
-   ['STRENGTH','ghostStrength',0,100,1,'%']]},
+  sliders:[['X','ghostX',-32,32,1,'px'],
+   ['Y','ghostY',-32,32,1,'px'],
+   ['','ghostStrength',0,100,1,'%']]},
  {id:'softness',title:'EDGE SOFTNESS',toggle:'softness',
-  description:'Softens displayed detail without changing the source.',
   sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
-   ['RADIUS','softnessRadius',0,10,.5,' px']]},
- {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost',section:'GAMEPLAY',
-  description:'Display the projected landing location.'},
- {id:'sound',title:'SOUND',toggle:'sound',
-  description:'Enable game audio feedback.'}
+   ['RADIUS','softnessRadius',0,10,.5,'px']]},
+ {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost'},
+ {id:'sound',title:'SOUND',toggle:'sound'}
 ];
 const SCANLINE_CHOICES=[{id:'off',name:'OFF'},
  ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))];
-const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=20;
+const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
 let scanlineMenuOpen=false;
 function settingValue(k){
  if(k==='pieceGhost')return showGhost;
@@ -815,48 +802,72 @@ function modalActionRow(q,items){
   key(label,x+i*(buttonW+q.gap),y,buttonW,q.buttonH,act,{light:Boolean(light)}));
  return y;
 }
-// Each monochrome thumbnail is generated once and then coloured by the
-// same phosphor shader as the entire screen. No network assets or new passes.
+// All visual previews share the very same T tetromino matrix and base image
+// treatment. Per-effect rendering alters ONLY the effect, not the subject.
 function effectPreview(id){
  const canvas=document.createElement('canvas');
  canvas.width=PREVIEW_SIZE;canvas.height=PREVIEW_SIZE;
  const p=canvas.getContext('2d');
  if(!p)return canvas;
- p.fillStyle='#080808';p.fillRect(0,0,96,96);
- const radial=(radius,bright,edge)=>{
-  const v=p.createRadialGradient(48,48,0,48,48,radius);
-  v.addColorStop(0,gray(bright));v.addColorStop(1,gray(edge));
-  p.fillStyle=v;p.fillRect(0,0,96,96);
- };
+ const n=PREVIEW_SIZE;
+ // The dim gray background reads as a faint green/amber phosphor field
+ // after the existing full-screen GPU tint, and stays neutral if tint is off.
+ p.fillStyle=gray(40);p.fillRect(0,0,n,n);
  if(id==='phosphor'){
-  for(let y=5;y<92;y+=7)for(let x=5;x<92;x+=7){
-   const d=Math.hypot(x-48,y-48)/68;
-   p.fillStyle=gray(34+185*Math.pow(Math.max(0,1-d),1.6));
-   p.fillRect(x,y,4,4);
-  }
- }else if(id==='scanlines'){
-  radial(72,138,18);
-  for(let y=0;y<96;y+=5){p.fillStyle='#101010';p.fillRect(0,y,96,2);}
-  for(let x=12;x<83;x+=19){p.fillStyle='#989898';p.fillRect(x,26,9,8);}
- }else if(id==='vignette'){
-  radial(68,206,5);p.fillStyle='#383838';
-  p.fillRect(22,36,52,3);p.fillRect(22,50,52,3);
- }else if(id==='bloom'){
-  radial(52,212,8);p.fillStyle='#f2f2f2';
-  p.fillRect(39,40,18,16);p.fillRect(44,35,8,26);
- }else if(id==='ghost'){
-  for(const [ofs,v] of [[9,32],[24,85],[40,177],[55,222]]){
-   p.fillStyle=gray(v);p.fillRect(ofs,31,26,26);p.fillRect(ofs+8,22,10,44);
-  }
- }else if(id==='softness'){
-  radial(43,116,8);p.fillStyle='#777777';p.fillRect(23,20,30,30);
-  p.fillStyle='#cccccc';p.fillRect(38,41,32,32);
- }else if(id==='piece'){
-  p.fillStyle='#bababa';
-  for(const [x,y] of [[20,36],[40,36],[60,36],[40,16]])p.fillRect(x,y,18,18);
- }else if(id==='sound'){
-  p.fillStyle='#c6c6c6';
+  p.fillStyle=gray(168);p.fillRect(11,11,n-22,n-22);
+  return canvas;
+ }
+ if(id==='sound'){
+  p.fillStyle=gray(190);
   [16,27,43,54,35,23].forEach((h,i)=>p.fillRect(15+i*12,70-h,7,h));
+  return canvas;
+ }
+ const matrix=Core.SHAPES.T;
+ const cells=[];
+ for(let y=0;y<matrix.length;y++)
+  for(let x=0;x<matrix[y].length;x++)
+   if(matrix[y][x])cells.push([x,y]);
+ const cell=19,offX=19,offY=29;
+ // Shared game-piece silhouette, bevel highlights and ghost styling.
+ const drawPiece=(ghost=false)=>{
+  p.save();
+  if(ghost)p.globalAlpha=.40;
+  for(const [cx,cy] of cells){
+   const x=offX+cx*cell,y=offY+cy*cell;
+   if(ghost){
+    p.strokeStyle=gray(180);p.lineWidth=2;
+    p.strokeRect(x+1,y+1,cell-2,cell-2);
+    p.fillStyle=gray(95);p.fillRect(x+3,y+3,cell-6,cell-6);
+   }else{
+    p.fillStyle=gray(173);p.fillRect(x+1,y+1,cell-2,cell-2);
+    p.fillStyle=gray(207);p.fillRect(x+2,y+2,cell-4,2);
+    p.fillStyle=gray(112);p.fillRect(x+4,y+5,cell-8,cell-9);
+   }
+  }
+  p.restore();
+ };
+ if(id==='ghost'){
+  p.save();p.globalAlpha=.25;p.translate(-7,1);drawPiece();p.restore();
+  p.save();p.globalAlpha=.39;p.translate(7,-1);drawPiece();p.restore();
+  drawPiece();
+ }else if(id==='softness'){
+  p.save();p.filter='blur(3px)';drawPiece();p.restore();
+ }else if(id==='bloom'){
+  p.save();p.shadowColor=gray(230);p.shadowBlur=16;drawPiece();p.restore();
+ }else if(id==='piece'){
+  drawPiece(true);
+ }else{
+  drawPiece();
+  if(id==='scanlines'){
+   p.fillStyle='rgba(0,0,0,.55)';
+   for(let y=0;y<n;y+=5)p.fillRect(0,y,n,2);
+  }else if(id==='vignette'){
+   const mask=p.createRadialGradient(48,48,15,48,48,67);
+   mask.addColorStop(0,'rgba(0,0,0,0)');
+   mask.addColorStop(.55,'rgba(0,0,0,.16)');
+   mask.addColorStop(1,'rgba(0,0,0,.94)');
+   p.fillStyle=mask;p.fillRect(0,0,n,n);
+  }
  }
  return canvas;
 }
@@ -881,30 +892,48 @@ function settingsExpandArrow(x,y,expanded,color){
  g.save();g.translate(x,y);if(expanded)g.rotate(Math.PI/2);
  text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');g.restore();
 }
-// A single model controls the full-width card geometry, scrolling and inputs.
-function settingsRows(buttonH,gap){
+// Preview size and spacing use one shared geometry model for all rows.
+function settingsPreviewSize(width){
+ return Math.min(68,Math.max(56,Math.round(width*.185)));
+}
+function settingsRows(buttonH,gap,width){
+ const image=settingsPreviewSize(width),minCardH=image+2*gap;
  const rows=[];let offset=0;
- DISPLAY_EFFECTS.forEach((effect,i)=>{
-  let heading=null;
-  if(i===0)heading='SCREEN OVERLAYS';
-  else if(i===4)heading='EXPERIMENTAL';
-  else if(effect.section)heading=effect.section;
-  if(heading){
-   rows.push({kind:'section',label:heading,offset,height:24});
-   offset+=24+gap;
-  }
-  const n=effect.sliders?.length||0;
-  const cardHeight=n===3?164:n===2?134:effect.pattern?145:n?104:88;
+ for(const effect of DISPLAY_EFFECTS){
+  const cardHeight=Math.max(minCardH,
+   effect.id==='scanlines'?116:
+   effect.id==='ghost'||effect.id==='softness'?112:80);
   const choiceHeight=Math.max(34,buttonH-8);
-  const open=effect.pattern&&scanlineMenuOpen;
-  const height=cardHeight+(open?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
+  const expanded=effect.pattern&&scanlineMenuOpen;
+  const height=cardHeight+(expanded?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
   rows.push({kind:'effect',effect,offset,height,cardHeight,choiceHeight});
   offset+=height+gap;
- });
+ }
  return {rows,height:Math.max(0,offset-gap)};
 }
+// One uniform slider primitive everywhere: 15px square, 6px gaps, real
+// persisted values and full remaining row width from image to right inset.
+function drawSettingsSlider(x,y,w,setting){
+ const [label,field,min,max,step,unit]=setting;
+ const size=SETTINGS_SQUARE_SIZE,gap=UI_SPACE.unit;
+ const value=Number(settingValue(field));
+ const valueText=displayValue(value,step,unit);
+ const labelW=label?(label==='X'||label==='Y'?12:label==='RADIUS'?51:65):0;
+ const valueW=Math.max(30,Math.ceil(valueText.length*6.8));
+ if(label)text(label,x,y,9,C.ink,'left',labelW);
+ const trackX=x+labelW+(label?gap:0)+size/2;
+ const trackEnd=x+w-valueW-gap-size/2;
+ const trackW=Math.max(1,trackEnd-trackX);
+ const fraction=clamp((value-min)/(max-min),0,1);
+ rect(trackX,y-1.5,trackW,3,C.border);
+ rect(trackX,y-1.5,trackW*fraction,3,C.bright);
+ rect(trackX+trackW*fraction-size/2,y-size/2,size,size,C.bright);
+ text(valueText,x+w,y,9,C.bright,'right',valueW);
+ region(trackX-size/2,y-14,trackW+size,28,'slider',
+  {field,min,max,step,trackX,trackW,modalControl:true});
+}
 function drawOptions(q){
- // This header REPLACES TETRIS SYSTEM; it is not nested inside a second header.
+ // Existing game header, now the only DISPLAY SYSTEM header and X control.
  regions=[];region(0,0,W,H,'block');
  const r=layout(),pad=q.pad,gap=q.gap,headH=r.hh;
  panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
@@ -916,7 +945,7 @@ function drawOptions(q){
  key('X',closeX,q.y+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
  rect(q.x+UI_SPACE.headTitleInset,q.y+headH-gap,
   Math.max(1,q.w-2*UI_SPACE.headTitleInset),1,C.border);
- // A true START GAME-sized solid action, centred outside the scrolling list.
+ // RESTORE DEFAULTS remains exactly START GAME-sized and non-scrolling.
  const restoreW=Math.min(q.w-2*pad,r.boardW*UI_SPACE.overlayButtonWidthScale);
  const restoreY=q.y+q.h-pad-r.extraH;
  key('RESTORE DEFAULTS',q.x+(q.w-restoreW)/2,restoreY,
@@ -925,7 +954,7 @@ function drawOptions(q){
  const top=q.y+headH+gap,bottom=restoreY-gap;
  const visibleH=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:visibleH};
- const model=settingsRows(q.buttonH,gap);
+ const model=settingsRows(q.buttonH,gap,contentW);
  optionsMaxScroll=Math.max(0,model.height-visibleH);
  optionsScroll=clamp(optionsScroll,0,optionsMaxScroll);
  g.save();g.beginPath();g.rect(contentX,top,contentW,visibleH);g.clip();
@@ -933,15 +962,9 @@ function drawOptions(q){
  for(const row of model.rows){
   const y=top+row.offset-optionsScroll;
   if(y+row.height<top||y>bottom)continue;
-  if(row.kind==='section'){
-   text(row.label,contentX+pad,y+row.height/2,10,C.weak,
-    'left',contentW-2*pad);
-   rect(contentX+pad,y+row.height-2,contentW-2*pad,1,C.border);
-   continue;
-  }
   const effect=row.effect,cardH=row.cardHeight;
   panel(contentX,y,contentW,row.height,10,C.button,C.border);
-  const previewSize=Math.min(68,Math.max(42,Math.floor(contentW*.185)));
+  const previewSize=settingsPreviewSize(contentW);
   const previewX=contentX+gap,previewY=y+gap;
   panel(previewX,previewY,previewSize,previewSize,7,C.button,C.border);
   g.save();g.beginPath();
@@ -949,64 +972,48 @@ function drawOptions(q){
   g.drawImage(EFFECT_PREVIEWS[effect.id],previewX+2,previewY+2,
    previewSize-4,previewSize-4);
   g.restore();
-  const descX=previewX+previewSize+gap;
-  const rightW=clamp(contentW*.29,96,117);
-  const rightX=contentX+contentW-gap-rightW;
-  const descW=Math.max(35,rightX-descX-gap);
-  text(effect.title,descX,y+21,11,C.bright,'left',descW);
-  text(effect.description,descX,y+54,10,C.weak,'left',descW);
-  if(effect.toggle){
-   settingSquare(rightX+1,y+14,SETTINGS_SQUARE_SIZE,
-    Boolean(settingValue(effect.toggle)));
-   region(rightX,y+7,36,34,'toggle',
-    {field:effect.toggle,modalControl:true});
-  }
-  if(effect.sliders?.length){
-   const count=effect.sliders.length;
-   const first=effect.pattern?105:count===3?46:count===2?49:60;
-   if(count===1){
-    const e=effect.sliders[0];
-    text(displayValue(settingValue(e[1]),e[4],e[5]),
-     rightX+rightW-2,y+23,11,C.bright,'right',rightW-33);
-   }
-   effect.sliders.forEach(([label,field,min,max,step,unit],i)=>{
-    const ly=y+first+i*37;
-    text(label,rightX,ly,8,C.ink,'left',rightW);
-    const value=Number(settingValue(field));
-    const fraction=clamp((value-min)/(max-min),0,1);
-    const trackX=rightX+SETTINGS_SQUARE_SIZE/2;
-    const trackW=rightW-SETTINGS_SQUARE_SIZE-2,trackY=ly+16;
-    rect(trackX,trackY-2,trackW,4,C.border);
-    rect(trackX,trackY-2,trackW*fraction,4,C.bright);
-    rect(trackX+trackW*fraction-SETTINGS_SQUARE_SIZE/2,
-     trackY-SETTINGS_SQUARE_SIZE/2,
-     SETTINGS_SQUARE_SIZE,SETTINGS_SQUARE_SIZE,C.bright);
-    region(trackX-SETTINGS_SQUARE_SIZE/2,trackY-15,
-     trackW+SETTINGS_SQUARE_SIZE,30,'slider',
-     {field,min,max,step,trackX,trackW,modalControl:true});
-   });
+  const ctrlX=previewX+previewSize+gap;
+  const ctrlW=contentX+contentW-gap-ctrlX;
+  const titleY=y+23;
+  settingSquare(ctrlX,titleY-SETTINGS_SQUARE_SIZE/2,
+   SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)));
+  text(effect.title,ctrlX+SETTINGS_SQUARE_SIZE+gap,titleY,11,C.bright,
+   'left',Math.max(10,ctrlW-SETTINGS_SQUARE_SIZE-gap));
+  region(ctrlX,titleY-18,ctrlW,34,'toggle',
+   {field:effect.toggle,modalControl:true});
+  if(effect.id==='ghost'){
+   const half=(ctrlW-gap)/2;
+   drawSettingsSlider(ctrlX,y+56,half,effect.sliders[0]);
+   drawSettingsSlider(ctrlX+half+gap,y+56,half,effect.sliders[1]);
+   drawSettingsSlider(ctrlX,y+86,ctrlW,effect.sliders[2]);
+  }else if(effect.id==='softness'){
+   drawSettingsSlider(ctrlX,y+56,ctrlW,effect.sliders[0]);
+   drawSettingsSlider(ctrlX,y+86,ctrlW,effect.sliders[1]);
+  }else if(effect.sliders?.length){
+   drawSettingsSlider(ctrlX,y+54,ctrlW,effect.sliders[0]);
   }
   if(effect.pattern){
-   // CRT mask selector is inside its full-width row, not another accordion.
-   const selectY=y+61,selectH=29;
-   panel(rightX,selectY,rightW,selectH,5,C.button,C.border);
+   // The selector is a local third line, not a section/category heading.
+   const selectY=y+78,selectH=26;
+   panel(ctrlX,selectY,ctrlW,selectH,5,C.button,C.border);
    const current=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
    const shortNames={horizontal:'HORIZONTAL',aperture:'APERTURE',
     slot:'SLOT MASK',dot:'DOT MASK'};
    text(shortNames[current?.id]||current?.name||'ORIGINAL',
-    rightX+4,selectY+selectH/2,9,C.ink,'left',rightW-27);
-   settingsExpandArrow(rightX+rightW-13,selectY+selectH/2,
-    scanlineMenuOpen,C.ink);
-   region(rightX,selectY,rightW,selectH,
-    'patternSelect',{modalControl:true});
+    ctrlX+gap,selectY+selectH/2,9,C.ink,'left',
+    Math.max(10,ctrlW-3*gap-BUTTON_ICON_FONT_SIZE));
+   settingsExpandArrow(ctrlX+ctrlW-gap-BUTTON_ICON_FONT_SIZE/2,
+    selectY+selectH/2,scanlineMenuOpen,C.ink);
+   region(ctrlX,selectY,ctrlW,selectH,'patternSelect',{modalControl:true});
    if(scanlineMenuOpen)SCANLINE_CHOICES.forEach((option,i)=>{
     const cy=y+cardH+i*(row.choiceHeight+gap);
+    const chosen=option.id===selectedScanlineChoice();
     settingSquare(contentX+3*gap,
      cy+(row.choiceHeight-SETTINGS_SQUARE_SIZE)/2,
-     SETTINGS_SQUARE_SIZE,option.id===selectedScanlineChoice());
+     SETTINGS_SQUARE_SIZE,chosen);
     text(option.name,contentX+5*gap+SETTINGS_SQUARE_SIZE,
-     cy+row.choiceHeight/2,10,C.ink,'left',
-     contentW-8*gap-SETTINGS_SQUARE_SIZE);
+     cy+row.choiceHeight/2,10,chosen?C.bright:C.ink,
+     'left',contentW-8*gap-SETTINGS_SQUARE_SIZE);
     region(contentX+2*gap,cy,contentW-4*gap,row.choiceHeight,
      'scanlineChoice',{field:option.id,modalControl:true});
    });
