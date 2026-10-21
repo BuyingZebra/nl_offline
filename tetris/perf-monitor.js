@@ -13,7 +13,7 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   baseUploadRequests:0,popupUploadRequests:0,modalUploadRequests:0,
   logicMs:0,logicCalls:0,basePaintMs:0,basePaintCount:0,
   modalPaintMs:0,modalPaintCount:0,syncMs:0,syncCount:0,
-  redrawReasons:{},frameStates:{}});
+  redrawReasons:{},frameStates:{},gravityTickAdvances:0,visualStateChanges:0});
  let counters=fresh();
  function recordRaf(timestamp){
   if(!enabled||!Number.isFinite(timestamp))return;
@@ -61,6 +61,8 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    avgSyncMs:+(counters.syncMs/Math.max(1,counters.syncCount)).toFixed(3),
    basePaints:counters.basePaintCount,modalPaints:counters.modalPaintCount,
    redrawReasons:{...counters.redrawReasons},frameStates:{...counters.frameStates},
+   gravityTickAdvances:counters.gravityTickAdvances,
+   visualStateChanges:counters.visualStateChanges,
    viewport:viewport?{...viewport}:null,gpu:gpu?{...gpu}:null};
  }
  function currentSnapshot(){return enabled?buildSnapshot():null;}
@@ -80,6 +82,11 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    const key=['startup','input','gravity','flash','scroll','resize','unknown'].includes(name)?name:'unknown';
    counters.redrawReasons[key]=(counters.redrawReasons[key]||0)+1;
   }
+ }
+ function recordGameChanges({advanced=false,visualChanged=false}={}){
+  if(!enabled)return;
+  if(advanced)counters.gravityTickAdvances++;
+  if(visualChanged)counters.visualStateChanges++;
  }
  function recordState(state){
   if(!enabled)return;
@@ -115,5 +122,6 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  }
  return Object.freeze({enabled,startFrame,endFrame,startRender,endRender,
   textureChanged,recordRaf,resetPacing,setViewport,setGPUStats,
-  recordDuration,recordRedrawReasons,recordState,snapshot:()=>last,currentSnapshot});
+  recordDuration,recordRedrawReasons,recordGameChanges,recordState,
+  snapshot:()=>last,currentSnapshot});
 }
