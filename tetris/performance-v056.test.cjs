@@ -1,4 +1,4 @@
-/* Tetris System V062 — mobile fill-rate and Gaussian weight regressions.
+/* Tetris System V063 — mobile fill-rate and Gaussian weight regressions.
  * Run: node --test tetris/*.test.cjs
  */
 'use strict';
@@ -70,8 +70,8 @@ test('visual-effect controls, compositor order and stable URL are retained',()=>
  assert.ok(main.includes("scanlines:true,scanlinePreset:'original',scanlineOpacity:20"));
  assert.ok(main.includes("from './compositor.js?v059'"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
- assert.ok(main.includes("const THREE_BUILD_VERSION='062'"));
- assert.ok(html.includes('Tetris System V062'));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='063'"));
+ assert.ok(html.includes('Tetris System V063'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(compositor.includes('composer.addPass(new OutputPass())'));
 });
