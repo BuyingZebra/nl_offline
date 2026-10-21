@@ -55,14 +55,14 @@ test('crop transform and screen position map to identical physical panel locatio
 test('gravity redraw does not mark base UI dirty for piece position alone',()=>{
  assert.ok(main.includes('if(visualChanged){\n   dirty=true;boardDirty=true;'));
  assert.ok(main.includes('if(game.score!==prior.score||game.lines!==prior.lines||'));
- assert.ok(main.includes('game.current!==prior.piece)baseDirty=true;'));
+ assert.ok(main.includes('if(game.status!==prior.status)baseDirty=true;'));
  assert.ok(!main.includes("if(visualChanged){\n   dirty=true;baseDirty=true"));
 });
 test('piece movement, flashes, reset and resize all update board texture',()=>{
- assert.ok(main.includes('boardDirty=true;baseDirty=true;\n  if(was==='));
+ assert.ok(main.includes('boardDirty=true;controlsDirty=true;'));
  assert.ok(main.includes("dirty=true;boardDirty=true;pendingRedrawReasons.add('flash')"));
- assert.ok(main.includes("baseDirty=true;boardDirty=true;invalidate('resize')"));
- assert.ok(main.includes("boardDirty=true;baseDirty=true;overOffered=false"));
+ assert.ok(main.includes("baseDirty=true;boardDirty=true;sidebarDirty=true;controlsDirty=true;invalidate('resize')"));
+ assert.ok(main.includes("boardDirty=true;sidebarDirty=true;controlsDirty=true;baseDirty=true;overOffered=false"));
 });
 test('performance recorder tracks board paints and uploads separately',()=>{
  let t=0,latest=null;
@@ -82,21 +82,21 @@ test('copied report makes stationary and cropped texture requests identifiable',
  const output=report({version:'061',samples:[{
   seconds:2,frameTicks:110,draws:3,basePaints:1,boardPaints:3,
   avgBasePaintMs:2,avgBoardPaintMs:.5,
-  baseUploadRequests:1,boardUploadRequests:3,
+  baseUploadRequests:1,boardUploadRequests:3,sidebarUploadRequests:0,controlsUploadRequests:0,
   popupUploadRequests:0,modalUploadRequests:0,
   uploadTimes:{base:{calls:1,avgCpuMs:23},
    board:{calls:3,avgCpuMs:9}}
  }]});
- assert.ok(output.includes('uploads B/D/P/M 1/3/0/0'));
+ assert.ok(output.includes('uploads B/D/S/C/P/M 1/3/0/0/0/0'));
  assert.ok(output.includes('Canvas board 0.5ms (3 paints)'));
  assert.ok(output.includes('PRE-UPLOAD: base 23ms×1 | board 9ms×3'));
 });
 test('V061 retains DPR2, same controls, passes, debug copy, URL and version',()=>{
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
- assert.ok(main.includes('const THREE_BUILD_VERSION=\'061\''));
+ assert.ok(main.includes('const THREE_BUILD_VERSION=\'062\''));
  assert.ok(main.includes("textureUploads.upload(boardTexture,'board')"));
- assert.ok(main.includes("from './perf-monitor.js?v061'"));
+ assert.ok(main.includes("from './perf-monitor.js?v062'"));
  assert.ok(comp.includes('composer.addPass(new OutputPass())'));
- assert.ok(read('three-v027.html').includes('Tetris System V061'));
+ assert.ok(read('three-v027.html').includes('Tetris System V062'));
 });
