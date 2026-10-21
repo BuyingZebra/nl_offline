@@ -44,11 +44,15 @@ function setup(){
   getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(){}})
  })};
  const file=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
+ const profilerSource=fs.readFileSync(path.join(__dirname,'compositor-pass-profiler.js'),'utf8');
+ const instrumentCompositorPasses=new Function(
+  profilerSource.replace('export function ','function ')+
+  '\\nreturn instrumentCompositorPasses;')();
  const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
  assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
- const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document',
+ const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document','instrumentCompositorPasses',
   standalone+'\nreturn createCompositor;')
-  (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document);
+  (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses);
  const externalPopup={external:true};
  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
  return {pipeline,composer:instances[0],externalPopup,instances};
