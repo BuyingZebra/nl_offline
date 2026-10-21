@@ -1046,6 +1046,7 @@ function frame(now){
     textures:memory?.textures,geometries:memory?.geometries,
     programs:renderer.info.programs?.length});
   }
+  perf.recordState(game.status);
   perf.endFrame(frameStarted);
   if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
