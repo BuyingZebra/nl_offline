@@ -126,6 +126,22 @@ with sync_playwright() as p:
         "Ghost Piece setting did not restore"
     )
 
+    # Restore Defaults is pinned below the scrollable settings: the action
+    # must remain reachable without expanding a category or scrolling.
+    if page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost') || 'yes'") != "no":
+        tap(345, ghost_y)
+    assert page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')") == "no"
+    restore_y = modal_top + modal_height - 6 - menu_button_height / 2
+    tap(195, restore_y)
+    assert page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')") == "yes", (
+        "Restore Defaults did not reset Gameplay switches"
+    )
+    assert fx_value("phosphor") is True, "Restore Defaults did not reset phosphor"
+    assert fx_value("bloomStrength") == .30, (
+        "Restore Defaults did not reset bloom strength"
+    )
+    capture("three-restore-defaults")
+
     # Exit via the shared menu-height RETURN TO GAME button.
     back_y = modal_top + 6 + menu_button_height + 6 + menu_button_height / 2
     tap(195, back_y)
