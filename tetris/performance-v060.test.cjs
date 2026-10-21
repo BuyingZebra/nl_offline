@@ -61,7 +61,7 @@ test('profiler stores separate upload timing averages and resets per interval',(
  assert.deepEqual(samples[1].uploadTimes,{});
 });
 test('debug report shows texture upload time separately from scene pass CPU',()=>{
- const result=report({version:'060',samples:[{seconds:2,frameTicks:100,
+ const result=report({version:'060',samples:[{seconds:2,frameTicks:100,basePaints:2,
   uploadTimes:{base:{calls:2,avgCpuMs:12,maxCpuMs:15,totalCpuMs:24}},
   passTimes:{'Scene + uploads':{calls:2,avgCpuMs:4,totalCpuMs:8}},
   avgWebglCalls:18}]});
