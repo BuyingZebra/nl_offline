@@ -26,7 +26,7 @@ const DEFAULT=Object.freeze({boardBlur:47,phosphor:true,bloom:true,bloomCutoff:.
  scanlines:true,scanlinePreset:'original',scanlineScale:1,scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39,vignetteSpread:.57});
-const THREE_BUILD_VERSION='039'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='040'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -842,13 +842,21 @@ function toggleSettingsGroup(groupId){
  invalidate();
 }
 function settingSquare(x,y,size,active){
- // Solid indicates enabled / open; outline indicates disabled / closed.
+ // Binary options: solid square = enabled, outline square = disabled.
  g.lineWidth=1;
  if(active){
   g.fillStyle=C.bright;g.fillRect(x,y,size,size);
  }else{
   g.strokeStyle=C.bright;g.strokeRect(x+.5,y+.5,size-1,size-1);
  }
+}
+function settingsExpandArrow(x,y,expanded,color){
+ // Use the exact 18px START/RESUME arrow glyph and rotate it when expanded.
+ g.save();
+ g.translate(x,y);
+ if(expanded)g.rotate(Math.PI/2);
+ text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');
+ g.restore();
 }
 function drawOptions(q){
  modalPanel('FIELD ATLAS / DISPLAY SETTINGS',q);
@@ -868,10 +876,11 @@ function drawOptions(q){
   if(yy+height<top||yy>bottom)continue;
   if(kind==='group'){
    const selected=expandedSettingsGroup===row.group.id;
-   const square=14,squareX=contentX+pad,squareY=yy+(height-square)/2;
-   settingSquare(squareX,squareY,square,selected);
-   text(row.group.title,squareX+square+gap,yy+height/2,11,
-    selected?C.bright:C.weak,'left',contentW-2*pad-square-gap);
+   const iconSlot=BUTTON_ICON_FONT_SIZE,iconX=contentX+pad;
+   const color=selected?C.bright:C.weak;
+   settingsExpandArrow(iconX+iconSlot/2,yy+height/2,selected,color);
+   text(row.group.title,iconX+iconSlot+gap,yy+height/2,11,
+    color,'left',contentW-2*pad-iconSlot-gap);
    rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.border);
    region(contentX,yy,contentW,height,'settingsGroup',
     {field:row.group.id,modalControl:true});
