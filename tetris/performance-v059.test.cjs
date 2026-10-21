@@ -87,6 +87,6 @@ test('V059 retains all ten original passes and captures their CPU times without 
  assert.ok(main.includes('renderer.info.reset();'));
  assert.ok(main.includes('perf.recordWebglCalls(renderer.info.render.calls);'));
  assert.ok(main.includes('onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)'));
- assert.ok(main.includes('const THREE_BUILD_VERSION=\'060\''));
- assert.ok(read('three-v027.html').includes('Tetris System V060'));
+ assert.ok(main.includes('const THREE_BUILD_VERSION=\'061\''));
+ assert.ok(read('three-v027.html').includes('Tetris System V061'));
 });
