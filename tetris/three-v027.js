@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='050'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='051'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -57,14 +57,7 @@ try{const s=JSON.parse(load(PREF,'null'));if(s&&typeof s==='object')for(const [k
 // Older saved bloom values may exceed the new slider upper bound.
 FX.bloomStrength=clamp(Number(FX.bloomStrength)||0,0,1);
 const persist=()=>store(PREF,JSON.stringify(FX));
-const DEPTH_PREF='fieldAtlasTetrisDepthV050';
-const DEPTH_DEFAULT_STRENGTH=45;
-let depthSettings={enabled:load(DEPTH_PREF+'Enabled','no')==='yes',
- strength:clamp(Number(load(DEPTH_PREF+'Strength','45'))||0,0,100)};
-const saveDepth=()=>{
- store(DEPTH_PREF+'Enabled',depthSettings.enabled?'yes':'no');
- store(DEPTH_PREF+'Strength',depthSettings.strength);
-};
+// Stable baseline: one orthographic game canvas, one modal canvas, one CRT compositor.
 const game=new Core.Game();
 let highs=Scores.read(window.localStorage),overOffered=false;
 let showGhost=load('fieldAtlasTetrisGhost','yes')!=='no';
@@ -93,126 +86,18 @@ boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps
 const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:true,alpha:false,powerPreference:'high-performance'});
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080808);
-const camera=new THREE.PerspectiveCamera(50,1,.1,10);
-camera.position.z=2;camera.lookAt(0,0,0);
+const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);
+camera.position.z=2;
 const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
 surface.frustumCulled=false;scene.add(surface);
-// Real, independent depth planes. Each is a separate transparent CanvasTexture,
-// kept registered in the same scene and rendered through the same CRT pipeline.
-const CAMERA_Z=2,CAMERA_FOV=50,BOARD_DEPTH_Z=.17,SIDE_DEPTH_Z=.105;
-function makeDepthLayer(z,order){
- const canvas=document.createElement('canvas');
- const context=canvas.getContext('2d',{alpha:true});
- if(!context)throw Error('Depth layer Canvas2D missing');
- const texture=new THREE.CanvasTexture(canvas);
- texture.colorSpace=THREE.SRGBColorSpace;
- texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
- texture.generateMipmaps=false;
- const mesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
-  new THREE.MeshBasicMaterial({map:texture,transparent:true,
-   depthTest:false,depthWrite:false}));
- mesh.frustumCulled=false;mesh.position.z=z;mesh.renderOrder=order;
- mesh.visible=false;scene.add(mesh);
- return {canvas,context,texture,mesh,z};
-}
-const sideLayer=makeDepthLayer(SIDE_DEPTH_Z,1);
-const boardLayer=makeDepthLayer(BOARD_DEPTH_Z,2);
-let motionNeutral=null,motionTargetX=0,motionTargetY=0,motionX=0,motionY=0;
-let motionRequestPending=false;
-function depthOrientation(e){
- if(!depthSettings.enabled||!Number.isFinite(e.beta)||!Number.isFinite(e.gamma))return;
- if(!motionNeutral)motionNeutral={beta:e.beta,gamma:e.gamma};
- const diff=(a,b)=>((a-b+540)%360)-180;
- const horizontal=clamp(diff(e.gamma,motionNeutral.gamma)/12,-1,1);
- const vertical=clamp(diff(e.beta,motionNeutral.beta)/12,-1,1);
- const screenAngle=Number(window.screen?.orientation?.angle??window.orientation??0);
- const angle=screenAngle*Math.PI/180;
- const dx=horizontal*Math.cos(angle)-vertical*Math.sin(angle);
- const dy=vertical*Math.cos(angle)+horizontal*Math.sin(angle);
- // Perspective produces only z/(cameraZ-z) screen displacement. Allow a
- // larger virtual camera shift so board movement stays around 0-3.3px
- // and sidebar movement around 0-2px at maximum sensitivity.
- const limit=36*depthSettings.strength/100;
- motionTargetX=clamp(dx,-1,1)*limit;
- motionTargetY=clamp(dy,-1,1)*limit;
- invalidate();
-}
-window.addEventListener('deviceorientation',depthOrientation,{passive:true});
-function enableDepthMotion(){
- if(motionRequestPending)return;
- motionNeutral=null;
- const grant=()=>{
-  motionRequestPending=false;depthSettings.enabled=true;saveDepth();invalidate();
- };
- const decline=()=>{
-  motionRequestPending=false;depthSettings.enabled=false;saveDepth();invalidate();
- };
- if(typeof DeviceOrientationEvent==='undefined'){decline();return;}
- const ask=DeviceOrientationEvent.requestPermission;
- if(typeof ask==='function'){
-  motionRequestPending=true;
-  // Call synchronously from the checkbox's pointerup event for iOS.
-  try{Promise.resolve(ask.call(DeviceOrientationEvent))
-   .then(state=>state==='granted'?grant():decline()).catch(decline);}
-  catch(e){decline();}
- }else grant();
-}
-function animateDepth(dt){
- const active=depthSettings.enabled&&modal===null&&game.status==='playing';
- const tx=active?motionTargetX:0,ty=active?motionTargetY:0;
- const alpha=1-Math.exp(-Math.max(1,dt)/120);
- const oldX=motionX,oldY=motionY;
- motionX+=(tx-motionX)*alpha;motionY+=(ty-motionY)*alpha;
- if(Math.abs(motionX-tx)<.006)motionX=tx;
- if(Math.abs(motionY-ty)<.006)motionY=ty;
- const moving=Math.abs(motionX-oldX)>.0001||Math.abs(motionY-oldY)>.0001;
- if(moving){
-  const h=2*CAMERA_Z*Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV/2));
-  const w=h*W/Math.max(1,H);
-  camera.position.x=-motionX*w/Math.max(1,W);
-  camera.position.y=motionY*h/Math.max(1,H);
-  camera.lookAt(camera.position.x,camera.position.y,0);
-  // Keep the glass/HUD fixed; nearby scene planes move relative to it.
-  for(const plane of [surface,scrimPlane,modalPlane]){
-   plane.position.x=camera.position.x;plane.position.y=camera.position.y;
-  }
-  // The depth planes track the virtual eye by their distance fraction;
-  // only the difference in Z creates the parallax. At maximum sensitivity
-  // this limits the board to ~3.3px and the sidebar to ~2px displacement.
-  for(const layer of [boardLayer,sideLayer]){
-   const factor=(CAMERA_Z-layer.z)/CAMERA_Z;
-   layer.mesh.position.x=camera.position.x*factor;
-   layer.mesh.position.y=camera.position.y*factor;
-  }
- }
- return moving;
-}
-function captureDepthLayers(r){
- for(const [layer,b] of [
-  [boardLayer,{x:r.boardX,y:r.boardY,w:r.boardW,h:r.boardH}],
-  [sideLayer,{x:r.sideX,y:r.boardY,w:r.sideW,h:r.boardH}]
- ]){
-  const ctx=layer.context,c=layer.canvas;
-  const x=Math.round(b.x*DPR),y=Math.round(b.y*DPR);
-  const width=Math.max(0,Math.round(b.w*DPR));
-  const height=Math.max(0,Math.round(b.h*DPR));
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,c.width,c.height);
-  if(width>0&&height>0){
-   ctx.drawImage(input,x,y,width,height,x,y,width,height);
-   g.fillStyle=C.bg;g.fillRect(b.x,b.y,b.w,b.h);
-  }
-  layer.texture.needsUpdate=true;
- }
-}
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
 // smaller transparent modal texture into ONE framebuffer before CRT shaders.
 // Dragging a menu no longer repaints or reuploads the fullscreen game texture.
 const scrimPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.77,
   depthTest:false,depthWrite:false}));
-scrimPlane.frustumCulled=false;scrimPlane.renderOrder=3;scrimPlane.position.z=.02;
+scrimPlane.frustumCulled=false;scrimPlane.renderOrder=1;scrimPlane.position.z=.02;
 scrimPlane.visible=false;scene.add(scrimPlane);
 const modalTexture=new THREE.CanvasTexture(modalCanvas);
 modalTexture.colorSpace=THREE.SRGBColorSpace;
@@ -223,7 +108,7 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
   depthWrite:false}));
 // The transparent modal texture spans the entire screen. Keeping its image
 // dimensions stable across dialog types prevents stale cropped texture data.
-modalPlane.frustumCulled=false;modalPlane.renderOrder=4;modalPlane.position.z=.03;
+modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
  const composer=new EffectComposer(renderer);
@@ -831,7 +716,6 @@ function paintBaseGame(){
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
  baseRegions=regions.slice();
- captureDepthLayers(r);
  texture.needsUpdate=true;
  boardPopupTexture.needsUpdate=true;
 }
@@ -841,7 +725,6 @@ function paintGame(){
  if(modal)paintModalOverlay();
  else{
   surface.visible=true;
-  boardLayer.mesh.visible=true;sideLayer.mesh.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions.slice();
  }
@@ -866,33 +749,20 @@ const DISPLAY_EFFECTS=[
   sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
    ['RADIUS','softnessRadius',0,10,.5,'px']]},
  {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost'},
- {id:'sound',title:'SOUND',toggle:'sound'},
- {id:'depth',title:'DEPTH PARALLAX',toggle:'depthOn',
-  sliders:[['','depthStrength',0,100,1,'%']]}
+ {id:'sound',title:'SOUND',toggle:'sound'}
 ];
 const SCANLINE_CHOICES=[{id:'off',name:'OFF'},
  ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))];
 const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
 let scanlineMenuOpen=false;
 function settingValue(k){
- if(k==='depthOn')return depthSettings.enabled;
- if(k==='depthStrength')return depthSettings.strength;
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
  if(['softnessStrength','vignetteAmount','bloomStrength'].includes(k))return Math.round(FX[k]*100);
  return FX[k];
 }
 function setSetting(k,value){
- if(k==='depthOn'){
-  if(value)enableDepthMotion();
-  else{
-   depthSettings.enabled=false;motionNeutral=null;
-   motionTargetX=motionTargetY=0;saveDepth();
-  }
- }else if(k==='depthStrength'){
-  depthSettings.strength=clamp(Number(value)||0,0,100);
-  saveDepth();refreshEffectPreview(k);
- }else if(k==='pieceGhost'){
+ if(k==='pieceGhost'){ }else if(k==='pieceGhost'){
   showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');baseDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
@@ -1002,11 +872,6 @@ function effectPreview(id){
   drawPiece();
  }else if(id==='piece'){
   drawPiece(true);
- }else if(id==='depth'){
-  const delta=2+depthSettings.strength/100*13;
-  p.save();p.globalAlpha=.4;p.translate(-delta*.7,delta*.4);drawPiece(true);p.restore();
-  p.save();p.globalAlpha=.55;p.translate(delta*.7,-delta*.4);drawPiece(true);p.restore();
-  drawPiece();
  }else{
   drawPiece();
   if(id==='scanlines'){
@@ -1284,8 +1149,6 @@ function paintModalOverlay(){
  // Options is now its own screen: hide the game rather than darken it.
  const standaloneSettings=modal==='options';
  surface.visible=!standaloneSettings;
- boardLayer.mesh.visible=!standaloneSettings;
- sideLayer.mesh.visible=!standaloneSettings;
  const q=modalBounds(modal);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
@@ -1317,8 +1180,6 @@ function handleAction(act){
  if(act==='resetFX'){
   FX={...DEFAULT};persist();
   showGhost=true;soundOn=true;
-  depthSettings.enabled=false;depthSettings.strength=DEPTH_DEFAULT_STRENGTH;
-  motionNeutral=null;motionTargetX=motionTargetY=0;saveDepth();
   store('fieldAtlasTetrisGhost','yes');
   store('fieldAtlasTetrisSound','yes');
   optionsScroll=0;
@@ -1490,10 +1351,7 @@ async function checkForNewBuild(){
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden&&game.status==='playing')perform('pause');
  lastTime=performance.now();
- if(!document.hidden){
-  motionNeutral=null;motionTargetX=motionTargetY=0;
-  invalidate();void checkForNewBuild();
- }
+ if(!document.hidden){invalidate();void checkForNewBuild();}
 });
 window.addEventListener('pageshow',()=>{void checkForNewBuild();});
 window.addEventListener('focus',()=>{void checkForNewBuild();});
@@ -1569,14 +1427,12 @@ function frame(now){
    if(optionsScroll===before||optionsScroll===0||optionsScroll===optionsMaxScroll)scrollVelocity=0;
    else dirty=true;
   }else scrollVelocity=0;
-  const depthMoved=animateDepth(dt);
-  if(depthMoved)dirty=true;
   if(dirty){
    paintGame();
    syncFX();
    composer.render();
   }
-  if(game.status==='playing'||dirty||depthMoved||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
@@ -1592,18 +1448,6 @@ function resize(){
  g.setTransform(DPR,0,0,DPR,0,0);
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  composer.setPixelRatio(DPR);composer.setSize(W,H);
- camera.aspect=W/H;camera.updateProjectionMatrix();
- const viewH=2*CAMERA_Z*Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV/2));
- const viewW=viewH*W/H;
- for(const [mesh,z] of [[surface,0],[sideLayer.mesh,SIDE_DEPTH_Z],
-  [boardLayer.mesh,BOARD_DEPTH_Z],[scrimPlane,.02],[modalPlane,.03]]){
-  const depthScale=(CAMERA_Z-z)/CAMERA_Z;
-  mesh.scale.set(viewW*depthScale/2,viewH*depthScale/2,1);
- }
- for(const layer of [boardLayer,sideLayer]){
-  layer.canvas.width=Math.round(W*DPR);
-  layer.canvas.height=Math.round(H*DPR);
- }
  ghostPass.uniforms.uSize.value.set(W,H);
  edgeSoftness.uniforms.uSize.value.set(W,H);
  boardBlurHorizontal.uniforms.uSize.value.set(W,H);
@@ -1611,10 +1455,7 @@ function resize(){
  baseDirty=true;dirty=true;invalidate();
 }
 new ResizeObserver(resize).observe(display);
-window.addEventListener('orientationchange',()=>{
- motionNeutral=null;motionTargetX=motionTargetY=0;
- dirty=true;resize();
-});
+window.addEventListener('orientationchange',()=>{dirty=true;resize();});
 resize();
 requestFrame();
 // One check after initialization also covers standalone cold launches.
