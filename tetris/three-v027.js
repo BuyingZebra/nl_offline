@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='042'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='043'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -741,12 +741,11 @@ const SETTINGS_GROUPS=[
   ['range','VIGNETTE STRENGTH','vignetteAmount',0,100,1,'%'],
   ['switch','PHOSPHOR BLOOM','bloom'],
   ['range','BLOOM STRENGTH','bloomStrength',0,100,1,'%']]},
- {id:'distortion',title:'SIGNAL DISTORTION',items:[
+ {id:'experimental',title:'SCREEN OVERLAY (EXPERIMENTAL)',items:[
   ['switch','GHOSTING','ghost'],
   ['range','GHOST X','ghostX',-32,32,1,' px'],
   ['range','GHOST Y','ghostY',-32,32,1,' px'],
-  ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%']]},
- {id:'optics',title:'DISPLAY OPTICS',items:[
+  ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%'],
   ['switch','EDGE SOFTNESS','softness'],
   ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
   ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]}
