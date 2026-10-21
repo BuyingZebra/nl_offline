@@ -3,11 +3,11 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v051';
+import {createCompositor} from './compositor.js?v056';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor} from './perf-monitor.js?v054';
-import {formatDebugReport} from './debug-report.js?v055';
+import {createPerfMonitor} from './perf-monitor.js?v056';
+import {formatDebugReport} from './debug-report.js?v056';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
