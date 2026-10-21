@@ -96,5 +96,5 @@ test('V058 preserves the user controls and only guarded gravity drives a redraw'
  assert.ok(js.includes("layers.reason('gravity')"));
  assert.ok(js.includes('if(finished||flashPhase('));
  assert.ok(js.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
- assert.ok(read('three-v027.html').includes('Tetris System V063'));
+ assert.ok(read('three-v027.html').includes('<title>NOMAD — Tetris System</title>'));
 });
