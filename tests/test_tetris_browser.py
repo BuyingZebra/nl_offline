@@ -127,8 +127,11 @@ with sync_playwright() as p:
 
     # Preview changes are independent of whether the viewport effect is on.
     # This exercises the real slider and persisted value with bloom disabled.
+    assert fx_value("bloom") is True
+    tap(103, bloom_y + 34)  # Disable bloom in the real viewport
+    assert fx_value("bloom") is False, "Bloom toggle did not switch off"
     bloom_old = fx_value("bloomStrength")
-    tap(110, bloom_y + 64)  # Bloom strength slider, not its enable square
+    tap(110, bloom_y + 64)  # Adjust thumbnail while main bloom is disabled
     assert fx_value("bloomStrength") != bloom_old, (
         "Disabled-effect preview control failed to update its saved value"
     )
