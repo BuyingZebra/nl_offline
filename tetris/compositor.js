@@ -239,6 +239,9 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  composer.addPass(scanlineOverlay);
  composer.addPass(new OutputPass());
  const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
+ // Immutable popup blur parameters and pass references need no per-frame allocation.
+ const popupBlur=boardBlurParams();
+ const popupPasses=[boardBlurHorizontal,boardPopupPass];
 function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupStatus,layoutInfo}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
@@ -255,8 +258,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupSt
   popupStatus===boardStatus;
  boardBlurHorizontal.enabled=boardOverlayActive;
  boardPopupPass.enabled=boardOverlayActive;
- const popupBlur=boardBlurParams();
- for(const pass of [boardBlurHorizontal,boardPopupPass]){
+ for(const pass of popupPasses){
   pass.uniforms.uSigma.value=popupBlur.sigma;
   pass.uniforms.uStep.value=popupBlur.step;
  }
@@ -265,7 +267,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupSt
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){
   const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
-  for(const pass of [boardBlurHorizontal,boardPopupPass]){
+  for(const pass of popupPasses){
    pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
   }
  }
