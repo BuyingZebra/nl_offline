@@ -1,6 +1,6 @@
 # FIELD ATLAS · Tetris System / Three.js
 
-## Current production architecture (V043)
+## Current production architecture (V044)
 - **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
 - **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
@@ -333,3 +333,11 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - The combined category contains unchanged, in order: Ghosting switch, Ghost X, Ghost Y, Ghost Strength, Edge Softness switch, Blur Strength, Blur Radius. All control types, 6px spacing, V027-style slider descriptions, saved values, renderer passes and interaction code remain untouched.
 - Restore Defaults stays fixed below the scroller. The iPhone viewport correction, phosphor colours, Bloom computation, gameplay and high scores remain unchanged.
 - Version **043** on the same permanent link `tetris/three-v027.html`. Static JS parse, exact two-section replacement check and settings schema tests passed. Actual device visual confirmation remains pending. No other UI ideas were implemented while the user researches them.
+
+## V044: Effect-block layout with consistent squares and dividers
+- User supplied a compact structural example: **[square] PHOSPHOR BLOOM (left) / 89% (right), one short luminance explanation, then BLOOM + horizontal slider**, with an unobtrusive separator between whole effects. 89% was illustrative, not a requested default; the existing user-saved bloom strength still supplies the real displayed percentage.
+- Implemented one effect schema per group, rather than independent flat switch/slider rows: **Gameplay (Ghost Piece, Sound)**; **Screen Overlays (Phosphor Color, CRT Scanlines, Screen Vignette, Phosphor Bloom)**; **Screen Overlay (Experimental) (Signal Ghosting, Edge Softness)**. Each effect owns its heading, optional boolean/status square, optional percentage label, concise description, and its related controls. This keeps headings and controls together as settings evolve.
+- All binary toggles, CRT selected-choice squares, and slider thumbs use **the identical 20px square token**. A solid square means enabled/selected; an outlined square means disabled/not selected. The CRT Scanlines status square is actionable (toggles ON/OFF), and the previously agreed mask dropdown still contains OFF and all five original patterns.
+- Effect-specific slider bars are now compact **inline rows** (label left, track to the right), with title/percentage and description above. One thin horizontal divider appears after each complete effect block, not after each slider/toggle row. The established **6px adjacency and panel padding** rules remain. Main category accordion arrows retain the existing 18px START/RESUME glyph.
+- Current default effect values, brightness-based threshold-free bloom, mask settings, saved preferences, gameplay/high scores, fixed Restore Defaults button, and fullscreen iPhone CSS are unchanged; this is presentation and interaction structure only. Build **044** retains the permanent `tetris/three-v027.html` URL.
+- JavaScript parsing and schema-source invariants passed. Mock canvas UI tests verified exact effect/divider counts, 20px square/thumb dimensions, responsive menu geometry at 393×852, 375×667, 320×568, and 844×390, bottom-of-list scroll reachability, CRT selector expansion with six choices, and the pinned Restore Defaults button. Mobile browser regression tests were updated for the new effect-block hit targets, but actual CI execution and iPhone rendering remain to be confirmed.
