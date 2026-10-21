@@ -935,8 +935,9 @@ function drawOptions(q){
    if(value)text(value,contentX+contentW-pad,topRowY,11,C.bright,'right');
    if(effect.description)text(effect.description,contentX+pad,
     yy+row.headingH+14,10,C.weak,'left',contentW-2*pad);
-   if(effect.toggle)region(contentX,yy,contentW,row.headingH,'toggle',
-    {field:effect.toggle,modalControl:true});
+   // Any visible square is actionable; the CRT dropdown still offers OFF.
+   if(effect.toggle||effect.status)region(contentX,yy,contentW,row.headingH,'toggle',
+    {field:effect.toggle||effect.status,modalControl:true});
   }else if(kind==='effectDivider'){
    rect(contentX+pad,yy,contentW-2*pad,1,C.border);
   }else if(kind==='scanlineChoice'){
