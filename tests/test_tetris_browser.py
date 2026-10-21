@@ -58,17 +58,19 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # V048: Display System is now an entire black terminal PAGE rather than
-    # a floating modal with the gameplay screen under a scrim. Contents are
-    # still unboxed, centred in equal-height rows, and use the same touch
-    # coordinates (safe area + 6px header inset).
+    # V049: Display System remains a full-screen black terminal page.
+    # Its title and X sit inside the SAME rounded/filled/bordered header used
+    # on the home screen. All thumbnails have inset, rounded/beveled frames.
+    # The 15px controls and open-space effect layout are unchanged.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
     )
     menu_button_height = 46 if page_height > 730 else 42
-    modal_top = top_inset + 6
-    header_height = 80 if page_height > 730 else 58
+    compact = page_height <= 620
+    short = page_height <= 730
+    modal_top = top_inset + (4 if compact else 9 if short else 0)
+    header_height = 50 if compact else 58 if short else 80
     content_top = modal_top + header_height + 6
 
     row_height, row_gap = 102, 6
@@ -77,7 +79,8 @@ with sync_playwright() as p:
     vignette_y = content_top + 2 * (row_height + row_gap)
     bloom_y = content_top + 3 * (row_height + row_gap)
     ghost_y = content_top + 4 * (row_height + row_gap)
-    # The simple Phosphor title/toggle block is centered vertically.
+    # Preview frames don't change row geometry; Phosphor stays centered.
+    # The header location now matches the home screen at every breakpoint.
     phosphor_switch = (111, phosphor_y + row_height / 2)
     # Scanline's title, slider and pattern selector fill the largest block.
     scanline_selector = (180, scanline_y + 81)
