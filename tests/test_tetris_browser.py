@@ -58,9 +58,10 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # V047: an unboxed Fallout-style terminal list. Every effect uses the
-    # tallest content group's 102px row slot plus one 6px inter-row gap.
-    # This produces equally spaced square thumbnails without divider lines.
+    # V048: Display System is now an entire black terminal PAGE rather than
+    # a floating modal with the gameplay screen under a scrim. Contents are
+    # still unboxed, centred in equal-height rows, and use the same touch
+    # coordinates (safe area + 6px header inset).
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
@@ -138,6 +139,23 @@ with sync_playwright() as p:
     tap(350, close_y)
     closed_shot = capture("three-settings-closed")
     assert closed_shot.tobytes() != settings_shot.tobytes(), "X did not close menu"
+
+    # Re-opening the full-screen page must not reload the underlying game.
+    # The game canvas/score remains in place; this is an in-app view change,
+    # not a second URL, browser tab, or destructive canvas replacement.
+    canvas_before = page.evaluate(
+        "() => ({el:document.querySelector('#screen'),url:location.pathname})"
+        ".url"
+    )
+    tap(350, top_inset + 40)
+    reopened_shot = capture("three-display-reopened")
+    assert reopened_shot.tobytes() != closed_shot.tobytes(), (
+        "Could not reopen the full-screen Display System page"
+    )
+    assert page.evaluate("location.pathname") == canvas_before, (
+        "Display System unexpectedly navigated to another URL"
+    )
+    tap(350, close_y)
 
     tap(145, top_inset + 386)  # START GAME button on the board
     page.keyboard.press("p")  # PAUSE via the normal keyboard input
