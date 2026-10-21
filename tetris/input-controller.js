@@ -56,7 +56,7 @@ screen.addEventListener('pointerdown',e=>{
  try{screen.setPointerCapture(e.pointerId)}catch(err){}
  // Game buttons stay immediate, including auto-repeat movement.
  if(!getModal()&&r&&!r.board){
-  setBaseDirty();
+  setBaseDirty(r.act);
   handleAction(r.act);
   if(r.repeat)repeatDelay=setTimeout(()=>{
    repeatInterval=setInterval(()=>handleAction(r.act),82);
@@ -90,8 +90,8 @@ function releaseTouch(e){
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
  const touch=pressed,p=eventPoint(e);pressed=null;
- // Release feedback on game buttons must repaint the stationary base once.
- if(!getModal())setBaseDirty();
+ // Redraw only the touched button's cropped HUD texture on release.
+ if(!getModal())setBaseDirty(touch.action);
  try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(err){}
  if(getModal()){
   if(e.type==='pointerup'){
@@ -114,7 +114,7 @@ function releaseTouch(e){
    }
   }
  }else if(touch.action==='board'&&e.type==='pointerup'){
-  setBaseDirty();
+  setBaseDirty('board');
   const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
   if(Math.abs(dx)<16&&Math.abs(dy)<16)perform('cw');
   else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
