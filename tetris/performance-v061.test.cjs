@@ -53,16 +53,16 @@ test('crop transform and screen position map to identical physical panel locatio
  assert.ok(main.includes('boardContext.setTransform(DPR,0,0,DPR,-x*DPR,-y*DPR);'));
 });
 test('gravity redraw does not mark base UI dirty for piece position alone',()=>{
- assert.ok(main.includes('if(visualChanged){\n   dirty=true;boardDirty=true;'));
+ assert.ok(main.includes("if(visualChanged){\n   layers.mark('board');"));
  assert.ok(main.includes('if(game.score!==prior.score||game.lines!==prior.lines||'));
- assert.ok(main.includes('if(game.status!==prior.status)baseDirty=true;'));
- assert.ok(!main.includes("if(visualChanged){\n   dirty=true;baseDirty=true"));
+ assert.ok(main.includes("if(game.status!==prior.status)layers.mark('base');"));
+ assert.ok(!main.includes("if(visualChanged){\n   layers.mark('base');"));
 });
 test('piece movement, flashes, reset and resize all update board texture',()=>{
- assert.ok(main.includes('boardDirty=true;controlsDirty=true;'));
- assert.ok(main.includes("dirty=true;boardDirty=true;pendingRedrawReasons.add('flash')"));
- assert.ok(main.includes("baseDirty=true;boardDirty=true;sidebarDirty=true;controlsDirty=true;invalidate('resize')"));
- assert.ok(main.includes("boardDirty=true;sidebarDirty=true;controlsDirty=true;baseDirty=true;overOffered=false"));
+ assert.ok(main.includes("layers.mark('board');layers.mark('controls');"));
+ assert.ok(main.includes("layers.mark('board');layers.reason('flash')"));
+ assert.ok(main.includes("layers.mark('base','board','sidebar','controls');invalidate('resize')"));
+ assert.ok(main.includes("layers.mark('board');layers.mark('sidebar');layers.mark('controls');layers.mark('base');overOffered=false"));
 });
 test('performance recorder tracks board paints and uploads separately',()=>{
  let t=0,latest=null;
