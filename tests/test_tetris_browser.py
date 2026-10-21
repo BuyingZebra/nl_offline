@@ -58,8 +58,8 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # V045: DISPLAY SYSTEM replaces the old modal header. It uses the same
-    # single icon height as the main game header, and there is no accordion.
+    # V046: one uninterrupted list of 8 effect cards, no category headings
+    # or descriptions. All slider thumbs and toggles are the same 15px square.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
@@ -69,59 +69,73 @@ with sync_playwright() as p:
     header_height = 80 if page_height > 730 else 58
     content_top = modal_top + header_height + 6
 
-    # Effect row geometry: 24px SCREEN OVERLAYS label, then the full-width
-    # phosphor card (88px) and the CRT card (145px).
-    phosphor_y = content_top + 24 + 6
-    scanline_y = phosphor_y + 88 + 6
-    phosphor_switch = (275, phosphor_y + 24)
-    scanline_selector = (310, scanline_y + 75)
-    pattern_option_height = max(34, menu_button_height - 8)
+    # The first preview card starts immediately below DISPLAY SYSTEM:
+    # phosphor (80), scanlines (116), vignette (80), bloom (80), ghost (112).
+    phosphor_y = content_top
+    scanline_y = phosphor_y + 80 + 6
+    vignette_y = scanline_y + 116 + 6
+    bloom_y = vignette_y + 80 + 6
+    ghost_y = bloom_y + 80 + 6
+    phosphor_switch = (111, phosphor_y + 23)
+    scanline_selector = (180, scanline_y + 91)
+    choice_height = max(34, menu_button_height - 8)
 
     def fx_value(key):
         return page.evaluate(
             """(key) => {
-                const stored = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
-                const defaults = {phosphor:true,scanlines:true,scanlinePreset:'original',bloomStrength:.30};
-                return stored[key] ?? defaults[key];
+                const saved = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
+                const defaults = {phosphor:true,scanlines:true,scanlinePreset:'original',
+                    ghostX:2,ghostY:0,bloomStrength:.30};
+                return saved[key] ?? defaults[key];
             }""", key,
         )
 
-    # The new single-row square must toggle and persist its associated effect.
+    # Toggle the 15x15 square and make sure persistence is unchanged.
     phosphor_before = fx_value("phosphor")
     tap(*phosphor_switch)
-    assert fx_value("phosphor") != phosphor_before, "Phosphor row toggle did not save"
+    assert fx_value("phosphor") != phosphor_before, "Phosphor toggle not applied"
     tap(*phosphor_switch)
-    assert fx_value("phosphor") == phosphor_before, "Phosphor row toggle did not restore"
+    assert fx_value("phosphor") == phosphor_before, "Phosphor toggle not restored"
 
-    # The CRT pattern selector stays inside its full-width effect panel.
+    # The CRT pattern selector expands inside its own full-width effect row.
     tap(*scanline_selector)
     chooser_shot = capture("three-scanline-picker")
     assert chooser_shot.tobytes() != settings_shot.tobytes(), (
-        "Scanline pattern selector did not expand"
+        "CRT pattern selector failed to open"
     )
-    off_y = scanline_y + 145 + pattern_option_height / 2
+    off_y = scanline_y + 116 + choice_height / 2
     tap(120, off_y)
-    assert fx_value("scanlines") is False, "Scanline OFF did not persist"
+    assert fx_value("scanlines") is False, "CRT OFF selection failed"
     tap(*scanline_selector)
-    tap(120, off_y + pattern_option_height + 6)
-    assert fx_value("scanlines") is True, "Scanline preset did not re-enable"
-    assert fx_value("scanlinePreset") == "original", "Original mask was not selected"
+    tap(120, off_y + choice_height + 6)
+    assert fx_value("scanlines") is True, "CRT pattern did not re-enable"
+    assert fx_value("scanlinePreset") == "original", "Wrong CRT pattern"
 
-    # The central Restore action is pinned below the scroll view and resets
-    # persisted effect values, while the X closes the Display System.
+    # Independent X/Y ghost displacement uses pixel values and two
+    # half-width sliders, with a separate full-width Strength slider.
+    ghost_x_before = fx_value("ghostX")
+    ghost_y_before = fx_value("ghostY")
+    tap(122, ghost_y + 56)
+    tap(269, ghost_y + 56)
+    assert fx_value("ghostX") != ghost_x_before, "Ghost X slider did not change"
+    assert fx_value("ghostY") != ghost_y_before, "Ghost Y slider did not change"
+
+    # RESTORE DEFAULTS and X retain fixed safe-area positions, regardless
+    # of how far the property list is scrolled.
     tap(*phosphor_switch)
     assert fx_value("phosphor") is False
     restore_y = page_height - safe_bottom - 6 - menu_button_height / 2
     tap(195, restore_y)
-    assert fx_value("phosphor") is True, "Restore Defaults did not reset phosphor"
-    assert fx_value("bloomStrength") == .30, "Restore Defaults did not reset bloom"
+    assert fx_value("phosphor") is True, "Restore Defaults missed phosphor"
+    assert fx_value("ghostX") == 2 and fx_value("ghostY") == 0, (
+        "Restore Defaults missed ghost offsets"
+    )
+    assert fx_value("bloomStrength") == .30, "Restore Defaults missed bloom"
     capture("three-restore-defaults")
-    close_y = modal_top + (header_height - menu_button_height) / 2 + menu_button_height / 2
+    close_y = modal_top + header_height / 2
     tap(350, close_y)
     closed_shot = capture("three-settings-closed")
-    assert closed_shot.tobytes() != settings_shot.tobytes(), (
-        "X did not close Display System"
-    )
+    assert closed_shot.tobytes() != settings_shot.tobytes(), "X did not close menu"
 
     tap(145, top_inset + 386)  # START GAME button on the board
     page.keyboard.press("p")  # PAUSE via the normal keyboard input
