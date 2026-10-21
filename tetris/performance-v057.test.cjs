@@ -72,10 +72,10 @@ test('main renderer measures only work actually performed',()=>{
  assert.ok(main.includes("perf.recordDuration('base'"));
  assert.ok(main.includes("perf.recordDuration('modal'"));
  assert.ok(main.includes("perf.recordDuration('sync'"));
- assert.ok(main.includes('perf.recordRedrawReasons([...pendingRedrawReasons])'));
+ assert.ok(main.includes('perf.recordRedrawReasons(layers.beginRender())'));
  assert.ok(main.includes('perf.recordState(game.status)'));
- assert.ok(main.includes('if(dirty){'));
- assert.ok(main.includes('if(baseDirty){'));
+ assert.ok(main.includes('if(layers.needsRender()){'));
+ assert.ok(main.includes("if(layers.consume('base')){"));
 });
 test('compositor never asks Canvas2D to repaint directly',()=>{
  assert.ok(!comp.includes('paintBaseGame('));
