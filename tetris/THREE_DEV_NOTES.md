@@ -1,6 +1,6 @@
 # FIELD ATLAS · Tetris System / Three.js
 
-## Current production architecture (V048)
+## Current production architecture (V049)
 - **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
 - **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
@@ -379,3 +379,11 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - The **original screen and version link are unchanged**: `https://buyingzebra.github.io/nl_offline/tetris/three-v027.html`. Existing shader passes process the settings page without modification. No visual effect values, theme, scores, engine or other pages were altered.
 - **Architectural caveat / future work**: This is an interim full-screen **view switch**, not the long-term NOMAD window manager. The user expects additional visual effects that may require true dedicated windows, compositing surfaces or independent render targets. Keep the app open to a future properly designed multi-window/screen-specific architecture; do not assume simply hiding the home screen satisfies those upcoming requirements.
 - V048 mobile smoke tests were revised to check opening, closing and reopening settings on the same pathname and **preserving the identical WebGL canvas DOM object**. Source syntax and static checks passed; the real iPhone rendering and the CI browser smoke suite have not been independently completed during this edit.
+
+## V049 — Home-screen-matched Display System header and beveled thumbnail borders
+- User approved the V048 black full-screen terminal presentation and requested **only two targeted visual changes**. No window management, shaders, effects, sliders, card spacing, persistence or gameplay behaviours are changed.
+- **Display System header:** Draw precisely the same `panel(x,y,w,h,12,C.panel)` rounded, outlined, filled container used by the **TETRIS SYSTEM** home-screen header. The header now uses `layout().hy`, the same height `layout().hh`, the same title size calculation, `C.ink`, matching 0.13em letter spacing and left inset `UI_SPACE.headTitleInset`, with `Math.max(10,pageW-116)` matching home-screen text width. The existing same-size X key is retained. The redundant internal inset divider line is removed so the shared header panel border provides the separation. At normal portrait widths, container x/width also match the home screen. Full-screen view, backdrop and horizontal responsive column width remain unchanged.
+- **Texture preview borders:** Every square effect preview now uses the same `panel` border/fill/radius system as the other UI containers, with a softly beveled 1px light top/left and dark bottom/right rim. Each procedural monochrome thumbnail is clipped to a rounded, 3px-inset internal drawing area, preventing image pixels from covering the frame. All preview frames remain the same outer dimensions and preserve the existing vertically centered 102px row-slot geometry and uniform spacing.
+- Original **15×15** toggles/slider thumbs, exact settings schema and saved values, fixed **RESTORE DEFAULTS** action, other dialogs, CRT pipeline, home screen and iOS viewport handling remain untouched.
+- Bumped renderer build number to **V049** and updated mobile smoke-test header safe-area calculations to match the game header (`layout().hy`), including shorter viewports. Static JavaScript syntax/source checks passed. Real iPhone appearance and the browser test suite still need run/confirmation.
+- Permanent URL remains `https://buyingzebra.github.io/nl_offline/tetris/three-v027.html`.
