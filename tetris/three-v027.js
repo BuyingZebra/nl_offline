@@ -818,7 +818,7 @@ function settingsRows(buttonH,gap){
   offset+=headingH+gap;
   if(group.id!==expandedSettingsGroup)continue;
   for(const item of group.items){
-   const height=item[0]==='range'?rangeH:item[0]==='pattern'?patternH:buttonH;
+   const height=item[0]==='range'?rangeH:item[0]==='patternSelect'?patternH:buttonH;
    rows.push({kind:item[0],item,group,offset,height});
    offset+=height+gap;
    if(item[0]==='patternSelect'&&scanlineMenuOpen){
