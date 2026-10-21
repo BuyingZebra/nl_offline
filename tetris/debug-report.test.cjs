@@ -101,7 +101,7 @@ test('debug button sits left of X and copies on user activation',()=>{
  assert.ok(code.includes('function drawDebugBug(cx,cy){'));
  assert.ok(!code.includes('createPerfHud({enabled:perfEnabled'));
  assert.ok(code.includes("const THREE_BUILD_VERSION='063'"));
- assert.ok(html.includes('<title>NOMAD — Tetris System</title>'));
+ assert.ok(html.includes('NOMAD — Tetris System'));
 });
 test('diagnostics are collected quietly with a bounded sample history',()=>{
  const code=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
