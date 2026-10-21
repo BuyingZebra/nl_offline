@@ -15,7 +15,8 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   'RECENT FRAME SAMPLES (2-second windows, newest last)',
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
   'RAF interval = pacing between scheduled frames, not physical display refresh rate.',
-  'PASS CPU = time inside each compositor pass; includes uploads/driver waits, NOT GPU shader timing.'
+  'PASS CPU = time inside each compositor pass; may include driver waits, NOT GPU shader timing.',
+  'PRE-UPLOAD = CPU time for renderer.initTexture on changed canvases; not GPU execution time.'
  ];
  const observed=samples.slice(-8);
  if(current&&current.frameTicks>0)observed.push(current);
@@ -41,6 +42,11 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    if(s.gravityTickAdvances!==undefined||s.visualStateChanges!==undefined)
     rows.push('  GAME CHANGES: gravity tick advances '+value(s.gravityTickAdvances)+
      ' | actual visual changes '+value(s.visualStateChanges));
+   if(s.uploadTimes){
+    const parts=Object.entries(s.uploadTimes).map(([name,v])=>
+     name+' '+value(v.avgCpuMs,'ms')+'×'+v.calls);
+    rows.push('  PRE-UPLOAD: '+(parts.length?parts.join(' | '):'none'));
+   }
    if(s.passTimes){
     const passes=Object.entries(s.passTimes)
      .sort((a,b)=>b[1].totalCpuMs-a[1].totalCpuMs);
