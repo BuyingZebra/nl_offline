@@ -96,7 +96,7 @@ test('diagnostics collect silently for an on-demand copy without changing shader
 });
 test('stable link and current build remain exposed to users',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
- assert.ok(html.includes('Tetris System V058'));
- assert.ok(main.includes("const THREE_BUILD_VERSION='058'"));
- assert.ok(main.includes("from './perf-monitor.js?v058'"));
+ assert.ok(html.includes('Tetris System V059'));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='059'"));
+ assert.ok(main.includes("from './perf-monitor.js?v059'"));
 });
