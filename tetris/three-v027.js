@@ -13,6 +13,8 @@ const screen=document.getElementById('screen'),display=document.getElementById('
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
 const fatal=document.getElementById('error');
 if(!Core?.Game||!Scores){fatal.hidden=false;fatal.textContent='Tetris core missing';throw Error('Tetris core missing');}
+const ScreenLayout=window.FieldAtlasTetrisLayout;
+if(!ScreenLayout?.computeLayout){fatal.hidden=false;fatal.textContent='Tetris layout module missing';throw Error('Tetris layout module missing');}
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v)),fmt=(n,k=6)=>String(Math.max(0,Math.floor(n))).padStart(k,'0');
 const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')'};
 // Default/unfilled button faces share the exact near-black background value.
@@ -30,7 +32,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='049'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='050'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -605,51 +607,19 @@ function paintBoardPopup(r){
   }
   }finally{g=baseContext;}
 }
+// Layout calculations are pure, cached, and invalidated on viewport resize.
+let cachedInsets=null,cachedLayout=null;
 function insets(){
+ if(cachedInsets)return cachedInsets;
  const cs=getComputedStyle(safeProbe);
- return {top:parseFloat(cs.paddingTop)||0,bottom:parseFloat(cs.paddingBottom)||0};
+ cachedInsets={
+  top:parseFloat(cs.paddingTop)||0,bottom:parseFloat(cs.paddingBottom)||0,
+  left:parseFloat(cs.paddingLeft)||0,right:parseFloat(cs.paddingRight)||0
+ };
+ return cachedInsets;
 }
-// Flexbox-equivalent sizing based on V027's layout rules, not magic screen coordinates.
 function layout(){
- const safe=insets(),landscape=W>H&&H<=600,ui=UI_SPACE;
- const width=landscape?W:Math.min(W,ui.appMax),off=(W-width)/2,pad=ui.padX,inner=width-2*pad;
- const short=H<=730,compact=H<=620,gap=ui.stackGap;
- const deckPad=ui.deckPad,deckGap=ui.deckGap;
- const buttonH=compact?42:short?45:ui.padHeight;
- // Header phosphor/settings, HOLD and PAUSE share one height token at every
- // breakpoint, including landscape: 46 / 42 / 37 logical CSS pixels.
- const headerButtonH=landscape?37:short?42:ui.headIcons;
- const extraH=headerButtonH;
- // Board-only secondary actions keep their approved independent heights.
- const overlaySecondaryH=compact?39:short?40:ui.extrasHeight;
- const headerH=compact?50:short?58:ui.headHeight;
- // Portrait: header + gap + flex:1 stage + gap + measured deck + bottom safe inset.
- let hy=safe.top+(compact?4:short?9:0),hh=headerH;
- let dh=2*deckPad+ui.scoreHeight+2*deckGap+buttonH+extraH;
- let dy=H-safe.bottom-ui.deckBottom-dh;
- let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
- let hx=off+pad,hw=inner,sx=off+pad,sw=inner,dx=off+pad,dw=inner;
- if(landscape){
-  const left=clamp(width*.24,145,205),right=clamp(width*.30,195,260);
-  hy=8;hh=64;dy=8;dh=H-16;sy=8;sh=H-16;
-  hx=off+8;hw=left;sx=off+left+14;sw=Math.max(0,width-left-right-36);
-  dx=off+width-right-8;dw=right;
- }
- const bw=Math.max(0,Math.min(305,sw-ui.side-ui.sideGap,sh/2)),bh=bw*2;
- const bx=sx+Math.max(0,(sw-bw-ui.sideGap-ui.side)/2),by=sy+Math.max(0,(sh-bh)/2);
- // Sidebar is a flex-column constrained to the board, so its three
- // panels cannot overlap on shorter portrait or landscape viewports.
- const sxSide=bx+bw+ui.sideGap,swSide=Math.max(0,Math.min(ui.side,sx+sw-sxSide));
- const holdH=Math.min(short?70:ui.holdHeight,Math.max(40,bh*.33));
- const statsH=Math.min(short?73:ui.statsHeight,Math.max(52,bh*.36));
- const queueH=Math.max(0,Math.min(short?136:ui.nextHeight,bh-holdH-statsH-2*ui.unit));
- const holdPanel={x:sxSide,y:by,w:swSide,h:holdH};
- const nextPanel={x:sxSide,y:by+holdH+ui.unit,w:swSide,h:queueH};
- const statsPanel={x:sxSide,y:by+bh-statsH,w:swSide,h:statsH};
- return {safe,landscape,short,compact,width,off,pad,inner,gap,hy,hh,hx,hw,sy,sh,sx,sw,
-  boardX:bx,boardY:by,boardW:bw,boardH:bh,
-  sideX:sxSide,sideW:swSide,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
-  deckPad,deckGap,buttonH,headerButtonH,extraH,overlaySecondaryH,footerY:H-safe.bottom-18};
+ return cachedLayout||(cachedLayout=ScreenLayout.computeLayout(W,H,insets(),UI_SPACE));
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
@@ -696,14 +666,27 @@ function paintBaseGame(){
  text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center');
  text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right');
  rect(px,r.dy+r.deckPad+UI_SPACE.scoreHeight-1,pw,1,C.border);
- const gap=UI_SPACE.padGap,col=(pw-gap*4)/5;
+ const gap=UI_SPACE.padGap;
  const cy=r.dy+r.deckPad+UI_SPACE.scoreHeight+r.deckGap,ch=r.buttonH;
- key('◀',px,cy,col,ch,'left',{light:true,repeat:true});
- key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true});
- key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
- key('↻',px+col*4+gap*4,cy,col,ch,'cw');
- const ey=cy+ch+r.deckGap,extraGap=UI_SPACE.extrasGap;
- // Shrink each secondary control to 75%, then center their group.
+ let ey;
+ if(r.compactControls){
+  // Narrow landscape: maintain usable touch targets by reflowing controls.
+  const third=Math.max(0,(pw-2*gap)/3);
+  key('◀',px,cy,third,ch,'left',{light:true,repeat:true});
+  key('↻',px+third+gap,cy,third,ch,'cw');
+  key('▶',px+2*(third+gap),cy,third,ch,'right',{light:true,repeat:true});
+  key('DROP',px,cy+ch+gap,pw,ch,'hard',{light:true});
+  ey=cy+2*(ch+gap);
+ }else{
+  const col=Math.max(0,(pw-gap*4)/5);
+  key('◀',px,cy,col,ch,'left',{light:true,repeat:true});
+  key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true});
+  key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
+  key('↻',px+col*4+gap*4,cy,col,ch,'cw');
+  ey=cy+ch+r.deckGap;
+ }
+ // Keep the secondary controls centered at their approved 75% width.
+ const extraGap=UI_SPACE.extrasGap;
  const ew=(pw-extraGap)/2*UI_SPACE.buttonWidthScale;
  const groupW=ew*2+extraGap,groupX=px+(pw-groupW)/2;
  key('HOLD',groupX,ey,ew,r.extraH,'hold');
@@ -1413,7 +1396,7 @@ function resize(){
  const b=display.getBoundingClientRect(),w=Math.max(1,Math.round(b.width)),h=Math.max(1,Math.round(b.height));
  const d=Math.max(1,window.devicePixelRatio||1);
  if(w===W&&h===H&&d===DPR&&!dirty)return;
- W=w;H=h;DPR=d;
+ W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
  input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
  boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
  g.setTransform(DPR,0,0,DPR,0,0);
