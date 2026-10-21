@@ -66,6 +66,16 @@ test('reasons are deduplicated; a redraw without a full-screen layer remains pos
  assert.deepEqual(a.beginRender(),['input','scroll']);
  assert.equal(a.needsRender(),false);
 });
+test('same-frame layer repaint does not queue a redundant compositor frame',()=>{
+ const a=invalidator();
+ a.beginRender();
+ for(const name of ['base','board','sidebar','controls'])a.consume(name);
+ assert.equal(a.needsRender(),false);
+ a.mark('base'); // popup status noticed while painting
+ assert.equal(a.needsRender(),true);
+ assert.equal(a.consume('base'),true);
+ assert.equal(a.needsRender(),false);
+});
 test('illegal layer names are rejected rather than producing invisible stale UI',()=>{
  const a=invalidator();
  assert.throws(()=>a.mark('score'),/Unknown render layer/);
