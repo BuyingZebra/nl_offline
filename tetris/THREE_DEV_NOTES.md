@@ -1,6 +1,6 @@
 # FIELD ATLAS · Tetris System / Three.js
 
-## Current production architecture (V039)
+## Current production architecture (V040)
 - **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
 - **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
@@ -303,3 +303,10 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Settings keep the same persistent keys, value domains and actual effects. Reordered the menu into **GAMEPLAY → CRT EMISSION → SIGNAL GHOSTING → CRT MASK → DISPLAY OPTICS → DISPLAY PRESET** and moved MENU BLUR into DISPLAY OPTICS. No nested menu/tabs were added; a future independently approved collapsible-section design can reduce scrolling if desired.
 - Static JS parse and independent geometry tests passed across 393×852, 375×667, 320×568 and 844×390. Focused checks confirmed 6px footer wall/button spacing, score-row separation, High Score input-to-footer gap, and the Restore control's visibility and clipped hit-region correctness at the bottom of the scroller. Updated mobile browser test exercises Settings Ghost Piece toggle persistence and restoration.
 - Runtime/visual changes still require user validation on iPhone. Production footer version **038**; permanent URL, safe-area CSS, local scores, persistent FX storage, line clear and full-screen compositor remain unchanged.
+
+## V040: Settings accordion arrows match START/RESUME
+- Replace the **category expansion state** square in Settings with the **exact 18px `▶`** glyph used for START GAME and RESUME (`BUTTON_ICON_FONT_SIZE`). Collapsed groups show it pointing right; expanded groups rotate the same glyph 90° to point down. Icon-slot width follows the same 18px token.
+- Preserve the separate Fallout **filled/outlined squares for binary settings** (enabled/disabled), square slider thumbs, all six collapsible categories, touch hit regions and saved settings.
+- Do **not** remove or restyle the thin lines separating categories: user has not decided whether those should remain. The rest of the Settings layout, scrolling, headers, spacing, optical effects and game are unchanged.
+- JS source parses; checks verify arrow glyph/font shared with START/RESUME, correct right/down directions, preserved switch squares and separators, and isolated source changes. Actual iPhone visual validation remains pending.
+- Version number **040**; permanent `tetris/three-v027.html` link and working iOS viewport CSS unchanged.
