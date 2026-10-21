@@ -58,9 +58,9 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # V050: True perspective-separated game layers, plus live preview
-    # thumbnails driven by their own effect values even when effects are off.
-    # The original page/header/buttons/15px controls are preserved.
+    # V051: roll back experimental device-orientation parallax to restore a
+    # single orthographic game texture + stable viewport hitbox alignment.
+    # Keep independent live previews and the original page/header/buttons.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
@@ -137,25 +137,13 @@ with sync_playwright() as p:
     )
     tap(110, bloom_y + 64)  # idempotent repeated slider selection
 
-    # Depth Parallax stays opt-in; sensitivity is adjustable without sensor
-    # permission or enabling motion. Scroll to the new ninth settings row.
-    assert page.evaluate(
-        "localStorage.getItem('fieldAtlasTetrisDepthV050Enabled')"
-    ) in (None, "no"), "Depth should not prompt automatically"
+    # Scroll through the complete eight-setting page. There must be no
+    # unsupported ninth parallax control, and moving back to top must keep
+    # the original touch targets and live thumbnail adjustment functional.
     page.mouse.move(300, 600)
     page.mouse.wheel(0, 3000)
     page.wait_for_timeout(500)
-    depth_before = page.evaluate(
-        "localStorage.getItem('fieldAtlasTetrisDepthV050Strength') || '45'"
-    )
-    tap(115, 748)
-    depth_after = page.evaluate(
-        "localStorage.getItem('fieldAtlasTetrisDepthV050Strength') || '45'"
-    )
-    assert depth_after != depth_before, "Depth preview slider did not save"
-    capture("three-depth-preview")
-    # Reset scroll via reversing the wheel so the original Phosphor row is
-    # visible again for the existing Restore Defaults regression.
+    capture("three-settings-bottom")
     page.mouse.wheel(0, -3000)
     page.wait_for_timeout(500)
 
@@ -170,9 +158,6 @@ with sync_playwright() as p:
         "Restore Defaults missed ghost offsets"
     )
     assert fx_value("bloomStrength") == .30, "Restore Defaults missed bloom"
-    assert page.evaluate(
-        "localStorage.getItem('fieldAtlasTetrisDepthV050Strength')"
-    ) == "45", "Restore Defaults missed depth sensitivity"
     capture("three-restore-defaults")
     close_y = modal_top + header_height / 2
     tap(350, close_y)
