@@ -3,12 +3,12 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v056';
+import {createCompositor} from './compositor.js?v059';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor} from './perf-monitor.js?v058';
+import {createPerfMonitor} from './perf-monitor.js?v059';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v058';
+import {formatDebugReport} from './debug-report.js?v059';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
@@ -31,7 +31,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='058'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='059'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -103,6 +103,9 @@ boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps
 // geometry silhouette that doesn't exist. Avoid an unused AA backbuffer.
 const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:false,alpha:false,powerPreference:'high-performance'});
 renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
+// The composer invokes WebGLRenderer.render repeatedly. Preserve draw-call
+// counters across passes, resetting them once per completed game image.
+renderer.info.autoReset=false;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080808);
 const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
 const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
@@ -128,7 +131,8 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
-const compositor=createCompositor({renderer,scene,camera,boardPopupTexture});
+const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
+ onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
 const {SCANLINE_PRESETS}=compositor;
 
 
@@ -1046,9 +1050,11 @@ function frame(now){
    const syncStarted=performance.now();
    syncFX();
    perf.recordDuration('sync',performance.now()-syncStarted);
+   renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
+   perf.recordWebglCalls(renderer.info.render.calls);
    const memory=renderer.info.memory;
    perf.setGPUStats({...compositor.passStats(),
     textures:memory?.textures,geometries:memory?.geometries,
