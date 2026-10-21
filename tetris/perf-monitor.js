@@ -13,7 +13,8 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   baseUploadRequests:0,popupUploadRequests:0,modalUploadRequests:0,
   logicMs:0,logicCalls:0,basePaintMs:0,basePaintCount:0,
   modalPaintMs:0,modalPaintCount:0,syncMs:0,syncCount:0,
-  redrawReasons:{},frameStates:{},gravityTickAdvances:0,visualStateChanges:0});
+  redrawReasons:{},frameStates:{},gravityTickAdvances:0,visualStateChanges:0,
+  passTimes:{},webglCalls:0,renderSubmissions:0});
  let counters=fresh();
  function recordRaf(timestamp){
   if(!enabled||!Number.isFinite(timestamp))return;
@@ -63,6 +64,10 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    redrawReasons:{...counters.redrawReasons},frameStates:{...counters.frameStates},
    gravityTickAdvances:counters.gravityTickAdvances,
    visualStateChanges:counters.visualStateChanges,
+   avgWebglCalls:+(counters.webglCalls/Math.max(1,counters.renderSubmissions)).toFixed(2),
+   passTimes:Object.fromEntries(Object.entries(counters.passTimes).map(([name,v])=>
+    [name,{calls:v.calls,avgCpuMs:+(v.cpuMs/v.calls).toFixed(3),
+     maxCpuMs:+v.maxCpuMs.toFixed(3),totalCpuMs:+v.cpuMs.toFixed(2)}])),
    viewport:viewport?{...viewport}:null,gpu:gpu?{...gpu}:null};
  }
  function currentSnapshot(){return enabled?buildSnapshot():null;}
@@ -82,6 +87,16 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    const key=['startup','input','gravity','flash','scroll','resize','unknown'].includes(name)?name:'unknown';
    counters.redrawReasons[key]=(counters.redrawReasons[key]||0)+1;
   }
+ }
+ function recordPass(name,elapsed){
+  if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
+  const key=String(name);
+  const v=counters.passTimes[key]||(counters.passTimes[key]={calls:0,cpuMs:0,maxCpuMs:0});
+  v.calls++;v.cpuMs+=elapsed;v.maxCpuMs=Math.max(v.maxCpuMs,elapsed);
+ }
+ function recordWebglCalls(n){
+  if(!enabled||!Number.isFinite(n)||n<0)return;
+  counters.renderSubmissions++;counters.webglCalls+=n;
  }
  function recordGameChanges({advanced=false,visualChanged=false}={}){
   if(!enabled)return;
@@ -123,5 +138,5 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  return Object.freeze({enabled,startFrame,endFrame,startRender,endRender,
   textureChanged,recordRaf,resetPacing,setViewport,setGPUStats,
   recordDuration,recordRedrawReasons,recordGameChanges,recordState,
-  snapshot:()=>last,currentSnapshot});
+  recordPass,recordWebglCalls,snapshot:()=>last,currentSnapshot});
 }
