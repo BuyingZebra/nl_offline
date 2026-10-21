@@ -33,6 +33,8 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
     ' | Canvas base '+value(s.avgBasePaintMs,'ms')+' ('+value(s.basePaints)+' paints)'+
     ' | Canvas modal '+value(s.avgModalPaintMs,'ms')+' ('+value(s.modalPaints)+' paints)'+
     ' | FX setup '+value(s.avgSyncMs,'ms'));
+   const states=Object.entries(s.frameStates||{}).map(([k,n])=>k+':'+n).join(', ')||'unclassified';
+   rows.push('  RAF STATES: '+states);
    rows.push('  REDRAW CAUSES: '+reasons+
     ' (multiple causes may apply to one render)');
   }
