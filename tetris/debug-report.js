@@ -27,6 +27,15 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    ' | CPU avg/max '+value(s.avgFrameCpuMs,'ms')+'/'+value(s.maxFrameCpuMs,'ms')+
    ' | submit '+value(s.avgRenderSubmitMs,'ms')+
    ' | uploads B/P/M '+value(s.baseUploadRequests)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
+  if(s.basePaints!==undefined||s.avgLogicMs!==undefined){
+   const reasons=Object.entries(s.redrawReasons||{}).map(([k,n])=>k+':'+n).join(', ')||'none';
+   rows.push('  STAGES: logic '+value(s.avgLogicMs,'ms/RAF')+
+    ' | Canvas base '+value(s.avgBasePaintMs,'ms')+' ('+value(s.basePaints)+' paints)'+
+    ' | Canvas modal '+value(s.avgModalPaintMs,'ms')+' ('+value(s.modalPaints)+' paints)'+
+    ' | FX setup '+value(s.avgSyncMs,'ms'));
+   rows.push('  REDRAW CAUSES: '+reasons+
+    ' (multiple causes may apply to one render)');
+  }
  });
  const gfx=gpu||current?.gpu||samples.at(-1)?.gpu;
  rows.push('', 'GPU RESOURCES (Three.js counters; not GPU utilization)');
