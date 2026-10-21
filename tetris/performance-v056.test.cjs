@@ -1,4 +1,4 @@
-/* Tetris System V059 — mobile fill-rate and Gaussian weight regressions.
+/* Tetris System V060 — mobile fill-rate and Gaussian weight regressions.
  * Run: node --test tetris/*.test.cjs
  */
 'use strict';
@@ -69,9 +69,9 @@ test('visual-effect controls, compositor order and stable URL are retained',()=>
  assert.ok(main.includes('const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,'));
  assert.ok(main.includes("scanlines:true,scanlinePreset:'original',scanlineOpacity:20"));
  assert.ok(main.includes("from './compositor.js?v059'"));
- assert.ok(main.includes("from './perf-monitor.js?v059'"));
- assert.ok(main.includes("const THREE_BUILD_VERSION='059'"));
- assert.ok(html.includes('Tetris System V059'));
+ assert.ok(main.includes("from './perf-monitor.js?v060'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='060'"));
+ assert.ok(html.includes('Tetris System V060'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(compositor.includes('composer.addPass(new OutputPass())'));
 });
