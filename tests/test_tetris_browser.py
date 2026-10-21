@@ -67,7 +67,8 @@ with sync_playwright() as p:
     modal_height = min(680, page_height * .82)
     modal_top = top_inset + (page_height - top_inset - safe_bottom - modal_height) / 2
     menu_button_height = 46 if page_height > 730 else 42 if page_height > 620 else 42
-    heading_height = max(20, round(menu_button_height * .6))
+    # Accordion category rows are compact: button height minus two 6px gaps.
+    heading_height = max(30, menu_button_height - 12)
     ghost_y = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6 + heading_height + 6 + menu_button_height / 2
     before = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost') || 'yes'")
     tap(345, ghost_y)
@@ -76,6 +77,16 @@ with sync_playwright() as p:
     tap(345, ghost_y)
     restored = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')")
     assert restored == before, "Ghost Piece setting did not restore"
+
+    # Selecting CRT EMISSION collapses GAMEPLAY and reveals its own controls.
+    # Screenshot the transition so a modal/accordion regression is reviewable.
+    content_top = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6
+    emission_y = content_top + heading_height + 6 + 2 * (menu_button_height + 6) + heading_height / 2
+    tap(190, emission_y)
+    emission_shot = capture("three-emission")
+    assert emission_shot.tobytes() != settings_shot.tobytes(), (
+        "Settings category did not expand and replace GAMEPLAY"
+    )
 
     # Exit via the shared menu-height RETURN TO GAME button.
     back_y = modal_top + 6 + menu_button_height + 6 + menu_button_height / 2
