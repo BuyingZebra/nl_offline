@@ -93,9 +93,10 @@ test('debug HUD is non-interactive and removes itself cleanly',()=>{
  assert.ok(nodes[0].textContent.includes('7 / 10 passes'));
  hud.dispose();assert.equal(nodes.length,0);
 });
-test('diagnostics are attached only in perf mode and never change shader order',()=>{
- assert.ok(main.includes("get('perf')==='1'"));
- assert.ok(main.includes('createPerfHud({enabled:perfEnabled,document,container:display})'));
+test('diagnostics collect silently for an on-demand copy without changing shaders',()=>{
+ assert.ok(main.includes('const recentPerf=[];'));
+ assert.ok(main.includes('const debugClipboard=createDebugClipboard({navigator,document})'));
+ assert.ok(!main.includes('createPerfHud({enabled:perfEnabled,document,container:display})'));
  assert.ok(main.includes('perf.recordRaf(now)'));
  assert.ok(main.includes('perf.resetPacing()'));
  assert.ok(main.includes('perf.setGPUStats('));
@@ -105,9 +106,9 @@ test('diagnostics are attached only in perf mode and never change shader order',
  assert.ok(comp.includes('const popupBlur=boardBlurParams()'));
  assert.ok(comp.includes('const popupPasses=[boardBlurHorizontal,boardPopupPass]'));
 });
-test('stable link and V054 remain exposed to users',()=>{
+test('stable link and current build remain exposed to users',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
- assert.ok(html.includes('Tetris System V054'));
- assert.ok(main.includes("const THREE_BUILD_VERSION='054'"));
+ assert.ok(html.includes('Tetris System V055'));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='055'"));
  assert.ok(main.includes("from './perf-monitor.js?v054'"));
 });
