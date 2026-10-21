@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v051';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
+import {createPerfMonitor} from './perf-monitor.js?v053';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -27,7 +28,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='052'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='053'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -64,6 +65,8 @@ let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
+const perf=createPerfMonitor({enabled:new URLSearchParams(location.search).get('perf')==='1'});
+if(perf.enabled)window.FieldAtlasPerf=perf;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
@@ -150,7 +153,7 @@ game.lockPiece=function(){
 };
 function openModal(name){
  modal=name;modalView=null;optionsScroll=0;scrollVelocity=0;scanlineMenuOpen=false;inputController?.cancel();
- if(!modal)regions=baseRegions.slice();
+ if(!modal)regions=baseRegions;
  invalidate();
 }
 function onOver(){
@@ -347,9 +350,13 @@ function layout(){
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
- boardPopupContext.setTransform(1,0,0,1,0,0);
- boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
- boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
+ // The popup isn't sampled while playing. Avoid clearing and uploading
+ // an entire full-resolution transparent texture for every falling piece.
+ if(game.status!=='playing'){
+  boardPopupContext.setTransform(1,0,0,1,0,0);
+  boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
+  boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
+ }
  g=baseContext;
  rect(0,0,W,H,C.bg);
  panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
@@ -420,9 +427,13 @@ function paintBaseGame(){
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
- baseRegions=regions.slice();
+ baseRegions=regions;
  texture.needsUpdate=true;
- boardPopupTexture.needsUpdate=true;
+ perf.textureChanged('base');
+ if(game.status!=='playing'){
+  boardPopupTexture.needsUpdate=true;
+  perf.textureChanged('popup');
+ }
 }
 function paintGame(){
  if(game.status!==lastPaintedBoardPopupStatus)baseDirty=true;
@@ -431,7 +442,7 @@ function paintGame(){
  else{
   surface.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
-  regions=baseRegions.slice();
+  regions=baseRegions;
  }
  dirty=false;
 }
@@ -841,6 +852,7 @@ function paintModalOverlay(){
  try{paintModal(q);}
  finally{g=baseContext;}
  modalTexture.needsUpdate=true;
+ perf.textureChanged('modal');
 }
 function handleAction(act){
  if(act==='block'||act==='scroll'||act==='board')return;
@@ -918,6 +930,7 @@ function requestFrame(){
 }
 function frame(now){
  queued=false;
+ const frameStarted=perf.startFrame();
  try{
   const dt=clamp(now-lastTime,0,100);lastTime=now;
   const prior=game.pieces,priorLines=game.lines,priorStatus=game.status;
@@ -944,18 +957,25 @@ function frame(now){
   if(dirty){
    paintGame();
    syncFX();
+   const renderStarted=perf.startRender();
    compositor.render();
+   perf.endRender(renderStarted);
   }
+  perf.endFrame(frameStarted);
   if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
  }
 }
-function resize(){
+function resize(forceLayout=false){
  const b=display.getBoundingClientRect(),w=Math.max(1,Math.round(b.width)),h=Math.max(1,Math.round(b.height));
  const d=Math.max(1,window.devicePixelRatio||1);
- if(w===W&&h===H&&d===DPR&&!dirty)return;
+ // A pending redraw must never force another allocation at the same size.
+ if(w===W&&h===H&&d===DPR){
+  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;invalidate();}
+  return;
+ }
  W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
  input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
  boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
@@ -964,8 +984,8 @@ function resize(){
  compositor.resize(W,H,DPR);
  baseDirty=true;dirty=true;invalidate();
 }
-new ResizeObserver(resize).observe(display);
-window.addEventListener('orientationchange',()=>{dirty=true;resize();});
+new ResizeObserver(()=>resize()).observe(display);
+window.addEventListener('orientationchange',()=>resize(true));
 resize();
 requestFrame();
 // One check after initialization also covers standalone cold launches.
