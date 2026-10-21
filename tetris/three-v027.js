@@ -892,23 +892,28 @@ function settingsExpandArrow(x,y,expanded,color){
  g.save();g.translate(x,y);if(expanded)g.rotate(Math.PI/2);
  text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');g.restore();
 }
-// Five 6px units is the fixed, *largest* visual gap between each terminal
-// effect, independent of how many sliders the effect owns.
-const SETTINGS_ROW_GAP=UI_SPACE.unit*5; // 30px of unboxed black space.
+// Size EVERY row against the most complex effect, as approved. With
+// thumbnails centered, their edge-to-edge black space is identical.
+const SETTINGS_ROW_GAP=UI_SPACE.unit; // 6px between equal-height row slots.
 const SETTINGS_TITLE_H=20,SETTINGS_CONTROL_H=28,SETTINGS_SELECT_H=30;
 function settingsPreviewSize(width){
  return Math.min(68,Math.max(56,Math.round(width*.185)));
 }
+function settingsContentHeight(effect,gap){
+ const controls=effect.id==='ghost'||effect.id==='softness'?2:
+  effect.sliders?.length?1:0;
+ return SETTINGS_TITLE_H+controls*(SETTINGS_CONTROL_H+gap)+
+  (effect.pattern?(SETTINGS_SELECT_H+gap):0);
+}
 function settingsRows(buttonH,gap,width){
  const image=settingsPreviewSize(width),rows=[];let offset=0;
+ const maxContentHeight=Math.max(...DISPLAY_EFFECTS.map(effect=>
+  settingsContentHeight(effect,gap)));
+ // 102px slots at 6px inner gaps, containing 68px image: 40px between
+ // thumbnail edges after including the standard 6px between row slots.
+ const rowHeight=Math.max(image,maxContentHeight+2*gap);
  for(const effect of DISPLAY_EFFECTS){
-  // Ghosting's X+Y fit on one line and strength on the next.
-  const controls=effect.id==='ghost'||effect.id==='softness'?2:
-   effect.sliders?.length?1:0;
-  const contentHeight=SETTINGS_TITLE_H+
-   controls*(SETTINGS_CONTROL_H+gap)+
-   (effect.pattern?(SETTINGS_SELECT_H+gap):0);
-  const rowHeight=Math.max(image,contentHeight+2*gap);
+  const contentHeight=settingsContentHeight(effect,gap);
   const choiceHeight=Math.max(34,buttonH-8);
   const expanded=effect.pattern&&scanlineMenuOpen;
   const height=rowHeight+(expanded?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
