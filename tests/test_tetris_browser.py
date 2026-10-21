@@ -58,8 +58,8 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # Screen Overlays is the default expanded category in V041.
-    # Derive hit centers from the menu's shared 6px token and button height.
+    # V044: settings are effect blocks, each with a single shared header
+    # (toggle + value), description, controls and trailing divider.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
@@ -70,66 +70,68 @@ with sync_playwright() as p:
     heading_height = max(30, menu_button_height - 12)
     content_top = modal_top + 6 + menu_button_height + 6 + menu_button_height + 6
     gameplay_y = content_top + heading_height / 2
-    overlay_y = content_top + heading_height + 6 + heading_height / 2
-    phosphor_y = content_top + 2 * (heading_height + 6) + menu_button_height / 2
-    pattern_top = content_top + 2 * (heading_height + 6) + menu_button_height + 6
-    pattern_y = pattern_top + menu_button_height + 6 + menu_button_height / 2
-    off_y = pattern_top + 2 * menu_button_height + 2 * 6 + menu_button_height / 2
 
-    # The phosphor checkbox is a binary tint toggle. Hue still belongs to the
-    # on-screen theme button, not a duplicate colour menu.
+    # Two category headers precede Screen Overlays' first effect.
+    effects_top = content_top + 2 * (heading_height + 6)
+    phosphor_y = effects_top + 14  # 28px effect heading
+    effect_header_height = 28 + 28  # label and description
+    phosphor_effect_height = effect_header_height + 6 + 1 + 6
+    scanline_top = effects_top + phosphor_effect_height
+    pattern_y = scanline_top + effect_header_height + 6 + menu_button_height / 2
+    option_height = max(32, menu_button_height - 6)
+    off_y = scanline_top + effect_header_height + 6 + menu_button_height + 6 + option_height / 2
+
     def fx_value(key):
         return page.evaluate(
             """(key) => {
                 const saved = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
-                const defaults = {phosphor:true, scanlines:true, scanlinePreset:'original'};
+                const defaults = {phosphor:true, scanlines:true, scanlinePreset:'original',
+                                  bloomStrength:.30};
                 return saved[key] ?? defaults[key];
             }""",
             key,
         )
 
+    # The phosphor square in the effect heading is an actual toggle.
     phosphor_before = fx_value("phosphor")
-    tap(345, phosphor_y)
-    assert fx_value("phosphor") != phosphor_before, "Phosphor toggle did not persist"
-    tap(345, phosphor_y)
-    assert fx_value("phosphor") == phosphor_before, "Phosphor toggle did not restore"
+    tap(60, phosphor_y)
+    assert fx_value("phosphor") != phosphor_before, "Phosphor square did not toggle"
+    tap(60, phosphor_y)
+    assert fx_value("phosphor") == phosphor_before, "Phosphor square did not restore"
 
-    # CRT pattern selector is one actual expandable choice list: OFF and all
-    # five available mask patterns. Selecting OFF must persist; selecting a
-    # pattern turns it back on.
+    # CRT scanline square and dropdown remain working, with OFF and all five
+    # patterns available; the 20px slider thumb matches the toggle square.
     tap(170, pattern_y)
     chooser_shot = capture("three-scanline-picker")
     assert chooser_shot.tobytes() != settings_shot.tobytes(), (
-        "CRT scanline dropdown did not expand"
+        "CRT scanline dropdown did not open"
     )
     tap(170, off_y)
     assert fx_value("scanlines") is False, "OFF did not disable CRT scanlines"
     tap(170, pattern_y)
-    tap(170, off_y + menu_button_height + 6)
+    tap(170, off_y + option_height + 6)
     assert fx_value("scanlines") is True, "Selecting a CRT pattern did not enable it"
     assert fx_value("scanlinePreset") == "original", "Original CRT preset not selected"
 
-    # Changing categories must collapse the previous section. Gameplay's
-    # binary control still persists and can be toggled back.
+    # The other accordion categories keep their interactions unchanged.
     tap(180, gameplay_y)
     gameplay_shot = capture("three-gameplay")
     assert gameplay_shot.tobytes() != chooser_shot.tobytes(), (
         "Gameplay category did not replace Screen Overlays"
     )
-    ghost_y = content_top + heading_height + 6 + menu_button_height / 2
+    ghost_y = content_top + heading_height + 6 + 14
     before = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost') || 'yes'")
-    tap(345, ghost_y)
+    tap(60, ghost_y)
     after = page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')")
-    assert after in ("yes", "no") and after != before, "Ghost Piece switch did not save"
-    tap(345, ghost_y)
+    assert after in ("yes", "no") and after != before, "Ghost Piece did not toggle"
+    tap(60, ghost_y)
     assert page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')") == before, (
-        "Ghost Piece setting did not restore"
+        "Ghost Piece did not restore"
     )
 
-    # Restore Defaults is pinned below the scrollable settings: the action
-    # must remain reachable without expanding a category or scrolling.
+    # Restore Defaults is still pinned below the scrollable effect list.
     if page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost') || 'yes'") != "no":
-        tap(345, ghost_y)
+        tap(60, ghost_y)
     assert page.evaluate("localStorage.getItem('fieldAtlasTetrisGhost')") == "no"
     restore_y = modal_top + modal_height - 6 - menu_button_height / 2
     tap(195, restore_y)
