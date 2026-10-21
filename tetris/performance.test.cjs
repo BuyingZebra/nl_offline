@@ -8,7 +8,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const perfSource=fs.readFileSync(path.join(__dirname,'perf-monitor.js'),'utf8')
- .replace('export function createPerfMonitor','function createPerfMonitor');
+ .replace(/export function /g,'function ');
 const makeMonitor=new Function(perfSource+'\nreturn createPerfMonitor;')();
 const main=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
 
