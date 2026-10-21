@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v056';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor} from './perf-monitor.js?v056';
-import {formatDebugReport} from './debug-report.js?v056';
+import {createPerfMonitor} from './perf-monitor.js?v057';
+import {formatDebugReport} from './debug-report.js?v057';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='056'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='057'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -71,6 +71,8 @@ let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
+// Attribute actual draws instead of assuming every RAF tick triggers painting.
+const pendingRedrawReasons=new Set(['startup']);
 // Small rolling history: no overlay, network, persistent storage, or console spam.
 const recentPerf=[];
 const perf=createPerfMonitor({enabled:true,intervalMs:2000,log:()=>{},
@@ -142,7 +144,10 @@ function tone(freq=240,len=.04){
   osc.connect(vol).connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+len);
  }catch(e){}
 }
-function invalidate(){dirty=true;requestFrame();}
+function invalidate(reason='input'){
+ pendingRedrawReasons.add(reason);
+ dirty=true;requestFrame();
+}
 // Core synchronously removes rows on lock; this renderer-only observer
 // captures the exact filled squares before deletion for the short animation.
 const coreLockPiece=game.lockPiece.bind(game);
@@ -452,8 +457,16 @@ function paintBaseGame(){
 }
 function paintGame(){
  if(game.status!==lastPaintedBoardPopupStatus)baseDirty=true;
- if(baseDirty){paintBaseGame();baseDirty=false;}
- if(modal)paintModalOverlay();
+ if(baseDirty){
+  const started=performance.now();
+  paintBaseGame();baseDirty=false;
+  perf.recordDuration('base',performance.now()-started);
+ }
+ if(modal){
+  const started=performance.now();
+  paintModalOverlay();
+  perf.recordDuration('modal',performance.now()-started);
+ }
  else{
   surface.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
@@ -997,14 +1010,16 @@ function frame(now){
   const dt=clamp(now-lastTime,0,100);lastTime=now;
   const prior=game.pieces,priorLines=game.lines,priorStatus=game.status;
   // Freeze gravity until the completed rows have finished blinking.
+  const tickStarted=performance.now();
   const advanced=lineClearFX?false:game.tick(dt);
+  perf.recordDuration('logic',performance.now()-tickStarted);
   if(lineClearFX&&game.status==='playing'){
    lineClearFX.elapsed+=dt;
    if(lineClearFX.elapsed>=LINE_FLASH_MS)lineClearFX=null;
-   dirty=true;baseDirty=true;
+   dirty=true;baseDirty=true;pendingRedrawReasons.add('flash');
   }
   if(advanced||game.pieces!==prior||game.lines!==prior||priorStatus!==game.status){
-   dirty=true;baseDirty=true;
+   dirty=true;baseDirty=true;pendingRedrawReasons.add('gravity');
    if(game.lines>priorLines)tone(590,.1);
    else if(game.pieces>prior)tone(180,.04);
    onOver();
@@ -1014,11 +1029,15 @@ function frame(now){
    optionsScroll=clamp(optionsScroll+scrollVelocity*dt,0,optionsMaxScroll);
    scrollVelocity*=Math.exp(-dt/190);
    if(optionsScroll===before||optionsScroll===0||optionsScroll===optionsMaxScroll)scrollVelocity=0;
-   else dirty=true;
+   else{dirty=true;pendingRedrawReasons.add('scroll');}
   }else scrollVelocity=0;
   if(dirty){
+   perf.recordRedrawReasons([...pendingRedrawReasons]);
+   pendingRedrawReasons.clear();
    paintGame();
+   const syncStarted=performance.now();
    syncFX();
+   perf.recordDuration('sync',performance.now()-syncStarted);
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
@@ -1039,7 +1058,7 @@ function resize(forceLayout=false){
  const d=Math.min(MAX_RENDER_DPR,Math.max(1,window.devicePixelRatio||1));
  // A pending redraw must never force another allocation at the same size.
  if(w===W&&h===H&&d===DPR){
-  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;invalidate();}
+  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;invalidate('resize');}
   return;
  }
  W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
@@ -1049,7 +1068,7 @@ function resize(forceLayout=false){
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  compositor.resize(W,H,DPR);
  perf.setViewport(W,H,DPR);
- baseDirty=true;dirty=true;invalidate();
+ baseDirty=true;dirty=true;invalidate('resize');
 }
 new ResizeObserver(()=>resize()).observe(display);
 window.addEventListener('orientationchange',()=>resize(true));
