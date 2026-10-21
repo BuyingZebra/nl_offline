@@ -40,7 +40,7 @@ const LETTER_SPACING_EM=.13; // Global 13%-of-font-size tracking; no exceptions.
 const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
 const BUTTON_ICON_FONT_SIZE=18;
 const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN']);
-const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷']);
+const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷','X']);
 const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
