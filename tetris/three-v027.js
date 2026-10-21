@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='041'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='042'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -749,10 +749,19 @@ const SETTINGS_GROUPS=[
  {id:'optics',title:'DISPLAY OPTICS',items:[
   ['switch','EDGE SOFTNESS','softness'],
   ['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
-  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]},
- {id:'preset',title:'DISPLAY PRESET',items:[
-  ['button','RESTORE APPROVED VALUES','resetFX']]}
+  ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]}
 ];
+// Descriptions are view-only and keyed to the same authoritative setting fields.
+const SETTINGS_DESCRIPTIONS=Object.freeze({
+ scanlineOpacity:'Controls how visible the CRT mask is across the screen.',
+ vignetteAmount:'Darkens the outer edges while keeping the centre clear.',
+ bloomStrength:'Brighter pixels produce a stronger phosphor glow.',
+ ghostX:'Moves the analog signal ghost horizontally.',
+ ghostY:'Moves the analog signal ghost vertically.',
+ ghostStrength:'Controls the visibility of the ghosted image.',
+ softnessStrength:'Blends optical blur with the original display.',
+ softnessRadius:'Adjusts the distance covered by optical blur.'
+});
 const SCANLINE_CHOICES=[
  {id:'off',name:'OFF'},
  ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))
@@ -810,7 +819,7 @@ function modalActionRow(q,items){
 }
 // One row model drives visible category geometry, scrolling and hitboxes.
 function settingsRows(buttonH,gap){
- const headingH=Math.max(30,buttonH-2*gap),rangeH=buttonH+2*gap;
+ const headingH=Math.max(30,buttonH-2*gap),rangeH=buttonH+7*gap;
  const patternH=2*buttonH+gap,rows=[];
  let offset=0;
  for(const group of SETTINGS_GROUPS){
@@ -874,7 +883,11 @@ function drawOptions(q){
  const contentX=x+pad,contentW=w-2*pad;
  const backY=modalBodyTop(q);
  key('RETURN TO GAME',contentX,backY,contentW,buttonH,'close');
- const top=backY+buttonH+gap,bottom=y+h-pad,vheight=Math.max(0,bottom-top);
+ // The bottom action is pinned outside the scrolling category viewport.
+ const restoreY=y+h-pad-buttonH;
+ key('RESTORE DEFAULTS',contentX,restoreY,contentW,buttonH,'resetFX');
+ const top=backY+buttonH+gap,bottom=restoreY-gap;
+ const vheight=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:vheight};
  const model=settingsRows(buttonH,gap);
  optionsMaxScroll=Math.max(0,model.height-vheight);
@@ -924,12 +937,16 @@ function drawOptions(q){
     region(contentX,cy,contentW,buttonH,'patternSelect',{modalControl:true});
    }else if(type==='range'){
     const value=Number(settingValue(k));
-    const captionY=yy+12;
+    // V027-style stack: label and value, muted explanation, then slider.
+    const captionY=yy+14;
     text(name,contentX+pad,captionY,11,C.ink,'left',contentW*.7);
     text(displayValue(value,step,unit),contentX+contentW-pad,captionY,
-     10,C.weak,'right');
+     11,C.bright,'right');
+    const description=SETTINGS_DESCRIPTIONS[k];
+    if(description)text(description,contentX+pad,yy+42,10,C.weak,'left',
+     contentW-2*pad);
     const trackX=contentX+pad+9,trackW=Math.max(1,contentW-2*(pad+9));
-    const trackY=yy+height-13;
+    const trackY=yy+height-12;
     rect(trackX,trackY-2,trackW,4,C.border);
     const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
     rect(trackX,trackY-2,trackW*fraction,4,C.bright);
@@ -1023,7 +1040,15 @@ function handleAction(act){
  if(act==='skipScore'){initialsInput.blur();openModal(null);return;}
  if(act==='saveScore'){saveScore();return;}
  if(act==='typeInitials'){initialsInput.focus();return;}
- if(act==='resetFX'){FX={...DEFAULT};persist();baseDirty=true;invalidate();return;}
+ if(act==='resetFX'){
+  FX={...DEFAULT};persist();
+  showGhost=true;soundOn=true;
+  store('fieldAtlasTetrisGhost','yes');
+  store('fieldAtlasTetrisSound','yes');
+  expandedSettingsGroup='overlays';optionsScroll=0;
+  scanlineMenuOpen=false;scrollVelocity=0;
+  baseDirty=true;invalidate();return;
+ }
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
 function stopRepeat(){
