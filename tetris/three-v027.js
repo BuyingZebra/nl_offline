@@ -1482,7 +1482,10 @@ async function checkForNewBuild(){
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden&&game.status==='playing')perform('pause');
  lastTime=performance.now();
- if(!document.hidden){invalidate();void checkForNewBuild();}
+ if(!document.hidden){
+  motionNeutral=null;motionTargetX=motionTargetY=0;
+  invalidate();void checkForNewBuild();
+ }
 });
 window.addEventListener('pageshow',()=>{void checkForNewBuild();});
 window.addEventListener('focus',()=>{void checkForNewBuild();});
@@ -1600,7 +1603,10 @@ function resize(){
  baseDirty=true;dirty=true;invalidate();
 }
 new ResizeObserver(resize).observe(display);
-window.addEventListener('orientationchange',()=>{dirty=true;resize();});
+window.addEventListener('orientationchange',()=>{
+ motionNeutral=null;motionTargetX=motionTargetY=0;
+ dirty=true;resize();
+});
 resize();
 requestFrame();
 // One check after initialization also covers standalone cold launches.
