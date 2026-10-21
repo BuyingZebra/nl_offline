@@ -6,9 +6,10 @@ import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v059';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor} from './perf-monitor.js?v059';
+import {createPerfMonitor} from './perf-monitor.js?v060';
+import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v059';
+import {formatDebugReport} from './debug-report.js?v060';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
@@ -31,7 +32,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='059'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='060'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -131,6 +132,10 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
+// Upload changed canvases before submitting the composer so that the first
+// RenderPass no longer conflates texture transfer and scene rendering.
+const textureUploads=createTextureUploadProfiler({renderer,
+ onTiming:(kind,elapsed)=>perf.recordUpload(kind,elapsed)});
 const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
 const {SCANLINE_PRESETS}=compositor;
@@ -1050,6 +1055,12 @@ function frame(now){
    const syncStarted=performance.now();
    syncFX();
    perf.recordDuration('sync',performance.now()-syncStarted);
+   // Only initialize canvas textures which will actually be sampled.
+   // Each revision is uploaded at most once, with no extra draw commands.
+   if(surface.visible)textureUploads.upload(texture,'base');
+   if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
+   if(!modal&&game.status!=='playing')
+    textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
