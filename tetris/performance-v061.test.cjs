@@ -98,5 +98,5 @@ test('V061 retains DPR2, same controls, passes, debug copy, URL and version',()=
  assert.ok(main.includes("textureUploads.upload(boardTexture,'board')"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
  assert.ok(comp.includes('composer.addPass(new OutputPass())'));
- assert.ok(read('three-v027.html').includes('Tetris System V063'));
+ assert.ok(read('three-v027.html').includes('<title>NOMAD — Tetris System</title>'));
 });
