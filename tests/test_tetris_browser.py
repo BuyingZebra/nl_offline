@@ -128,11 +128,11 @@ with sync_playwright() as p:
     # Preview changes are independent of whether the viewport effect is on.
     # This exercises the real slider and persisted value with bloom disabled.
     bloom_old = fx_value("bloomStrength")
-    tap(110, bloom_y + 47)  # Bloom strength slider, not its enable square
+    tap(110, bloom_y + 64)  # Bloom strength slider, not its enable square
     assert fx_value("bloomStrength") != bloom_old, (
         "Disabled-effect preview control failed to update its saved value"
     )
-    tap(110, bloom_y + 47)  # idempotent repeated slider selection
+    tap(110, bloom_y + 64)  # idempotent repeated slider selection
 
     # Depth Parallax stays opt-in; sensitivity is adjustable without sensor
     # permission or enabling motion. Scroll to the new ninth settings row.
