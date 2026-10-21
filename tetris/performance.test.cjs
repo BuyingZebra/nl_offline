@@ -88,5 +88,5 @@ test('render diagnostics are opt-in, with unchanged shaders and live version',()
  assert.ok(main.includes('perf.endRender(renderStarted);'));
  assert.ok(/const THREE_BUILD_VERSION='[0-9]+'/.test(main));
  assert.ok(/Tetris System V[0-9]+/.test(html));
- assert.ok(main.includes("from './compositor.js?v051'"));
+ assert.ok(main.includes("from './compositor.js?v056'"));
 });
