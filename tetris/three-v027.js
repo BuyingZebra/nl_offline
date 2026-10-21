@@ -30,7 +30,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
 const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
 const BLOOM_LUMINANCE_THRESHOLD=0;
-const THREE_BUILD_VERSION='044'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='045'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -733,42 +733,38 @@ function paintGame(){
 // A group contains independently configurable effects. Their UI layout is
 // derived from the same schema, so a toggle, description and sliders never
 // become detached by inserting another setting.
-const SETTINGS_GROUPS=[
- {id:'gameplay',title:'GAMEPLAY',effects:[
-  {title:'GHOST PIECE',toggle:'pieceGhost'},
-  {title:'SOUND',toggle:'sound'}
- ]},
- {id:'overlays',title:'SCREEN OVERLAYS',effects:[
-  {title:'PHOSPHOR COLOR',toggle:'phosphor',
-   description:'Enable phosphor tint. Choose green or amber in the viewport.'},
-  {title:'CRT SCANLINES',status:'scanlines',valueField:'scanlineOpacity',
-   description:'A grayscale CRT pattern across the entire screen.',
-   controls:[['patternSelect','PATTERN','scanlinePreset'],
-    ['range','INTENSITY','scanlineOpacity',0,100,1,'%']]},
-  {title:'SCREEN VIGNETTE',toggle:'vignette',valueField:'vignetteAmount',
-   description:'Darkens the outer edges of the display.',
-   controls:[['range','VIGNETTE','vignetteAmount',0,100,1,'%']]},
-  {title:'PHOSPHOR BLOOM',toggle:'bloom',valueField:'bloomStrength',
-   description:'Bloom follows interface luminance and pixel brightness.',
-   controls:[['range','BLOOM','bloomStrength',0,100,1,'%']]}
- ]},
- {id:'experimental',title:'SCREEN OVERLAY (EXPERIMENTAL)',effects:[
-  {title:'SIGNAL GHOSTING',toggle:'ghost',valueField:'ghostStrength',
-   description:'Analog image echoes shift and fade behind the display.',
-   controls:[['range','GHOST X','ghostX',-32,32,1,' px'],
-    ['range','GHOST Y','ghostY',-32,32,1,' px'],
-    ['range','GHOST STRENGTH','ghostStrength',0,100,1,'%']]},
-  {title:'EDGE SOFTNESS',toggle:'softness',valueField:'softnessStrength',
-   description:'Softens screen detail while retaining a sharp source.',
-   controls:[['range','BLUR STRENGTH','softnessStrength',0,100,1,'%'],
-    ['range','BLUR RADIUS','softnessRadius',0,10,.5,' px']]}
- ]}
+// Canonical Display System rows, with each existing control represented once.
+// Sections mark purpose but never collapse; all settings remain accessible.
+const DISPLAY_EFFECTS=[
+ {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor',
+  description:'Enable phosphor tint. Choose green or amber in the viewport.'},
+ {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',
+  description:'A grayscale CRT pattern across the display.',pattern:true,
+  sliders:[['INTENSITY','scanlineOpacity',0,100,1,'%']]},
+ {id:'vignette',title:'SCREEN VIGNETTE',toggle:'vignette',
+  description:'Darkens the outer edges of the screen.',
+  sliders:[['VIGNETTE','vignetteAmount',0,100,1,'%']]},
+ {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
+  description:'Glow follows interface luminance and pixel brightness.',
+  sliders:[['BLOOM','bloomStrength',0,100,1,'%']]},
+ {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
+  description:'Analog signal echoes and shifted image copies.',
+  sliders:[['GHOST X','ghostX',-32,32,1,' px'],
+   ['GHOST Y','ghostY',-32,32,1,' px'],
+   ['STRENGTH','ghostStrength',0,100,1,'%']]},
+ {id:'softness',title:'EDGE SOFTNESS',toggle:'softness',
+  description:'Softens displayed detail without changing the source.',
+  sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
+   ['RADIUS','softnessRadius',0,10,.5,' px']]},
+ {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost',section:'GAMEPLAY',
+  description:'Display the projected landing location.'},
+ {id:'sound',title:'SOUND',toggle:'sound',
+  description:'Enable game audio feedback.'}
 ];
-const SCANLINE_CHOICES=[
- {id:'off',name:'OFF'},
- ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))
-];
-let expandedSettingsGroup='overlays',scanlineMenuOpen=false;
+const SCANLINE_CHOICES=[{id:'off',name:'OFF'},
+ ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))];
+const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=20;
+let scanlineMenuOpen=false;
 function settingValue(k){
  if(k==='pieceGhost')return showGhost;
  if(k==='sound')return soundOn;
@@ -797,7 +793,7 @@ function modalBounds(name){
  const safe=insets(),pad=UI_SPACE.unit,gap=UI_SPACE.unit;
  const buttonH=layout().headerButtonH;
  const usable=Math.max(0,H-safe.top-safe.bottom);
- const wanted=name==='options'?Math.min(680,H*.82):
+ const wanted=name==='options'?Math.max(0,usable-2*gap):
   name==='scores'?2*pad+2*buttonH+5*54+5*gap+14:
   name==='restart'?2*pad+2*buttonH+2*gap+40:
   2*pad+4*buttonH+4*gap+18;
@@ -819,171 +815,211 @@ function modalActionRow(q,items){
   key(label,x+i*(buttonW+q.gap),y,buttonW,q.buttonH,act,{light:Boolean(light)}));
  return y;
 }
-// The 6px spacing token owns every gap between complete effect blocks,
-// and the 20px square is shared by switches, selected options and slider thumbs.
-const SETTINGS_SQUARE_SIZE=20;
-function settingsRows(buttonH,gap){
- const groupH=Math.max(30,buttonH-2*gap);
- const effectHeadingH=28,descriptionH=28;
- const sliderH=Math.max(30,buttonH-10);
- const dropdownH=buttonH;
- const optionH=Math.max(32,buttonH-6);
- const rows=[];let offset=0;
- for(const group of SETTINGS_GROUPS){
-  rows.push({kind:'group',group,offset,height:groupH});
-  offset+=groupH+gap;
-  if(group.id!==expandedSettingsGroup)continue;
-  for(const effect of group.effects){
-   const headerH=effectHeadingH+(effect.description?descriptionH:0);
-   rows.push({kind:'effect',group,effect,offset,height:headerH,headingH:effectHeadingH});
-   offset+=headerH+gap;
-   for(const item of effect.controls||[]){
-    const kind=item[0],height=kind==='range'?sliderH:dropdownH;
-    rows.push({kind,item,group,effect,offset,height});
-    offset+=height+gap;
-    if(kind==='patternSelect'&&scanlineMenuOpen){
-     for(const option of SCANLINE_CHOICES){
-      rows.push({kind:'scanlineChoice',item,effect,option,offset,height:optionH});
-      offset+=optionH+gap;
-     }
-    }
-   }
-   // Divider is part of the effect block, never attached to a single slider.
-   rows.push({kind:'effectDivider',group,effect,offset,height:1});
-   offset+=1+gap;
+// Each monochrome thumbnail is generated once and then coloured by the
+// same phosphor shader as the entire screen. No network assets or new passes.
+function effectPreview(id){
+ const canvas=document.createElement('canvas');
+ canvas.width=PREVIEW_SIZE;canvas.height=PREVIEW_SIZE;
+ const p=canvas.getContext('2d');
+ if(!p)return canvas;
+ p.fillStyle='#080808';p.fillRect(0,0,96,96);
+ const radial=(radius,bright,edge)=>{
+  const v=p.createRadialGradient(48,48,0,48,48,radius);
+  v.addColorStop(0,gray(bright));v.addColorStop(1,gray(edge));
+  p.fillStyle=v;p.fillRect(0,0,96,96);
+ };
+ if(id==='phosphor'){
+  for(let y=5;y<92;y+=7)for(let x=5;x<92;x+=7){
+   const d=Math.hypot(x-48,y-48)/68;
+   p.fillStyle=gray(34+185*Math.pow(Math.max(0,1-d),1.6));
+   p.fillRect(x,y,4,4);
   }
+ }else if(id==='scanlines'){
+  radial(72,138,18);
+  for(let y=0;y<96;y+=5){p.fillStyle='#101010';p.fillRect(0,y,96,2);}
+  for(let x=12;x<83;x+=19){p.fillStyle='#989898';p.fillRect(x,26,9,8);}
+ }else if(id==='vignette'){
+  radial(68,206,5);p.fillStyle='#383838';
+  p.fillRect(22,36,52,3);p.fillRect(22,50,52,3);
+ }else if(id==='bloom'){
+  radial(52,212,8);p.fillStyle='#f2f2f2';
+  p.fillRect(39,40,18,16);p.fillRect(44,35,8,26);
+ }else if(id==='ghost'){
+  for(const [ofs,v] of [[9,32],[24,85],[40,177],[55,222]]){
+   p.fillStyle=gray(v);p.fillRect(ofs,31,26,26);p.fillRect(ofs+8,22,10,44);
+  }
+ }else if(id==='softness'){
+  radial(43,116,8);p.fillStyle='#777777';p.fillRect(23,20,30,30);
+  p.fillStyle='#cccccc';p.fillRect(38,41,32,32);
+ }else if(id==='piece'){
+  p.fillStyle='#bababa';
+  for(const [x,y] of [[20,36],[40,36],[60,36],[40,16]])p.fillRect(x,y,18,18);
+ }else if(id==='sound'){
+  p.fillStyle='#c6c6c6';
+  [16,27,43,54,35,23].forEach((h,i)=>p.fillRect(15+i*12,70-h,7,h));
  }
- return {rows,height:Math.max(0,offset-gap)};
+ return canvas;
 }
-function toggleSettingsGroup(groupId){
- if(!SETTINGS_GROUPS.some(group=>group.id===groupId))return;
- expandedSettingsGroup=expandedSettingsGroup===groupId?null:groupId;
- scanlineMenuOpen=false;scrollVelocity=0;
- const model=settingsRows(layout().headerButtonH,UI_SPACE.unit);
- const heading=model.rows.find(row=>row.kind==='group'&&row.group.id===groupId);
- if(heading)optionsScroll=heading.offset;
- invalidate();
-}
+const EFFECT_PREVIEWS=Object.fromEntries(
+ DISPLAY_EFFECTS.map(effect=>[effect.id,effectPreview(effect.id)]));
 function selectedScanlineChoice(){return FX.scanlines?activeScanlinePreset().id:'off';}
 function toggleScanlineMenu(){
- scanlineMenuOpen=!scanlineMenuOpen;
- scrollVelocity=0;invalidate();
+ scanlineMenuOpen=!scanlineMenuOpen;scrollVelocity=0;invalidate();
 }
 function chooseScanline(id){
- if(!SCANLINE_CHOICES.some(option=>option.id===id))return;
+ if(!SCANLINE_CHOICES.some(choice=>choice.id===id))return;
  FX.scanlines=id!=='off';
  if(id!=='off')FX.scanlinePreset=id;
  scanlineMenuOpen=false;persist();scrollVelocity=0;invalidate();
 }
 function settingSquare(x,y,size,active){
- // Solid = enabled / selected; outline = disabled / unselected.
  g.lineWidth=1;
- if(active){
-  g.fillStyle=C.bright;g.fillRect(x,y,size,size);
- }else{
-  g.strokeStyle=C.bright;g.strokeRect(x+.5,y+.5,size-1,size-1);
- }
+ if(active){g.fillStyle=C.bright;g.fillRect(x,y,size,size);}
+ else{g.strokeStyle=C.bright;g.strokeRect(x+.5,y+.5,size-1,size-1);}
 }
 function settingsExpandArrow(x,y,expanded,color){
- g.save();
- g.translate(x,y);
- if(expanded)g.rotate(Math.PI/2);
- text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');
- g.restore();
+ g.save();g.translate(x,y);if(expanded)g.rotate(Math.PI/2);
+ text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');g.restore();
+}
+// A single model controls the full-width card geometry, scrolling and inputs.
+function settingsRows(buttonH,gap){
+ const rows=[];let offset=0;
+ DISPLAY_EFFECTS.forEach((effect,i)=>{
+  let heading=null;
+  if(i===0)heading='SCREEN OVERLAYS';
+  else if(i===4)heading='EXPERIMENTAL';
+  else if(effect.section)heading=effect.section;
+  if(heading){
+   rows.push({kind:'section',label:heading,offset,height:24});
+   offset+=24+gap;
+  }
+  const n=effect.sliders?.length||0;
+  const cardHeight=n===3?164:n===2?134:effect.pattern?145:n?104:88;
+  const choiceHeight=Math.max(34,buttonH-8);
+  const open=effect.pattern&&scanlineMenuOpen;
+  const height=cardHeight+(open?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
+  rows.push({kind:'effect',effect,offset,height,cardHeight,choiceHeight});
+  offset+=height+gap;
+ });
+ return {rows,height:Math.max(0,offset-gap)};
 }
 function drawOptions(q){
- modalPanel('FIELD ATLAS / DISPLAY SETTINGS',q);
- const {x,y,w,h,pad,gap,buttonH}=q;
- const contentX=x+pad,contentW=w-2*pad;
- const backY=modalBodyTop(q);
- key('RETURN TO GAME',contentX,backY,contentW,buttonH,'close');
- const restoreY=y+h-pad-buttonH;
- key('RESTORE DEFAULTS',contentX,restoreY,contentW,buttonH,'resetFX');
- const top=backY+buttonH+gap,bottom=restoreY-gap;
- const vheight=Math.max(0,bottom-top);
- modalView={x:contentX,y:top,w:contentW,h:vheight};
- const model=settingsRows(buttonH,gap);
- optionsMaxScroll=Math.max(0,model.height-vheight);
+ // This header REPLACES TETRIS SYSTEM; it is not nested inside a second header.
+ regions=[];region(0,0,W,H,'block');
+ const r=layout(),pad=q.pad,gap=q.gap,headH=r.hh;
+ panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
+ const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
+ text('DISPLAY SYSTEM',q.x+UI_SPACE.headTitleInset,
+  q.y+headH/2,titleSize,C.ink,'left',
+  Math.max(10,q.w-UI_SPACE.headTitleInset-q.buttonH-2*gap));
+ const closeX=q.x+q.w-UI_SPACE.headRightPad-q.buttonH;
+ key('X',closeX,q.y+(headH-q.buttonH)/2,q.buttonH,q.buttonH,'close');
+ rect(q.x+UI_SPACE.headTitleInset,q.y+headH-gap,
+  Math.max(1,q.w-2*UI_SPACE.headTitleInset),1,C.border);
+ // A true START GAME-sized solid action, centred outside the scrolling list.
+ const restoreW=Math.min(q.w-2*pad,r.boardW*UI_SPACE.overlayButtonWidthScale);
+ const restoreY=q.y+q.h-pad-r.extraH;
+ key('RESTORE DEFAULTS',q.x+(q.w-restoreW)/2,restoreY,
+  restoreW,r.extraH,'resetFX',{light:true});
+ const contentX=q.x+pad,contentW=q.w-2*pad;
+ const top=q.y+headH+gap,bottom=restoreY-gap;
+ const visibleH=Math.max(0,bottom-top);
+ modalView={x:contentX,y:top,w:contentW,h:visibleH};
+ const model=settingsRows(q.buttonH,gap);
+ optionsMaxScroll=Math.max(0,model.height-visibleH);
  optionsScroll=clamp(optionsScroll,0,optionsMaxScroll);
- g.save();g.beginPath();g.rect(contentX,top,contentW,vheight);g.clip();
- region(contentX,top,contentW,vheight,'scroll',{scroll:true});
+ g.save();g.beginPath();g.rect(contentX,top,contentW,visibleH);g.clip();
+ region(contentX,top,contentW,visibleH,'scroll',{scroll:true});
  for(const row of model.rows){
-  const {kind,height,offset}=row,yy=top+offset-optionsScroll;
-  if(yy+height<top||yy>bottom)continue;
-  if(kind==='group'){
-   const expanded=expandedSettingsGroup===row.group.id;
-   const iconX=contentX+pad,color=expanded?C.bright:C.weak;
-   settingsExpandArrow(iconX+BUTTON_ICON_FONT_SIZE/2,yy+height/2,expanded,color);
-   text(row.group.title,iconX+BUTTON_ICON_FONT_SIZE+gap,yy+height/2,11,
-    color,'left',contentW-2*pad-BUTTON_ICON_FONT_SIZE-gap);
-   rect(contentX+pad,yy+height-1,contentW-2*pad,1,C.border);
-   region(contentX,yy,contentW,height,'settingsGroup',
-    {field:row.group.id,modalControl:true});
-  }else if(kind==='effect'){
-   const effect=row.effect,topRowY=yy+row.headingH/2;
-   let titleX=contentX+pad;
-   if(effect.toggle||effect.status){
-    const squareX=titleX,squareY=topRowY-SETTINGS_SQUARE_SIZE/2;
-    settingSquare(squareX,squareY,SETTINGS_SQUARE_SIZE,
-     Boolean(settingValue(effect.toggle||effect.status)));
-    titleX+=SETTINGS_SQUARE_SIZE+gap;
+  const y=top+row.offset-optionsScroll;
+  if(y+row.height<top||y>bottom)continue;
+  if(row.kind==='section'){
+   text(row.label,contentX+pad,y+row.height/2,10,C.weak,
+    'left',contentW-2*pad);
+   rect(contentX+pad,y+row.height-2,contentW-2*pad,1,C.border);
+   continue;
+  }
+  const effect=row.effect,cardH=row.cardHeight;
+  panel(contentX,y,contentW,row.height,10,C.button,C.border);
+  const previewSize=Math.min(68,Math.max(42,Math.floor(contentW*.185)));
+  const previewX=contentX+gap,previewY=y+gap;
+  panel(previewX,previewY,previewSize,previewSize,7,C.button,C.border);
+  g.save();g.beginPath();
+  g.rect(previewX+2,previewY+2,previewSize-4,previewSize-4);g.clip();
+  g.drawImage(EFFECT_PREVIEWS[effect.id],previewX+2,previewY+2,
+   previewSize-4,previewSize-4);
+  g.restore();
+  const descX=previewX+previewSize+gap;
+  const rightW=clamp(contentW*.29,96,117);
+  const rightX=contentX+contentW-gap-rightW;
+  const descW=Math.max(35,rightX-descX-gap);
+  text(effect.title,descX,y+21,11,C.bright,'left',descW);
+  text(effect.description,descX,y+54,10,C.weak,'left',descW);
+  if(effect.toggle){
+   settingSquare(rightX+1,y+14,SETTINGS_SQUARE_SIZE,
+    Boolean(settingValue(effect.toggle)));
+   region(rightX,y+7,36,34,'toggle',
+    {field:effect.toggle,modalControl:true});
+  }
+  if(effect.sliders?.length){
+   const count=effect.sliders.length;
+   const first=effect.pattern?105:count===3?46:count===2?49:60;
+   if(count===1){
+    const e=effect.sliders[0];
+    text(displayValue(settingValue(e[1]),e[4],e[5]),
+     rightX+rightW-2,y+23,11,C.bright,'right',rightW-33);
    }
-   const value=effect.valueField?displayValue(Number(settingValue(effect.valueField)),1,'%'):null;
-   const valueReserve=value?Math.max(44,value.length*8):0;
-   text(effect.title,titleX,topRowY,11,C.ink,'left',
-    Math.max(10,contentX+contentW-pad-titleX-valueReserve-gap));
-   if(value)text(value,contentX+contentW-pad,topRowY,11,C.bright,'right');
-   if(effect.description)text(effect.description,contentX+pad,
-    yy+row.headingH+14,10,C.weak,'left',contentW-2*pad);
-   // Any visible square is actionable; the CRT dropdown still offers OFF.
-   if(effect.toggle||effect.status)region(contentX,yy,contentW,row.headingH,'toggle',
-    {field:effect.toggle||effect.status,modalControl:true});
-  }else if(kind==='effectDivider'){
-   rect(contentX+pad,yy,contentW-2*pad,1,C.border);
-  }else if(kind==='scanlineChoice'){
-   const chosen=row.option.id===selectedScanlineChoice();
-   settingSquare(contentX+pad,yy+(height-SETTINGS_SQUARE_SIZE)/2,
-    SETTINGS_SQUARE_SIZE,chosen);
-   text(row.option.name,contentX+2*pad+SETTINGS_SQUARE_SIZE,
-    yy+height/2,11,chosen?C.bright:C.ink,'left',
-    contentW-3*pad-SETTINGS_SQUARE_SIZE);
-   region(contentX,yy,contentW,height,'scanlineChoice',
-    {field:row.option.id,modalControl:true});
-  }else if(kind==='patternSelect'){
-   const [type,name,k]=row.item;
-   const controlX=contentX+pad+Math.max(62,name.length*7.1);
-   const controlW=Math.max(40,contentX+contentW-pad-controlX);
-   text(name,contentX+pad,yy+height/2,11,C.ink,'left',controlX-contentX-pad-gap);
-   panel(controlX,yy+3,controlW,height-6,6,C.button,C.border);
-   const selected=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
-   text(selected?.name||'ORIGINAL',controlX+pad,yy+height/2,10,C.ink,
-    'left',Math.max(10,controlW-3*pad-BUTTON_ICON_FONT_SIZE));
-   settingsExpandArrow(controlX+controlW-pad-BUTTON_ICON_FONT_SIZE/2,
-    yy+height/2,scanlineMenuOpen,C.ink);
-   region(controlX,yy,controlW,height,'patternSelect',{modalControl:true});
-  }else if(kind==='range'){
-   const [type,name,k,min,max,step,unit]=row.item;
-   const labelW=Math.max(70,Math.min(132,name.length*7.4+gap));
-   const value=Number(settingValue(k));
-   text(name,contentX+pad,yy+height/2,10,C.ink,'left',labelW-gap);
-   const trackX=contentX+pad+labelW+gap+SETTINGS_SQUARE_SIZE/2;
-   const trackW=Math.max(1,contentX+contentW-pad-SETTINGS_SQUARE_SIZE/2-trackX);
-   const trackY=yy+height/2;
-   rect(trackX,trackY-2,trackW,4,C.border);
-   const fraction=clamp((value-min)/(max-min),0,1),cx=trackX+trackW*fraction;
-   rect(trackX,trackY-2,trackW*fraction,4,C.bright);
-   const square=SETTINGS_SQUARE_SIZE;
-   rect(cx-square/2,trackY-square/2,square,square,C.bright);
-   region(trackX-square/2,trackY-16,trackW+square,32,'slider',
-    {field:k,min,max,step,trackX,trackW,modalControl:true});
+   effect.sliders.forEach(([label,field,min,max,step,unit],i)=>{
+    const ly=y+first+i*37;
+    text(label,rightX,ly,8,C.ink,'left',rightW);
+    const value=Number(settingValue(field));
+    const fraction=clamp((value-min)/(max-min),0,1);
+    const trackX=rightX+SETTINGS_SQUARE_SIZE/2;
+    const trackW=rightW-SETTINGS_SQUARE_SIZE-2,trackY=ly+16;
+    rect(trackX,trackY-2,trackW,4,C.border);
+    rect(trackX,trackY-2,trackW*fraction,4,C.bright);
+    rect(trackX+trackW*fraction-SETTINGS_SQUARE_SIZE/2,
+     trackY-SETTINGS_SQUARE_SIZE/2,
+     SETTINGS_SQUARE_SIZE,SETTINGS_SQUARE_SIZE,C.bright);
+    region(trackX-SETTINGS_SQUARE_SIZE/2,trackY-15,
+     trackW+SETTINGS_SQUARE_SIZE,30,'slider',
+     {field,min,max,step,trackX,trackW,modalControl:true});
+   });
+  }
+  if(effect.pattern){
+   // CRT mask selector is inside its full-width row, not another accordion.
+   const selectY=y+61,selectH=29;
+   panel(rightX,selectY,rightW,selectH,5,C.button,C.border);
+   const current=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
+   const shortNames={horizontal:'HORIZONTAL',aperture:'APERTURE',
+    slot:'SLOT MASK',dot:'DOT MASK'};
+   text(shortNames[current?.id]||current?.name||'ORIGINAL',
+    rightX+4,selectY+selectH/2,9,C.ink,'left',rightW-27);
+   settingsExpandArrow(rightX+rightW-13,selectY+selectH/2,
+    scanlineMenuOpen,C.ink);
+   region(rightX,selectY,rightW,selectH,
+    'patternSelect',{modalControl:true});
+   if(scanlineMenuOpen)SCANLINE_CHOICES.forEach((option,i)=>{
+    const cy=y+cardH+i*(row.choiceHeight+gap);
+    settingSquare(contentX+3*gap,
+     cy+(row.choiceHeight-SETTINGS_SQUARE_SIZE)/2,
+     SETTINGS_SQUARE_SIZE,option.id===selectedScanlineChoice());
+    text(option.name,contentX+5*gap+SETTINGS_SQUARE_SIZE,
+     cy+row.choiceHeight/2,10,C.ink,'left',
+     contentW-8*gap-SETTINGS_SQUARE_SIZE);
+    region(contentX+2*gap,cy,contentW-4*gap,row.choiceHeight,
+     'scanlineChoice',{field:option.id,modalControl:true});
+   });
   }
  }
  g.restore();
- if(optionsMaxScroll>0&&vheight>0){
-  const railH=Math.max(0,vheight-2*gap);
-  const thumbH=Math.min(railH,Math.max(28,railH*vheight/(vheight+optionsMaxScroll)));
-  const thumbY=top+gap+(railH-thumbH)*clamp(optionsScroll/optionsMaxScroll,0,1);
-  rect(x+w-4,thumbY,2,thumbH,C.weak);
+ if(optionsMaxScroll>0&&visibleH>0){
+  const railH=Math.max(0,visibleH-2*gap);
+  const thumbH=Math.min(railH,Math.max(28,
+   railH*visibleH/(visibleH+optionsMaxScroll)));
+  const thumbY=top+gap+(railH-thumbH)*
+   clamp(optionsScroll/optionsMaxScroll,0,1);
+  rect(q.x+q.w-4,thumbY,2,thumbH,C.weak);
  }
 }
 function drawScores(q){
@@ -1067,7 +1103,7 @@ function handleAction(act){
   showGhost=true;soundOn=true;
   store('fieldAtlasTetrisGhost','yes');
   store('fieldAtlasTetrisSound','yes');
-  expandedSettingsGroup='overlays';optionsScroll=0;
+  optionsScroll=0;
   scanlineMenuOpen=false;scrollVelocity=0;
   baseDirty=true;invalidate();return;
  }
@@ -1169,7 +1205,6 @@ function releaseTouch(e){
      const r=touch.region;
      if(r.act==='slider')setSlider(r,p.x);
      else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
-     else if(r.act==='settingsGroup'&&optionPoint(p))toggleSettingsGroup(r.field);
      else if(r.act==='patternSelect'&&optionPoint(p))toggleScanlineMenu();
      else if(r.act==='scanlineChoice'&&optionPoint(p))chooseScanline(r.field);
      else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
