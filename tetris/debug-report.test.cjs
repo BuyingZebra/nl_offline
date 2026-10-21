@@ -100,8 +100,8 @@ test('debug button sits left of X and copies on user activation',()=>{
  assert.ok(code.includes("debugCopyState=success?'copied':'failed'"));
  assert.ok(code.includes('function drawDebugBug(cx,cy){'));
  assert.ok(!code.includes('createPerfHud({enabled:perfEnabled'));
- assert.ok(code.includes("const THREE_BUILD_VERSION='061'"));
- assert.ok(html.includes('Tetris System V061'));
+ assert.ok(code.includes("const THREE_BUILD_VERSION='062'"));
+ assert.ok(html.includes('Tetris System V062'));
 });
 test('diagnostics are collected quietly with a bounded sample history',()=>{
  const code=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
