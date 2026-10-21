@@ -762,7 +762,7 @@ function settingValue(k){
  return FX[k];
 }
 function setSetting(k,value){
- if(k==='pieceGhost'){ }else if(k==='pieceGhost'){
+ if(k==='pieceGhost'){
   showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');baseDirty=true;
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
