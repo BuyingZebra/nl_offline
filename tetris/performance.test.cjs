@@ -77,7 +77,9 @@ test('region snapshots remain immutable while modal hitboxes are constructed',()
  assert.ok(main.includes('baseRegions=regions;'));
  assert.ok(main.includes('if(!modal)regions=baseRegions;'));
  assert.ok(main.includes('regions=[];const r=layout();'));
- assert.ok(main.includes("if(modal)paintModalOverlay();"));
+ assert.ok(main.includes("if(modal){"));
+ assert.ok(main.includes("paintModalOverlay();"));
+ assert.ok(main.includes("perf.recordDuration('modal'"));
  assert.ok(!main.includes('regions=baseRegions.slice()'));
 });
 test('render diagnostics are opt-in, with unchanged shaders and live version',()=>{
