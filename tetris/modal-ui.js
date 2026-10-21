@@ -392,12 +392,14 @@ function paintModal(q){
  else if(modal==='entry')drawEntry(q);
 }
 
+ function resetSettings(){
+  optionsScroll=0;optionsMaxScroll=0;scanlineMenuOpen=false;
+ }
  function reset(){
-  modalView=null;optionsScroll=0;optionsMaxScroll=0;
-  scanlineMenuOpen=false;debugCopyState='idle';
+  modalView=null;resetSettings();debugCopyState='idle';
  }
  return Object.freeze({
-  modalBounds,paintModal,toggleScanlineMenu,chooseScanline,reset,
+  modalBounds,paintModal,toggleScanlineMenu,chooseScanline,reset,resetSettings,
   get view(){return modalView;},
   get scroll(){return optionsScroll;},
   set scroll(v){optionsScroll=v;},
