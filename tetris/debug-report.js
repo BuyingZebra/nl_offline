@@ -37,6 +37,9 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    rows.push('  RAF STATES: '+states);
    rows.push('  REDRAW CAUSES: '+reasons+
     ' (multiple causes may apply to one render)');
+   if(s.gravityTickAdvances!==undefined||s.visualStateChanges!==undefined)
+    rows.push('  GAME CHANGES: gravity tick advances '+value(s.gravityTickAdvances)+
+     ' | actual visual changes '+value(s.visualStateChanges));
   }
  });
  const gfx=gpu||current?.gpu||samples.at(-1)?.gpu;
