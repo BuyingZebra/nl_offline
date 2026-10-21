@@ -1,6 +1,6 @@
 # FIELD ATLAS · Tetris System / Three.js
 
-## Current production architecture (V041)
+## Current production architecture (V042)
 - **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
 - **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
@@ -320,3 +320,10 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - Other old preferences `bloomCutoff`, `vignetteSpread`, `scanlineScale`, `boardBlur` are excluded from the current `DEFAULT` loading schema. The existing `fieldAtlasThreeV027FX01` storage key, valid remaining settings and all top-five data remain unchanged; no blanket localStorage reset. On subsequent writes obsolete keys are naturally omitted.
 - **Checks:** JS parser validation; value domain and save/restore state simulations for OFF/pattern choice and vignette/bloom percentage sliders; submenu open/close and alternate accordion selection; dropdown geometry test confirms the full label+control height and that the six choices push following sliders downward without overlap. The updated browser test additionally checks phosphor toggle and CRT menu choice persistence, but has not been confirmed running in CI. Real iPhone visual/gesture testing is still required.
 - No changes to permanent `tetris/three-v027.html` link, V033 iOS root height CSS, gameplay/scoring, board layout, current theme colours, six-pixel spacing, Fallout squares or other CRT effects. Build **041**.
+
+## V042: Restore V027 annotated sliders and pin Restore Defaults
+- User approved returning to the older V027 visual hierarchy for slider properties: **effect label (left) and live value (right) on the top line, a muted human-readable explanation beneath, then the square-thumb slider bar**. This is implemented through one `SETTINGS_DESCRIPTIONS` map keyed by existing FX settings, with a shared `rangeH = buttonH + 7*UI_SPACE.unit` row height, preserving 6px adjacency gaps and the existing 18px icons. No new shader effects or preferences.
+- Remove the **Display Preset** accordion category completely. `RESTORE DEFAULTS` is now a permanently visible full-width action below the Settings scroll viewport, padded 6px from the modal walls and separated from the viewport by a 6px gap. It is **not** a scrolling row and does not need to be expanded.
+- `resetFX` now resets both the saved visual effects (using the existing `DEFAULT` schema) and the two Gameplay settings (Ghost Piece and Sound = yes), without clearing highscores or changing the viewport's green/amber theme selection. Reset collapses the internal scanline picker, re-opens Screen Overlays, and scrolls to the top.
+- Fixed menu geometry was verified in independent simulation on 393×852 with status/navigation safe-area insets, 390×844 browser, 375×667, 320×568, and 844×390 landscape, across all four remaining accordion categories. Bottom action remained fixed, with correct width, 46/42/37px responsive height and 6px wall gap, even after scrolling to the end. The browser regression includes tapping the fixed button and asserting that Gameplay and FX defaults are restored. JS parsing and source invariants passed; visual iPhone check remains needed.
+- No changes to bloom, phosphor hues, compositor, persistent FX key, high-score data, iPhone standalone viewport CSS, gameplay logic or permanent link. Production footer version is **042**.
