@@ -18,8 +18,8 @@ test('board is drawn in cropped Canvas2D texture separate from fullscreen base',
  assert.ok(main.includes("const boardCanvas=document.createElement('canvas');"));
  assert.ok(main.includes('const boardTexture=new THREE.CanvasTexture(boardCanvas);'));
  assert.ok(main.includes('boardCanvas.width=pixelW;boardCanvas.height=pixelH;'));
- assert.ok(main.includes('const pixelW=Math.max(1,Math.round(w*DPR))'));
- assert.ok(main.includes('const pixelH=Math.max(1,Math.round(h*DPR))'));
+ assert.ok(main.includes('const pixelW=Math.max(1,Math.round(w*DPR)),pixelH='));
+ assert.ok(main.includes('pixelH=Math.max(1,Math.round(h*DPR))'));
  assert.ok(main.includes('boardTexture.needsUpdate=true;'));
 });
 test('static base paints only board grid and leaves board input hitbox in base regions',()=>{
