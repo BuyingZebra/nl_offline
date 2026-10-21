@@ -27,7 +27,7 @@ test('report includes device, game state, effect settings, and recent performanc
    avgRenderSubmitMs:.4,baseUploadRequests:4,popupUploadRequests:1,
    modalUploadRequests:0}]});
  assert.ok(report.includes('Build: V055'));
- assert.ok(report.includes('393x852 / DPR 3'));
+ assert.ok(report.includes('393x852 / render DPR 3 / device DPR n/a'));
  assert.ok(report.includes('paused / level 3 / score 2500'));
  assert.ok(report.includes('Mobile Safari'));
  assert.ok(report.includes('Textures: 12'));
@@ -100,8 +100,8 @@ test('debug button sits left of X and copies on user activation',()=>{
  assert.ok(code.includes("debugCopyState=success?'copied':'failed'"));
  assert.ok(code.includes('function drawDebugBug(cx,cy){'));
  assert.ok(!code.includes('createPerfHud({enabled:perfEnabled'));
- assert.ok(code.includes("const THREE_BUILD_VERSION='055'"));
- assert.ok(html.includes('Tetris System V055'));
+ assert.ok(code.includes("const THREE_BUILD_VERSION='056'"));
+ assert.ok(html.includes('Tetris System V056'));
 });
 test('diagnostics are collected quietly with a bounded sample history',()=>{
  const code=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
