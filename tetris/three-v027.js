@@ -12,6 +12,10 @@ import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layer
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v062';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
+import {createRenderInvalidation} from './render-invalidation.js?v063';
+import {createHudDrawing} from './hud-drawing.js?v063';
+import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,
+ effectSettingToStored} from './display-settings-catalog.js?v063';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -28,12 +32,8 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
  bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 // Persist only user-facing settings; interface treatment is fixed design.
-const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
- ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
- scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
- softness:true,softnessStrength:.64,softnessRadius:3,
- vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='062'; // Increment per approved layout/render test.
+const DEFAULT=DEFAULT_EFFECTS;
+const THREE_BUILD_VERSION='063'; // Increment per approved layout/render test.
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -73,9 +73,9 @@ let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null,modalView=null;
 let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let dirty=true,baseDirty=true,boardDirty=true,sidebarDirty=true,controlsDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
-// Attribute actual draws instead of assuming every RAF tick triggers painting.
-const pendingRedrawReasons=new Set(['startup']);
+let queued=false,lastTime=performance.now(),audioCtx=null;
+// One owner for layer invalidation, redraw attribution and pending work.
+const layers=createRenderInvalidation();
 // Small rolling history: no overlay, network, persistent storage, or console spam.
 const recentPerf=[];
 const perf=createPerfMonitor({enabled:true,intervalMs:2000,log:()=>{},
@@ -190,8 +190,7 @@ function tone(freq=240,len=.04){
  }catch(e){}
 }
 function invalidate(reason='input'){
- pendingRedrawReasons.add(reason);
- dirty=true;requestFrame();
+ layers.reason(reason);requestFrame();
 }
 // Core synchronously removes rows on lock; this renderer-only observer
 // captures the exact filled squares before deletion for the short animation.
@@ -212,7 +211,7 @@ game.lockPiece=function(){
   snapshot.forEach((row,y)=>{if(row.every(Boolean))rows.push(y);});
   if(rows.length){
    lineClearFX={board:snapshot,rows:new Set(rows),elapsed:0};
-   boardDirty=true;sidebarDirty=true;controlsDirty=true;invalidate();
+   layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate();
   }
  }
 };
@@ -242,10 +241,10 @@ function perform(type){
  else if(type==='pause')ok=game.pause();
  else if(type==='start')ok=game.start();
  if(ok){
-  boardDirty=true;controlsDirty=true;
-  if(game.pieces!==pieces||game.hold!==held)sidebarDirty=true;
-  if(game.score!==score||game.lines!==lines)controlsDirty=true;
-  if(game.status!==was)baseDirty=true; // refresh READY/PAUSED/OVER popup
+  layers.mark('board');layers.mark('controls');
+  if(game.pieces!==pieces||game.hold!==held)layers.mark('sidebar');
+  if(game.score!==score||game.lines!==lines)layers.mark('controls');
+  if(game.status!==was)layers.mark('base'); // refresh READY/PAUSED/OVER popup
   if(was==='over'&&game.status==='playing')overOffered=false;
   if(game.lines>lines)tone(610,.14);
   else if(game.pieces>pieces)tone(175);
@@ -258,7 +257,7 @@ function perform(type){
 }
 function restart(){
  lineClearFX=null;
- game.reset();game.start();boardDirty=true;sidebarDirty=true;controlsDirty=true;baseDirty=true;overOffered=false;openModal(null);invalidate();
+ game.reset();game.start();layers.mark('board');layers.mark('sidebar');layers.mark('controls');layers.mark('base');overOffered=false;openModal(null);invalidate();
 }
 function options(){if(game.status==='playing')perform('pause');openModal('options');}
 function scores(){if(game.status==='playing')perform('pause');openModal('scores');}
@@ -266,7 +265,7 @@ function saveScore(){
  const tag=Scores.initials(initialsInput.value);
  highs=Scores.save(window.localStorage,Scores.add(highs,
   {name:tag,score:game.score,lines:game.lines,level:game.level,at:Date.now()}));
- store('fieldAtlasTetrisInitials',tag);initialsInput.blur();sidebarDirty=true;openModal('scores');
+ store('fieldAtlasTetrisInitials',tag);initialsInput.blur();layers.mark('sidebar');openModal('scores');
 }
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -437,62 +436,10 @@ function paintBoardLayer(){
  perf.textureChanged('board');
 }
 // Keep all original drawing commands and labels; only their render target changes.
-function drawSidebar(r){
- const short=r.short;
- const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
- const sx=hold.x,sw=hold.w;
- panel(hold.x,hold.y,hold.w,hold.h,9,C.panel);
- text('HOLD',sx+sw/2,hold.y+13,9,C.weak,'center');
- smallPiece(game.hold,sx+(sw-80)/2,hold.y+23,80,Math.min(short?43:60,Math.max(12,hold.h-26)),'hold');
- panel(next.x,next.y,next.w,next.h,9,C.panel);
- text('NEXT',sx+sw/2,next.y+13,9,C.weak,'center');
- const previewH=Math.min(short?36:44,Math.max(9,(next.h-32)/3));
- for(let i=0;i<3;i++){
-  smallPiece(game.queue[i],sx+(sw-80)/2,next.y+26+i*(previewH+1),80,previewH,'next');
- }
- panel(stats.x,stats.y,stats.w,stats.h,9,C.panel);
- text('BEST',sx+sw/2,stats.y+12,9,C.weak,'center');
- text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center');
- text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center');
- text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center');
-}
-function drawControls(r){
- panel(r.dx,r.dy,r.dw,r.dh,12,C.panel);
- const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad,ly=r.dy+r.deckPad+7;
- const s=Math.max(13,Math.min(17,pw*.046));
- text('LEVEL',px+2,ly,9,C.weak,'left');
- text('SCORE',px+pw/2,ly,9,C.weak,'center');
- text('LINES',px+pw-2,ly,9,C.weak,'right');
- text(fmt(game.level,2),px+2,ly+23,s);
- text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center');
- text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right');
- rect(px,r.dy+r.deckPad+UI_SPACE.scoreHeight-1,pw,1,C.border);
- const gap=UI_SPACE.padGap;
- const cy=r.dy+r.deckPad+UI_SPACE.scoreHeight+r.deckGap,ch=r.buttonH;
- let ey;
- if(r.compactControls){
-  // Narrow landscape: maintain usable touch targets by reflowing controls.
-  const third=Math.max(0,(pw-2*gap)/3);
-  key('◀',px,cy,third,ch,'left',{light:true,repeat:true});
-  key('↻',px+third+gap,cy,third,ch,'cw');
-  key('▶',px+2*(third+gap),cy,third,ch,'right',{light:true,repeat:true});
-  key('DROP',px,cy+ch+gap,pw,ch,'hard',{light:true});
-  ey=cy+2*(ch+gap);
- }else{
-  const col=Math.max(0,(pw-gap*4)/5);
-  key('◀',px,cy,col,ch,'left',{light:true,repeat:true});
-  key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true});
-  key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
-  key('↻',px+col*4+gap*4,cy,col,ch,'cw');
-  ey=cy+ch+r.deckGap;
- }
- // Keep the secondary controls centered at their approved 75% width.
- const extraGap=UI_SPACE.extrasGap;
- const ew=(pw-extraGap)/2*UI_SPACE.buttonWidthScale;
- const groupW=ew*2+extraGap,groupX=px+(pw-groupW)/2;
- key('HOLD',groupX,ey,ew,r.extraH,'hold');
- key('PAUSE',groupX+ew+extraGap,ey,ew,r.extraH,'pause');
-}
+const {drawSidebar,drawControls}=createHudDrawing({
+ panel,text,rect,key,smallPiece,getGame:()=>game,getHighs:()=>highs,
+ C,UI_SPACE,fmt
+});
 // Cached opaque crops cover stale duplicates on the full-screen base. The
 // temporary hitbox list prevents dynamic repaints from changing input priority.
 function paintUIRegion(canvas,context,plane,layerTexture,bounds,kind,draw){
@@ -555,25 +502,25 @@ function paintBaseGame(){
  }
 }
 function paintGame(){
- if(game.status!==lastPaintedBoardPopupStatus)baseDirty=true;
- if(baseDirty){
+ if(game.status!==lastPaintedBoardPopupStatus)layers.mark('base');
+ if(layers.consume('base')){
   const started=performance.now();
-  paintBaseGame();baseDirty=false;
+  paintBaseGame();
   perf.recordDuration('base',performance.now()-started);
  }
- if(boardDirty){
+ if(layers.consume('board')){
   const started=performance.now();
-  paintBoardLayer();boardDirty=false;
+  paintBoardLayer();
   perf.recordDuration('board',performance.now()-started);
  }
- if(sidebarDirty){
+ if(layers.consume('sidebar')){
   const started=performance.now();
-  paintSidebarLayer();sidebarDirty=false;
+  paintSidebarLayer();
   perf.recordDuration('sidebar',performance.now()-started);
  }
- if(controlsDirty){
+ if(layers.consume('controls')){
   const started=performance.now();
-  paintControlsLayer();controlsDirty=false;
+  paintControlsLayer();
   perf.recordDuration('controls',performance.now()-started);
  }
  if(modal){
@@ -586,47 +533,23 @@ function paintGame(){
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions;
  }
- dirty=false;
 }
 
 // NOMAD Display System: one continuous full-width list (no category headings).
 // Keep the canonical game effect settings and existing storage keys unchanged.
-const DISPLAY_EFFECTS=[
- {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
- {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
-  sliders:[['','scanlineOpacity',0,100,1,'%']]},
- {id:'vignette',title:'SCREEN VIGNETTE',toggle:'vignette',
-  sliders:[['','vignetteAmount',0,100,1,'%']]},
- {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
-  sliders:[['','bloomStrength',0,100,1,'%']]},
- {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
-  sliders:[['X','ghostX',-32,32,1,'px'],
-   ['Y','ghostY',-32,32,1,'px'],
-   ['','ghostStrength',0,100,1,'%']]},
- {id:'softness',title:'EDGE SOFTNESS',toggle:'softness',
-  sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
-   ['RADIUS','softnessRadius',0,10,.5,'px']]},
- {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost'},
- {id:'sound',title:'SOUND',toggle:'sound'}
-];
-const SCANLINE_CHOICES=[{id:'off',name:'OFF'},
- ...SCANLINE_PRESETS.map(p=>({id:p.id,name:p.name}))];
+const SCANLINE_CHOICES=scanlineChoices(SCANLINE_PRESETS);
 const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
 let scanlineMenuOpen=false;
 function settingValue(k){
- if(k==='pieceGhost')return showGhost;
- if(k==='sound')return soundOn;
- if(['softnessStrength','vignetteAmount','bloomStrength'].includes(k))return Math.round(FX[k]*100);
- return FX[k];
+ return effectSettingValue(k,FX,{ghost:showGhost,sound:soundOn});
 }
 function setSetting(k,value){
  if(k==='pieceGhost'){
-  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');boardDirty=true;
+  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');layers.mark('board');
  }else if(k==='sound'){
   soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
  }else{
-  FX[k]=['softnessStrength','vignetteAmount','bloomStrength'].includes(k)?
-   clamp(value/100,0,1):value;
+  FX[k]=effectSettingToStored(k,value,clamp);
   persist();
  }
  invalidate();
@@ -1049,7 +972,7 @@ function handleAction(act){
  if(act==='scores'){scores();return;}
  if(act==='theme'){
   theme=theme==='green'?'amber':'green';
-  store('fieldAtlasThemeV06',theme);baseDirty=true;invalidate();return;
+  store('fieldAtlasThemeV06',theme);layers.mark('base');invalidate();return;
  }
  if(act==='restart'){if(game.status==='paused')openModal('restart');return;}
  if(act==='restartYes'){restart();return;}
@@ -1063,7 +986,7 @@ function handleAction(act){
   store('fieldAtlasTetrisSound','yes');
   optionsScroll=0;
   scanlineMenuOpen=false;scrollVelocity=0;
-  baseDirty=true;invalidate();return;
+  layers.mark('base');invalidate();return;
  }
  if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
 }
@@ -1075,9 +998,9 @@ inputController=createInputController({
  getOptionsMaxScroll:()=>optionsMaxScroll,
  setScrollVelocity:v=>{scrollVelocity=v;},
  setBaseDirty:(act)=>{
-  if(act==='theme'||act==='options')baseDirty=true;
-  else if(act==='board')boardDirty=true;
-  else if(act)controlsDirty=true;
+  if(act==='theme'||act==='options')layers.mark('base');
+  else if(act==='board')layers.mark('board');
+  else if(act)layers.mark('controls');
  },
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp
@@ -1140,18 +1063,18 @@ function frame(now){
    const finished=lineClearFX.elapsed>=LINE_FLASH_MS;
    if(finished)lineClearFX=null;
    if(finished||flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS)!==previousPhase){
-    dirty=true;boardDirty=true;pendingRedrawReasons.add('flash');
+    layers.mark('board');layers.reason('flash');
    }
   }
   if(visualChanged){
-   dirty=true;boardDirty=true;
+   layers.mark('board');
    // Ordinary gravity shifts only the board, not the surrounding UI.
    if(game.score!==prior.score||game.lines!==prior.lines||
-    game.level!==prior.level)controlsDirty=true;
+    game.level!==prior.level)layers.mark('controls');
    if(game.pieces!==prior.pieces||game.hold!==prior.hold||
-    game.current!==prior.piece)sidebarDirty=true;
-   if(game.status!==prior.status)baseDirty=true;
-   pendingRedrawReasons.add('gravity');
+    game.current!==prior.piece)layers.mark('sidebar');
+   if(game.status!==prior.status)layers.mark('base');
+   layers.reason('gravity');
    if(game.lines>prior.lines)tone(590,.1);
    else if(game.pieces>prior.pieces)tone(180,.04);
    onOver();
@@ -1162,11 +1085,10 @@ function frame(now){
    optionsScroll=clamp(optionsScroll+scrollVelocity*dt,0,optionsMaxScroll);
    scrollVelocity*=Math.exp(-dt/190);
    if(optionsScroll===before||optionsScroll===0||optionsScroll===optionsMaxScroll)scrollVelocity=0;
-   else{dirty=true;pendingRedrawReasons.add('scroll');}
+   else{layers.reason('scroll');}
   }else scrollVelocity=0;
-  if(dirty){
-   perf.recordRedrawReasons([...pendingRedrawReasons]);
-   pendingRedrawReasons.clear();
+  if(layers.needsRender()){
+   perf.recordRedrawReasons(layers.beginRender());
    paintGame();
    const syncStarted=performance.now();
    syncFX();
@@ -1192,7 +1114,7 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
-  if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
@@ -1203,7 +1125,7 @@ function resize(forceLayout=false){
  const d=Math.min(MAX_RENDER_DPR,Math.max(1,window.devicePixelRatio||1));
  // A pending redraw must never force another allocation at the same size.
  if(w===W&&h===H&&d===DPR){
-  if(forceLayout===true){cachedLayout=null;cachedInsets=null;baseDirty=true;boardDirty=true;sidebarDirty=true;controlsDirty=true;invalidate('resize');}
+  if(forceLayout===true){cachedLayout=null;cachedInsets=null;layers.mark('base');layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate('resize');}
   return;
  }
  W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
@@ -1213,7 +1135,7 @@ function resize(forceLayout=false){
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  compositor.resize(W,H,DPR);
  perf.setViewport(W,H,DPR);
- baseDirty=true;boardDirty=true;sidebarDirty=true;controlsDirty=true;dirty=true;invalidate('resize');
+ layers.mark('base','board','sidebar','controls');invalidate('resize');
 }
 new ResizeObserver(()=>resize()).observe(display);
 window.addEventListener('orientationchange',()=>resize(true));
