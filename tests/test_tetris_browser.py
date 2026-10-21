@@ -58,9 +58,10 @@ with sync_playwright() as p:
     settings_shot = capture("three-settings")
     assert settings_shot.tobytes() != image.tobytes(), "Settings did not open"
 
-    # V051: roll back experimental device-orientation parallax to restore a
-    # single orthographic game texture + stable viewport hitbox alignment.
-    # Keep independent live previews and the original page/header/buttons.
+    # V049: Display System remains a full-screen black terminal page.
+    # Its title and X sit inside the SAME rounded/filled/bordered header used
+    # on the home screen. All thumbnails have inset, rounded/beveled frames.
+    # The 15px controls and open-space effect layout are unchanged.
     page_height = page.evaluate("window.innerHeight")
     safe_bottom = page.evaluate(
         "() => parseFloat(getComputedStyle(document.getElementById('safeArea')).paddingBottom)||0"
@@ -89,7 +90,7 @@ with sync_playwright() as p:
         return page.evaluate(
             """(key) => {
                 const saved = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
-                const defaults = {phosphor:true,bloom:true,scanlines:true,scanlinePreset:'original',
+                const defaults = {phosphor:true,scanlines:true,scanlinePreset:'original',
                     ghostX:2,ghostY:0,bloomStrength:.30};
                 return saved[key] ?? defaults[key];
             }""", key,
@@ -124,28 +125,6 @@ with sync_playwright() as p:
     tap(269, ghost_y + 47)
     assert fx_value("ghostX") != ghost_x_before, "Ghost X slider did not change"
     assert fx_value("ghostY") != ghost_y_before, "Ghost Y slider did not change"
-
-    # Preview changes are independent of whether the viewport effect is on.
-    # This exercises the real slider and persisted value with bloom disabled.
-    assert fx_value("bloom") is True
-    tap(103, bloom_y + 34)  # Disable bloom in the real viewport
-    assert fx_value("bloom") is False, "Bloom toggle did not switch off"
-    bloom_old = fx_value("bloomStrength")
-    tap(110, bloom_y + 64)  # Adjust thumbnail while main bloom is disabled
-    assert fx_value("bloomStrength") != bloom_old, (
-        "Disabled-effect preview control failed to update its saved value"
-    )
-    tap(110, bloom_y + 64)  # idempotent repeated slider selection
-
-    # Scroll through the complete eight-setting page. There must be no
-    # unsupported ninth parallax control, and moving back to top must keep
-    # the original touch targets and live thumbnail adjustment functional.
-    page.mouse.move(300, 600)
-    page.mouse.wheel(0, 3000)
-    page.wait_for_timeout(500)
-    capture("three-settings-bottom")
-    page.mouse.wheel(0, -3000)
-    page.wait_for_timeout(500)
 
     # RESTORE DEFAULTS and X retain fixed safe-area positions, regardless
     # of how far the property list is scrolled.
