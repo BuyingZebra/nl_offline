@@ -14,7 +14,8 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   '',
   'RECENT FRAME SAMPLES (2-second windows, newest last)',
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
-  'RAF interval = pacing between scheduled frames, not physical display refresh rate.'
+  'RAF interval = pacing between scheduled frames, not physical display refresh rate.',
+  'PASS CPU = time inside each compositor pass; includes uploads/driver waits, NOT GPU shader timing.'
  ];
  const observed=samples.slice(-8);
  if(current&&current.frameTicks>0)observed.push(current);
@@ -40,6 +41,13 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    if(s.gravityTickAdvances!==undefined||s.visualStateChanges!==undefined)
     rows.push('  GAME CHANGES: gravity tick advances '+value(s.gravityTickAdvances)+
      ' | actual visual changes '+value(s.visualStateChanges));
+   if(s.passTimes){
+    const passes=Object.entries(s.passTimes)
+     .sort((a,b)=>b[1].totalCpuMs-a[1].totalCpuMs);
+    rows.push('  WEBGL: '+value(s.avgWebglCalls)+' draw calls/render (entire pipeline)');
+    rows.push('  PASS CPU: '+(passes.length?passes.map(([name,v])=>
+     name+' '+value(v.avgCpuMs,'ms')+'×'+v.calls).join(' | '):'none'));
+   }
   }
  });
  const gfx=gpu||current?.gpu||samples.at(-1)?.gpu;
