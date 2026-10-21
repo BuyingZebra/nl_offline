@@ -144,8 +144,8 @@ with sync_playwright() as p:
     # The game canvas/score remains in place; this is an in-app view change,
     # not a second URL, browser tab, or destructive canvas replacement.
     canvas_before = page.evaluate(
-        "() => ({el:document.querySelector('#screen'),url:location.pathname})"
-        ".url"
+        "() => { window.__nomadTestCanvas=document.querySelector('#screen');"
+        " return location.pathname; }"
     )
     tap(350, top_inset + 40)
     reopened_shot = capture("three-display-reopened")
@@ -155,6 +155,9 @@ with sync_playwright() as p:
     assert page.evaluate("location.pathname") == canvas_before, (
         "Display System unexpectedly navigated to another URL"
     )
+    assert page.evaluate(
+        "document.querySelector('#screen') === window.__nomadTestCanvas"
+    ), "Display System replaced the active WebGL canvas"
     tap(350, close_y)
 
     tap(145, top_inset + 386)  # START GAME button on the board
