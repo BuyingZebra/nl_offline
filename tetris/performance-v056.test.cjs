@@ -1,4 +1,4 @@
-/* Tetris System V063 — mobile fill-rate and Gaussian weight regressions.
+/* <title>NOMAD — Tetris System</title> — mobile fill-rate and Gaussian weight regressions.
  * Run: node --test tetris/*.test.cjs
  */
 'use strict';
@@ -10,6 +10,7 @@ const main=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
 const compositor=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
 const report=fs.readFileSync(path.join(__dirname,'debug-report.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
+const catalog=fs.readFileSync(path.join(__dirname,'display-settings-catalog.js'),'utf8');
 
 test('retina render cap reduces iPhone 3x fill by 56%, while keeping CSS layout',()=>{
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
@@ -66,12 +67,12 @@ test('debug report differentiates physical phone pixels from render density',()=
  assert.ok(report.includes("'device DPR '+value(viewport.deviceDpr)"));
 });
 test('visual-effect controls, compositor order and stable URL are retained',()=>{
- assert.ok(main.includes('const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,'));
- assert.ok(main.includes("scanlines:true,scanlinePreset:'original',scanlineOpacity:20"));
+ assert.ok(catalog.includes('const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,'));
+ assert.ok(catalog.includes("scanlines:true,scanlinePreset:'original',scanlineOpacity:20"));
  assert.ok(main.includes("from './compositor.js?v059'"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
  assert.ok(main.includes("const THREE_BUILD_VERSION='063'"));
- assert.ok(html.includes('Tetris System V063'));
+ assert.ok(html.includes('<title>NOMAD — Tetris System</title>'));
  assert.ok(main.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(compositor.includes('composer.addPass(new OutputPass())'));
 });
