@@ -1,6 +1,6 @@
 # FIELD ATLAS · Tetris System / Three.js
 
-## Current production architecture (V042)
+## Current production architecture (V043)
 - **Permanent Home Screen/browser URL:** https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - **Production entry point:** `tetris/three-v027.html` dynamically imports `tetris/three-v027.js`. `tetris/index.html` redirects legacy bookmarks to the same active game; it does not load the removed PixiJS renderer.
 - **Authoritative game state and scoring:** `tetris/core.js` provides the game rules; `tetris/scores.js` handles local top-five records. Do not split or duplicate gameplay/scoring logic into view code.
@@ -327,3 +327,9 @@ https://buyingzebra.github.io/nl_offline/tetris/three-v027.html
 - `resetFX` now resets both the saved visual effects (using the existing `DEFAULT` schema) and the two Gameplay settings (Ghost Piece and Sound = yes), without clearing highscores or changing the viewport's green/amber theme selection. Reset collapses the internal scanline picker, re-opens Screen Overlays, and scrolls to the top.
 - Fixed menu geometry was verified in independent simulation on 393×852 with status/navigation safe-area insets, 390×844 browser, 375×667, 320×568, and 844×390 landscape, across all four remaining accordion categories. Bottom action remained fixed, with correct width, 46/42/37px responsive height and 6px wall gap, even after scrolling to the end. The browser regression includes tapping the fixed button and asserting that Gameplay and FX defaults are restored. JS parsing and source invariants passed; visual iPhone check remains needed.
 - No changes to bloom, phosphor hues, compositor, persistent FX key, high-score data, iPhone standalone viewport CSS, gameplay logic or permanent link. Production footer version is **042**.
+
+## V043: Combine advanced visual effects under one experimental category
+- At user request, **Signal Distortion** and **Display Optics** are now one accordion category, exactly **SCREEN OVERLAY (EXPERIMENTAL)**. Existing **SCREEN OVERLAYS** remains separate, alongside **GAMEPLAY**. Category order: Gameplay → Screen Overlays → Screen Overlay (Experimental).
+- The combined category contains unchanged, in order: Ghosting switch, Ghost X, Ghost Y, Ghost Strength, Edge Softness switch, Blur Strength, Blur Radius. All control types, 6px spacing, V027-style slider descriptions, saved values, renderer passes and interaction code remain untouched.
+- Restore Defaults stays fixed below the scroller. The iPhone viewport correction, phosphor colours, Bloom computation, gameplay and high scores remain unchanged.
+- Version **043** on the same permanent link `tetris/three-v027.html`. Static JS parse, exact two-section replacement check and settings schema tests passed. Actual device visual confirmation remains pending. No other UI ideas were implemented while the user researches them.
