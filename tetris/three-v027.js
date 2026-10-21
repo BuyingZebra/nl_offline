@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v051';
 import {createCanvasUI} from './canvas-ui.js?v052';
 import {createInputController} from './input-controller.js?v052';
-import {createPerfMonitor} from './perf-monitor.js?v053';
+import {createPerfMonitor,createPerfHud} from './perf-monitor.js?v054';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -28,7 +28,7 @@ const DEFAULT=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
  scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
  softness:true,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.39});
-const THREE_BUILD_VERSION='053'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='054'; // Increment per approved layout/render test.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -65,7 +65,9 @@ let optionsScroll=0,optionsMaxScroll=0;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let dirty=true,baseDirty=true,queued=false,lastTime=performance.now(),audioCtx=null;
-const perf=createPerfMonitor({enabled:new URLSearchParams(location.search).get('perf')==='1'});
+const perfEnabled=new URLSearchParams(location.search).get('perf')==='1';
+const perfHud=createPerfHud({enabled:perfEnabled,document,container:display});
+const perf=createPerfMonitor({enabled:perfEnabled,intervalMs:2000,onSample:perfHud.update});
 if(perf.enabled)window.FieldAtlasPerf=perf;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
@@ -914,6 +916,7 @@ async function checkForNewBuild(){
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden&&game.status==='playing')perform('pause');
  lastTime=performance.now();
+ perf.resetPacing();
  if(!document.hidden){invalidate();void checkForNewBuild();}
 });
 window.addEventListener('pageshow',()=>{void checkForNewBuild();});
@@ -930,6 +933,7 @@ function requestFrame(){
 }
 function frame(now){
  queued=false;
+ perf.recordRaf(now);
  const frameStarted=perf.startFrame();
  try{
   const dt=clamp(now-lastTime,0,100);lastTime=now;
@@ -960,6 +964,12 @@ function frame(now){
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
+   if(perf.enabled){
+    const memory=renderer.info.memory;
+    perf.setGPUStats({...compositor.passStats(),
+     textures:memory?.textures,geometries:memory?.geometries,
+     programs:renderer.info.programs?.length});
+   }
   }
   perf.endFrame(frameStarted);
   if(game.status==='playing'||dirty||Math.abs(scrollVelocity)>.015)requestFrame();
@@ -982,6 +992,7 @@ function resize(forceLayout=false){
  g.setTransform(DPR,0,0,DPR,0,0);
  renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
  compositor.resize(W,H,DPR);
+ perf.setViewport(W,H,DPR);
  baseDirty=true;dirty=true;invalidate();
 }
 new ResizeObserver(()=>resize()).observe(display);
