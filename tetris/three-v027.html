@@ -15,7 +15,7 @@
 // Apply the class before styles are evaluated; Safari tabs keep 100dvh.
 if(navigator.standalone===true)document.documentElement.classList.add('ios-standalone');
 </script>
-<title>FIELD ATLAS — Tetris V027 / Three.js Rebuild</title>
+<title>NOMAD — Tetris System V050</title>
 <style>
 :root{color-scheme:dark;background:#080808}
 *{box-sizing:border-box}
@@ -46,7 +46,7 @@ html.ios-standalone #display{height:100vh}
 </script>
 </head>
 <body>
-<div id="display" role="application" aria-label="Tetris System — Three.js V027 rebuild">
+<div id="display" role="application" aria-label="Tetris System — Three.js V050">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT compositor"></canvas>
 </div>
 <div id="safeArea" aria-hidden="true"></div>
@@ -54,6 +54,7 @@ html.ios-standalone #display{height:100vh}
 <div id="error" role="alert" hidden></div>
 <script src="./core.js?three=v027-r1"></script>
 <script src="./scores.js?three=v027-r1"></script>
+<script src="./layout.js?three=v050-r1"></script>
 <script>
 // Retire an old PixiJS Tetris worker if this installation still has one.
 // Never unregister other repository service workers or clear saved scores.
