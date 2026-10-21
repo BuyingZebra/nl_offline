@@ -47,7 +47,7 @@ function setup(){
  const profilerSource=fs.readFileSync(path.join(__dirname,'compositor-pass-profiler.js'),'utf8');
  const instrumentCompositorPasses=new Function(
   profilerSource.replace('export function ','function ')+
-  '\\nreturn instrumentCompositorPasses;')();
+  '\nreturn instrumentCompositorPasses;')();
  const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
  assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
  const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document','instrumentCompositorPasses',
