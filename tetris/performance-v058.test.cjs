@@ -89,12 +89,12 @@ test('instrumentation distinguishes raw tick result and real visual change',()=>
 });
 test('V058 preserves the user controls and only guarded gravity drives a redraw',()=>{
  const js=read('three-v027.js');
- assert.ok(js.includes("const THREE_BUILD_VERSION='063'"));
+ assert.ok(js.includes("const THREE_BUILD_VERSION='064'"));
  assert.ok(js.includes("from './game-visual-state.js?v058'"));
  assert.ok(js.includes('const visualChanged=gameVisualStateChanged(prior,game);'));
  assert.ok(js.includes('if(visualChanged){'));
  assert.ok(js.includes("layers.reason('gravity')"));
  assert.ok(js.includes('if(finished||flashPhase('));
- assert.ok(js.includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
- assert.ok(read('three-v027.html').includes('Tetris System V063'));
+ assert.ok(fs.readFileSync(path.join(__dirname,'modal-ui.js'),'utf8').includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
+ assert.ok(read('three-v027.html').includes('Tetris System V064'));
 });
