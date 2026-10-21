@@ -964,9 +964,9 @@ function drawOptions(q){
  // Centre the same content column (<=520px) in portrait and landscape.
  // On phones its X coordinates are identical to the previous dialog,
  // retaining the approved title, X and Restore Defaults geometry.
- const pageW=Math.max(0,Math.min(W-2*UI_SPACE.padX,
+ const pageW=Math.max(0,Math.min(r.width-2*UI_SPACE.padX,
   UI_SPACE.appMax-2*UI_SPACE.padX));
- const pageX=(W-pageW)/2,headerY=r.hy;
+ const pageX=r.off+(r.width-pageW)/2,headerY=r.hy;
  // Use the very same panel radius, fill, border, header centre, font size,
  // colour, tracking and title inset as the TETRIS SYSTEM home-screen header.
  panel(pageX,headerY,pageW,headH,12,C.panel);
