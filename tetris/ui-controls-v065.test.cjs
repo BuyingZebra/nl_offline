@@ -97,7 +97,7 @@ test('modules depend on the same helper without changing CRT compositor',()=>{
  assert.ok(input.includes('findRegionAt(getRegions(),p,getModal(),getModalView())'));
  assert.ok(input.includes('sliderValueAt(r,x)'));
  assert.ok(modal.includes('makeSliderControl(x,y,w,setting,Number(settingValue(setting[1]))'));
- assert.ok(source.includes("const THREE_BUILD_VERSION='065'"));
+ assert.ok(source.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(read('compositor.js').includes('composer.addPass(new OutputPass())'));
- assert.ok(read('three-v027.html').includes('Tetris System V065'));
+ assert.ok(read('three-v027.html').match(/<meta name="tetris-build" content="[0-9]{3}">/));
 });
