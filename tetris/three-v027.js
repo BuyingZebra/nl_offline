@@ -13,7 +13,7 @@ import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layer
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v062';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
-import {createModalUI} from './modal-ui.js?v065';
+import {createModalUI} from './modal-ui.js?v067';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v063';
 import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,effectSettingToStored} from './display-settings-catalog.js?v063';
@@ -603,7 +603,9 @@ function paintModalOverlay(){
  modalContext.setTransform(1,0,0,1,0,0);
  modalContext.clearRect(0,0,cw,ch);
  modalContext.setTransform(DPR,0,0,DPR,0,0);
- modalPlane.visible=true;scrimPlane.visible=!standaloneSettings;
+ modalPlane.visible=true;
+ // Don't dim the HUD while the score list occupies the board.
+ scrimPlane.visible=!standaloneSettings&&modal!=='scores';
  g=modalContext;
  try{modalUI.paintModal(q);}
  finally{g=baseContext;}
@@ -613,6 +615,7 @@ function paintModalOverlay(){
 function handleAction(act){
  if(act==='block'||act==='scroll'||act==='board')return;
  if(act==='close'){openModal(null);return;}
+ if(act==='scoresPlayAgain'){restart();return;}
  if(act==='copyDebug'){copyDebugReport();return;}
  if(act==='options'){options();return;}
  if(act==='scores'){scores();return;}
