@@ -3,7 +3,7 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v059';
+import {createCompositor} from './compositor.js?v068';
 import {createCanvasUI} from './canvas-ui.js?v065';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -13,7 +13,7 @@ import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layer
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v062';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
-import {createModalUI} from './modal-ui.js?v067';
+import {createModalUI} from './modal-ui.js?v068';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v063';
 import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,effectSettingToStored} from './display-settings-catalog.js?v063';
@@ -30,7 +30,7 @@ const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')
 // Lift panels by 3 percentage points of the 0–255 grayscale scale (21 -> 29).
 const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
- bright:'#cecece',weak:'#aeaeae',border:'#6a6a6a',grid:'#292929',dark:'#060606'};
+ bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#292929',dark:'#060606'};
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 // Persist only user-facing settings; interface treatment is fixed design.
 const DEFAULT=DEFAULT_EFFECTS;
@@ -218,7 +218,10 @@ game.lockPiece=function(){
  }
 };
 function openModal(name){
+ const previous=modal;
  modal=name;modalUI.reset();scrollVelocity=0;inputController?.cancel();
+ // Repaint the popup when entering or leaving the Top Five view.
+ if(previous==='scores'||name==='scores')layers.mark('base');
  if(!modal)regions=baseRegions;
  invalidate();
 }
@@ -373,6 +376,12 @@ function paintBoardPopup(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  g=boardPopupContext;
  try{
+  // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
+  // Do not draw PAUSED/GAME OVER controls beneath the score screen.
+  if(modal==='scores'){
+   modalUI.paintModal(modalUI.modalBounds('scores'));
+   return;
+  }
   const type=status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
@@ -525,7 +534,7 @@ function paintGame(){
   paintControlsLayer();
   perf.recordDuration('controls',performance.now()-started);
  }
- if(modal){
+ if(modal&&modal!=='scores'){
   const started=performance.now();
   paintModalOverlay();
   perf.recordDuration('modal',performance.now()-started);
@@ -615,7 +624,6 @@ function paintModalOverlay(){
 function handleAction(act){
  if(act==='block'||act==='scroll'||act==='board')return;
  if(act==='close'){openModal(null);return;}
- if(act==='scoresPlayAgain'){restart();return;}
  if(act==='copyDebug'){copyDebugReport();return;}
  if(act==='options'){options();return;}
  if(act==='scores'){scores();return;}
@@ -686,9 +694,15 @@ window.addEventListener('focus',()=>{void checkForNewBuild();});
 // Some standalone sessions never report another foreground transition.
 setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
 function syncFX(){
+ const scoreBounds=modal==='scores'?modalUI.modalBounds('scores'):null;
+ const blurredLayout=scoreBounds?.landscapeFallback?{
+  ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
+  boardW:scoreBounds.w,boardH:scoreBounds.h
+ }:layoutInfo;
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
   boardStatus:game.status,modalOpen:Boolean(modal),
-  popupStatus:lastPaintedBoardPopupStatus,layoutInfo});
+  scoresOverlay:modal==='scores',
+  popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
 function requestFrame(){
  if(!queued&&!document.hidden){queued=true;requestAnimationFrame(frame);}
@@ -749,7 +763,7 @@ function frame(now){
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if(!modal&&game.status!=='playing')
+   if((!modal||modal==='scores')&&game.status!=='playing')
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
