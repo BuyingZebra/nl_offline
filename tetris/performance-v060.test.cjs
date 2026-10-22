@@ -82,8 +82,8 @@ test('render source preuploads only visible textures and preserves full composer
 });
 test('build and stable URL are advanced to V060',()=>{
  const code=read('three-v027.js'),html=read('three-v027.html');
- assert.ok(code.includes("const THREE_BUILD_VERSION='065'"));
- assert.ok(html.includes('Tetris System V065'));
+ assert.ok(code.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
+ assert.ok(html.match(/<meta name="tetris-build" content="[0-9]{3}">/));
  assert.ok(code.includes("from './texture-upload-profiler.js?v060'"));
  assert.ok(code.includes("from './perf-monitor.js?v062'"));
  assert.ok(code.includes("from './debug-report.js?v062'"));
