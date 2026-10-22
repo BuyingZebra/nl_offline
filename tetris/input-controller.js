@@ -1,3 +1,4 @@
+import {findRegionAt,sliderValueAt} from './ui-controls.js?v065';
 /* Tetris System V052 — touch/mouse/keyboard input adapter.
  * Hit regions come from the rendering layer; gameplay and settings changes
  * go through injected callbacks. A controller owns the repeat timers and
@@ -18,22 +19,10 @@ function eventPoint(e){
  return {x:(e.clientX-rect.left)*getViewport().width/rect.width,y:(e.clientY-rect.top)*getViewport().height/rect.height};
 }
 function regionAt(p){
- // Search newest to oldest for identical overlay/touch priority without
- // allocating and reversing a copy of the hitbox array on every event.
- for(let i=getRegions().length-1;i>=0;i--){
-  const r=getRegions()[i];
-  if(!(p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h))continue;
-  if(getModal()==='options'&&r.modalControl&&getModalView()&&
-    (p.y<getModalView().y||p.y>getModalView().y+getModalView().h))continue;
-  return r;
- }
- return undefined;
+ return findRegionAt(getRegions(),p,getModal(),getModalView());
 }
 function setSlider(r,x){
- const f=clamp((x-r.trackX)/Math.max(1,r.trackW),0,1);
- const v=r.min+f*(r.max-r.min);
- const stepped=Math.round(v/r.step)*r.step;
- setSetting(r.field,Number(stepped.toFixed(4)));
+ setSetting(r.field,sliderValueAt(r,x));
 }
 // One pointer recognizer for the entire grayscale display. Menus defer activation
 // until touch-up; axis-aware intent makes scroll work from sliders and switches.
