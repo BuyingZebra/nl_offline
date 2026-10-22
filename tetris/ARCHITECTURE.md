@@ -1,4 +1,4 @@
-# Tetris System architecture (V068)
+# Tetris System architecture (V069)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -72,3 +72,8 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Entering and leaving the score view explicitly dirties the base/popup once; ordinary gravity still doesn't upload the fullscreen base.
 - Standard outlines brighten 12% (#6a6a6a -> #777777), while the subtle Top Five outlines lift #292929 -> #2e2e2e; gameplay grid and controls retain previous fill luminance.
 - Narrow-landscape fallback extends Gaussian board blur bounds to the expanded score panel.
+
+## V069 Top Five chart
+- The ranking numbers remain, but their # column label is removed. The remaining four headers and all corresponding values use identical column center positions.
+- A single transparent table frame rounds only the four outside corners; four hard straight internal rules give every row a complete outline. All standard grayscale and blur settings remain.
+- RETURN is now a solid-filled button using the existing shared button drawing and action.
