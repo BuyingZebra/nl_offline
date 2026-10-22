@@ -1,4 +1,4 @@
-# Tetris System architecture (V064)
+# Tetris System architecture (V065)
 
 ## Runtime
 - `core.js`: deterministic Tetris state, gravity, collisions, scoring and locking. No WebGL dependency.
@@ -11,7 +11,10 @@
 - `display-settings-catalog.js`: display-effect defaults, slider definitions, preset choices and value conversions, separate from UI painting.
 - `modal-ui.js`: owns settings thumbnail generation, settings rows and sliders, modal bounds, High Scores, Restart, initials entry, and all menu-specific scroll/picker/debug-label state. It receives Canvas primitives and live state through injected callbacks. It performs no WebGL rendering and does not own game state.
 - `three-v027.js` retains modal canvas allocation/texture upload, the WebGL scrim and visibility ordering, debug-report generation, and application-level action routing. `input-controller.js` reads menu hitboxes and scroll state from the modal module.
-- `canvas-ui.js`: low-level reusable Canvas2D drawing and current hit-region registration.
+- `ui-controls.js`: pure shared geometry contract for buttons and sliders, including complete hitboxes, clipping-aware reverse-order hit-testing and slider input values. No DOM, Canvas, WebGL or game dependencies.
+- `canvas-ui.js`: draws button descriptors from `makeButtonControl` and registers their exact model hitboxes; its generic `region()` delegates to `makeRegion`.
+- `modal-ui.js`: draws each slider from `makeSliderControl` and registers the same model's track/hit-region geometry.
+- `input-controller.js`: consumes `findRegionAt` and `sliderValueAt`; no independent slider-track or hit-test geometry calculations.
 - `cropped-ui-layers.js`: device-pixel-aligned crop and orthographic-plane positioning.
 - `game-visual-state.js`: compares visually observable game state to avoid unnecessary redraws.
 - `compositor.js`: existing full-screen ordered Three.js CRT pipeline. Independent of gameplay rules.
@@ -29,7 +32,8 @@
    - During options momentum scrolling, only the modal canvas must be repainted and uploaded.
 7. The scene layers are composed **before** bloom, phosphor, vignette, scanlines and output. Effects still process the combined full screen.
 8. `mark('board')` must not implicitly mark `base`. Keep redraw causes in one place.
-9. Preserve exact grayscale appearance, approved spacing, text, icon sizes and the user-defined effect settings.
+9. Every button shares one geometry record for painting and hit registration; sliders use their track and hitbox from one model. Reverse draw order still determines touch priority, and settings controls remain clipped to their scroll view.
+10. Preserve exact grayscale appearance, approved spacing, text, icon sizes and the user-defined effect settings.
 
 ## Performance baseline
 V062 iPhone 393×852, render DPR2:
@@ -41,7 +45,7 @@ V062 iPhone 393×852, render DPR2:
 ## Development and verification
 - Keep the permanent URL: https://buyingzebra.github.io/nl_offline/tetris/
 - Bump `THREE_BUILD_VERSION` and keep the version visible in the UI before publishing.
-- Run tests using `node --test tetris/*.test.cjs`. The V064 suite adds behavior-based checks for rendering and interaction regions across settings scrolling, scanline selection, debug feedback, scores, restart and initials.
+- Run tests using `node --test tetris/*.test.cjs`. The V064 suite checks settings scrolling, scanline selection, debug feedback, scores, restart and initials. V065 adds shared-control geometry, pointer mapping, overlay priority, and clipping tests.
 - Keep tests for menu drawing in `modal-ui-v064.test.cjs`; do not reintroduce menu-painter assertions against `three-v027.js`. Avoid brittle source-string checks where a behavioral test is possible.
 - Verify touch controls, pressed/released feedback, hold/next, READY/PAUSED/OVER popups, menu scrolling, and both device orientations.
 - Confirm current rendering costs on an actual iPhone via the copied debug report; automated checks alone cannot establish visual equivalence.
@@ -49,6 +53,6 @@ V062 iPhone 393×852, render DPR2:
 
 ## Deliberately deferred
 - Extracting the remaining application-owned menu actions and debug-report gathering (drawing and menu-local state are separated in V064).
-- Fully declarative hitbox descriptors shared between drawing and input.
+- Refine declarative toggle/row component definitions as future screens need them (buttons, sliders, regions and hit-testing already share a model in V065).
 - Consolidating version metadata used by the HTML bootstrap and JS module reload checks.
 These are sensible follow-up cleanups, not prerequisites for adding gameplay features.
