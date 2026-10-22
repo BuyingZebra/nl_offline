@@ -1,4 +1,4 @@
-# Tetris System architecture (V066)
+# Tetris System architecture (V067)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -10,7 +10,7 @@
 - `render-invalidation.js`: the single owner of layer dirty flags, pending composites and redraw reasons. Call `mark(layer...)` for changed source data; `reason(kind)` for attribution/input; call `consume(layer)` once when a layer is actually painted. Never directly upload textures on every animation callback.
 - `hud-drawing.js`: reusable rendering for the sidebar and controls, supplied live state and Canvas primitives by the app; preserves established key order and touch geometry.
 - `display-settings-catalog.js`: display-effect defaults, slider definitions, preset choices and value conversions, separate from UI painting.
-- `modal-ui.js`: owns settings thumbnail generation, settings rows and sliders, modal bounds, High Scores, Restart, initials entry, and all menu-specific scroll/picker/debug-label state. It receives Canvas primitives and live state through injected callbacks. It performs no WebGL rendering and does not own game state.
+- `modal-ui.js`: owns settings thumbnail generation, settings rows and sliders, modal bounds, in-board Top Five leaderboard, Restart, initials entry, and all menu-specific scroll/picker/debug-label state. It receives Canvas primitives and live state through injected callbacks. It performs no WebGL rendering and does not own game state.
 - `three-v027.js` retains modal canvas allocation/texture upload, the WebGL scrim and visibility ordering, debug-report generation, and application-level action routing. `input-controller.js` reads menu hitboxes and scroll state from the modal module.
 - `ui-controls.js`: pure shared geometry contract for buttons and sliders, including complete hitboxes, clipping-aware reverse-order hit-testing and slider input values. No DOM, Canvas, WebGL or game dependencies.
 - `canvas-ui.js`: draws button descriptors from `makeButtonControl` and registers their exact model hitboxes; its generic `region()` delegates to `makeRegion`.
@@ -59,3 +59,9 @@ V062 iPhone 393×852, render DPR2:
 - Refine declarative toggle/row component definitions as future screens need them (buttons, sliders, regions and hit-testing already share a model in V065).
 - Continue migrating old source-inspection assertions toward behavioral tests as features are touched. Version metadata is centralized as of V066.
 These are sensible follow-up cleanups, not prerequisites for adding gameplay features.
+
+## V067 score display
+- Top Five is a compact five-row table inside the portrait gameplay board, with rank, name, score, level and lines, plus PLAY AGAIN and BACK actions.
+- Unusually narrow landscape board geometry uses a wider centered fallback for readable records and touch controls.
+- Device-local high-score persistence, qualification, initials entry, game rules and CRT effects remain unchanged.
+- The dark scrim is removed only for the Top Five display, preserving the surrounding live HUD.
