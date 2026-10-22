@@ -350,15 +350,15 @@ function drawOptions(q){
 }
 function drawScores(q){
  // Concept 1: Top Five in the existing playfield, grayscale source through CRT.
- const {W,H}=getViewport(),{x,y,w,h,pad,gap,buttonH}=q;
+ const {W,H}=getViewport(),{x,y,w,h,pad,gap}=q;
  clearRegions();region(0,0,W,H,'block');
- panel(x,y,w,h,5,C.bg,C.border);
+ panel(x,y,w,h,5,null,C.border);
  const inner=w-2*pad,secondaryH=q.secondaryH,buttonW=w*UI_SPACE.overlayButtonWidthScale;
  const titleSize=Math.min(20,Math.max(15,w*.082));
  const titleH=titleSize+4,iconH=13,headerH=16;
  const rowH=Math.max(18,Math.min(42,
-  (h-2*pad-titleH-iconH-headerH-buttonH-secondaryH-7*gap)/5));
- const contentH=titleH+iconH+headerH+5*rowH+buttonH+secondaryH+7*gap;
+  (h-2*pad-titleH-iconH-headerH-secondaryH-6*gap)/5));
+ const contentH=titleH+iconH+headerH+5*rowH+secondaryH+6*gap;
  let top=y+Math.max(pad,(h-contentH)/2);
  text('HIGH SCORES',x+w/2,top+titleH/2,titleSize,C.bright,'center',inner);
  top+=titleH+gap;
@@ -386,7 +386,7 @@ function drawScores(q){
  const entries=getHighs(),font=Math.min(10,Math.max(8,w*.039));
  for(let i=0;i<5;i++){
   const s=entries[i],ry=top+i*rowH,middle=ry+rowH/2;
-  panel(ix,ry,inner,rowH-1,2,C.button,i===0?C.border:C.grid);
+  panel(ix,ry,inner,rowH-1,2,null,i===0?C.border:C.subtleBorder);
   const shade=i===0?C.bright:C.ink;
   text(String(i+1),col.rank,middle,font,C.weak);
   text(s?.name||'---',col.name,middle,font,shade,'left',inner*.20);
@@ -396,8 +396,7 @@ function drawScores(q){
   text(s?String(s.lines):'-',col.lines,middle,font,C.weak,'right');
  }
  const by=top+5*rowH+2*gap,bx=x+(w-buttonW)/2;
- key('PLAY AGAIN',bx,by,buttonW,buttonH,'scoresPlayAgain',{light:true,arrow:true});
- key('BACK',bx,by+buttonH+gap,buttonW,secondaryH,'close');
+ key('RETURN',bx,by,buttonW,secondaryH,'close');
 }
 function drawRestart(q){
  modalPanel('START NEW GAME?',q);
