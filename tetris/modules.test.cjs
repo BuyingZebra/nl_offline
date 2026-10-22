@@ -9,13 +9,13 @@ const path=require('node:path');
 const controlSource=fs.readFileSync(path.join(__dirname,'ui-controls.js'),'utf8')
  .replace(/export function /g,'function ');
 const controls=new Function(controlSource+
- '\\nreturn {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};')();
+ '\nreturn {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};')();
 function factory(filename,exportName,deps={}){
  const source=fs.readFileSync(path.join(__dirname,filename),'utf8')
-  .replace(/^import .*;\\s*$/gm,'')
+  .replace(/^import .*;\s*$/gm,'')
   .replace('export function '+exportName,'function '+exportName);
  const injected={...controls,...deps};
- return new Function(...Object.keys(injected),source+'\\nreturn '+exportName+';')(...Object.values(injected));
+ return new Function(...Object.keys(injected),source+'\nreturn '+exportName+';')(...Object.values(injected));
 }
 function target(){
  const handlers={};
