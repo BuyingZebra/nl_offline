@@ -373,30 +373,33 @@ function drawScores(q){
  rect(cx-13,cy+1,7,1,C.border);rect(cx+6,cy+1,7,1,C.border);
  top+=iconH+gap;
  const ix=x+pad;
- const col={rank:ix+3,name:ix+inner*.14,score:ix+inner*.63,
-  lvl:ix+inner*.78,lines:ix+inner-3};
- const headSize=Math.min(9,Math.max(7,w*.033));
- const headY=top+headerH/2;
- text('#',col.rank,headY,headSize,C.weak);
- text('NAME',col.name,headY,headSize,C.weak);
- text('SCORE',col.score,headY,headSize,C.weak,'right');
- text('LVL',col.lvl,headY,headSize,C.weak,'center');
- text('LINES',col.lines,headY,headSize,C.weak,'right');
+ // Centered chart columns; the ranking column needs no '#' heading.
+ const centers={rank:ix+inner*.067,name:ix+inner*.255,
+  score:ix+inner*.532,lvl:ix+inner*.766,lines:ix+inner*.927};
+ const headSize=Math.min(9,Math.max(7,w*.033)),headY=top+headerH/2;
+ for(const [label,column] of [['NAME','name'],['SCORE','score'],
+  ['LVL','lvl'],['LINES','lines']])
+  text(label,centers[column],headY,headSize,C.weak,'center');
  top+=headerH;
  const entries=getHighs(),font=Math.min(10,Math.max(8,w*.039));
+ // Single transparent chart outline with only four beveled outer corners.
+ // Straight internal lines complete the square outline of all five rows.
+ const tableH=5*rowH;
+ panel(ix,top,inner,tableH,8,null,C.border);
+ for(let i=1;i<5;i++)
+  rect(ix+1,top+i*rowH-.5,inner-2,1,C.border);
  for(let i=0;i<5;i++){
-  const s=entries[i],ry=top+i*rowH,middle=ry+rowH/2;
-  panel(ix,ry,inner,rowH-1,2,null,i===0?C.border:C.subtleBorder);
+  const s=entries[i],middle=top+(i+.5)*rowH;
   const shade=i===0?C.bright:C.ink;
-  text(String(i+1),col.rank,middle,font,C.weak);
-  text(s?.name||'---',col.name,middle,font,shade,'left',inner*.20);
+  text(String(i+1),centers.rank,middle,font,C.weak,'center');
+  text(s?.name||'---',centers.name,middle,font,shade,'center',inner*.21);
   text(s?Number(s.score).toLocaleString('en-CA'):'—',
-   col.score,middle,font,shade,'right',inner*.38);
-  text(s?String(s.level):'-',col.lvl,middle,font,C.weak,'center');
-  text(s?String(s.lines):'-',col.lines,middle,font,C.weak,'right');
+   centers.score,middle,font,shade,'center',inner*.32);
+  text(s?String(s.level):'-',centers.lvl,middle,font,C.weak,'center');
+  text(s?String(s.lines):'-',centers.lines,middle,font,C.weak,'center');
  }
- const by=top+5*rowH+2*gap,bx=x+(w-buttonW)/2;
- key('RETURN',bx,by,buttonW,secondaryH,'close');
+ const by=top+tableH+2*gap,bx=x+(w-buttonW)/2;
+ key('RETURN',bx,by,buttonW,secondaryH,'close',{light:true});
 }
 function drawRestart(q){
  modalPanel('START NEW GAME?',q);
