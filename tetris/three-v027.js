@@ -4,15 +4,15 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v059';
-import {createCanvasUI} from './canvas-ui.js?v052';
-import {createInputController} from './input-controller.js?v062';
+import {createCanvasUI} from './canvas-ui.js?v065';
+import {createInputController} from './input-controller.js?v065';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v062';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
-import {createModalUI} from './modal-ui.js?v064';
+import {createModalUI} from './modal-ui.js?v065';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v063';
 import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,effectSettingToStored} from './display-settings-catalog.js?v063';
@@ -33,7 +33,7 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 // Persist only user-facing settings; interface treatment is fixed design.
 const DEFAULT=DEFAULT_EFFECTS;
-const THREE_BUILD_VERSION='064'; // Increment per approved layout/render test.
+const THREE_BUILD_VERSION='065'; // Increment per approved layout/render test.
 // One authoritative build label: HTML metadata is derived from this value.
 document.title='NOMAD — Tetris System V'+THREE_BUILD_VERSION;
 display.setAttribute('aria-label','Tetris System — Three.js V'+THREE_BUILD_VERSION);
