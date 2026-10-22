@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v059';
 import {createCanvasUI} from './canvas-ui.js?v065';
+import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
@@ -33,8 +34,8 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
 const FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 // Persist only user-facing settings; interface treatment is fixed design.
 const DEFAULT=DEFAULT_EFFECTS;
-const THREE_BUILD_VERSION='065'; // Increment per approved layout/render test.
-// One authoritative build label: HTML metadata is derived from this value.
+const THREE_BUILD_VERSION=getBuildVersion(document);
+// The HTML build meta is authoritative; title, accessibility and debug labels derive from it.
 document.title='NOMAD — Tetris System V'+THREE_BUILD_VERSION;
 display.setAttribute('aria-label','Tetris System — Three.js V'+THREE_BUILD_VERSION);
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
@@ -660,12 +661,12 @@ async function checkForNewBuild(){
  if(now-lastBuildCheck<15000)return;
  checkingBuild=true;lastBuildCheck=now;
  try{
-  const url=new URL('./three-v027.js?update-check='+now,import.meta.url);
+  const url=new URL('./three-v027.html?update-check='+now,import.meta.url);
   const reply=await fetch(url,{cache:'no-store'});
   if(!reply.ok)return;
-  const match=(await reply.text()).match(/const THREE_BUILD_VERSION='([0-9]+)'/);
-  if(match&&Number(match[1])>Number(THREE_BUILD_VERSION)&&
-    !document.hidden&&!modal&&game.status==='ready'){
+  const published=parsePublishedBuild(await reply.text());
+  if(shouldReloadBuild(THREE_BUILD_VERSION,published,{
+   hidden:document.hidden,modalOpen:Boolean(modal),gameStatus:game.status})){
    location.reload();
   }
  }catch(e){/* Offline: keep the current playable build. */}
