@@ -97,6 +97,6 @@ test('diagnostics collect silently for an on-demand copy without changing shader
 test('stable link and current build remain exposed to users',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  assert.ok(html.includes('NOMAD — Tetris System'));
- assert.ok(main.includes("const THREE_BUILD_VERSION='064'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='065'"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
 });
