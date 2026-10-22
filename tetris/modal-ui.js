@@ -1,3 +1,4 @@
+import {makeSliderControl} from './ui-controls.js?v065';
 /* V064 — isolated Canvas2D settings and modal interface.
  * All original drawing primitives/layout measurements are preserved.
  * State is limited to menu scroll, scanline picker, status and view hit area.
@@ -202,24 +203,19 @@ function settingsRows(buttonH,gap,width){
 // One uniform slider primitive everywhere: 15px square, 6px gaps, real
 // persisted values and full remaining row width from image to right inset.
 function drawSettingsSlider(x,y,w,setting){
- const g=getContext();
- const [label,field,min,max,step,unit]=setting;
- const size=SETTINGS_SQUARE_SIZE,gap=UI_SPACE.unit;
- const value=Number(settingValue(field));
- const valueText=displayValue(value,step,unit);
- const labelW=label?(label==='X'||label==='Y'?12:label==='RADIUS'?51:65):0;
- const valueW=Math.max(30,Math.ceil(valueText.length*6.8));
+ const ctrl=makeSliderControl(x,y,w,setting,Number(settingValue(setting[1])),
+  SETTINGS_SQUARE_SIZE,UI_SPACE.unit);
+ const {label,size,labelW,trackX,trackW,fraction,valueText,valueW}=ctrl;
  if(label)text(label,x,y,10,C.ink,'left',labelW);
- const trackX=x+labelW+(label?gap:0)+size/2;
- const trackEnd=x+w-valueW-gap-size/2;
- const trackW=Math.max(1,trackEnd-trackX);
- const fraction=clamp((value-min)/(max-min),0,1);
  rect(trackX,y-1.5,trackW,3,C.border);
  rect(trackX,y-1.5,trackW*fraction,3,C.bright);
  rect(trackX+trackW*fraction-size/2,y-size/2,size,size,C.bright);
  text(valueText,x+w,y,10,C.bright,'right',valueW);
- region(trackX-size/2,y-14,trackW+size,28,'slider',
-  {field,min,max,step,trackX,trackW,modalControl:true});
+ const hit=ctrl.hitbox;
+ region(hit.x,hit.y,hit.w,hit.h,hit.act,{
+  field:hit.field,min:hit.min,max:hit.max,step:hit.step,
+  trackX:hit.trackX,trackW:hit.trackW,modalControl:hit.modalControl
+ });
 }
 // Monochrome 16px bug glyph, so no multicolour system emoji enters our CRT.
 function drawDebugBug(cx,cy){
