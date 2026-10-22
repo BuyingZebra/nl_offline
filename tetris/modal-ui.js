@@ -14,10 +14,6 @@ export function createModalUI({
  const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
  let modalView=null,optionsScroll=0,optionsMaxScroll=0;
  let scanlineMenuOpen=false,debugCopyState='idle';
-function displayValue(value,step,unit){
- const digits=step<.1?2:step<1?1:0;
- return Number(value).toFixed(digits)+unit;
-}
 // Menu geometry shares the six-pixel unit and the existing 46/42/37px
 // phosphor/settings, HOLD and PAUSE button height.
 function modalBounds(name){
