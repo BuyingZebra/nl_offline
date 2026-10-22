@@ -71,7 +71,7 @@ test('visual-effect controls, compositor order and stable URL are retained',()=>
  assert.ok(catalog.includes("scanlines:true,scanlinePreset:'original',scanlineOpacity:20"));
  assert.ok(main.includes("from './compositor.js?v059'"));
  assert.ok(main.includes("from './perf-monitor.js?v062'"));
- assert.ok(main.includes("const THREE_BUILD_VERSION='065'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(html.includes('NOMAD — Tetris System'));
  assert.ok(fs.readFileSync(path.join(__dirname,'modal-ui.js'),'utf8').includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(compositor.includes('composer.addPass(new OutputPass())'));
