@@ -104,6 +104,16 @@ test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
  pipeline.syncFX(state);
  assert.equal(composer.passes[1].enabled,false);
  assert.equal(composer.passes[2].enabled,false);
+ // The board is blurred and faded behind Top Five, despite an open modal.
+ state.scoresOverlay=true;
+ pipeline.syncFX(state);
+ assert.equal(composer.passes[1].enabled,true);
+ assert.equal(composer.passes[2].enabled,true);
+ // Never blur active play, even when scoresOverlay is passed unexpectedly.
+ state.boardStatus='playing';
+ pipeline.syncFX(state);
+ assert.equal(composer.passes[1].enabled,false);
+ assert.equal(composer.passes[2].enabled,false);
 });
 test('CRT patterns have stable original order and fallback',()=>{
  const {pipeline}=setup();
