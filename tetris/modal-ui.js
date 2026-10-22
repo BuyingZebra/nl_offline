@@ -24,9 +24,21 @@ function modalBounds(name){
  // Its title and fixed bottom control still respect the iPhone safe areas.
  if(name==='options')return {w:W,h:H,x:0,y:0,pad,gap,buttonH,
   safeTop:safe.top,safeBottom:safe.bottom};
+ // In portrait the Top Five screen fills the game's physical playfield.
+ // Unusually narrow landscape boards need a wider, legible overlay.
+ if(name==='scores'){
+  const b=layout(),narrow=b.boardW<205||b.boardH<310;
+  if(narrow){
+   const w=Math.min(410,W-2*UI_SPACE.padX);
+   const h=Math.min(330,Math.max(0,H-safe.top-safe.bottom-2*gap));
+   return {x:(W-w)/2,y:safe.top+(H-safe.top-safe.bottom-h)/2,
+    w,h,pad,gap,buttonH:b.extraH,secondaryH:b.overlaySecondaryH,landscapeFallback:true};
+  }
+  return {x:b.boardX,y:b.boardY,w:b.boardW,h:b.boardH,pad,gap,
+   buttonH:b.extraH,secondaryH:b.overlaySecondaryH,landscapeFallback:false};
+ }
  const usable=Math.max(0,H-safe.top-safe.bottom);
- const wanted=name==='scores'?2*pad+2*buttonH+5*54+5*gap+14:
-  name==='restart'?2*pad+2*buttonH+2*gap+40:
+ const wanted=name==='restart'?2*pad+2*buttonH+2*gap+40:
   2*pad+4*buttonH+4*gap+18;
  const w=Math.max(0,Math.min(410,W-2*UI_SPACE.padX));
  const h=Math.max(0,Math.min(wanted,usable-2*gap));
@@ -337,23 +349,55 @@ function drawOptions(q){
  // Keep scroll input and momentum; omit decorative scrollbar/row separators.
 }
 function drawScores(q){
- modalPanel('FIELD ATLAS / TOP FIVE',q);
- const {x,w,pad,gap}=q;
- const footerY=modalActionRow(q,[['RETURN','close']]);
- const noteH=14,noteY=footerY-gap-noteH/2;
- text('HIGH SCORES ARE SAVED ON THIS DEVICE',x+w/2,noteY,9,C.weak,'center',w-2*pad);
- const startY=modalBodyTop(q),endY=footerY-gap-noteH-gap;
- const rowH=Math.max(0,(endY-startY-4*gap)/5);
+ // Concept 1: Top Five in the existing playfield, grayscale source through CRT.
+ const {W,H}=getViewport(),{x,y,w,h,pad,gap,buttonH}=q;
+ clearRegions();region(0,0,W,H,'block');
+ panel(x,y,w,h,5,C.bg,C.border);
+ const inner=w-2*pad,secondaryH=q.secondaryH,buttonW=w*UI_SPACE.overlayButtonWidthScale;
+ const titleSize=Math.min(20,Math.max(15,w*.082));
+ const titleH=titleSize+4,iconH=13,headerH=16;
+ const rowH=Math.max(18,Math.min(42,
+  (h-2*pad-titleH-iconH-headerH-buttonH-secondaryH-7*gap)/5));
+ const contentH=titleH+iconH+headerH+5*rowH+buttonH+secondaryH+7*gap;
+ let top=y+Math.max(pad,(h-contentH)/2);
+ text('HIGH SCORES',x+w/2,top+titleH/2,titleSize,C.bright,'center',inner);
+ top+=titleH+gap;
+ // Small custom winged-circle divider, with no coloured image or extra texture.
+ const c=getContext(),cx=x+w/2,cy=top+iconH/2;
+ rect(x+pad,cy-.5,inner*.30,1,C.border);
+ rect(x+w-pad-inner*.30,cy-.5,inner*.30,1,C.border);
+ c.save();c.strokeStyle=C.bright;c.lineWidth=1.25;
+ c.beginPath();c.ellipse(cx,cy,4,4,0,0,Math.PI*2);c.stroke();c.restore();
+ rect(cx-2,cy-2,4,4,C.bright);
+ rect(cx-13,cy-2,7,1,C.bright);rect(cx+6,cy-2,7,1,C.bright);
+ rect(cx-13,cy+1,7,1,C.border);rect(cx+6,cy+1,7,1,C.border);
+ top+=iconH+gap;
+ const ix=x+pad;
+ const col={rank:ix+3,name:ix+inner*.14,score:ix+inner*.63,
+  lvl:ix+inner*.78,lines:ix+inner-3};
+ const headSize=Math.min(9,Math.max(7,w*.033));
+ const headY=top+headerH/2;
+ text('#',col.rank,headY,headSize,C.weak);
+ text('NAME',col.name,headY,headSize,C.weak);
+ text('SCORE',col.score,headY,headSize,C.weak,'right');
+ text('LVL',col.lvl,headY,headSize,C.weak,'center');
+ text('LINES',col.lines,headY,headSize,C.weak,'right');
+ top+=headerH;
+ const entries=getHighs(),font=Math.min(10,Math.max(8,w*.039));
  for(let i=0;i<5;i++){
-  const score=getHighs()[i],ry=startY+i*(rowH+gap);
-  panel(x+pad,ry,w-2*pad,rowH,8,C.button,C.border);
-  text(fmt(i+1,2),x+2*pad,ry+rowH*.32,12,C.bright);
-  text(score?.name||'---',x+2*pad+47,ry+rowH*.32,12,C.ink);
-  text(score?Number(score.score).toLocaleString('en-CA'):'------',
-   x+w-2*pad,ry+rowH*.32,12,C.ink,'right');
-  text(score?score.lines+' LINES / LV '+score.level:'NO RECORD',
-   x+2*pad+47,ry+rowH*.74,9,C.weak);
+  const s=entries[i],ry=top+i*rowH,middle=ry+rowH/2;
+  panel(ix,ry,inner,rowH-1,2,C.button,i===0?C.border:C.grid);
+  const shade=i===0?C.bright:C.ink;
+  text(String(i+1),col.rank,middle,font,C.weak);
+  text(s?.name||'---',col.name,middle,font,shade,'left',inner*.20);
+  text(s?Number(s.score).toLocaleString('en-CA'):'—',
+   col.score,middle,font,shade,'right',inner*.38);
+  text(s?String(s.level):'-',col.lvl,middle,font,C.weak,'center');
+  text(s?String(s.lines):'-',col.lines,middle,font,C.weak,'right');
  }
+ const by=top+5*rowH+2*gap,bx=x+(w-buttonW)/2;
+ key('PLAY AGAIN',bx,by,buttonW,buttonH,'scoresPlayAgain',{light:true,arrow:true});
+ key('BACK',bx,by+buttonH+gap,buttonW,secondaryH,'close');
 }
 function drawRestart(q){
  modalPanel('START NEW GAME?',q);
