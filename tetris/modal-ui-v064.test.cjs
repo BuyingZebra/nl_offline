@@ -30,13 +30,14 @@ function setup(){
   ghost:false,ghostX:2,ghostY:0,ghostStrength:22,
   softness:false,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.56};
  let regions=[],modal='options',changes=0;
- const C={bg:'#080808',panel:'#1d1d1d',button:'#080808',border:'#6a6a6a',bright:'#cecece',
+ const C={bg:'#080808',panel:'#1d1d1d',button:'#080808',border:'#777777',subtleBorder:'#2e2e2e',bright:'#cecece',
   weak:'#aeaeae',ink:'#e3e3e3'};
  const UI_SPACE={unit:6,padX:11,headRightPad:6,headIconGap:6,
   headTitleInset:17,overlayButtonWidthScale:.85,appMax:520};
  const document={createElement:()=>({width:0,height:0,getContext:()=>context()})};
  const r={headerButtonH:46,hh:80,hx:11,hy:59,landscape:false,
-  width:393,off:0,boardW:234.5,extraH:46};
+  width:393,off:0,boardX:29.75,boardY:145,boardW:234.5,boardH:469,
+  extraH:46,overlaySecondaryH:44};
  const layouts=[];
  const note=(type,...args)=>{events.push({type,args});};
  let scrollVelocity=null;
@@ -138,7 +139,7 @@ test('modal reset and restore reset scroll and picker without losing state',()=>
 test('high scores, restart and initials retain original button actions',()=>{
  const t=setup();
  for(const [mode,actions] of [
-  ['scores',['scoresPlayAgain','close']],
+  ['scores',['close']],
   ['restart',['close','restartYes']],
   ['entry',['typeInitials','skipScore','saveScore']]
  ]){
@@ -159,7 +160,7 @@ test('copy-debug status glyph and key remain in dedicated modal module',()=>{
 test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
- assert.ok(main.includes("from './modal-ui.js?v067'"));
+ assert.ok(main.includes("from './modal-ui.js?v068'"));
  assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
@@ -179,10 +180,25 @@ test('Top Five uses the playfield with live scores, all columns and two actions'
  for(const label of ['HIGH SCORES','#','NAME','SCORE','LVL','LINES','AAA','9,999'])
   assert.ok(labels.includes(label),'missing '+label);
  assert.deepEqual(s.events.filter(v=>v.type==='key').map(v=>v.args[5]),
-  ['scoresPlayAgain','close']);
+  ['close']);
 });
 test('short landscape playfields use a readable fallback',()=>{
  const s=setup();s.r.boardW=130;s.r.boardH=260;
  const q=s.ui.modalBounds('scores');
  assert.ok(q.landscapeFallback&&q.w>s.r.boardW&&q.y>=59);
+});
+
+test('V068: leaderboard uses alpha art and a single RETURN button',()=>{
+ const x=setup();x.setModal('scores');
+ const q=x.ui.modalBounds('scores');x.ui.paintModal(q);
+ const panels=x.events.filter(e=>e.type==='panel');
+ assert.ok(panels.length>=6);
+ assert.ok(panels.every(e=>e.args[5]===null),
+  'opaque scoreboard surfaces would conceal blurred gameplay');
+ const actions=x.events.filter(e=>e.type==='key');
+ assert.equal(actions.length,1);
+ assert.equal(actions[0].args[0],'RETURN');
+ assert.equal(actions[0].args[5],'close');
+ assert.ok(actions[0].args[2]>=q.y);
+ assert.ok(actions[0].args[2]+actions[0].args[4]<=q.y+q.h);
 });
