@@ -259,7 +259,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupStatus,layoutInfo}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -271,7 +271,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,popupSt
  edgeSoftness.enabled=fx.softness;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
- const boardOverlayActive=boardStatus!=='playing'&&!modalOpen&&
+ const boardOverlayActive=boardStatus!=='playing'&&(!modalOpen||scoresOverlay)&&
   popupStatus===boardStatus;
  boardBlurHorizontal.enabled=boardOverlayActive;
  boardPopupPass.enabled=boardOverlayActive;
