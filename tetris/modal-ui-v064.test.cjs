@@ -5,8 +5,12 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=n=>fs.readFileSync(path.join(__dirname,n),'utf8');
-const factory=new Function(read('modal-ui.js').replace(/export function /g,'function ')+
- '\nreturn createModalUI;')();
+const modelSource=read('ui-controls.js').replace(/export function /g,'function ');
+const {makeSliderControl}=new Function(modelSource+'\nreturn {makeSliderControl};')();
+const modalSource=read('modal-ui.js').replace(/^import .*;\s*$/gm,'')
+ .replace(/export function /g,'function ');
+const factory=new Function('makeSliderControl',modalSource+
+ '\nreturn createModalUI;')(makeSliderControl);
 const catalog=new Function(read('display-settings-catalog.js')
  .replace(/export const /g,'const ').replace(/export function /g,'function ')+
  '\nreturn {DISPLAY_EFFECTS,scanlineChoices,effectSettingValue};')();
@@ -155,13 +159,13 @@ test('copy-debug status glyph and key remain in dedicated modal module',()=>{
 test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
- assert.ok(main.includes("from './modal-ui.js?v064'"));
- assert.ok(main.includes("const THREE_BUILD_VERSION='064'"));
+ assert.ok(main.includes("from './modal-ui.js?v065'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION='065'"));
  assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
  assert.ok(!main.includes('function drawOptions(q)'));
  assert.ok(!main.includes('function drawScores(q)'));
  assert.ok(!modal.includes('WebGLRenderer('));
  assert.ok(!modal.includes('compositor.render()'));
- assert.ok(read('three-v027.html').includes('Tetris System V064'));
+ assert.ok(read('three-v027.html').includes('Tetris System V065'));
 });
