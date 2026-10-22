@@ -1,4 +1,4 @@
-# Tetris System architecture (V067)
+# Tetris System architecture (V068)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -65,3 +65,10 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Unusually narrow landscape board geometry uses a wider centered fallback for readable records and touch controls.
 - Device-local high-score persistence, qualification, initials entry, game rules and CRT effects remain unchanged.
 - The dark scrim is removed only for the Top Five display, preserving the surrounding live HUD.
+
+## V068: pause-style score backdrop and UI borders
+- Top Five artwork is painted into the sharp board-popup CanvasTexture, after the same horizontal and vertical Gaussian board blur/fade used for READY, PAUSED and GAME OVER. The background remains visible through transparent score rows.
+- The pause/game-over popup is not drawn underneath scores. A single secondary RETURN button closes to the prior game status; score view has no restart action.
+- Entering and leaving the score view explicitly dirties the base/popup once; ordinary gravity still doesn't upload the fullscreen base.
+- Standard outlines brighten 12% (#6a6a6a -> #777777), while the subtle Top Five outlines lift #292929 -> #2e2e2e; gameplay grid and controls retain previous fill luminance.
+- Narrow-landscape fallback extends Gaussian board blur bounds to the expanded score panel.
