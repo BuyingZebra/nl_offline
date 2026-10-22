@@ -160,12 +160,12 @@ test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
  assert.ok(main.includes("from './modal-ui.js?v065'"));
- assert.ok(main.includes("const THREE_BUILD_VERSION='065'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
  assert.ok(!main.includes('function drawOptions(q)'));
  assert.ok(!main.includes('function drawScores(q)'));
  assert.ok(!modal.includes('WebGLRenderer('));
  assert.ok(!modal.includes('compositor.render()'));
- assert.ok(read('three-v027.html').includes('Tetris System V065'));
+ assert.ok(read('three-v027.html').match(/<meta name="tetris-build" content="[0-9]{3}">/));
 });
