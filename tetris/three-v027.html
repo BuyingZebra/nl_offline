@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#080808">
+<!-- Single authoritative build number; update only this marker on each release. -->
+<meta name="tetris-build" content="066">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -15,7 +17,7 @@
 // Apply the class before styles are evaluated; Safari tabs keep 100dvh.
 if(navigator.standalone===true)document.documentElement.classList.add('ios-standalone');
 </script>
-<title>NOMAD — Tetris System V065</title>
+<title>NOMAD — Tetris System</title>
 <style>
 :root{color-scheme:dark;background:#080808}
 *{box-sizing:border-box}
@@ -46,7 +48,7 @@ html.ios-standalone #display{height:100vh}
 </script>
 </head>
 <body>
-<div id="display" role="application" aria-label="Tetris System — Three.js V065">
+<div id="display" role="application" aria-label="Tetris System — Three.js">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT compositor"></canvas>
 </div>
 <div id="safeArea" aria-hidden="true"></div>
