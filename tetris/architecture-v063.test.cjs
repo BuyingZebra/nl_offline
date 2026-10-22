@@ -141,6 +141,6 @@ test('V063 orchestrator imports modules and preserves original rendering pipelin
  assert.ok(main.includes('paintBoardPopup(r);'));
  assert.ok(main.includes('compositor.render();'));
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
- assert.ok(main.includes('const THREE_BUILD_VERSION=\'065\''));
+ assert.ok(main.includes('const THREE_BUILD_VERSION=getBuildVersion(document);'));
  assert.ok(read('three-v027.html').includes('NOMAD — Tetris System'));
 });
