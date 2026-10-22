@@ -72,5 +72,5 @@ test('HTML loads layout ahead of the Three.js module',()=>{
  assert.ok(html.includes('layout.js?three=v050-r1'));
  assert.ok(html.indexOf('layout.js?three=v050-r1')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
- assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\\(document\\);/.test(renderer));
+ assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
