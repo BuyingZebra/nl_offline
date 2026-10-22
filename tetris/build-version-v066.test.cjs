@@ -12,10 +12,12 @@ const {getBuildVersion,parsePublishedBuild,shouldReloadBuild}=versionFns;
 const html=read('three-v027.html'),main=read('three-v027.js');
 const documentWithVersion=v=>({querySelector:s=>s==='meta[name="tetris-build"]'&&v!==null?
  {getAttribute:attr=>attr==='content'?v:null}:null});
-test('single metadata marker publishes 066 without a hard-coded JS constant',()=>{
- assert.equal((html.match(/<meta name="tetris-build" content="[0-9]{3}">/g)||[]).length,1);
- assert.equal(getBuildVersion(documentWithVersion('066')),'066');
- assert.equal(parsePublishedBuild(html),'066');
+test('single metadata marker determines build number without a hard-coded JS constant',()=>{
+ const markers=html.match(/<meta name="tetris-build" content="[0-9]{3}">/g)||[];
+ assert.equal(markers.length,1);
+ const version=markers[0].match(/content="([0-9]{3})"/)[1];
+ assert.equal(getBuildVersion(documentWithVersion(version)),version);
+ assert.equal(parsePublishedBuild(html),version);
  assert.equal(versionFns.BUILD_META_NAME,'tetris-build');
  assert.ok(main.includes('const THREE_BUILD_VERSION=getBuildVersion(document);'));
  assert.ok(!/const THREE_BUILD_VERSION=['"][0-9]{3}['"]/.test(main));
