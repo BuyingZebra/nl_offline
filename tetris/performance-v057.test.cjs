@@ -94,7 +94,7 @@ test('ordinary unattended game ticks do not move the piece every frame',()=>{
  assert.ok(advanced>0,'the piece should still fall');
 });
 test('V057 retains same screen and existing debug-copy workflow',()=>{
- assert.ok(main.includes("const THREE_BUILD_VERSION='065'"));
+ assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(main.includes('const MAX_RENDER_DPR=2;'));
  assert.ok(fs.readFileSync(path.join(__dirname,'modal-ui.js'),'utf8').includes("key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug')"));
  assert.ok(main.includes('debugClipboard.copyText(report)'));
