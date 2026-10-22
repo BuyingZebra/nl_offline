@@ -160,7 +160,7 @@ test('copy-debug status glyph and key remain in dedicated modal module',()=>{
 test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
- assert.ok(main.includes("from './modal-ui.js?v068'"));
+ assert.ok(main.includes("from './modal-ui.js?v069'"));
  assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
@@ -171,13 +171,13 @@ test('V064 module extraction leaves WebGL and game core separate',()=>{
  assert.ok(read('three-v027.html').match(/<meta name="tetris-build" content="[0-9]{3}">/));
 });
 
-test('Top Five uses the playfield with live scores, all columns and two actions',()=>{
+test('Top Five uses the playfield with live scores and a single RETURN action',()=>{
  const s=setup();s.r.boardX=19;s.r.boardY=170;s.r.boardH=469;s.r.boardW=234.5;
  const q=s.ui.modalBounds('scores');
  assert.deepEqual([q.x,q.y,q.w,q.h],[19,170,234.5,469]);
  s.setModal('scores');s.ui.paintModal(q);
  const labels=s.events.filter(v=>v.type==='text').map(v=>String(v.args[0]));
- for(const label of ['HIGH SCORES','#','NAME','SCORE','LVL','LINES','AAA','9,999'])
+ for(const label of ['HIGH SCORES','NAME','SCORE','LVL','LINES','AAA','9,999'])
   assert.ok(labels.includes(label),'missing '+label);
  assert.deepEqual(s.events.filter(v=>v.type==='key').map(v=>v.args[5]),
   ['close']);
@@ -192,7 +192,7 @@ test('V068: leaderboard uses alpha art and a single RETURN button',()=>{
  const x=setup();x.setModal('scores');
  const q=x.ui.modalBounds('scores');x.ui.paintModal(q);
  const panels=x.events.filter(e=>e.type==='panel');
- assert.ok(panels.length>=6);
+ assert.equal(panels.length,2);
  assert.ok(panels.every(e=>e.args[5]===null),
   'opaque scoreboard surfaces would conceal blurred gameplay');
  const actions=x.events.filter(e=>e.type==='key');
@@ -201,4 +201,32 @@ test('V068: leaderboard uses alpha art and a single RETURN button',()=>{
  assert.equal(actions[0].args[5],'close');
  assert.ok(actions[0].args[2]>=q.y);
  assert.ok(actions[0].args[2]+actions[0].args[4]<=q.y+q.h);
+});
+
+test('V069: table center alignment, row borders, and solid RETURN',()=>{
+ const x=setup();x.setModal('scores');
+ const q=x.ui.modalBounds('scores');x.ui.paintModal(q);
+ const texts=x.events.filter(e=>e.type==='text');
+ assert.ok(!texts.some(e=>e.args[0]==='#'));
+ for(const [heading,value] of [['NAME','AAA'],['SCORE','9,999'],
+  ['LVL','2'],['LINES','12']]){
+  const h=texts.find(e=>e.args[0]===heading);
+  const v=texts.find(e=>e.args[0]===value);
+  assert.ok(h&&v,heading+' is present');
+  assert.equal(h.args[1],v.args[1],heading+' shares its column center');
+  assert.equal(h.args[5],'center');
+  assert.equal(v.args[5],'center');
+ }
+ const panels=x.events.filter(e=>e.type==='panel');
+ assert.equal(panels.length,2);
+ assert.equal(panels[1].args[4],8,'outer frame beveled');
+ assert.equal(panels[1].args[5],null,'chart is transparent');
+ const separators=x.events.filter(e=>e.type==='rect'&&
+  e.args[2]===q.w-2*q.pad-2&&e.args[3]===1&&e.args[4]==='#777777');
+ assert.equal(separators.length,4,'exactly four hard row separators');
+ const buttons=x.events.filter(e=>e.type==='key');
+ assert.equal(buttons.length,1);
+ assert.equal(buttons[0].args[0],'RETURN');
+ assert.equal(buttons[0].args[5],'close');
+ assert.equal(buttons[0].args[6].light,true);
 });
