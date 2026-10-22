@@ -1,6 +1,7 @@
-# Tetris System architecture (V065)
+# Tetris System architecture (V066)
 
 ## Runtime
+- `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
 - `core.js`: deterministic Tetris state, gravity, collisions, scoring and locking. No WebGL dependency.
 - `scores.js`: high-score persistence.
 - `layout.js`: responsive geometry in CSS pixels; source and GPU use a capped render DPR of 2.
@@ -44,8 +45,10 @@ V062 iPhone 393×852, render DPR2:
 
 ## Development and verification
 - Keep the permanent URL: https://buyingzebra.github.io/nl_offline/tetris/
-- Bump `THREE_BUILD_VERSION` and keep the version visible in the UI before publishing.
-- Run tests using `node --test tetris/*.test.cjs`. The V064 suite checks settings scrolling, scanline selection, debug feedback, scores, restart and initials. V065 adds shared-control geometry, pointer mapping, overlay priority, and clipping tests.
+- **Release versioning:** edit only `<meta name="tetris-build" content="NNN">` in `three-v027.html` to advance the displayed build. `three-v027.js` derives `THREE_BUILD_VERSION` from that meta marker, so do not add a second hard-coded version. `document.title`, accessible title and debug report update automatically. The game at `/tetris/` remains the same stable link.
+- Run tests using `node --test tetris/*.test.cjs`. V064 checks settings, scores and restart. V065 checks unified touch geometry. V066 adds `build-version-v066.test.cjs` (meta parsing, update gate, offline/malformed responses, foreground safety) and `module-contract-v066.test.cjs` (ESM imports and bootstrap).
+- The running app checks the published `three-v027.html` with `cache:'no-store'` on reactivation and while idle; it **must not reload** during gameplay, pause, completed games, or any open modal. A failure/offline response must not interrupt a working game.
+- New functional tests should exercise the public APIs with representative values, not inspect incidental source formatting or require a hard-coded release number. Treat GPU frame timings as on-device checks.
 - Keep tests for menu drawing in `modal-ui-v064.test.cjs`; do not reintroduce menu-painter assertions against `three-v027.js`. Avoid brittle source-string checks where a behavioral test is possible.
 - Verify touch controls, pressed/released feedback, hold/next, READY/PAUSED/OVER popups, menu scrolling, and both device orientations.
 - Confirm current rendering costs on an actual iPhone via the copied debug report; automated checks alone cannot establish visual equivalence.
@@ -54,5 +57,5 @@ V062 iPhone 393×852, render DPR2:
 ## Deliberately deferred
 - Extracting the remaining application-owned menu actions and debug-report gathering (drawing and menu-local state are separated in V064).
 - Refine declarative toggle/row component definitions as future screens need them (buttons, sliders, regions and hit-testing already share a model in V065).
-- Consolidating version metadata used by the HTML bootstrap and JS module reload checks.
+- Continue migrating old source-inspection assertions toward behavioral tests as features are touched. Version metadata is centralized as of V066.
 These are sensible follow-up cleanups, not prerequisites for adding gameplay features.
