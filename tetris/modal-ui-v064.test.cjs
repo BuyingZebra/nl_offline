@@ -138,7 +138,7 @@ test('modal reset and restore reset scroll and picker without losing state',()=>
 test('high scores, restart and initials retain original button actions',()=>{
  const t=setup();
  for(const [mode,actions] of [
-  ['scores',['close']],
+  ['scores',['scoresPlayAgain','close']],
   ['restart',['close','restartYes']],
   ['entry',['typeInitials','skipScore','saveScore']]
  ]){
@@ -159,7 +159,7 @@ test('copy-debug status glyph and key remain in dedicated modal module',()=>{
 test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
- assert.ok(main.includes("from './modal-ui.js?v065'"));
+ assert.ok(main.includes("from './modal-ui.js?v067'"));
  assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
@@ -168,4 +168,21 @@ test('V064 module extraction leaves WebGL and game core separate',()=>{
  assert.ok(!modal.includes('WebGLRenderer('));
  assert.ok(!modal.includes('compositor.render()'));
  assert.ok(read('three-v027.html').match(/<meta name="tetris-build" content="[0-9]{3}">/));
+});
+
+test('Top Five uses the playfield with live scores, all columns and two actions',()=>{
+ const s=setup();s.r.boardX=19;s.r.boardY=170;s.r.boardH=469;s.r.boardW=234.5;
+ const q=s.ui.modalBounds('scores');
+ assert.deepEqual([q.x,q.y,q.w,q.h],[19,170,234.5,469]);
+ s.setModal('scores');s.ui.paintModal(q);
+ const labels=s.events.filter(v=>v.type==='text').map(v=>String(v.args[0]));
+ for(const label of ['HIGH SCORES','#','NAME','SCORE','LVL','LINES','AAA','9,999'])
+  assert.ok(labels.includes(label),'missing '+label);
+ assert.deepEqual(s.events.filter(v=>v.type==='key').map(v=>v.args[5]),
+  ['scoresPlayAgain','close']);
+});
+test('short landscape playfields use a readable fallback',()=>{
+ const s=setup();s.r.boardW=130;s.r.boardH=260;
+ const q=s.ui.modalBounds('scores');
+ assert.ok(q.landscapeFallback&&q.w>s.r.boardW&&q.y>=59);
 });
