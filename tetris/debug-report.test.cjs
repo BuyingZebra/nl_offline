@@ -101,7 +101,7 @@ test('debug button sits left of X and copies on user activation',()=>{
  assert.ok(code.includes("modalUI.debugCopyState=success?'copied':'failed'"));
  assert.ok(modalUI.includes('function drawDebugBug(cx,cy){'));
  assert.ok(!code.includes('createPerfHud({enabled:perfEnabled'));
- assert.ok(code.includes("const THREE_BUILD_VERSION='065'"));
+ assert.ok(code.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(html.includes('NOMAD — Tetris System'));
 });
 test('diagnostics are collected quietly with a bounded sample history',()=>{
