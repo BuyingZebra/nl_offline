@@ -1,3 +1,4 @@
+import {makeRegion,makeButtonControl} from './ui-controls.js?v065';
 /* Tetris System V052 — Canvas2D drawing primitives.
  * Drawing targets and hitboxes are caller-owned and resolve on each draw,
  * allowing the same primitives to draw gameplay and modal canvases.
@@ -47,15 +48,20 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity){
  g.letterSpacing='0px';
 }
 function rect(x,y,w,h,color){const g=getContext();g.fillStyle=color;g.fillRect(x,y,w,h);}
-function region(x,y,w,h,act,opts={}){getRegions().push({x,y,w,h,act,...opts});}
-function key(label,x,y,w,h,act,{light=false,repeat=false,arrow=false,modalControl=false}={}){
- const size=MAIN_ACTION_LABELS.has(String(label))?MAIN_ACTION_FONT_SIZE:
-  BUTTON_ICON_LABELS.has(String(label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- const down=getPressed()?.action===act&&getPressed()?.box?.x===x;
- panel(x,y,w,h,8,down?C.solid:(light?C.bright:C.button),light?C.bright:C.border);
- text(label,x+w/2,y+h/2,size,light?C.dark:C.ink,'center',Math.max(10,w-14));
- if(arrow)text('▶',x+17,y+h/2,BUTTON_ICON_FONT_SIZE,light?C.dark:C.ink,'center');
- region(x,y,w,h,act,{repeat,modalControl});
+function region(x,y,w,h,act,opts={}){const model=makeRegion(x,y,w,h,act,opts);getRegions().push(model);return model;}
+function key(label,x,y,w,h,act,opts={}){
+ const model=makeButtonControl(label,x,y,w,h,act,opts);
+ const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
+  BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
+ const down=getPressed()?.action===model.act&&getPressed()?.box?.x===model.x;
+ panel(model.x,model.y,model.w,model.h,8,
+  down?C.solid:(model.light?C.bright:C.button),model.light?C.bright:C.border);
+ text(model.label,model.x+model.w/2,model.y+model.h/2,size,
+  model.light?C.dark:C.ink,'center',Math.max(10,model.w-14));
+ if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
+  BUTTON_ICON_FONT_SIZE,model.light?C.dark:C.ink,'center');
+ getRegions().push(model.hitbox);
+ return model;
 }
 
  return Object.freeze({panel,wrapText,text,rect,region,key});
