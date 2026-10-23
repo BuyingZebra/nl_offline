@@ -218,7 +218,7 @@ function drawSettingsSlider(x,y,w,setting){
  rect(trackX,y-1.5,trackW,3,C.border);
  rect(trackX,y-1.5,trackW*fraction,3,C.bright);
  rect(trackX+trackW*fraction-size/2,y-size/2,size,size,C.bright);
- text(valueText,x+w,y,10,C.bright,'right',valueW);
+ text(valueText,x+w,y,10,C.bright,'right',valueW,'terminal');
  const hit=ctrl.hitbox;
  region(hit.x,hit.y,hit.w,hit.h,hit.act,{
   field:hit.field,min:hit.min,max:hit.max,step:hit.step,
@@ -391,12 +391,12 @@ function drawScores(q){
  for(let i=0;i<5;i++){
   const s=entries[i],middle=top+(i+.5)*rowH;
   const shade=i===0?C.bright:C.ink;
-  text(String(i+1),centers.rank,middle,font,C.weak,'center');
-  text(s?.name||'---',centers.name,middle,font,shade,'center',inner*.21);
+  text(String(i+1),centers.rank,middle,font,C.weak,'center',Infinity,'terminal');
+  text(s?.name||'---',centers.name,middle,font,shade,'center',inner*.21,'terminal');
   text(s?Number(s.score).toLocaleString('en-CA'):'—',
-   centers.score,middle,font,shade,'center',inner*.32);
-  text(s?String(s.level):'-',centers.lvl,middle,font,C.weak,'center');
-  text(s?String(s.lines):'-',centers.lines,middle,font,C.weak,'center');
+   centers.score,middle,font,shade,'center',inner*.32,'terminal');
+  text(s?String(s.level):'-',centers.lvl,middle,font,C.weak,'center',Infinity,'terminal');
+  text(s?String(s.lines):'-',centers.lines,middle,font,C.weak,'center',Infinity,'terminal');
  }
  const by=top+tableH+2*gap,bx=x+(w-buttonW)/2;
  key('RETURN',bx,by,buttonW,secondaryH,'close',{light:true});
@@ -415,7 +415,7 @@ function drawEntry(q){
  const top=modalBodyTop(q);
  panel(x+pad,top,w-2*pad,buttonH,8,C.button,C.border);
  text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,top+buttonH/2,
-  12,C.bright,'center',w-4*pad);
+  12,C.bright,'center',w-4*pad,'terminal');
  const labelY=top+buttonH+gap;
  text('INITIALS / UP TO THREE',x+w/2,labelY+9,10,C.weak,'center',w-2*pad);
  const inputY=labelY+18+gap;
