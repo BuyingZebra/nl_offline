@@ -1,4 +1,4 @@
-# Tetris System architecture (V070)
+# Tetris System architecture (V071)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -82,3 +82,9 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Teko Bold (700) is the display face, falling back to the previous monospace if it is unavailable. Screen geometry, 14/16/18px control labels/icons, settings, CRT effects, and score persistence are unchanged.
 - Icon-only labels use the prior monospace font. Font selection happens inside the existing Canvas2D `text()` primitive, so measuring and drawing use the same font.
 - The Google Fonts stylesheet loads before the main entrypoint; a successful `document.fonts.load()` triggers one paint of the screen layers, without blocking first render. This first trial uses remote Teko, not a locally hosted font.
+
+## V071 — Fallout 4 font roles
+- Replace Teko with Roboto Condensed Bold (700) for headings, gameplay UI labels, menus and buttons.
+- Share Tech Mono Regular (400) is used for numeric statistics, top-five entries, settings values, score entry readout and Program/Version metadata. Column centers and sizing remain unchanged.
+- Icons still use the original system monospace font. The role switch is handled by the Canvas2D text function before wrapping and measuring.
+- Google Fonts supplies the two faces with the system monospace as an offline fallback; font readiness triggers redraw without blocking gameplay. Fonts are stylistically accurate substitutes, not copied game assets.
