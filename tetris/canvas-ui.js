@@ -5,7 +5,7 @@ import {makeRegion,makeButtonControl} from './ui-controls.js?v065';
  */
 export function createCanvasUI({getContext,getRegions,getPressed,C,FONT,
  LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
- MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,ICON_FONT=FONT}){
+ MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
 function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  const g=getContext();
  if(w<=0||h<=0)return;
@@ -37,11 +37,13 @@ function wrapText(source,maxWidth){
  }
  return lines;
 }
-function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity){
+function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='ui'){
  const g=getContext();
- // Icon-only controls use the original glyph font and baseline.
+ // Fallout 4 roles: Roboto Condensed for the UI, Share Tech Mono for data.
  const isIcon=BUTTON_ICON_LABELS.has(String(str))||str==='▶';
- g.font='700 '+size+'px '+(isIcon?ICON_FONT:FONT);
+ const terminal=role==='terminal'&&!isIcon;
+ g.font=(terminal?'400 ':'700 ')+size+'px '+
+  (isIcon?ICON_FONT:terminal?TERMINAL_FONT:FONT);
  g.textAlign=align;g.textBaseline='middle';
  g.letterSpacing=(size*LETTER_SPACING_EM).toFixed(3)+'px';
  g.fillStyle=color;
