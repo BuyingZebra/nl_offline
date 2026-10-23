@@ -181,7 +181,7 @@ test('cancel clears active pointer so a new touch can start',()=>{
 });
 test('version imports controllers and does not duplicate pointer listeners',()=>{
  const js=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(js.includes("from './canvas-ui.js?v065'"));
+ assert.ok(js.includes("from './canvas-ui.js?v070'"));
  assert.ok(js.includes("from './input-controller.js?v065'"));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(js));
  assert.ok(!js.includes("screen.addEventListener('pointerdown'"));
