@@ -181,7 +181,7 @@ test('cancel clears active pointer so a new touch can start',()=>{
 });
 test('version imports controllers and does not duplicate pointer listeners',()=>{
  const js=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(js.includes("from './canvas-ui.js?v071'"));
+ assert.ok(js.includes("from './canvas-ui.js?v072'"));
  assert.ok(js.includes("from './input-controller.js?v065'"));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(js));
  assert.ok(!js.includes("screen.addEventListener('pointerdown'"));
@@ -221,4 +221,62 @@ test('V071 paints interface, terminal readouts and icons in correct fonts',()=>{
   '400 12px "Share Tech Mono",monospace',
   '700 18px monospace'
  ]);
+});
+
+test('V072 ink-centers all three font roles at their existing anchor',()=>{
+ const events=[];
+ const g={beginPath(){},roundRect(){},fill(){},stroke(){},fillRect(){},
+  measureText(str){
+   const terminal=this.font.startsWith('400 ');
+   const icon=this.font==='700 18px monospace';
+   return {width:String(str).length*6,
+    actualBoundingBoxAscent:terminal?8:icon?11:10,
+    actualBoundingBoxDescent:terminal?3:icon?1:2};
+  },
+  fillText(str,x,y){events.push({str,x,y,baseline:this.textBaseline,font:this.font});}
+ };
+ const ui=factory('canvas-ui.js','createCanvasUI')({
+  getContext:()=>g,getRegions:()=>[],getPressed:()=>null,
+  C:{panel:'#111',border:'#666',solid:'#222',bright:'#ccc',button:'#080',ink:'#fff',dark:'#000'},
+  FONT:'"Roboto Condensed",sans-serif',TERMINAL_FONT:'"Share Tech Mono",monospace',
+  ICON_FONT:'monospace',LETTER_SPACING_EM:.13,
+  MAIN_ACTION_LABELS:new Set(),BUTTON_ICON_LABELS:new Set(['◀']),
+  MAIN_ACTION_FONT_SIZE:16,BUTTON_FONT_SIZE:14,BUTTON_ICON_FONT_SIZE:18
+ });
+ ui.text('RETURN',20,40,14,'#fff','center');
+ ui.text('004120',20,60,14,'#fff','center',Infinity,'terminal');
+ ui.text('◀',20,80,18,'#fff','center');
+ assert.deepEqual(events.map(v=>v.y),[44,62.5,85]);
+ assert.ok(events.every(v=>v.baseline==='alphabetic'));
+});
+test('V072 solid button text centers without changing the control hitbox',()=>{
+ const draws=[],regions=[];
+ const g={beginPath(){},roundRect(){},fill(){},stroke(){},fillRect(){},
+  measureText:s=>({width:String(s).length*5,actualBoundingBoxAscent:9,actualBoundingBoxDescent:1}),
+  fillText:(str,x,y)=>draws.push({str,x,y})};
+ const ui=factory('canvas-ui.js','createCanvasUI')({
+  getContext:()=>g,getRegions:()=>regions,getPressed:()=>null,
+  C:{panel:'#111',border:'#666',solid:'#222',bright:'#ccc',button:'#080',ink:'#fff',dark:'#000'},
+  FONT:'"Roboto Condensed",sans-serif',LETTER_SPACING_EM:.13,
+  MAIN_ACTION_LABELS:new Set(['RESUME']),BUTTON_ICON_LABELS:new Set(['◀']),
+  MAIN_ACTION_FONT_SIZE:16,BUTTON_FONT_SIZE:14,BUTTON_ICON_FONT_SIZE:18
+ });
+ ui.key('RESUME',10,20,120,42,'start',{light:true});
+ assert.deepEqual([regions[0].x,regions[0].y,regions[0].w,regions[0].h],[10,20,120,42]);
+ assert.equal(draws[0].y,45);
+});
+test('V072 retains width-only TextMetrics fallback for compatibility',()=>{
+ const draws=[];
+ const g={beginPath(){},roundRect(){},fill(){},stroke(){},fillRect(){},
+  measureText:s=>({width:String(s).length*5}),
+  fillText:(str,x,y)=>draws.push({str,y,baseline:g.textBaseline})};
+ const ui=factory('canvas-ui.js','createCanvasUI')({
+  getContext:()=>g,getRegions:()=>[],getPressed:()=>null,
+  C:{panel:'#111',border:'#666',solid:'#222',bright:'#ccc',button:'#080',ink:'#fff',dark:'#000'},
+  FONT:'monospace',LETTER_SPACING_EM:.13,MAIN_ACTION_LABELS:new Set(),
+  BUTTON_ICON_LABELS:new Set(),MAIN_ACTION_FONT_SIZE:16,BUTTON_FONT_SIZE:14,BUTTON_ICON_FONT_SIZE:18
+ });
+ ui.text('ONE\nTWO',40,50,10);
+ assert.deepEqual(draws.map(x=>x.y),[44,56]);
+ assert.ok(draws.every(x=>x.baseline==='middle'));
 });
