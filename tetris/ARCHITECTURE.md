@@ -1,4 +1,4 @@
-# Tetris System architecture (V069)
+# Tetris System architecture (V070)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -77,3 +77,8 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - The ranking numbers remain, but their # column label is removed. The remaining four headers and all corresponding values use identical column center positions.
 - A single transparent table frame rounds only the four outside corners; four hard straight internal rules give every row a complete outline. All standard grayscale and blur settings remain.
 - RETURN is now a solid-filled button using the existing shared button drawing and action.
+
+## V070 typography trial
+- Teko Bold (700) is the display face, falling back to the previous monospace if it is unavailable. Screen geometry, 14/16/18px control labels/icons, settings, CRT effects, and score persistence are unchanged.
+- Icon-only labels use the prior monospace font. Font selection happens inside the existing Canvas2D `text()` primitive, so measuring and drawing use the same font.
+- The Google Fonts stylesheet loads before the main entrypoint; a successful `document.fonts.load()` triggers one paint of the screen layers, without blocking first render. This first trial uses remote Teko, not a locally hosted font.
