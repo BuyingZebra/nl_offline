@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v068';
-import {createCanvasUI} from './canvas-ui.js?v071';
+import {createCanvasUI} from './canvas-ui.js?v072';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
 import {createPerfMonitor} from './perf-monitor.js?v062';
