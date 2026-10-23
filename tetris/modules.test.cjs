@@ -186,3 +186,18 @@ test('version imports controllers and does not duplicate pointer listeners',()=>
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(js));
  assert.ok(!js.includes("screen.addEventListener('pointerdown'"));
 });
+
+test('V070 Teko pass retains original icon typography and control geometry',()=>{
+ const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
+ const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
+ const draw=fs.readFileSync(path.join(__dirname,'canvas-ui.js'),'utf8');
+ assert.ok(html.includes('family=Teko:wght@700'));
+ assert.ok(app.includes('const FONT='));
+ assert.ok(app.includes('"Teko"'));
+ assert.ok(app.includes('const ICON_FONT='));
+ assert.ok(app.includes('document.fonts.load('));
+ assert.ok(app.includes("invalidate('font-ready')"));
+ assert.ok(draw.includes('isIcon?ICON_FONT:FONT'));
+ assert.ok(app.includes('const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;'));
+ assert.ok(app.includes('const BUTTON_ICON_FONT_SIZE=18;'));
+});
