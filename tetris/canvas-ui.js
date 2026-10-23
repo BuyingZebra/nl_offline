@@ -44,12 +44,26 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='u
  const terminal=role==='terminal'&&!isIcon;
  g.font=(terminal?'400 ':'700 ')+size+'px '+
   (isIcon?ICON_FONT:terminal?TERMINAL_FONT:FONT);
- g.textAlign=align;g.textBaseline='middle';
+ g.textAlign=align;
  g.letterSpacing=(size*LETTER_SPACING_EM).toFixed(3)+'px';
  g.fillStyle=color;
  const lines=wrapText(str,maxWidth),step=size*1.2;
- for(let i=0;i<lines.length;i++)
-  g.fillText(lines[i],x,y+(i-(lines.length-1)/2)*step);
+ for(let i=0;i<lines.length;i++){
+  const line=lines[i],centerY=y+(i-(lines.length-1)/2)*step;
+  // Canvas "middle" tracks the em box, not the ink of the selected font.
+  // Align the measured visible glyph bounds with the existing text anchor.
+  g.textBaseline='alphabetic';
+  const metrics=g.measureText(line);
+  const ascent=metrics.actualBoundingBoxAscent;
+  const descent=metrics.actualBoundingBoxDescent;
+  if(Number.isFinite(ascent)&&Number.isFinite(descent)&&ascent+descent>0){
+   g.fillText(line,x,centerY+(ascent-descent)/2);
+  }else{
+   // Older contexts exposing width alone keep the previous behavior.
+   g.textBaseline='middle';
+   g.fillText(line,x,centerY);
+  }
+ }
  g.letterSpacing='0px';
 }
 function rect(x,y,w,h,color){const g=getContext();g.fillStyle=color;g.fillRect(x,y,w,h);}
