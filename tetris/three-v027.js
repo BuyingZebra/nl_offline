@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v068';
-import {createCanvasUI} from './canvas-ui.js?v070';
+import {createCanvasUI} from './canvas-ui.js?v071';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
 import {createPerfMonitor} from './perf-monitor.js?v062';
@@ -31,9 +31,10 @@ const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')
 const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#292929',dark:'#060606'};
-// Typography-only Teko trial; existing control icons retain their former font.
+// Fonts follow Fallout 4's UI/terminal roles; original icons stay intact.
 const ICON_FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
-const FONT='"Teko",'+ICON_FONT;
+const FONT='"Roboto Condensed",'+ICON_FONT;
+const TERMINAL_FONT='"Share Tech Mono",'+ICON_FONT;
 // Persist only user-facing settings; interface treatment is fixed design.
 const DEFAULT=DEFAULT_EFFECTS;
 const THREE_BUILD_VERSION=getBuildVersion(document);
@@ -281,14 +282,14 @@ initialsInput.addEventListener('input',()=>{
 initialsInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveScore();}});
 const {panel,wrapText,text,rect,region,key}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,getPressed:()=>inputController?.pressed,
- C,FONT,ICON_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
+ C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
 });
-// Canvas text drawn before web-font availability must be redrawn once.
-// A failed font fetch never delays gameplay or disrupts the fallback font.
+// Do not block first paint on web fonts; redraw once either face loads.
 if(document.fonts?.load){
- document.fonts.load('700 20px "Teko"').then(faces=>{
-  if(!faces.length)return;
+ const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"'];
+ Promise.allSettled(specs.map(spec=>document.fonts.load(spec))).then(results=>{
+  if(!results.some(r=>r.status==='fulfilled'&&r.value.length))return;
   layers.mark('base','board','sidebar','controls');
   invalidate('font-ready');
  }).catch(()=>{});
@@ -510,8 +511,8 @@ function paintBaseGame(){
  stage(r,false,true);
  drawSidebar(r);
  drawControls(r);
- text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63);
- text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34);
+ text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,'terminal');
+ text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,'terminal');
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
