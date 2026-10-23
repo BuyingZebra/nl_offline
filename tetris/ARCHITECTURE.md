@@ -1,4 +1,4 @@
-# Tetris System architecture (V071)
+# Tetris System architecture (V072)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -88,3 +88,7 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Share Tech Mono Regular (400) is used for numeric statistics, top-five entries, settings values, score entry readout and Program/Version metadata. Column centers and sizing remain unchanged.
 - Icons still use the original system monospace font. The role switch is handled by the Canvas2D text function before wrapping and measuring.
 - Google Fonts supplies the two faces with the system monospace as an offline fallback; font readiness triggers redraw without blocking gameplay. Fonts are stylistically accurate substitutes, not copied game assets.
+
+## V072 vertical typographic centering
+- The shared Canvas text routine uses `actualBoundingBoxAscent` and `actualBoundingBoxDescent` to center the painted glyph bounds on the preexisting text anchors. The role-based font families, alignment, button dimensions and touch hitboxes remain unchanged.
+- Older Canvas implementations exposing only width fall back to the previous `middle` baseline. Three focused tests cover fonts, buttons and compatibility.
