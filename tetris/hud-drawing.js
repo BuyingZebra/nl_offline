@@ -20,9 +20,9 @@ function drawSidebar(r){
  }
  panel(stats.x,stats.y,stats.w,stats.h,9,C.panel);
  text('BEST',sx+sw/2,stats.y+12,9,C.weak,'center');
- text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center');
+ text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center',Infinity,'terminal');
  text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center');
- text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center');
+ text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center',Infinity,'terminal');
 }
 function drawControls(r){
  const game=getGame();
@@ -32,9 +32,9 @@ function drawControls(r){
  text('LEVEL',px+2,ly,9,C.weak,'left');
  text('SCORE',px+pw/2,ly,9,C.weak,'center');
  text('LINES',px+pw-2,ly,9,C.weak,'right');
- text(fmt(game.level,2),px+2,ly+23,s);
- text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center');
- text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right');
+ text(fmt(game.level,2),px+2,ly+23,s,C.ink,'left',Infinity,'terminal');
+ text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center',Infinity,'terminal');
+ text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right',Infinity,'terminal');
  rect(px,r.dy+r.deckPad+UI_SPACE.scoreHeight-1,pw,1,C.border);
  const gap=UI_SPACE.padGap;
  const cy=r.dy+r.deckPad+UI_SPACE.scoreHeight+r.deckGap,ch=r.buttonH;
