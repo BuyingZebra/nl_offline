@@ -181,23 +181,44 @@ test('cancel clears active pointer so a new touch can start',()=>{
 });
 test('version imports controllers and does not duplicate pointer listeners',()=>{
  const js=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(js.includes("from './canvas-ui.js?v070'"));
+ assert.ok(js.includes("from './canvas-ui.js?v071'"));
  assert.ok(js.includes("from './input-controller.js?v065'"));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(js));
  assert.ok(!js.includes("screen.addEventListener('pointerdown'"));
 });
 
-test('V070 Teko pass retains original icon typography and control geometry',()=>{
+
+test('V071 loads both Fallout UI fonts and keeps the original button dimensions',()=>{
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
- const draw=fs.readFileSync(path.join(__dirname,'canvas-ui.js'),'utf8');
- assert.ok(html.includes('family=Teko:wght@700'));
- assert.ok(app.includes('const FONT='));
- assert.ok(app.includes('"Teko"'));
- assert.ok(app.includes('const ICON_FONT='));
- assert.ok(app.includes('document.fonts.load('));
- assert.ok(app.includes("invalidate('font-ready')"));
- assert.ok(draw.includes('isIcon?ICON_FONT:FONT'));
+ assert.ok(html.includes('family=Roboto+Condensed:wght@700'));
+ assert.ok(html.includes('family=Share+Tech+Mono'));
+ assert.ok(!html.includes('family=Teko'));
+ assert.ok(app.includes('"Roboto Condensed"'));
+ assert.ok(app.includes('"Share Tech Mono"'));
+ assert.ok(app.includes('Promise.allSettled('));
  assert.ok(app.includes('const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;'));
  assert.ok(app.includes('const BUTTON_ICON_FONT_SIZE=18;'));
+});
+test('V071 paints interface, terminal readouts and icons in correct fonts',()=>{
+ const events=[];
+ const g={beginPath(){},roundRect(){},fill(){},stroke(){},fillRect(){},
+  measureText:s=>({width:String(s).length*6}),
+  fillText:s=>events.push({text:s,font:g.font})};
+ const ui=factory('canvas-ui.js','createCanvasUI')({
+  getContext:()=>g,getRegions:()=>[],getPressed:()=>null,
+  C:{panel:'#111',border:'#666',solid:'#222',bright:'#ccc',button:'#080',ink:'#fff',dark:'#000'},
+  FONT:'"Roboto Condensed",sans-serif',TERMINAL_FONT:'"Share Tech Mono",monospace',
+  ICON_FONT:'monospace',LETTER_SPACING_EM:.13,
+  MAIN_ACTION_LABELS:new Set(),BUTTON_ICON_LABELS:new Set(['◀']),
+  MAIN_ACTION_FONT_SIZE:16,BUTTON_FONT_SIZE:14,BUTTON_ICON_FONT_SIZE:18
+ });
+ ui.text('SCORE',5,6,12);
+ ui.text('004120',5,24,12,'#fff','left',Infinity,'terminal');
+ ui.text('◀',5,44,18);
+ assert.deepEqual(events.map(e=>e.font),[
+  '700 12px "Roboto Condensed",sans-serif',
+  '400 12px "Share Tech Mono",monospace',
+  '700 18px monospace'
+ ]);
 });
