@@ -280,3 +280,40 @@ test('V072 retains width-only TextMetrics fallback for compatibility',()=>{
  assert.deepEqual(draws.map(x=>x.y),[44,56]);
  assert.ok(draws.every(x=>x.baseline==='middle'));
 });
+
+
+test('V073 approved screenshot defaults preserve all eight effect roles and values',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'display-settings-catalog.js'),'utf8');
+ const data=new Function(src.replace(/export const /g,'const ')
+  .replace(/export function /g,'function ')+
+  '\nreturn {DEFAULT_EFFECTS,DISPLAY_EFFECTS,effectSettingValue,effectSettingToStored};')();
+ const d=data.DEFAULT_EFFECTS;
+ assert.deepEqual({...d},{
+  phosphor:true,bloom:true,bloomStrength:.22,
+  ghost:false,ghostX:2,ghostY:0,ghostStrength:22,
+  scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
+  softness:false,softnessStrength:.64,softnessRadius:3,
+  vignette:true,vignetteAmount:.57
+ });
+ assert.equal(Object.isFrozen(d),true);
+ assert.deepEqual(
+  [data.effectSettingValue('scanlineOpacity',d,{ghost:true,sound:true}),
+   data.effectSettingValue('vignetteAmount',d,{ghost:true,sound:true}),
+   data.effectSettingValue('bloomStrength',d,{ghost:true,sound:true}),
+   data.effectSettingValue('ghostStrength',d,{ghost:true,sound:true}),
+   data.effectSettingValue('softnessStrength',d,{ghost:true,sound:true}),
+   data.effectSettingValue('softnessRadius',d,{ghost:true,sound:true})],
+  [49,57,22,22,64,3]
+ );
+ assert.deepEqual(data.DISPLAY_EFFECTS.map(x=>x.id),
+  ['phosphor','scanlines','vignette','bloom','ghost','softness','piece','sound']);
+});
+test('V073 defaults reach both fresh sessions and Restore Defaults, without overwriting saved FX',()=>{
+ const js=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
+ assert.ok(js.includes("from './display-settings-catalog.js?v073'"));
+ assert.ok(js.includes('let FX={...DEFAULT};'));
+ assert.ok(js.includes('if(typeof s[k]===typeof v)FX[k]=s[k]'));
+ assert.ok(js.includes("if(act==='resetFX'){"));
+ assert.ok(js.includes('FX={...DEFAULT};persist();'));
+ assert.ok(js.includes("let theme=load('fieldAtlasThemeV06','green')"));
+});
