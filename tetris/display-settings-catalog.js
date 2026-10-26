@@ -1,11 +1,12 @@
-/* V063 — declarative user-facing effect settings, independent of rendering.
- * These defaults and slider ranges intentionally match the approved V062 UI.
+/* V073 — user-approved display defaults taken from the October 26 screenshot.
+ * The settings schema and slider ranges are unchanged.
+ * Saved preferences still override defaults; Restore Defaults reapplies these.
  */
-export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStrength:.30,
- ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
- scanlines:true,scanlinePreset:'original',scanlineOpacity:20,
- softness:true,softnessStrength:.64,softnessRadius:3,
- vignette:true,vignetteAmount:.39});
+export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStrength:.22,
+ ghost:false,ghostX:2,ghostY:0,ghostStrength:22,
+ scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
+ softness:false,softnessStrength:.64,softnessRadius:3,
+ vignette:true,vignetteAmount:.57});
 export const DISPLAY_EFFECTS=[
  {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
  {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
