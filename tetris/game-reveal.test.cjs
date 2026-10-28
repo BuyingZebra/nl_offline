@@ -1,4 +1,4 @@
-/* V082: one global post-composite luminance curve, no canvas overlay. */
+/* V083: one global post-composite luminance curve, no canvas overlay. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -8,7 +8,7 @@ const code=fs.readFileSync(path.join(__dirname,'game-reveal.js'),'utf8');
 const {GAME_REVEAL_DURATION_MS,gameRevealProgress}=new Function(
  code.replace(/export const /g,'const ').replace(/export function /g,'function ')+
  '\nreturn {GAME_REVEAL_DURATION_MS,gameRevealProgress};')();
-test('V082 starts the entire finished image at zero and reaches 100% at 850ms',()=>{
+test('V083 starts the entire finished image at zero and reaches 100% at 850ms',()=>{
  assert.equal(GAME_REVEAL_DURATION_MS,850);
  assert.equal(gameRevealProgress(0),0);
  assert.equal(gameRevealProgress(425),.5);
@@ -18,7 +18,7 @@ test('V082 starts the entire finished image at zero and reaches 100% at 850ms',(
  for(let t=1;t<=850;t++)
   assert.ok(gameRevealProgress(t)>=gameRevealProgress(t-1));
 });
-test('V082 no independent scene mask, overlay texture or masked UI surfaces remain',()=>{
+test('V083 no independent scene mask, overlay texture or masked UI surfaces remain',()=>{
  const main=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
  assert.ok(main.includes("gameRevealProgress(now-gameRevealStartedAt)"));
  assert.ok(main.includes("if(!gameRevealFirstFrame)gameRevealStartedAt=now"));
@@ -31,14 +31,15 @@ test('V082 no independent scene mask, overlay texture or masked UI surfaces rema
  assert.ok(!main.includes('boot.rollTurns(elapsed)'));
  assert.ok(main.includes('compositor.setStartupRoll(0)'));
 });
-test('V082 both source images pass through same luminance after glow, before scanlines',()=>{
+test('V083 terminal and game fade together after scanlines above a fixed base',()=>{
  const compositor=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
  const glow=compositor.indexOf('composer.addPass(glow)');
- const vignette=compositor.indexOf('composer.addPass(edgeVignette)');
  const crt=compositor.indexOf('composer.addPass(scanlineOverlay)');
- assert.ok(glow<vignette&&vignette<crt,'luminance control is downstream of glow but upstream of CRT');
+ const gate=compositor.indexOf('composer.addPass(bootRoll)');
+ assert.ok(glow<crt&&crt<gate,'fixed CRT pattern precedes the independent base and content fade');
  assert.ok(compositor.includes('uContentLuminance'));
- assert.ok(compositor.includes('mix(vec3(8.0/255.0),finished,clamp(uContentLuminance,0.0,1.0))'));
+ assert.ok(compositor.includes('uDisplayBase:{value:new THREE.Color(0x080808)}'));
+ assert.ok(compositor.includes('uDisplayBase+emitted*clamp(uContentLuminance,0.0,1.0)'));
  assert.ok(compositor.includes('gl_FragCoord.x,uScreenHeight-gl_FragCoord.y'));
  assert.ok(!compositor.includes('uContentCollapse'));
  const boot=fs.readFileSync(path.join(__dirname,'boot-sequence.js'),'utf8');
