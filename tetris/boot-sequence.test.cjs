@@ -1,4 +1,4 @@
-/* V078: deterministic terminal tap gate, physics-inspired startup and poweroff. */
+/* V079: deterministic terminal tap gate, physics-inspired startup and poweroff. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -51,7 +51,7 @@ test('grayscale loading canvas paints immediately, with full version: prefix',()
  assert.equal(x.boot.canvas,x.canvas);
  assert.equal(x.canvas.width,786);
  assert.equal(x.canvas.height,1704);
- assert.equal(x.painted[0][4],'078');
+ assert.equal(x.painted[0][4],'079');
  x.advance(2750);
  assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.boot.isRolling(),false);
@@ -81,27 +81,28 @@ test('early tap does not interrupt diagnostics or touch hidden gameplay',()=>{
  assert.equal(x.boot.waitingForTap,true);
  assert.equal(rolls,0);
 });
-test('one touch collapses real GPU terminal, then one full second of black',()=>{
+test('one touch collapses only GPU content; stationary scanlines persist through near-black hold',()=>{
  const x=harness();let rolls=0;
  x.boot.firstFrame(()=>rolls++);
  x.boot.gpuFrame();
  x.advance(6400);
  x.tap();
  assert.equal(x.boot.waitingForTap,false);
- assert.equal(x.rootClasses.has('boot-poweroff'),true);
- assert.equal(x.classes.has('boot-black'),false);
- assert.equal(x.boot.isRolling(),false,'game source must stay terminal during collapse');
- x.advance(6544);
- assert.equal(x.veil.hidden,true,'CRT remains visible through snap-off');
+ assert.equal(x.rootClasses.has('boot-poweroff'),false,'never scale the composited screen');
+ assert.equal(x.classes.has('boot-black'),false,'never cover the CRT mask');
+ assert.equal(x.boot.isRolling(),false,'game source stays terminal until handoff');
+ assert.equal(x.boot.powerOffProgress(),0);
+ x.advance(6472);
+ assert.ok(x.boot.powerOffProgress()>.4&&x.boot.powerOffProgress()<.6);
+ assert.equal(x.veil.hidden,true,'CRT remains visible while only content collapses');
  x.advance(6545);
- assert.equal(x.veil.hidden,false,'near-black cover is visible');
- assert.equal(x.classes.has('boot-black'),true);
- assert.equal(x.rootClasses.has('boot-poweroff'),false);
+ assert.equal(x.boot.powerOffProgress(),1);
+ assert.equal(x.veil.hidden,true,'near-black is generated inside CRT shader');
  assert.equal(x.boot.isRolling(),false);
  x.advance(7544);
- assert.equal(rolls,0,'1-second black interval has not ended');
+ assert.equal(rolls,0,'one-second near-black intermission has not ended');
  x.advance(7545);
- assert.equal(rolls,1,'new game roll begins under black cover');
+ assert.equal(rolls,1,'rolling game begins after near-black hold');
  assert.equal(x.boot.isRolling(),true);
  assert.equal(x.boot.revealed,false);
  x.boot.rollFrame();
@@ -150,20 +151,22 @@ test('four-turn roll retains constant initial speed and smooth final rest',()=>{
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
-test('V078 source never uses hue rotation or an abbreviated version label',()=>{
+test('V079 screen uses original compositor and long-form version labels',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const terminal=fs.readFileSync(path.join(__dirname,'terminal-screen.js'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('name="tetris-build" content="078"'));
+ assert.ok(html.includes('name="tetris-build" content="079"'));
  assert.ok(!html.includes('hue-rotate'));
- assert.ok(html.includes('boot-poweroff #display'));
+ assert.ok(!html.includes('boot-poweroff #display'));
+ assert.ok(!html.includes('@keyframes boot-collapse'));
+ assert.ok(source.includes('powerOffProgress(){return powerOffProgress();}'));
  assert.ok(terminal.includes("'version: '+version"));
  assert.ok(terminal.includes('TOUCH SCREEN TO CONTINUE'));
  assert.ok(app.includes("'version: '+THREE_BUILD_VERSION"));
  assert.ok(app.includes('phosphorStrength:electrical?.phosphor??1'));
 });
 
-test('V078 startup has staged signal disruptions and no automatic transition',()=>{
+test('V079 startup retains staged signal disruptions and manual transition',()=>{
  const x=harness();let launches=0;
  x.boot.firstFrame(()=>launches++);
  x.advance(6000);
