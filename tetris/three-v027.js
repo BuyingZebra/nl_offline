@@ -3,7 +3,7 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v068';
+import {createCompositor} from './compositor.js?v074';
 import {createCanvasUI} from './canvas-ui.js?v072';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -80,6 +80,10 @@ let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let queued=false,lastTime=performance.now(),audioCtx=null;
+// Terminal is independent of WebGL; only a completed frame can release it.
+const boot=window.FieldAtlasTetrisBoot;
+let firstComposedFrame=false,bootRolling=false,bootRollFirstFrame=false;
+let bootRollStartedAt=0;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
 // Small rolling history: no overlay, network, persistent storage, or console spam.
@@ -196,6 +200,12 @@ function tone(freq=240,len=.04){
 }
 function invalidate(reason='input'){
  layers.reason(reason);requestFrame();
+}
+function beginBootRoll(){
+ if(bootRolling)return;
+ bootRollStartedAt=performance.now()-120;
+ bootRolling=true;
+ invalidate('boot-roll');
 }
 // Core synchronously removes rows on lock; this renderer-only observer
 // captures the exact filled squares before deletion for the short animation.
@@ -762,6 +772,13 @@ function frame(now){
    if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
+  if(bootRolling){
+   // Steady rolling speed, easing smoothly to exactly two full revolutions.
+   const elapsed=clamp((now-bootRollStartedAt)/1550,0,1);
+   compositor.setStartupRoll(elapsed>=1?0:boot.rollTurns(elapsed));
+   layers.reason('boot-roll');
+   if(elapsed>=1)bootRolling=false;
+  }
   if(layers.needsRender()){
    perf.recordRedrawReasons(layers.beginRender());
    paintGame();
@@ -781,6 +798,14 @@ function frame(now){
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
+   if(!firstComposedFrame){
+    firstComposedFrame=true;
+    boot?.firstFrame?.(beginBootRoll);
+   }
+   if(bootRolling&&!bootRollFirstFrame){
+    bootRollFirstFrame=true;
+    boot?.rollFrame?.();
+   }
    perf.recordWebglCalls(renderer.info.render.calls);
    const memory=renderer.info.memory;
    perf.setGPUStats({...compositor.passStats(),
@@ -789,7 +814,7 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
-  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||bootRolling||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
