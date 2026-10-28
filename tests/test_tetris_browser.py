@@ -41,7 +41,7 @@ with sync_playwright() as p:
         "() => window.FieldAtlasTetrisBoot?.revealed === true",
         timeout=30000,
     )
-    page.wait_for_timeout(1650)  # two turns roll and settle
+    page.wait_for_timeout(1450)  # four rapid turns finish in 1.35s
     assert page.locator("#screen").count() == 1
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
