@@ -130,7 +130,7 @@ function effectPreview(id){
 }
 const EFFECT_PREVIEWS=Object.fromEntries(
  DISPLAY_EFFECTS.map(effect=>[effect.id,effectPreview(effect.id)]));
-// Match the existing rounded panel outline around every thumbnail, with a
+// Match the shared square panel outline around every thumbnail, with a
 // subtle 1px light-top/left and dark-bottom/right rim for terminal-style bevel.
 function drawEffectThumbnail(id,x,y,size){
  const g=getContext();
@@ -138,7 +138,7 @@ function drawEffectThumbnail(id,x,y,size){
  const inset=3,inner=Math.max(1,size-2*inset);
  g.save();
  g.beginPath();
- g.roundRect(x+inset,y+inset,inner,inner,Math.min(6,inner/2));
+ g.rect(x+inset,y+inset,inner,inner);
  g.clip();
  g.drawImage(EFFECT_PREVIEWS[id],x+inset,y+inset,inner,inner);
  g.restore();
@@ -382,7 +382,7 @@ function drawScores(q){
   text(label,centers[column],headY,headSize,C.weak,'center');
  top+=headerH;
  const entries=getHighs(),font=Math.min(10,Math.max(8,w*.039));
- // Single transparent chart outline with only four beveled outer corners.
+ // Single transparent chart outline with square outer corners.
  // Straight internal lines complete the square outline of all five rows.
  const tableH=5*rowH;
  panel(ix,top,inner,tableH,8,null,C.border);
