@@ -1,4 +1,4 @@
-/* V079: deterministic terminal tap gate, physics-inspired startup and poweroff. */
+/* V080: deterministic terminal tap gate, physics-inspired startup and poweroff. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -51,7 +51,7 @@ test('grayscale loading canvas paints immediately, with full version: prefix',()
  assert.equal(x.boot.canvas,x.canvas);
  assert.equal(x.canvas.width,786);
  assert.equal(x.canvas.height,1704);
- assert.equal(x.painted[0][4],'079');
+ assert.equal(x.painted[0][4],'080');
  x.advance(2750);
  assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.boot.isRolling(),false);
@@ -60,6 +60,7 @@ test('no auto-advance: diagnostic terminal holds indefinitely until touch',()=>{
  const x=harness();
  let rolls=0;
  x.boot.firstFrame(()=>rolls++);
+ x.boot.gpuFrame();
  x.boot.gpuFrame();
  x.advance(6200);
  assert.equal(x.boot.waitingForTap,true);
@@ -74,6 +75,7 @@ test('early tap does not interrupt diagnostics or touch hidden gameplay',()=>{
  const x=harness();let rolls=0;
  x.boot.firstFrame(()=>rolls++);
  x.boot.gpuFrame();
+ x.boot.gpuFrame();
  x.advance(2000);
  assert.deepEqual(x.tap(),{blocked:true,stopped:true});
  assert.equal(x.boot.isRolling(),false);
@@ -84,6 +86,7 @@ test('early tap does not interrupt diagnostics or touch hidden gameplay',()=>{
 test('one touch collapses only GPU content; stationary scanlines persist through near-black hold',()=>{
  const x=harness();let rolls=0;
  x.boot.firstFrame(()=>rolls++);
+ x.boot.gpuFrame();
  x.boot.gpuFrame();
  x.advance(6400);
  x.tap();
@@ -118,6 +121,7 @@ test('slow GPU readiness cannot reveal the game or enable tap prematurely',()=>{
  x.tap();
  assert.equal(x.boot.isRolling(),false);
  x.boot.gpuFrame();
+ x.boot.gpuFrame();
  assert.equal(x.boot.waitingForTap,false,'the timeline starts at first GPU frame');
  x.advance(15100);
  assert.equal(x.boot.waitingForTap,true);
@@ -130,6 +134,7 @@ test('phosphor intensity never exceeds 100%; brief voltage spike only changes lu
  x.boot.firstFrame(()=>{});
  assert.deepEqual(x.boot.effects(),{phosphor:0,voltage:1,glitch:0,clock:0});
  x.advance(500);
+ x.boot.gpuFrame();
  x.boot.gpuFrame();
  x.advance(510);
  assert.ok(x.boot.effects().phosphor>0&&x.boot.effects().phosphor<1);
@@ -151,11 +156,11 @@ test('four-turn roll retains constant initial speed and smooth final rest',()=>{
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
-test('V079 screen uses original compositor and long-form version labels',()=>{
+test('V080 screen uses original compositor and long-form version labels',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const terminal=fs.readFileSync(path.join(__dirname,'terminal-screen.js'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('name="tetris-build" content="079"'));
+ assert.ok(html.includes('name="tetris-build" content="080"'));
  assert.ok(!html.includes('hue-rotate'));
  assert.ok(!html.includes('boot-poweroff #display'));
  assert.ok(!html.includes('@keyframes boot-collapse'));
@@ -166,21 +171,35 @@ test('V079 screen uses original compositor and long-form version labels',()=>{
  assert.ok(app.includes('phosphorStrength:electrical?.phosphor??1'));
 });
 
-test('V079 startup retains staged signal disruptions and manual transition',()=>{
+test('V080 retains glitch code but disables synchronization tearing',()=>{
  const x=harness();let launches=0;
  x.boot.firstFrame(()=>launches++);
  x.advance(6000);
- assert.equal(x.boot.waitingForTap,false,'no GPU frame means no boot progression');
+ assert.equal(x.boot.waitingForTap,false);
  x.boot.gpuFrame();
- assert.equal(x.boot.elapsed,0,'GPU presentation anchors timeline');
- x.advance(6275); // t=275ms: first horizontal sync fault
- assert.ok(x.boot.effects().glitch>0);
- assert.ok(x.boot.effects().glitch<=1);
- x.advance(8110); // t=2110ms: mid-diagnostic sync disturbance
- assert.ok(x.boot.effects().glitch>0);
+ assert.equal(x.veil.hidden,false,'first GPU frame remains safely covered');
+ x.boot.gpuFrame();
+ assert.equal(x.veil.hidden,true,'second GPU frame exposes terminal');
+ assert.equal(x.boot.elapsed,0,'GPU readiness anchors timeline');
+ x.advance(6275);
+ assert.equal(x.boot.effects().glitch,0,'first former glitch window is disabled');
+ x.advance(8110);
+ assert.equal(x.boot.effects().glitch,0,'second former glitch window is disabled');
  x.advance(12200);
  assert.equal(x.boot.waitingForTap,true);
- assert.equal(launches,0);
+ assert.equal(launches,0,'tap gate is unchanged');
  x.advance(20000);
- assert.equal(launches,0,'completed terminal remains until touch');
+ assert.equal(launches,0,'no automatic transition');
+ assert.ok(source.includes('const SIGNAL_GLITCH_ENABLED=false;'));
+ assert.ok(source.includes('const faults=[[265,322,.35]'));
+ assert.ok(source.includes('if(SIGNAL_GLITCH_ENABLED)for('),
+  'original timings are preserved behind a feature flag');
+});
+test('V080 removes competing redirect and preserves continuous initial blackout',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
+ const entry=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+ assert.ok(!entry.includes('http-equiv="refresh"'));
+ assert.ok(entry.includes('location.replace('));
+ assert.ok(html.includes('z-index:20;background:#000;'));
+ assert.ok(html.includes('name="tetris-build" content="080"'));
 });
