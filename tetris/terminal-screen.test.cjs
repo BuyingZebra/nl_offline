@@ -11,7 +11,7 @@ function setup(){
   save(){},restore(){},translate(){},scale(){},beginPath(){},
   moveTo(){},lineTo(){},stroke(){strokes.push(this.strokeStyle);},
   strokeRect(){strokes.push(this.strokeStyle);},
-  fillRect(x,y,w,h){fill.push({x,y,w,h,color:this.fillStyle});},
+  fillRect(x,y,w,h){fill.push({x,y,w,h,color:this.fillStyle,alpha:this.globalAlpha??1});},
   fillText(v,x,y){text.push({v,x,y,color:this.fillStyle,font:this.font});}
  };
  const window={};
@@ -20,7 +20,7 @@ function setup(){
 }
 test('approved FIRST concept fills screen with header, statuses, dump and prompt',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6720 ,'080');
+ x.terminal.paint(x.g,393,852,6720 ,'081');
  const strings=x.text.map(item=>item.v);
  assert.ok(strings.includes('NOMAD // TETRIS SYSTEM'));
  assert.ok(strings.includes('BOOT SEQUENCE INITIATED'));
@@ -36,7 +36,7 @@ test('approved FIRST concept fills screen with header, statuses, dump and prompt
 });
 test('boot source remains exclusively gray, separate from phosphor colour',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6500 ,'080');
+ x.terminal.paint(x.g,393,852,6500 ,'081');
  const color=v=>/^#(?:080808|101010)$/.test(v)||/^rgb\((\d+),\1,\1\)$/.test(v);
  assert.ok(x.fill.every(v=>color(v.color)));
  assert.ok(x.text.every(v=>color(v.color)));
@@ -56,52 +56,52 @@ test('game and memory-dump miniature use one exact 8-layer beveled tile face',()
 });
 test('terminal is responsive and never scales out of its own screen bounds',()=>{
  const x=setup();
- x.terminal.paint(x.g,844,390,6500 ,'080');
+ x.terminal.paint(x.g,844,390,6500 ,'081');
  assert.ok(x.fill.length>10);
  assert.ok(x.text.length>20);
 });
 
-test('V080 shows long-form version and touch instruction only after readiness',()=>{
+test('V081 shows long-form version and touch instruction only after readiness',()=>{
  const a=setup();
- a.terminal.paint(a.g,393,852,6000,'080',false);
- assert.ok(a.text.some(item=>item.v==='version: 080'));
+ a.terminal.paint(a.g,393,852,6000,'081',false);
+ assert.ok(a.text.some(item=>item.v==='version: 081'));
  assert.ok(a.text.some(item=>item.v==='READY TO PLAY.'));
  assert.ok(!a.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  const b=setup();
- b.terminal.paint(b.g,393,852,6300,'080',true);
+ b.terminal.paint(b.g,393,852,6300,'081',true);
  assert.ok(b.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  assert.ok(!b.text.some(item=>item.v==='READY TO PLAY.'));
 });
 
-test('V080 startup fades uniformly from off to #080808 without any bright horizontal beam',()=>{
+test('V081 startup fades uniformly from off to #080808 without any bright horizontal beam',()=>{
  const off=setup();
- off.terminal.paint(off.g,393,852,0,'080',false);
+ off.terminal.paint(off.g,393,852,0,'081',false);
  assert.deepEqual(off.fill.map(v=>[v.w,v.h,v.color]),[[393,852,'rgb(0,0,0)']]);
  const mid=setup();
- mid.terminal.paint(mid.g,393,852,365,'080',false);
+ mid.terminal.paint(mid.g,393,852,365,'081',false);
  assert.equal(mid.fill.length,1,'no horizontal flash or additional raster geometry');
  assert.equal(mid.fill[0].w,393);
  assert.equal(mid.fill[0].h,852);
  const lit=setup();
- lit.terminal.paint(lit.g,393,852,680,'080',false);
+ lit.terminal.paint(lit.g,393,852,680,'081',false);
  assert.equal(lit.fill.length,1);
  assert.equal(lit.fill[0].color,'rgb(8,8,8)');
  const next=setup();
- next.terminal.paint(next.g,393,852,780,'080',false);
+ next.terminal.paint(next.g,393,852,780,'081',false);
  assert.ok(next.text.some(item=>item.v.length>0&&'NOMAD // TETRIS SYSTEM'.startsWith(item.v)));
  assert.ok(!next.text.some(item=>item.v==='BOOT SEQUENCE INITIATED'));
 });
-test('V080 preserves typed diagnostics, memory rows, modules and the touch prompt',()=>{
+test('V081 preserves typed diagnostics, memory rows, modules and the touch prompt',()=>{
  const early=setup();
- early.terminal.paint(early.g,393,852,1550 ,'080',false);
+ early.terminal.paint(early.g,393,852,1550 ,'081',false);
  assert.ok(early.text.some(item=>item.v.includes('BOOT')));
  assert.ok(!early.text.some(item=>item.v.startsWith('0x1000')));
  const middle=setup();
- middle.terminal.paint(middle.g,393,852,3160 ,'080',false);
+ middle.terminal.paint(middle.g,393,852,3160 ,'081',false);
  assert.ok(middle.text.some(item=>item.v.startsWith('0x1000')));
  assert.ok(!middle.text.some(item=>item.v.startsWith('0x1180')));
  const done=setup();
- done.terminal.paint(done.g,393,852,6400 ,'080',true);
+ done.terminal.paint(done.g,393,852,6400 ,'081',true);
  assert.ok(done.text.some(item=>item.v.startsWith('0x1180')));
  assert.ok(done.text.some(item=>item.v==='MODULES'));
  assert.ok(done.text.some(item=>item.v==='MEMORY'));
@@ -109,17 +109,19 @@ test('V080 preserves typed diagnostics, memory rows, modules and the touch promp
  assert.ok(done.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
 });
 
-test('V080 power-off squeezes only grayscale source while retaining full eight-layer tiles',()=>{
+test('V081 terminal fades to #080808 without scaling content or CRT effects',()=>{
  const frame=setup();
- frame.terminal.paint(frame.g,393,852,6600,'080',true,.5);
- assert.equal(frame.fill[0].color,'#080808','off-state background remains near-black');
- assert.ok(frame.text.some(t=>t.v==='TOUCH SCREEN TO CONTINUE'));
+ frame.terminal.paint(frame.g,393,852,6600,'081',true,.5);
+ assert.ok(frame.text.some(t=>t.v==='TOUCH SCREEN TO CONTINUE'),
+  'all terminal content remains in its original position until faded');
+ assert.equal(frame.fill.at(-1).color,'#080808');
+ assert.equal(frame.fill.at(-1).alpha,.5,'terminal overlay has correct mid-fade opacity');
  const fullyOff=setup();
- fullyOff.terminal.paint(fullyOff.g,393,852,6600,'080',true,1);
+ fullyOff.terminal.paint(fullyOff.g,393,852,6600,'081',true,1);
  assert.deepEqual(fullyOff.fill.map(v=>v.color),['#080808']);
- assert.equal(fullyOff.text.length,0,'terminal content disappears while background stays');
+ assert.equal(fullyOff.text.length,0,'content is absent after the fade');
  const compositor=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
- assert.ok(!compositor.includes('uContentCollapse'),'CRT pipeline must not animate');
+ assert.ok(!compositor.includes('uContentCollapse'),'CRT pipeline stays unchanged');
  assert.ok(compositor.includes('gl_FragCoord.x,uScreenHeight-gl_FragCoord.y'),
-  'scanlines remain fixed in screen pixel coordinates');
+  'scanline texture remains fixed in display pixel coordinates');
 });
