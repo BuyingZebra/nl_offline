@@ -148,23 +148,19 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
    }`
  });
  edgeSoftness.enabled=false;
- // Optical falloff plus the single shared post-composite content-luminance gate.
- // This is AFTER all meshes and bloom, but BEFORE the stationary CRT mask.
+ // Independent optical falloff; hue and image content stay intact.
  const edgeVignette=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uAmount:{value:.55},uStart:{value:.50},uContentLuminance:{value:1}},
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.55},uStart:{value:.50}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uAmount,uStart,uContentLuminance;
+   uniform float uAmount,uStart;
    void main(){
     vec4 src=texture2D(tDiffuse,vUv);
     vec2 p=abs(vUv*2.0-1.0);
     float edge=smoothstep(uStart,1.0,max(p.x,p.y));
     float corners=smoothstep(.86,1.4,length(p))*.2;
-    vec3 finished=src.rgb*(1.0-uAmount*clamp(edge+corners,0.0,1.0));
-    // Every visible object, popup and bloom fades with the same percentage;
-    // #080808 is the optical background, never a second fade mask.
-    gl_FragColor=vec4(mix(vec3(8.0/255.0),finished,clamp(uContentLuminance,0.0,1.0)),1.0);
+    gl_FragColor=vec4(src.rgb*(1.0-uAmount*clamp(edge+corners,0.0,1.0)),1.0);
    }`
  });
  edgeVignette.enabled=false;
@@ -260,11 +256,17 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // is added to the normal gameplay pipeline.
  const bootRoll=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uOffset:{value:0},
-   uGlitch:{value:0},uTime:{value:0}},
+   uGlitch:{value:0},uTime:{value:0},
+   uContentLuminance:{value:1},
+   // THREE.Color(hex) converts sRGB #080808 to LINEAR working-space RGB.
+   // Applying this base after the CRT mask makes the actual displayed
+   // inactive screen #080808, rather than gamma-lifted charcoal gray.
+   uDisplayBase:{value:new THREE.Color(0x080808)}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uOffset,uGlitch,uTime;
+   uniform float uOffset,uGlitch,uTime,uContentLuminance;
+   uniform vec3 uDisplayBase;
    void main(){
     float band=floor(vUv.y*48.0);
     float phase=floor(uTime*47.0);
@@ -275,7 +277,11 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     float dy=step(.97,noise)*.007*uGlitch;
     vec2 position=vec2(clamp(vUv.x+dx,0.0,1.0),
      fract(vUv.y+uOffset+dy));
-    gl_FragColor=texture2D(tDiffuse,position);
+    vec3 completed=texture2D(tDiffuse,position).rgb;
+    // Preserve #080808 independently of source/CRT/phosphor.
+    // All completed pixel differences share ONE luminance multiplier.
+    vec3 emitted=completed-uDisplayBase;
+    gl_FragColor=vec4(uDisplayBase+emitted*clamp(uContentLuminance,0.0,1.0),1.0);
    }`
  });
  bootRoll.enabled=false;
@@ -303,8 +309,10 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  tint.uniforms.uTint.value.copy(hues[theme]);
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
+ const faded=clamp(Number(contentLuminance),0,1);
+ bootRoll.uniforms.uContentLuminance.value=faded;
  bootRoll.enabled=(bootRoll.uniforms.uOffset.value>0.00001&&
-  bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001;
+  bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001||faded<1;
  glow.enabled=fx.bloom;
  glow.strength=fx.bloomStrength;
  edgeSoftness.enabled=fx.softness;
@@ -327,12 +335,8 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
    pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
   }
  }
- const masterLuminance=clamp(Number(contentLuminance),0,1);
- // The pass is normally optional; during a fade it must process all pixels
- // even when vignette is disabled. At 100%, normal pass behavior returns.
- edgeVignette.enabled=fx.vignette||masterLuminance<1;
- edgeVignette.uniforms.uAmount.value=fx.vignette?fx.vignetteAmount:0;
- edgeVignette.uniforms.uContentLuminance.value=masterLuminance;
+ edgeVignette.enabled=fx.vignette;
+ edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
  scanlineOverlay.enabled=fx.scanlines&&fx.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
@@ -347,7 +351,9 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   // Turns are complete-screen revolutions; a whole number is perfectly static.
   const offset=((Number(turns)||0)%1+1)%1;
   bootRoll.uniforms.uOffset.value=offset;
-  bootRoll.enabled=(offset>0.00001&&offset<0.99999)||bootRoll.uniforms.uGlitch.value>0.00001;
+  bootRoll.enabled=(offset>0.00001&&offset<0.99999)||
+   bootRoll.uniforms.uGlitch.value>0.00001||
+   bootRoll.uniforms.uContentLuminance.value<1;
  }
  function resize(W,H,DPR){
   composer.setPixelRatio(DPR);
