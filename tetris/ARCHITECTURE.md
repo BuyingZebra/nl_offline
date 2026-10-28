@@ -1,4 +1,4 @@
-# Tetris System architecture (V074)
+# Tetris System architecture (V075)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -106,3 +106,12 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - `boot.rollTurns(t)` integrates constant initial speed followed by smooth deceleration through exactly two whole signal revolutions, returning to a zero-offset static image. The optional `compositor.setStartupRoll()` GPU pass is inserted after the approved CRT mask and before Output and is disabled outside the handoff.
 - No saved effects, score/game logic, layout, normal CRT settings, or gameplay textures are changed. A slow init leaves the boot terminal visible, rather than revealing uninitialized content. Boot animation is one-shot per navigation, not per modal/game session.
 - Run `boot-sequence.test.cjs`, `compositor.test.cjs` and existing regressions. Confirm signal appearance/timing on a real phone; CPU tests cannot certify GPU rendering.
+
+
+## V075: approved first-concept NOMAD terminal
+- The original full-screen diagnostic concept (not the later two-column framed UI) is now an actual generated Canvas2D surface: a large NOMAD // TETRIS SYSTEM masthead, eight-plus diagnostic checks, deterministic hex/ASCII dump, small board illustration, modules/memory/signal readouts, READY prompt and square cursor.
+- `terminal-screen.js` produces **only grayscale pixels**. The scene uses that same source canvas as the loading cover and, after Three.js initializes, as the fullscreen scene texture. The native game compositor applies saved green/amber phosphor tint, bloom, CRT mask, vignette and optional effects. The before-WebGL fallback uses CSS approximation only until a real GPU terminal frame appears.
+- `FieldAtlasTerminal.tileFace` is the exact eight-layer shared drawing function for game cells, small-piece previews and terminal artwork; preserve its per-kind luminance, inset cap and top/bottom bevel.
+- `boot-sequence.js` coordinates startup typing/progressive reveal, the completed GPU terminal frame, terminal snap-off, and the rolling game pop-on. Existing gameplay uses the normal source canvas again once rolling starts, and its input is disabled until the game is revealed.
+- The saved V073 CRT controls, UI fonts, display settings, game layout, scores and physics are not changed. The terminal is transitory, rendered only during a cold navigation.
+- `boot-sequence.test.cjs` and `terminal-screen.test.cjs` verify readiness, luminance, shared blocks and terminal hierarchy; browser/phone visual validation remains necessary.
