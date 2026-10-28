@@ -1,4 +1,4 @@
-/* V078: terminal startup state machine, grayscale source / CRT GPU handoff.
+/* V079: terminal startup state machine, grayscale source / CRT GPU handoff.
  * Only user touch advances the fully populated, successfully rendered screen.
  * Phosphor colour ramps 0..100%; electrical voltage may briefly spike
  * luminance, never the selected green/amber tint itself.
@@ -15,7 +15,7 @@
  let began=null;
  const SNAP_OFF_MS=145,BLACK_MS=1000,PHOSPHOR_RAMP_MS=160;
  let ready=false,presented=false,started=false,gameHandoff=false,revealed=false;
- let startRoll=null,notifyPaint=null,revision=0,gpuFirstSeenAt=null;
+ let startRoll=null,notifyPaint=null,revision=0,gpuFirstSeenAt=null,powerDownAt=null;
  function elapsed(){return began===null?0:Math.max(0,clock()-began);}
  function canContinue(){return presented&&elapsed()>=BOOT_MS&&!started;}
  function intensity(){
@@ -46,21 +46,29 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'078',canContinue());
+  Terminal.paint(ctx,w,h,elapsed(),'079',canContinue());
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
+ }
+ function powerOffProgress(){
+  if(!started||gameHandoff||powerDownAt===null)return 0;
+  return Math.max(0,Math.min(1,(clock()-powerDownAt)/SNAP_OFF_MS));
+ }
+ function animatePowerOff(){
+  // Only source-image content shrinks. The CRT compositor and its fixed
+  // scanline coordinates remain mounted and active throughout shutdown.
+  if(typeof notifyPaint==='function')notifyPaint();
+  if(powerOffProgress()<1)root.setTimeout(animatePowerOff,16);
  }
  function transition(){
   if(!canContinue())return false;
   started=true;
-  // Power down the ACTUAL GPU phosphor image, not the grayscale backup
-  // canvas. Otherwise the terminal flashes to an unrelated CSS hue.
-  doc.documentElement.classList.add('boot-poweroff');
+  powerDownAt=clock();
+  animatePowerOff();
   root.setTimeout(()=>{
-   // After the 145ms collapse, cover the screen with true neutral black.
-   veil.hidden=false;
-   veil.classList.add('boot-black');
-   doc.documentElement.classList.remove('boot-poweroff');
+   // The compositor now renders #080808 source throughout the blackout.
+   // No DOM black cover, scaling or re-colouring obscures the scanlines.
+   if(typeof notifyPaint==='function')notifyPaint();
    root.setTimeout(()=>{
     gameHandoff=true;
     if(typeof startRoll==='function')startRoll();
@@ -97,6 +105,7 @@
   get waitingForTap(){return canContinue();},
   isRolling(){return gameHandoff;},
   effects(){return intensity();},
+  powerOffProgress(){return powerOffProgress();},
   firstFrame(onStartRolling,onPaint){
    if(ready)return;
    ready=true;startRoll=onStartRolling;notifyPaint=onPaint;
