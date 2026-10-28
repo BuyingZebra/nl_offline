@@ -1,4 +1,4 @@
-/* V079: original NOMAD terminal; subdued off-to-near-black power-up.
+/* V079: original NOMAD terminal with retained beveled Tetris blocks and subdued power-up.
  * One source serves the immediate loading cover and the real CRT compositor.
  * No tint/glow/scanline is baked into this image: the game owns all FX.
  * The tetromino face function is shared with gameplay (no visual duplicates).
@@ -13,8 +13,20 @@
  const blocks=(g,x,y,w,h,kind)=>{
   const side=Math.min(w,h),gap=Math.max(.6,Math.min(1.3,side*.055));
   const level=28+190*(levels[kind]||.8);
-  g.fillStyle=gray(level-10);
-  g.fillRect(x+gap,y+gap,Math.max(1,w-2*gap),Math.max(1,h-2*gap));
+  const xx=x+gap,yy=y+gap,ww=Math.max(1,w-2*gap),hh=Math.max(1,h-2*gap);
+  const rim=Math.max(.65,Math.min(1.35,side*.08));
+  const rect=(a,b,c,d,t)=>{g.fillStyle=gray(t);g.fillRect(a,b,c,d);};
+  rect(xx,yy,ww,hh,level-26);
+  rect(xx,yy,ww,rim,level+18);
+  rect(xx,yy,rim,hh,level+12);
+  rect(xx,yy+hh-rim,ww,rim,level-38);
+  rect(xx+ww-rim,yy,rim,hh,level-32);
+  const inset=Math.min(3.2,Math.max(1.7,side*.145));
+  const fx=xx+inset,fy=yy+inset,fw=Math.max(1,ww-2*inset),fh=Math.max(1,hh-2*inset);
+  rect(fx,fy,fw,fh,level-10);
+  rect(fx,fy,fw,Math.max(.65,Math.min(1.15,side*.055)),level+20);
+  rect(fx,fy+fh-Math.max(.65,Math.min(1,side*.045)),fw,
+   Math.max(.65,Math.min(1,side*.045)),level-27);
  };
  // Fixed, deterministic sample board. All 4-cell previews are legal
  // Tetris shapes; the same face draws real falling and saved board blocks.
