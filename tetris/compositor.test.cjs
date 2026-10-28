@@ -176,3 +176,26 @@ test('V077 phosphor amount is strictly 0–100% and voltage is luminance-only',(
  assert.ok(shader.includes('clamp(uVoltage,1.0,1.2)'));
  assert.ok(!shader.includes('uTint.value.multiplyScalar'));
 });
+
+test('V078 startup sync tearing shares the dormant boot-roll pass',()=>{
+ const {pipeline,composer}=setup();
+ const signal=composer.passes[9],base={fx:states,theme:'green',
+  width:393,height:852,dpr:2,boardStatus:'playing',modalOpen:false};
+ pipeline.syncFX({...base,glitch:0,signalTime:0});
+ assert.equal(signal.enabled,false);
+ pipeline.syncFX({...base,glitch:.8,signalTime:2140});
+ assert.equal(signal.enabled,true);
+ assert.equal(signal.uniforms.uGlitch.value,.8);
+ assert.equal(signal.uniforms.uTime.value,2.14);
+ pipeline.syncFX({...base,glitch:5,signalTime:-50});
+ assert.equal(signal.uniforms.uGlitch.value,1);
+ assert.equal(signal.uniforms.uTime.value,0);
+ pipeline.syncFX({...base,glitch:0,signalTime:3000});
+ assert.equal(signal.enabled,false);
+ pipeline.setStartupRoll(.38);
+ assert.equal(signal.enabled,true);
+ pipeline.syncFX({...base,glitch:0});
+ assert.equal(signal.enabled,true,'existing vertical roll must remain enabled');
+ pipeline.setStartupRoll(0);
+ assert.equal(signal.enabled,false);
+});
