@@ -1,4 +1,4 @@
-/* V074: deterministic tests for the DOM boot/startup handoff. */
+/* V075: deterministic boot coordinator tests, no browser or GPU needed. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -6,61 +6,89 @@ const fs=require('node:fs');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'boot-sequence.js'),'utf8');
 function harness(){
- const jobs=[];
- const classes=new Set();
- const veil={hidden:false,classList:{
-  add:v=>classes.add(v),contains:v=>classes.has(v)
- }};
- const log={text:'',appendChild(node){this.text+=node.text;}};
- const cursor={classList:{add:v=>classes.add('cursor:'+v)}};
- const elements={'boot-overlay':veil,'boot-log':log,'boot-cursor':cursor};
- const document={getElementById:id=>elements[id],createTextNode:text=>({text})};
- const window={document,localStorage:{getItem:()=>null},
-  setTimeout(fn,delay){jobs.push({fn,delay});return jobs.length}};
+ const jobs=[],classes=new Set(),painted=[];
+ let now=0,rendered=0;
+ const ctx={setTransform(){}};
+ const canvas={width:0,height:0,getContext:()=>ctx};
+ const veil={hidden:false,
+  getBoundingClientRect:()=>({width:393,height:852}),
+  classList:{add:c=>classes.add(c),contains:c=>classes.has(c)}};
+ const document={getElementById:n=>n==='boot-overlay'?veil:n==='boot-canvas'?canvas:null};
+ const window={document,innerWidth:393,innerHeight:852,devicePixelRatio:2,
+  localStorage:{getItem:()=>null},
+  performance:{now:()=>now},
+  FieldAtlasTerminal:{paint:(...args)=>painted.push(args)},
+  setTimeout(fn,ms){jobs.push({at:now+ms,fn});return jobs.length;}
+ };
  new Function('window',source)(window);
- function next(){const task=jobs.shift();if(!task)return false;task.fn();return true;}
- function drain(max=2000){let i=0;while(next()&&i++<max){}assert.ok(i<max,'unbounded boot timer work');}
- return {boot:window.FieldAtlasTetrisBoot,veil,classes,log,cursor,jobs,next,drain};
+ function advance(time){
+  let loops=0;
+  while(jobs.some(j=>j.at<=time)){
+   if(++loops>250)throw Error('timer loop');
+   jobs.sort((a,b)=>a.at-b.at);
+   const next=jobs.shift();now=next.at;next.fn();
+  }
+  now=time;
+ }
+ return {boot:window.FieldAtlasTetrisBoot,veil,canvas,classes,painted,advance,
+  get clock(){return now},get pending(){return jobs.length}};
 }
-test('boot never exposes the game before a rendered GPU frame and typing completes',()=>{
+test('the actual grayscale terminal canvas is painted synchronously before imports',()=>{
  const x=harness();
  assert.ok(x.boot);
- x.drain();
- assert.ok(x.log.text.includes('TETRIS SYSTEM ........ READY'));
- assert.ok(!x.veil.hidden,'terminal remains on while GPU is not ready');
- let rolling=0;
- x.boot.firstFrame(()=>rolling++);
- assert.equal(rolling,0,'shutdown takes a short visible interval');
- assert.ok(x.classes.has('boot-off'));
- x.next();
- assert.equal(rolling,1);
- assert.ok(!x.veil.hidden,'do not reveal unrendered / unrolled pixels');
- x.boot.rollFrame();
- assert.equal(x.veil.hidden,true);
- x.boot.rollFrame();
- assert.equal(rolling,1,'handoff is once-only');
-});
-test('first GPU frame may arrive before typing; text finishes before shutdown',()=>{
- const x=harness();
- let rolling=0;
- x.boot.firstFrame(()=>rolling++);
- assert.equal(rolling,0);
- assert.ok(!x.classes.has('boot-off'));
- x.drain();
- assert.equal(rolling,1,'starts only after typewriter and snap-off');
+ assert.equal(x.boot.canvas,x.canvas);
+ assert.equal(x.canvas.width,786);
+ assert.equal(x.canvas.height,1704);
+ assert.equal(x.boot.revision,1);
+ assert.equal(x.painted[0][1],393);
+ assert.equal(x.painted[0][2],852);
  assert.equal(x.veil.hidden,false);
- x.boot.rollFrame();
- assert.equal(x.veil.hidden,true);
+ x.advance(200);
+ assert.ok(x.boot.revision>1);
 });
-test('GPU roll begins linear, settles continuously and ends at 2 exact turns',()=>{
- const {rollTurns:f}=harness().boot;
- assert.equal(f(0),0);
- assert.equal(f(1),2);
- assert.equal(f(2),2);
- assert.equal(f(-1),0);
- for(let i=1;i<=1000;i++)assert.ok(f(i/1000)>=f((i-1)/1000),
-  'roll phase moves forward without jumping backward');
- const d1=f(.1)-f(.05),d2=f(.2)-f(.15);
- assert.ok(Math.abs(d1-d2)<1e-9,'first phase is constant speed');
- assert.ok(f(1)-f(.99)<f(.2)-f(.19),'ease to a nearly zero final velocity');
+test('terminal stays visible until GPU frame and full boot timeline complete',()=>{
+ const x=harness();
+ let rolls=0,repaints=0;
+ x.boot.firstFrame(()=>rolls++,()=>repaints++);
+ x.advance(250);
+ assert.ok(repaints>0);
+ assert.equal(rolls,0);
+ assert.equal(x.veil.hidden,false,'screen not yet handed over to WebGL');
+ x.boot.gpuFrame();
+ assert.equal(x.veil.hidden,true,'real CRT terminal now visible');
+ x.advance(3010);
+ assert.equal(rolls,0);
+ assert.equal(x.boot.isRolling(),false);
+ x.advance(3060);
+ assert.equal(x.boot.isRolling(),true);
+ assert.equal(x.veil.hidden,false,'terminal must pop off before the roll');
+ assert.equal(x.classes.has('boot-off'),true);
+ x.advance(3220);
+ assert.equal(rolls,1);
+ x.boot.rollFrame();
+ assert.equal(x.veil.hidden,true,'revealed game is already rolling');
+ x.boot.rollFrame();
+ assert.equal(rolls,1);
+});
+test('slow renderer leaves cover visible and waits before switching scenes',()=>{
+ const x=harness();
+ x.advance(5000);
+ assert.equal(x.veil.hidden,false);
+ assert.equal(x.boot.isRolling(),false);
+ let rolls=0;
+ x.boot.firstFrame(()=>rolls++);
+ assert.equal(rolls,0);
+ x.boot.gpuFrame();
+ assert.equal(x.boot.isRolling(),true);
+ x.advance(5200);
+ assert.equal(rolls,1);
+});
+test('boot roll is linear before the smooth landing and ends on full turns',()=>{
+ const f=harness().boot.rollTurns;
+ assert.equal(f(0),0);assert.equal(f(1),2);
+ assert.equal(f(3),2);assert.equal(f(-3),0);
+ for(let i=1;i<=1000;i++)
+  assert.ok(f(i/1000)>=f((i-1)/1000),'must never move backward');
+ assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
+ assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
