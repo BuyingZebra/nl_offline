@@ -148,19 +148,23 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
    }`
  });
  edgeSoftness.enabled=false;
- // Independent optical falloff; hue and image content stay intact.
+ // Optical falloff plus the single shared post-composite content-luminance gate.
+ // This is AFTER all meshes and bloom, but BEFORE the stationary CRT mask.
  const edgeVignette=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uAmount:{value:.55},uStart:{value:.50}},
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.55},uStart:{value:.50},uContentLuminance:{value:1}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uAmount,uStart;
+   uniform float uAmount,uStart,uContentLuminance;
    void main(){
     vec4 src=texture2D(tDiffuse,vUv);
     vec2 p=abs(vUv*2.0-1.0);
     float edge=smoothstep(uStart,1.0,max(p.x,p.y));
     float corners=smoothstep(.86,1.4,length(p))*.2;
-    gl_FragColor=vec4(src.rgb*(1.0-uAmount*clamp(edge+corners,0.0,1.0)),1.0);
+    vec3 finished=src.rgb*(1.0-uAmount*clamp(edge+corners,0.0,1.0));
+    // Every visible object, popup and bloom fades with the same percentage;
+    // #080808 is the optical background, never a second fade mask.
+    gl_FragColor=vec4(mix(vec3(8.0/255.0),finished,clamp(uContentLuminance,0.0,1.0)),1.0);
    }`
  });
  edgeVignette.enabled=false;
@@ -287,7 +291,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -323,8 +327,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
    pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
   }
  }
- edgeVignette.enabled=fx.vignette;
- edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
+ const masterLuminance=clamp(Number(contentLuminance),0,1);
+ // The pass is normally optional; during a fade it must process all pixels
+ // even when vignette is disabled. At 100%, normal pass behavior returns.
+ edgeVignette.enabled=fx.vignette||masterLuminance<1;
+ edgeVignette.uniforms.uAmount.value=fx.vignette?fx.vignetteAmount:0;
+ edgeVignette.uniforms.uContentLuminance.value=masterLuminance;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
  scanlineOverlay.enabled=fx.scanlines&&fx.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
