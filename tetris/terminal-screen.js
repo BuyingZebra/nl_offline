@@ -1,4 +1,4 @@
-/* V078: original NOMAD diagnostic terminal with cinematic staged CRT signal-on.
+/* V079: original NOMAD terminal; subdued off-to-near-black power-up.
  * One source serves the immediate loading cover and the real CRT compositor.
  * No tint/glow/scanline is baked into this image: the game owns all FX.
  * The tetromino face function is shared with gameplay (no visual duplicates).
@@ -8,23 +8,13 @@
  const levels={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
  const clamp=v=>Math.max(0,Math.min(255,Math.round(v)));
  const gray=n=>{const c=clamp(n);return 'rgb('+c+','+c+','+c+')'};
+ // Temporary flat tile treatment for both gameplay and terminal.
+ // Preserve each tetromino type's original luminance, geometry and spacing.
  const blocks=(g,x,y,w,h,kind)=>{
   const side=Math.min(w,h),gap=Math.max(.6,Math.min(1.3,side*.055));
   const level=28+190*(levels[kind]||.8);
-  const xx=x+gap,yy=y+gap,ww=Math.max(1,w-2*gap),hh=Math.max(1,h-2*gap);
-  const rim=Math.max(.65,Math.min(1.35,side*.08));
-  const rect=(a,b,c,d,t)=>{g.fillStyle=gray(t);g.fillRect(a,b,c,d);};
-  rect(xx,yy,ww,hh,level-26);
-  rect(xx,yy,ww,rim,level+18);
-  rect(xx,yy,rim,hh,level+12);
-  rect(xx,yy+hh-rim,ww,rim,level-38);
-  rect(xx+ww-rim,yy,rim,hh,level-32);
-  const inset=Math.min(3.2,Math.max(1.7,side*.145));
-  const fx=xx+inset,fy=yy+inset,fw=Math.max(1,ww-2*inset),fh=Math.max(1,hh-2*inset);
-  rect(fx,fy,fw,fh,level-10);
-  rect(fx,fy,fw,Math.max(.65,Math.min(1.15,side*.055)),level+20);
-  rect(fx,fy+fh-Math.max(.65,Math.min(1,side*.045)),fw,
-   Math.max(.65,Math.min(1,side*.045)),level-27);
+  g.fillStyle=gray(level-10);
+  g.fillRect(x+gap,y+gap,Math.max(1,w-2*gap),Math.max(1,h-2*gap));
  };
  // Fixed, deterministic sample board. All 4-cell previews are legal
  // Tetris shapes; the same face draws real falling and saved board blocks.
@@ -69,13 +59,18 @@
   ['INPUT DEVICE','OK'],['ARCADE MODULE','OK'],
   ['TETRIS MATRIX','READY'],['PIECE LOGIC','READY'],['GAME BOARD','READY']
  ];
- function paint(g,w,h,elapsedMs=0,version='078',canContinue=false){
+ function paint(g,w,h,elapsedMs=0,version='079',canContinue=false){
   // Align proportions to the approved FIRST concept (not the later panels).
   // At landscape breakpoints a centered, full-height portrait viewport
   // prevents unreadable columns or unsafe horizontal clipping.
   const scale=Math.min(w/393,h/852);
   g.save();
-  g.fillStyle='#080808';g.fillRect(0,0,w,h);
+  // The display starts fully off (0 luminance) and gently approaches
+  // the application's #080808 near-black over the first 650ms.
+  const elapsed=Math.max(0,Number(elapsedMs)||0);
+  const fade=Math.max(0,Math.min(1,(elapsed-55)/620));
+  g.fillStyle=gray(8*(fade*fade*(3-2*fade)));
+  g.fillRect(0,0,w,h);
   g.translate((w-393*scale)/2,(h-852*scale)/2);
   g.scale(scale,scale);
   const x0=31,x1=362;
@@ -91,25 +86,9 @@
   };
   const rule=(y,a=x0,b=x1)=>{g.strokeStyle=gray(119);g.lineWidth=.75;
    g.beginPath();g.moveTo(a,y+.5);g.lineTo(b,y+.5);g.stroke();};
-  const elapsed=Math.max(0,Number(elapsedMs)||0);
-  // Reference-video CRT power-on: a narrow horizontal beam blooms into the
-  // active raster. The canvas remains strictly grayscale; the GPU determines
-  // fixed phosphor hue and all phosphor saturation.
-  if(elapsed<720){
-   if(elapsed>=125){
-    const charge=Math.max(0,Math.min(1,(elapsed-125)/360));
-    const band=1+charge*11;
-    g.fillStyle=gray(115+90*charge);
-    g.fillRect(31,426-band/2,331,band);
-    if(elapsed>320){
-     const sweep=Math.max(0,Math.min(1,(elapsed-320)/400));
-     g.fillStyle=gray(16+28*sweep);
-     g.fillRect(31,426-340*sweep,331,680*sweep);
-    }
-   }
-   g.restore();
-   return;
-  }
+  // No horizontal beam or raster opening: let near-black stabilize before
+  // the typed terminal appears at 720ms.
+  if(elapsed<720){g.restore();return;}
   // Separate header, diagnostics and code stages rather than fading a fully
   // populated screen in one jump.
   const headline='NOMAD // TETRIS SYSTEM';
