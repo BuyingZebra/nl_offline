@@ -83,6 +83,7 @@ let queued=false,lastTime=performance.now(),audioCtx=null;
 // Terminal is independent of WebGL; only a completed frame can release it.
 const boot=window.FieldAtlasTetrisBoot;
 let firstComposedFrame=false,bootRolling=false,bootRollFirstFrame=false;
+let lastBootRevision=-1;
 let bootRollStartedAt=0;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
@@ -111,6 +112,13 @@ const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getC
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
 if(!g||!boardContext||!sidebarContext||!controlsContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+// This grayscale source is already painted while the engine downloads.
+const bootTexture=boot?.canvas?new THREE.CanvasTexture(boot.canvas):null;
+if(bootTexture){
+ bootTexture.colorSpace=THREE.SRGBColorSpace;
+ bootTexture.minFilter=THREE.LinearFilter;bootTexture.magFilter=THREE.LinearFilter;
+ bootTexture.generateMipmaps=false;
+}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const boardTexture=new THREE.CanvasTexture(boardCanvas);
@@ -185,7 +193,7 @@ const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
 const {SCANLINE_PRESETS}=compositor;
 
 
-const brightness={I:.99,J:.8,L:.92,O:.94,S:.76,T:.85,Z:.73};
+// Game and terminal now share precisely the same tile-face renderer.
 function tone(freq=240,len=.04){
  if(!soundOn)return;
  try{const AC=window.AudioContext||window.webkitAudioContext;
@@ -310,21 +318,7 @@ if(document.fonts?.load){
 // Fresh grayscale tile styling for both the board and miniature previews:
 // thin bevel rim, darker inset cap, luminous upper edge and lower shadow.
 function tileFace(x,y,w,h,kind){
- const side=Math.min(w,h),gap=Math.max(.6,Math.min(1.3,side*.055));
- const level=28+190*(brightness[kind]||.8);
- const xx=x+gap,yy=y+gap,ww=Math.max(1,w-2*gap),hh=Math.max(1,h-2*gap);
- const rim=Math.max(.65,Math.min(1.35,side*.08));
- rect(xx,yy,ww,hh,gray(level-26));
- rect(xx,yy,ww,rim,gray(level+18));
- rect(xx,yy,rim,hh,gray(level+12));
- rect(xx,yy+hh-rim,ww,rim,gray(level-38));
- rect(xx+ww-rim,yy,rim,hh,gray(level-32));
- const inset=Math.min(3.2,Math.max(1.7,side*.145));
- const fx=xx+inset,fy=yy+inset,fw=Math.max(1,ww-2*inset),fh=Math.max(1,hh-2*inset);
- rect(fx,fy,fw,fh,gray(level-10));
- rect(fx,fy,fw,Math.max(.65,Math.min(1.15,side*.055)),gray(level+20));
- rect(fx,fy+fh-Math.max(.65,Math.min(1,side*.045)),fw,
-  Math.max(.65,Math.min(1,side*.045)),gray(level-27));
+ window.FieldAtlasTerminal.tileFace(g,x,y,w,h,kind);
 }
 function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
@@ -715,16 +709,16 @@ window.addEventListener('pageshow',()=>{void checkForNewBuild();});
 window.addEventListener('focus',()=>{void checkForNewBuild();});
 // Some standalone sessions never report another foreground transition.
 setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
-function syncFX(){
+function syncFX(terminalVisible=false){
  const scoreBounds=modal==='scores'?modalUI.modalBounds('scores'):null;
  const blurredLayout=scoreBounds?.landscapeFallback?{
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
-  boardStatus:game.status,modalOpen:Boolean(modal),
-  scoresOverlay:modal==='scores',
-  popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
+  boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
+  scoresOverlay:!terminalVisible&&modal==='scores',
+  popupStatus:terminalVisible?null:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
 function requestFrame(){
  if(!queued&&!document.hidden){queued=true;requestAnimationFrame(frame);}
@@ -782,26 +776,42 @@ function frame(now){
   if(layers.needsRender()){
    perf.recordRedrawReasons(layers.beginRender());
    paintGame();
+   const terminalVisible=Boolean(bootTexture&&boot&&!boot.isRolling());
+   if(terminalVisible){
+    // Exactly the game CRT pipeline: only the underlying grayscale image swaps.
+    surface.material.map=bootTexture;
+    surface.visible=true;
+    boardPlane.visible=false;sidebarPlane.visible=false;
+    controlsPlane.visible=false;modalPlane.visible=false;scrimPlane.visible=false;
+    if(lastBootRevision!==boot.revision){
+     bootTexture.needsUpdate=true;
+     lastBootRevision=boot.revision;
+    }
+   }else{
+    surface.material.map=texture;
+   }
    const syncStarted=performance.now();
-   syncFX();
+   syncFX(terminalVisible);
    perf.recordDuration('sync',performance.now()-syncStarted);
-   // Only initialize canvas textures which will actually be sampled.
-   // Each revision is uploaded at most once, with no extra draw commands.
-   if(surface.visible)textureUploads.upload(texture,'base');
-   if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
-   if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
-   if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
-   if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if((!modal||modal==='scores')&&game.status!=='playing')
-    textureUploads.upload(boardPopupTexture,'popup');
+   if(terminalVisible)textureUploads.upload(bootTexture,'terminal');
+   else{
+    if(surface.visible)textureUploads.upload(texture,'base');
+    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
+    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
+    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
+    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
+    if((!modal||modal==='scores')&&game.status!=='playing')
+     textureUploads.upload(boardPopupTexture,'popup');
+   }
    renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
    if(!firstComposedFrame){
     firstComposedFrame=true;
-    boot?.firstFrame?.(beginBootRoll);
+    boot?.firstFrame?.(beginBootRoll,()=>invalidate('terminal-typing'));
    }
+   if(terminalVisible)boot?.gpuFrame?.();
    if(bootRolling&&!bootRollFirstFrame){
     bootRollFirstFrame=true;
     boot?.rollFrame?.();
