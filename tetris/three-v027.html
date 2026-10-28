@@ -55,26 +55,27 @@ html.ios-standalone #display{height:100vh}
 #boot-overlay[hidden]{display:none!important}
 #boot-canvas{
  display:block;width:100%;height:100%;
- /* CSS fallback only during module startup. After WebGL composes one true
-    CRT terminal frame, the cover is hidden; real shader FX take over. */
- filter:sepia(1) saturate(8) hue-rotate(66deg) brightness(.9);
+ /* Before GPU readiness, source stays 0% phosphor (grayscale).
+    There is no CSS sepia/hue approximation to flicker between colours. */
 }
-#boot-overlay.amber #boot-canvas{
- filter:sepia(1) saturate(6) hue-rotate(338deg) brightness(.92);
-}
+#boot-overlay.boot-black{background:#000}
+#boot-overlay.boot-black #boot-canvas,
+#boot-overlay.boot-black::after{display:none!important}
 #boot-overlay::after{
  content:"";position:absolute;inset:0;pointer-events:none;
  box-shadow:inset 0 0 80px 30px rgba(0,0,0,.7);
  background:repeating-linear-gradient(0deg,transparent 0px,
   transparent 3px,rgba(0,0,0,.24) 4px,transparent 5px);
 }
-#boot-overlay.boot-off #boot-canvas{
+/* Collapse the actual composited green/amber phosphor image, not a
+   differently coloured HTML backup. Only luminance gets a short kick. */
+html.boot-poweroff #display{
  animation:boot-collapse 145ms steps(2,end) forwards;
  transform-origin:center;
 }
 @keyframes boot-collapse{
  0%{opacity:1;transform:scaleY(1)}
- 55%{opacity:1;transform:scaleY(.045);filter:brightness(4)}
+ 55%{opacity:1;transform:scaleY(.045);filter:brightness(1.16)}
  100%{opacity:0;transform:scaleY(.001);filter:brightness(0)}
 }
 </style>
@@ -87,8 +88,8 @@ html.ios-standalone #display{height:100vh}
 <div id="boot-overlay" role="status" aria-label="NOMAD Tetris terminal initializing">
  <canvas id="boot-canvas" aria-hidden="true"></canvas>
 </div>
-<script src="./terminal-screen.js?v075"></script>
-<script src="./boot-sequence.js?v075"></script>
+<script src="./terminal-screen.js?v077"></script>
+<script src="./boot-sequence.js?v077"></script>
 <div id="display" role="application" aria-label="Tetris System — Three.js">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT compositor"></canvas>
 </div>
