@@ -43,5 +43,5 @@ test('V083 terminal and game fade together after scanlines above a fixed base',(
  assert.ok(compositor.includes('gl_FragCoord.x,uScreenHeight-gl_FragCoord.y'));
  assert.ok(!compositor.includes('uContentCollapse'));
  const boot=fs.readFileSync(path.join(__dirname,'boot-sequence.js'),'utf8');
- assert.ok(boot.includes("Terminal.paint(ctx,w,h,elapsed(),'082',presented&&elapsed()>=BOOT_MS)"));
+ assert.ok(boot.includes("Terminal.paint(ctx,w,h,elapsed(),'083',presented&&elapsed()>=BOOT_MS)"));
 });
