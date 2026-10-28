@@ -11,7 +11,7 @@ function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  if(w<=0||h<=0)return;
  // All UI containers and buttons have square (unbeveled) corners.
  // Preserve existing fills, grayscale luminance, borders and hitbox geometry.
- g.beginPath();g.rect(x+.5,y+.5,Math.max(1,w-1),Math.max(1,h-1));
+ g.beginPath();g.roundRect(x+.5,y+.5,Math.max(1,w-1),Math.max(1,h-1),0);
  if(fill){g.fillStyle=fill;g.fill();}
  if(border){g.strokeStyle=border;g.lineWidth=1;g.stroke();}
 }
