@@ -1,4 +1,4 @@
-/* V077: terminal startup state machine, grayscale source / CRT GPU handoff.
+/* V078: terminal startup state machine, grayscale source / CRT GPU handoff.
  * Only user touch advances the fully populated, successfully rendered screen.
  * Phosphor colour ramps 0..100%; electrical voltage may briefly spike
  * luminance, never the selected green/amber tint itself.
@@ -11,20 +11,31 @@
  const ctx=canvas.getContext('2d',{alpha:false});
  if(!ctx)return;
  const clock=()=>root.performance?.now?.()??Date.now();
- const began=clock(),BOOT_MS=2800;
+ const BOOT_MS=Terminal.durationMs||6100;
+ let began=null;
  const SNAP_OFF_MS=145,BLACK_MS=1000,PHOSPHOR_RAMP_MS=160;
  let ready=false,presented=false,started=false,gameHandoff=false,revealed=false;
  let startRoll=null,notifyPaint=null,revision=0,gpuFirstSeenAt=null;
- function elapsed(){return Math.max(0,clock()-began);}
+ function elapsed(){return began===null?0:Math.max(0,clock()-began);}
  function canContinue(){return presented&&elapsed()>=BOOT_MS&&!started;}
  function intensity(){
-  if(gpuFirstSeenAt===null)return {phosphor:0,voltage:1};
+  if(gpuFirstSeenAt===null)return {phosphor:0,voltage:1,glitch:0,clock:0};
   const ms=clock()-gpuFirstSeenAt;
   // Colour is strictly interpolation between 0 and 100 percent.
   const phosphor=Math.max(0,Math.min(1,ms/PHOSPHOR_RAMP_MS));
-  // A brief single-frame-like electrical surge. No colour oversaturation.
-  const voltage=ms>=75&&ms<115?1.16:1;
-  return {phosphor,voltage};
+  // Short voltage surges affect luminance only, not selected phosphor hue.
+  const t=elapsed();
+  const pulses=[[155,183,1.15],[397,432,1.10],[2060,2098,1.17],
+   [3790,3830,1.12],[5145,5180,1.15]];
+  let voltage=1;
+  for(const [a,b,v] of pulses)if(t>=a&&t<b){voltage=v;break;}
+  const faults=[[265,322,.35],[2090,2190,.65],[3710,3830,.55],
+   [4915,5010,.72]];
+  let glitch=0;
+  for(const [a,b,v] of faults)if(t>=a&&t<b){
+   const p=(t-a)/(b-a);glitch=v*Math.sin(Math.PI*p);break;
+  }
+  return {phosphor,voltage,glitch,clock:t};
  }
  function paint(){
   if(started)return;
@@ -35,7 +46,7 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'077',canContinue());
+  Terminal.paint(ctx,w,h,elapsed(),'078',canContinue());
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
@@ -72,10 +83,10 @@
  function tick(){
   if(started)return;
   paint();
-  // While phosphor first stabilizes, refresh fast enough to show one
-  // snappy luminance pulse; after stabilization allow normal 50ms updates.
-  const ms=gpuFirstSeenAt===null?999:clock()-gpuFirstSeenAt;
-  root.setTimeout(tick,ms>=0&&ms<200?16:50);
+  // Redraw code at 30fps, faults at up to 60fps and idle cursor at ~11fps.
+  const t=elapsed(),pulse=intensity();
+  root.setTimeout(tick,gpuFirstSeenAt===null?50:
+   (pulse.glitch>0||pulse.voltage>1?16:(t<BOOT_MS?33:90)));
  }
  root.FieldAtlasTetrisBoot=Object.freeze({
   canvas,
@@ -94,6 +105,7 @@
    if(!ready||presented||started)return;
    presented=true;
    gpuFirstSeenAt=clock();
+   began=gpuFirstSeenAt;
    veil.hidden=true;
   },
   rollFrame(){
