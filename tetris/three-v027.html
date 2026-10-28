@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#080808">
 <!-- Single authoritative build number; update only this marker on each release. -->
-<meta name="tetris-build" content="080">
+<meta name="tetris-build" content="081">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -67,19 +67,19 @@ html.ios-standalone #display{height:100vh}
   transparent 3px,rgba(0,0,0,.24) 4px,transparent 5px);
 }
 /* V079: the screen and stationary CRT scanline mask never transform.
-   Only source-image content collapses inside the compositor shader. */
+   Only grayscale source-image content fades; compositor and scanlines remain fixed. */
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
 </script>
 </head>
 <body>
-<!-- Black cover precedes all gameplay and persists until a complete rolled frame. -->
+<!-- Unlit cover precedes all gameplay and persists until a genuine first game fade frame. -->
 <div id="boot-overlay" role="status" aria-label="NOMAD Tetris terminal initializing">
  <canvas id="boot-canvas" aria-hidden="true"></canvas>
 </div>
-<script src="./terminal-screen.js?v080"></script>
-<script src="./boot-sequence.js?v080"></script>
+<script src="./terminal-screen.js?v081"></script>
+<script src="./boot-sequence.js?v081"></script>
 <div id="display" role="application" aria-label="Tetris System — Three.js">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT compositor"></canvas>
 </div>
