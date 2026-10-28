@@ -199,3 +199,28 @@ test('V078 startup sync tearing shares the dormant boot-roll pass',()=>{
  pipeline.setStartupRoll(0);
  assert.equal(signal.enabled,false);
 });
+
+test('V082 global luminance fades the entire composed image even when vignette is disabled',()=>{
+ const {pipeline,composer}=setup();
+ const vignette=composer.passes[7],crt=composer.passes[8];
+ const fx={...states,vignette:false,scanlines:true};
+ const input={fx,theme:'green',width:393,height:852,dpr:2,
+  boardStatus:'playing',modalOpen:false};
+ pipeline.syncFX({...input,contentLuminance:1});
+ assert.equal(vignette.enabled,false,'normal game keeps optional vignette pass disabled');
+ pipeline.syncFX({...input,contentLuminance:0});
+ assert.equal(vignette.enabled,true,'global fade operates even if vignette is off');
+ assert.equal(vignette.uniforms.uContentLuminance.value,0);
+ assert.equal(vignette.uniforms.uAmount.value,0,'global fade must not turn vignette on');
+ assert.equal(crt.enabled,true,'CRT scanlines stay on at zero brightness');
+ pipeline.syncFX({...input,contentLuminance:.5});
+ assert.equal(vignette.uniforms.uContentLuminance.value,.5);
+ pipeline.syncFX({...input,contentLuminance:-5});
+ assert.equal(vignette.uniforms.uContentLuminance.value,0);
+ pipeline.syncFX({...input,contentLuminance:4});
+ assert.equal(vignette.uniforms.uContentLuminance.value,1);
+ assert.equal(vignette.enabled,false);
+ pipeline.syncFX({...input,fx:{...states,vignette:true},contentLuminance:0});
+ assert.equal(vignette.uniforms.uAmount.value,states.vignetteAmount);
+ assert.equal(crt.uniforms.uOpacity.value,states.scanlineOpacity/100);
+});
