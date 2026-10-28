@@ -1,4 +1,4 @@
-/* V080: deterministic terminal tap gate, physics-inspired startup and poweroff. */
+/* V081: deterministic terminal tap gate, physics-inspired startup and poweroff. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -51,7 +51,7 @@ test('grayscale loading canvas paints immediately, with full version: prefix',()
  assert.equal(x.boot.canvas,x.canvas);
  assert.equal(x.canvas.width,786);
  assert.equal(x.canvas.height,1704);
- assert.equal(x.painted[0][4],'080');
+ assert.equal(x.painted[0][4],'081');
  x.advance(2750);
  assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.boot.isRolling(),false);
@@ -83,7 +83,7 @@ test('early tap does not interrupt diagnostics or touch hidden gameplay',()=>{
  assert.equal(x.boot.waitingForTap,true);
  assert.equal(rolls,0);
 });
-test('one touch collapses only GPU content; stationary scanlines persist through near-black hold',()=>{
+test('one touch fades terminal to near-black, holds one second, then reveals game',()=>{
  const x=harness();let rolls=0;
  x.boot.firstFrame(()=>rolls++);
  x.boot.gpuFrame();
@@ -95,17 +95,17 @@ test('one touch collapses only GPU content; stationary scanlines persist through
  assert.equal(x.classes.has('boot-black'),false,'never cover the CRT mask');
  assert.equal(x.boot.isRolling(),false,'game source stays terminal until handoff');
  assert.equal(x.boot.powerOffProgress(),0);
- x.advance(6472);
+ x.advance(6625);
  assert.ok(x.boot.powerOffProgress()>.4&&x.boot.powerOffProgress()<.6);
- assert.equal(x.veil.hidden,true,'CRT remains visible while only content collapses');
- x.advance(6545);
+ assert.equal(x.veil.hidden,true,'CRT stays visible during a content-only fade');
+ x.advance(6850);
  assert.equal(x.boot.powerOffProgress(),1);
- assert.equal(x.veil.hidden,true,'near-black is generated inside CRT shader');
+ assert.equal(x.veil.hidden,true,'near-black is composited without an extra cover');
  assert.equal(x.boot.isRolling(),false);
- x.advance(7544);
- assert.equal(rolls,0,'one-second near-black intermission has not ended');
- x.advance(7545);
- assert.equal(rolls,1,'rolling game begins after near-black hold');
+ x.advance(7849);
+ assert.equal(rolls,0,'one-second near-black hold has not finished');
+ x.advance(7850);
+ assert.equal(rolls,1,'game begins its fade-in only after the hold');
  assert.equal(x.boot.isRolling(),true);
  assert.equal(x.boot.revealed,false);
  x.boot.rollFrame();
@@ -126,7 +126,7 @@ test('slow GPU readiness cannot reveal the game or enable tap prematurely',()=>{
  x.advance(15100);
  assert.equal(x.boot.waitingForTap,true);
  x.tap();
- x.advance(16245);
+ x.advance(16550);
  assert.equal(rolls,1);
 });
 test('phosphor intensity never exceeds 100%; brief voltage spike only changes luminance',()=>{
@@ -156,11 +156,11 @@ test('four-turn roll retains constant initial speed and smooth final rest',()=>{
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
-test('V080 screen uses original compositor and long-form version labels',()=>{
+test('V081 screen uses original compositor and long-form version labels',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const terminal=fs.readFileSync(path.join(__dirname,'terminal-screen.js'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('name="tetris-build" content="080"'));
+ assert.ok(html.includes('name="tetris-build" content="081"'));
  assert.ok(!html.includes('hue-rotate'));
  assert.ok(!html.includes('boot-poweroff #display'));
  assert.ok(!html.includes('@keyframes boot-collapse'));
@@ -171,7 +171,7 @@ test('V080 screen uses original compositor and long-form version labels',()=>{
  assert.ok(app.includes('phosphorStrength:electrical?.phosphor??1'));
 });
 
-test('V080 retains glitch code but disables synchronization tearing',()=>{
+test('V081 retains glitch code but disables synchronization tearing',()=>{
  const x=harness();let launches=0;
  x.boot.firstFrame(()=>launches++);
  x.advance(6000);
@@ -195,11 +195,24 @@ test('V080 retains glitch code but disables synchronization tearing',()=>{
  assert.ok(source.includes('if(SIGNAL_GLITCH_ENABLED)for('),
   'original timings are preserved behind a feature flag');
 });
-test('V080 removes competing redirect and preserves continuous initial blackout',()=>{
+test('V081 removes competing redirect and preserves continuous initial blackout',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const entry=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
  assert.ok(!entry.includes('http-equiv="refresh"'));
  assert.ok(entry.includes('location.replace('));
  assert.ok(html.includes('z-index:20;background:#000;'));
- assert.ok(html.includes('name="tetris-build" content="080"'));
+ assert.ok(html.includes('name="tetris-build" content="081"'));
+});
+
+test('V081 uses a smooth 450ms fade before the original one-second pause',()=>{
+ const x=harness();
+ x.boot.firstFrame(()=>{});
+ x.boot.gpuFrame();x.boot.gpuFrame();
+ x.advance(6500);x.tap();
+ x.advance(6500+225);
+ assert.ok(Math.abs(x.boot.powerOffProgress()-.5)<1e-9);
+ x.advance(6950);
+ assert.equal(x.boot.powerOffProgress(),1);
+ assert.ok(source.includes('FADE_OUT_MS=450,BLACK_MS=1000'));
+ assert.ok(!source.includes('SNAP_OFF_MS'));
 });
