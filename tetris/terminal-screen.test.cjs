@@ -64,7 +64,7 @@ test('terminal is responsive and never scales out of its own screen bounds',()=>
 test('V083 shows long-form version and touch instruction only after readiness',()=>{
  const a=setup();
  a.terminal.paint(a.g,393,852,6000,'083',false);
- assert.ok(a.text.some(item=>item.v==='version: 082'));
+ assert.ok(a.text.some(item=>item.v==='version: 083'));
  assert.ok(a.text.some(item=>item.v==='READY TO PLAY.'));
  assert.ok(!a.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  const b=setup();
