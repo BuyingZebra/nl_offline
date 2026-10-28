@@ -3,7 +3,7 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v074';
+import {createCompositor} from './compositor.js?v077';
 import {createCanvasUI} from './canvas-ui.js?v072';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -39,8 +39,8 @@ const TERMINAL_FONT='"Share Tech Mono",'+ICON_FONT;
 const DEFAULT=DEFAULT_EFFECTS;
 const THREE_BUILD_VERSION=getBuildVersion(document);
 // The HTML build meta is authoritative; title, accessibility and debug labels derive from it.
-document.title='NOMAD — Tetris System V'+THREE_BUILD_VERSION;
-display.setAttribute('aria-label','Tetris System — Three.js V'+THREE_BUILD_VERSION);
+document.title='NOMAD — Tetris System | version: '+THREE_BUILD_VERSION;
+display.setAttribute('aria-label','Tetris System — Three.js version: '+THREE_BUILD_VERSION);
 // Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
 // Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
 // render target share this cap to avoid uploading unnecessarily large images.
@@ -518,7 +518,7 @@ function paintBaseGame(){
  drawSidebar(r);
  drawControls(r);
  text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,'terminal');
- text('Version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,'terminal');
+ text('version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,'terminal');
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
@@ -717,7 +717,9 @@ function syncFX(terminalVisible=false){
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
+ const electrical=terminalVisible?boot?.effects?.():null;
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
+  phosphorStrength:electrical?.phosphor??1,voltage:electrical?.voltage??1,
   boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
   scoresOverlay:!terminalVisible&&modal==='scores',
   popupStatus:terminalVisible?null:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
