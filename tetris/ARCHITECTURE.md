@@ -1,4 +1,4 @@
-# Tetris System architecture (V082)
+# Tetris System architecture (V083)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -173,3 +173,11 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - On the **first genuinely rendered game frame**, the 850ms ease-in clock is anchored so that its luminance value is exactly 0 (no early partial reveal). Every element appears together as one already-assembled, fully postprocessed image. Input stays disabled until the fade reaches 1.
 - The chosen phosphor hue, bloom, five CRT patterns, original tile bevels, square container/button corners, user settings, Tetris rules and saved scores are preserved. Vertical roll remains installed but dormant; horizontal glitch schedule remains saved behind `SIGNAL_GLITCH_ENABLED=false`.
 - There are no extra pass allocations or render-target uploads during normal gameplay. The existing vignette shader doubles as the fade gate only while the transition is active. Full verified visual behavior still requires observation on a real phone.
+
+
+## V083: truly independent near-black display base
+- User screen recording captured the intended blackout as **grey, approximately RGB 38/38/38**, not near-black. Root cause: the previous V082 shader introduced `vec3(8.0/255.0)` as though it were already a linear-light working-space value. The Three.js OutputPass then converted it to sRGB, visibly raising the screen base; the intermediate neutral mix also overwhelmed the phosphor colour during game reveal.
+- Retain `#080808` as its own independent, colour-managed output base using `new THREE.Color(0x080808)`, which Three.js converts correctly to linear working-space values. In the existing dormant signal/roll shader, **after bloom, vignette, phosphor and the stationary scanline mask, but before OutputPass**, use `base + (finishedImage - base) * contentLuminance`. This ensures `contentLuminance=0` yields the exact near-black base throughout the 1s hold, independent of source texture, CRT pattern and any overlay. At `contentLuminance=1` the image is unchanged.
+- The optical/vignette pass returns to its original, completely independent state; it no longer owns fading or activates when disabled. No new GPU pass is added; the existing signal pass activates during fade, and remains dormant in normal gameplay.
+- Terminal 450ms 100→0, 1000ms hold, first game frame at 0, game 850ms 0→100; tap gate, disabled old glitch and roll effects, square UI corners and beveled Tetris tiles remain intact.
+- At normal content brightness, existing base canvases and scene styling are unchanged. The independently defined output base takes over the screen specifically during luminance transitions, and is never incorrectly gamma-converted as an sRGB byte value.
