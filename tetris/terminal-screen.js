@@ -71,7 +71,7 @@
   ['INPUT DEVICE','OK'],['ARCADE MODULE','OK'],
   ['TETRIS MATRIX','READY'],['PIECE LOGIC','READY'],['GAME BOARD','READY']
  ];
- function paint(g,w,h,elapsedMs=0,version='082',canContinue=false){
+ function paint(g,w,h,elapsedMs=0,version='083',canContinue=false){
   // Align proportions to the approved FIRST concept (not the later panels).
   // At landscape breakpoints a centered, full-height portrait viewport
   // prevents unreadable columns or unsafe horizontal clipping.
