@@ -1,4 +1,4 @@
-# Tetris System architecture (V079)
+# Tetris System architecture (V080)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -148,3 +148,11 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Power-off transforms the **terminal's grayscale Canvas2D content before the GPU renderer**. On tap, it contracts vertically toward the middle of a stable `#080808` source over 145ms and then remains near-black for 1000ms. Crucially, `compositor.js` was restored byte-for-byte to the V078 implementation. Phosphor colour, bloom, scanline mask sampling, ghosting and vignette are unchanged and remain fixed as the source collapses. No CSS screen scaling/animation, no DOM blackout cover, and no new compositor passes or uniforms.
 - The first rolled game frame re-marks all underlying HUD/board textures dirty, preventing old hidden-planes from remaining invisible when the display changes source. Manual tap-to-continue remains in effect.
 - Build is `079` and the terminal/game footer display `version: 079`.
+
+
+## V080: preserve glitches for later; remove two startup flicker risks
+- V078 timed sync-fault schedules and the existing shader remain intact. The explicit `SIGNAL_GLITCH_ENABLED=false` flag suppresses all horizontal tearing during boot. The short voltage/luminance flicker pulses are independent and remain active. No saved theme/CRT settings are changed.
+- For startup stability, the opaque loading cover matches the initial unlit source at `#000000` while the compositor warms up. The terminal is uncovered **only after two completed GPU-rendered terminal frames** (the second is requested explicitly), then the original source fades toward `#080808` before the first diagnostic letters. The one-second power-off intermission remains `#080808` and the screen compositor/scanline mask remains stationary.
+- The `/tetris/` entry page previously contained both a zero-second HTML meta refresh and a JavaScript `location.replace`. The redundant meta refresh is removed to prevent two competing navigations. The permanent bookmarked URL remains unchanged and the redirect continues to work.
+- These changes address plausible startup flashing sources, but do not establish that caching/memory was the root cause. Browser/WebGL first presentation and obsolete service-worker state remain device-specific possibilities. No automatic clearing of site data or scores is performed.
+- A later *game-reveal* animation could stage existing UI and board source layers after tap, while preserving their positions, the original cell bevels, and the current CRT effects. It is not introduced in V080 without visual approval.
