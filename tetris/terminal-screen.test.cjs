@@ -60,3 +60,15 @@ test('terminal is responsive and never scales out of its own screen bounds',()=>
  assert.ok(x.fill.length>10);
  assert.ok(x.text.length>20);
 });
+
+test('V077 shows long-form version and touch instruction only after readiness',()=>{
+ const a=setup();
+ a.terminal.paint(a.g,393,852,2730,'077',false);
+ assert.ok(a.text.some(item=>item.v==='version: 077'));
+ assert.ok(a.text.some(item=>item.v==='READY TO PLAY.'));
+ assert.ok(!a.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
+ const b=setup();
+ b.terminal.paint(b.g,393,852,2800,'077',true);
+ assert.ok(b.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
+ assert.ok(!b.text.some(item=>item.v==='READY TO PLAY.'));
+});
