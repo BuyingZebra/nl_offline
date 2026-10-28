@@ -3,7 +3,7 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v078';
+import {createCompositor} from './compositor.js?v079';
 import {createCanvasUI} from './canvas-ui.js?v072';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -213,6 +213,10 @@ function invalidate(reason='input'){
 }
 function beginBootRoll(){
  if(bootRolling)return;
+ // V079: restore every hidden game layer on source handoff. In V078,
+ // painting the terminal hid board/sidebar/control planes, but the
+ // rolling game could start without marking those source canvases dirty.
+ layers.mark('base','board','sidebar','controls');
  bootRollStartedAt=performance.now()-120;
  bootRolling=true;
  invalidate('boot-roll');
@@ -721,6 +725,7 @@ function syncFX(terminalVisible=false){
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
   phosphorStrength:electrical?.phosphor??1,voltage:electrical?.voltage??1,
   glitch:electrical?.glitch??0,signalTime:electrical?.clock??0,
+  contentCollapse:terminalVisible?(boot?.powerOffProgress?.()??0):0,
   boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
   scoresOverlay:!terminalVisible&&modal==='scores',
   popupStatus:terminalVisible?null:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
