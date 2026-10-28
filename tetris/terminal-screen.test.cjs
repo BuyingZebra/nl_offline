@@ -20,7 +20,7 @@ function setup(){
 }
 test('approved FIRST concept fills screen with header, statuses, dump and prompt',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,2730,'075');
+ x.terminal.paint(x.g,393,852,6500,'078');
  const strings=x.text.map(item=>item.v);
  assert.ok(strings.includes('NOMAD // TETRIS SYSTEM'));
  assert.ok(strings.includes('BOOT SEQUENCE INITIATED'));
@@ -36,7 +36,7 @@ test('approved FIRST concept fills screen with header, statuses, dump and prompt
 });
 test('boot source remains exclusively gray, separate from phosphor colour',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,3000,'075');
+ x.terminal.paint(x.g,393,852,6500,'078');
  const color=v=>/^#(?:080808|101010)$/.test(v)||/^rgb\((\d+),\1,\1\)$/.test(v);
  assert.ok(x.fill.every(v=>color(v.color)));
  assert.ok(x.text.every(v=>color(v.color)));
@@ -56,19 +56,47 @@ test('game and memory-dump miniature use one exact 8-layer beveled tile face',()
 });
 test('terminal is responsive and never scales out of its own screen bounds',()=>{
  const x=setup();
- x.terminal.paint(x.g,844,390,3000,'075');
+ x.terminal.paint(x.g,844,390,6500,'078');
  assert.ok(x.fill.length>10);
  assert.ok(x.text.length>20);
 });
 
-test('V077 shows long-form version and touch instruction only after readiness',()=>{
+test('V078 shows long-form version and touch instruction only after readiness',()=>{
  const a=setup();
- a.terminal.paint(a.g,393,852,2730,'077',false);
- assert.ok(a.text.some(item=>item.v==='version: 077'));
+ a.terminal.paint(a.g,393,852,6000,'078',false);
+ assert.ok(a.text.some(item=>item.v==='version: 078'));
  assert.ok(a.text.some(item=>item.v==='READY TO PLAY.'));
  assert.ok(!a.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  const b=setup();
- b.terminal.paint(b.g,393,852,2800,'077',true);
+ b.terminal.paint(b.g,393,852,6300,'078',true);
  assert.ok(b.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  assert.ok(!b.text.some(item=>item.v==='READY TO PLAY.'));
+});
+
+test('V078 power-on begins with only a horizontal charging beam',()=>{
+ const x=setup();
+ x.terminal.paint(x.g,393,852,190,'078',false);
+ assert.ok(x.fill.some(item=>item.h<8&&item.w>300));
+ assert.ok(!x.text.some(item=>item.v.includes('NOMAD')));
+ const y=setup();
+ y.terminal.paint(y.g,393,852,780,'078',false);
+ assert.ok(y.text.some(item=>item.v.length>0&&'NOMAD // TETRIS SYSTEM'.startsWith(item.v)));
+ assert.ok(!y.text.some(item=>item.v==='BOOT SEQUENCE INITIATED'));
+});
+test('V078 types diagnostics, memory rows, modules and a final touch prompt in stages',()=>{
+ const early=setup();
+ early.terminal.paint(early.g,393,852,1550,'078',false);
+ assert.ok(early.text.some(item=>item.v.includes('BOOT')));
+ assert.ok(!early.text.some(item=>item.v.startsWith('0x1000')));
+ const middle=setup();
+ middle.terminal.paint(middle.g,393,852,3160,'078',false);
+ assert.ok(middle.text.some(item=>item.v.startsWith('0x1000')));
+ assert.ok(!middle.text.some(item=>item.v.startsWith('0x1180')));
+ const done=setup();
+ done.terminal.paint(done.g,393,852,6400,'078',true);
+ assert.ok(done.text.some(item=>item.v.startsWith('0x1180')));
+ assert.ok(done.text.some(item=>item.v==='MODULES'));
+ assert.ok(done.text.some(item=>item.v==='MEMORY'));
+ assert.ok(done.text.some(item=>item.v==='SIGNAL'));
+ assert.ok(done.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
 });
