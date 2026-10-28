@@ -32,11 +32,15 @@ with sync_playwright() as p:
     # cover and the CRT source. The cover hides when the GPU terminal paints;
     # gameplay must not be tapped until the pop-off and pop-on complete.
     page.wait_for_function(
-        "() => document.querySelector('#boot-overlay')?.hidden === true",
+        "() => window.FieldAtlasTetrisBoot?.waitingForTap === true",
         timeout=30000,
     )
+    assert page.locator("#boot-overlay").is_hidden()
     assert page.locator("#boot-canvas").count() == 1
     page.screenshot(path=str(out / (browser_name + "-terminal-crt.png")))
+    # The first terminal touch must start the power-off, not the game.
+    assert not page.evaluate("() => window.FieldAtlasTetrisBoot.isRolling()")
+    page.touchscreen.tap(190, 760)
     page.wait_for_function(
         "() => window.FieldAtlasTetrisBoot?.revealed === true",
         timeout=30000,
