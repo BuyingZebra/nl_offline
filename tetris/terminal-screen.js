@@ -1,4 +1,4 @@
-/* V079: original NOMAD terminal with retained beveled Tetris blocks and subdued power-up.
+/* V081: original NOMAD terminal with retained beveled Tetris blocks and subdued power-up.
  * One source serves the immediate loading cover and the real CRT compositor.
  * No tint/glow/scanline is baked into this image: the game owns all FX.
  * The tetromino face function is shared with gameplay (no visual duplicates).
