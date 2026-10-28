@@ -1,4 +1,4 @@
-# Tetris System architecture (V078)
+# Tetris System architecture (V079)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -140,3 +140,11 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - No alternate hue or CSS saturation is used. The HTML loading cover is near-black `#080808` until a real CRT-composed frame exists. The one-second post-power-off blackout also uses `#080808`, not `#000000`.
 - Touching once the final instructions are visible snaps the CRT off with the existing 145 ms collapse, holds near-black for 1000 ms, and snaps on the gameplay screen already rolling four revolutions to a still image. Touch input remains consumed during startup.
 - The authoritative HTML build marker updates to `078`; the terminal/game displays use `version: 078`. No saved scores, core gameplay, settings, or tile-face calculations change.
+
+
+## V079: no startup beam; source-only shutdown; square UI corners
+- The V078 startup beam is deliberately removed. The grayscale source now begins completely off (0 luminance), smoothly fades toward the established near-black `#080808` over approximately 620ms, and the terminal's staged lettering begins after 720ms. The uploaded reference still guides typewriter/diagnostic/glitch rhythm.
+- The user meant **beveled/rounded CORNERS of containers and buttons**, not the Tetris block shading. The exact original eight-layer tetromino tile-face (top-left highlight, inset face and dark lower-right edges) was restored from the prior release and remains shared by the game and terminal. Common `panel()` uses a corner radius of **zero** for all game containers/buttons. Modal effect thumbnails clip squarely; colour/luminance, fills, outlines and hitbox positions remain unchanged.
+- Power-off transforms the **terminal's grayscale Canvas2D content before the GPU renderer**. On tap, it contracts vertically toward the middle of a stable `#080808` source over 145ms and then remains near-black for 1000ms. Crucially, `compositor.js` was restored byte-for-byte to the V078 implementation. Phosphor colour, bloom, scanline mask sampling, ghosting and vignette are unchanged and remain fixed as the source collapses. No CSS screen scaling/animation, no DOM blackout cover, and no new compositor passes or uniforms.
+- The first rolled game frame re-marks all underlying HUD/board textures dirty, preventing old hidden-planes from remaining invisible when the display changes source. Manual tap-to-continue remains in effect.
+- Build is `079` and the terminal/game footer display `version: 079`.
