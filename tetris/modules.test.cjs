@@ -181,7 +181,7 @@ test('cancel clears active pointer so a new touch can start',()=>{
 });
 test('version imports controllers and does not duplicate pointer listeners',()=>{
  const js=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(js.includes("from './canvas-ui.js?v072'"));
+ assert.ok(js.includes("from './canvas-ui.js?v079'"));
  assert.ok(js.includes("from './input-controller.js?v065'"));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(js));
  assert.ok(!js.includes("screen.addEventListener('pointerdown'"));
@@ -316,4 +316,12 @@ test('V073 defaults reach both fresh sessions and Restore Defaults, without over
  assert.ok(js.includes("if(act==='resetFX'){"));
  assert.ok(js.includes('FX={...DEFAULT};persist();'));
  assert.ok(js.includes("let theme=load('fieldAtlasThemeV06','green')"));
+});
+
+test('V079 shared canvas panels and every button use square corners without tint changes',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'canvas-ui.js'),'utf8');
+ const main=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
+ assert.ok(source.includes('Math.max(1,h-1),0)'),'all panels have zero radius');
+ assert.ok(source.includes('down?C.solid:(model.light?C.bright:C.button)'));
+ assert.ok(main.includes("from './canvas-ui.js?v079'"));
 });
