@@ -1,4 +1,4 @@
-# Tetris System architecture (V077)
+# Tetris System architecture (V078)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -131,3 +131,12 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Power-off collapses the **actual live GPU phosphor display** in 145ms instead of re-showing an alternate CSS-coloured fallback image. After collapse, an opaque black cover holds for the previous 1000ms, then the game snaps on into the previous rapid four-turn roll.
 - Both terminal and game footer, as well as accessible title labels, spell the build prefix as `version: 077`, not abbreviated `v077` or `V077`.
 - No change to gameplay, board geometry, tiles, saved settings, score persistence or the established 1.35s rolling deceleration.
+
+
+## V078: reference-led CRT startup choreography
+- The October 28 user-uploaded vintage terminal reference establishes an explicit **visual timeline**: signal power-on as a horizontal beam, typed masthead, progressively checked diagnostics, character-by-character hexadecimal memory dump, staggered tetromino drawing, peripheral telemetry readout, final command status, then a user-tap hold. The first-concept panel geometry, Roboto Condensed / Share Tech Mono roles and grayscale brightness hierarchy are unchanged.
+- The timed startup begins only after the **first completed GPU terminal frame**, not while remote Three.js resources are loading. `FieldAtlasTerminal.durationMs=6100` controls when the completed terminal becomes tappable. No automatic transition is ever scheduled.
+- Deterministic, brief voltage pulses (28–40 ms) raise **only luminance** by at most 17%, while the chosen green/amber phosphor blending remains clamped to 0–100%. Sync disturbances animate horizontal tearing for <120 ms at specific points in the boot sequence, passed to the **existing GPU boot-roll ShaderPass**, which remains disabled during normal gameplay.
+- No alternate hue or CSS saturation is used. The HTML loading cover is near-black `#080808` until a real CRT-composed frame exists. The one-second post-power-off blackout also uses `#080808`, not `#000000`.
+- Touching once the final instructions are visible snaps the CRT off with the existing 145 ms collapse, holds near-black for 1000 ms, and snaps on the gameplay screen already rolling four revolutions to a still image. Touch input remains consumed during startup.
+- The authoritative HTML build marker updates to `078`; the terminal/game displays use `version: 078`. No saved scores, core gameplay, settings, or tile-face calculations change.
