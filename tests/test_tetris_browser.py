@@ -26,7 +26,13 @@ with sync_playwright() as p:
         " return !!c && c.width > 200 && c.height > 300; }",
         timeout=30000,
     )
-    page.wait_for_timeout(700)
+    # The startup ROM terminal covers incomplete WebGL frames. Wait for
+    # its pop-off and the first actually rolled CRT frame before touching UI.
+    page.wait_for_function(
+        "() => document.querySelector('#boot-overlay')?.hidden === true",
+        timeout=30000,
+    )
+    page.wait_for_timeout(200)
     assert page.locator("#screen").count() == 1
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
@@ -90,8 +96,8 @@ with sync_playwright() as p:
         return page.evaluate(
             """(key) => {
                 const saved = JSON.parse(localStorage.getItem('fieldAtlasThreeV027FX01') || 'null') || {};
-                const defaults = {phosphor:true,scanlines:true,scanlinePreset:'original',
-                    ghostX:2,ghostY:0,bloomStrength:.30};
+                const defaults = {phosphor:true,scanlines:true,scanlinePreset:'aperture',
+                    ghostX:2,ghostY:0,bloomStrength:.22};
                 return saved[key] ?? defaults[key];
             }""", key,
         )
@@ -136,7 +142,7 @@ with sync_playwright() as p:
     assert fx_value("ghostX") == 2 and fx_value("ghostY") == 0, (
         "Restore Defaults missed ghost offsets"
     )
-    assert fx_value("bloomStrength") == .30, "Restore Defaults missed bloom"
+    assert fx_value("bloomStrength") == .22, "Restore Defaults missed bloom"
     capture("three-restore-defaults")
     close_y = modal_top + header_height / 2
     tap(350, close_y)
