@@ -56,15 +56,22 @@ test('terminal stays visible until GPU frame and full boot timeline complete',()
  assert.equal(x.veil.hidden,false,'screen not yet handed over to WebGL');
  x.boot.gpuFrame();
  assert.equal(x.veil.hidden,true,'real CRT terminal now visible');
- x.advance(3010);
+ // Complete diagnostic text has been on-screen since ~2.8s.
+ x.advance(6790);
  assert.equal(rolls,0);
  assert.equal(x.boot.isRolling(),false);
- x.advance(3060);
+ assert.equal(x.veil.hidden,true,'full terminal is readable for four seconds');
+ x.advance(6800);
  assert.equal(x.boot.isRolling(),true);
- assert.equal(x.veil.hidden,false,'terminal must pop off before the roll');
+ assert.equal(x.veil.hidden,false,'opaque cover performs snap-off');
  assert.equal(x.classes.has('boot-off'),true);
- x.advance(3220);
- assert.equal(rolls,1);
+ x.advance(6945); // 145ms snap-off is over; 1s black begins
+ assert.equal(rolls,0);
+ x.advance(7944);
+ assert.equal(rolls,0,'black intermission stays on-screen for one full second');
+ assert.equal(x.veil.hidden,false,'cover remains opaque through blackout');
+ x.advance(7945);
+ assert.equal(rolls,1,'snap-on begins after blackout');
  x.boot.rollFrame();
  assert.equal(x.veil.hidden,true,'revealed game is already rolling');
  x.boot.rollFrame();
@@ -72,7 +79,7 @@ test('terminal stays visible until GPU frame and full boot timeline complete',()
 });
 test('slow renderer leaves cover visible and waits before switching scenes',()=>{
  const x=harness();
- x.advance(5000);
+ x.advance(9000);
  assert.equal(x.veil.hidden,false);
  assert.equal(x.boot.isRolling(),false);
  let rolls=0;
@@ -80,15 +87,30 @@ test('slow renderer leaves cover visible and waits before switching scenes',()=>
  assert.equal(rolls,0);
  x.boot.gpuFrame();
  assert.equal(x.boot.isRolling(),true);
- x.advance(5200);
+ x.advance(10144);
+ assert.equal(rolls,0);
+ x.advance(10145);
  assert.equal(rolls,1);
 });
-test('boot roll is linear before the smooth landing and ends on full turns',()=>{
+test('V076 faster roll is linear before the smooth landing and ends on full turns',()=>{
  const f=harness().boot.rollTurns;
- assert.equal(f(0),0);assert.equal(f(1),2);
- assert.equal(f(3),2);assert.equal(f(-3),0);
+ assert.equal(f(0),0);assert.equal(f(1),4);
+ assert.equal(f(3),4);assert.equal(f(-3),0);
  for(let i=1;i<=1000;i++)
   assert.ok(f(i/1000)>=f((i-1)/1000),'must never move backward');
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
+});
+
+test('V076 timing contracts ensure >2x initial rolling speed',()=>{
+ const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
+ const overlay=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
+ assert.ok(overlay.includes('name="tetris-build" content="076"'));
+ assert.ok(source.includes('BOOT_MS=2800,REST_MS=4000'));
+ assert.ok(source.includes('SNAP_OFF_MS=145,BLACK_MS=1000'));
+ assert.ok(app.includes('(now-bootRollStartedAt)/1350'));
+ const f=harness().boot.rollTurns;
+ const oldSpeed=(2/(.36+(1-.36)*.5))/1.55;
+ const newSpeed=((f(.1)-f(.05))/.05)/1.35;
+ assert.ok(newSpeed>2*oldSpeed,'initial roll must be more than twice as fast');
 });
