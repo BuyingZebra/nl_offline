@@ -1,4 +1,4 @@
-# Tetris System architecture (V072)
+# Tetris System architecture (V074)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
