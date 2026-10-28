@@ -82,6 +82,8 @@ let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frame
 let queued=false,lastTime=performance.now(),audioCtx=null;
 // Terminal is independent of WebGL; only a completed frame can release it.
 const boot=window.FieldAtlasTetrisBoot;
+// Suppress accidental taps while the fully composited terminal is active.
+if(boot)screen.style.pointerEvents='none';
 let firstComposedFrame=false,bootRolling=false,bootRollFirstFrame=false;
 let lastBootRevision=-1;
 let bootRollStartedAt=0;
@@ -815,6 +817,7 @@ function frame(now){
    if(bootRolling&&!bootRollFirstFrame){
     bootRollFirstFrame=true;
     boot?.rollFrame?.();
+    screen.style.pointerEvents='auto';
    }
    perf.recordWebglCalls(renderer.info.render.calls);
    const memory=renderer.info.memory;
