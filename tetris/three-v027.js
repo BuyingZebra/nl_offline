@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v079';
-import {GAME_REVEAL_DURATION_MS,paintGameRevealMask} from './game-reveal.js?v081';
+import {GAME_REVEAL_DURATION_MS,gameRevealProgress} from './game-reveal.js?v082';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -87,7 +87,7 @@ const boot=window.FieldAtlasTetrisBoot;
 if(boot)screen.style.pointerEvents='none';
 let firstComposedFrame=false,gameRevealActive=false,gameRevealFirstFrame=false;
 let lastBootRevision=-1;
-let gameRevealStartedAt=0;
+let gameRevealStartedAt=0,contentLuminance=1;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
 // Small rolling history: no overlay, network, persistent storage, or console spam.
@@ -135,15 +135,6 @@ for(const t of [sidebarTexture,controlsTexture]){
  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
  t.generateMipmaps=false;
 }
-// The fully composed gameplay image is revealed through an alpha mask.
- // This is scene content, so phosphor, bloom and scanlines remain unaltered.
-const revealCanvas=document.createElement('canvas');
-const revealContext=revealCanvas.getContext('2d',{alpha:true});
-const revealTexture=new THREE.CanvasTexture(revealCanvas);
-revealTexture.colorSpace=THREE.SRGBColorSpace;
-revealTexture.minFilter=THREE.LinearFilter;
-revealTexture.magFilter=THREE.LinearFilter;
-revealTexture.generateMipmaps=false;
 const boardPopupTexture=new THREE.CanvasTexture(boardPopupCanvas);
 boardPopupTexture.colorSpace=THREE.SRGBColorSpace;boardPopupTexture.minFilter=THREE.LinearFilter;
 boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps=false;
@@ -195,11 +186,6 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 // dimensions stable across dialog types prevents stale cropped texture data.
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
-const revealPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
- new THREE.MeshBasicMaterial({map:revealTexture,transparent:true,
-  side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
-revealPlane.frustumCulled=false;revealPlane.renderOrder=3;
-revealPlane.visible=false;scene.add(revealPlane);
 
 // Upload changed canvases before submitting the composer so that the first
 // RenderPass no longer conflates texture transfer and scene rendering.
@@ -231,7 +217,7 @@ function beginGameReveal(){
  // The original vertical roll shader and rollTurns curve are preserved
  // for future tests, but deliberately disabled in this sequence.
  compositor.setStartupRoll(0);
- gameRevealStartedAt=performance.now();
+ gameRevealStartedAt=0; // Start at 0% on the first actual game-source render.
  gameRevealActive=true;
  layers.mark('base','board','sidebar','controls');
  invalidate('game-reveal');
@@ -738,6 +724,7 @@ function syncFX(terminalVisible=false){
  }:layoutInfo;
  const electrical=terminalVisible?boot?.effects?.():null;
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
+  contentLuminance,
   phosphorStrength:electrical?.phosphor??1,voltage:electrical?.voltage??1,
   glitch:electrical?.glitch??0,signalTime:electrical?.clock??0,
   boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
@@ -808,22 +795,18 @@ function frame(now){
    }else{
     surface.material.map=texture;
    }
-   if(gameRevealActive){
-    const elapsed=Math.max(0,now-gameRevealStartedAt);
-    const w=Math.max(1,W),h=Math.max(1,H);
-    if(revealCanvas.width!==w||revealCanvas.height!==h){
-     revealCanvas.width=w;revealCanvas.height=h;
-    }
-    const stage=paintGameRevealMask(revealContext,layoutInfo||layout(),w,h,elapsed);
-    if(stage.complete){
+   // Terminal/game source changes only at 0% shared luminance.
+   // Bloom and the independently updated HUD planes are composed FIRST.
+   if(terminalVisible){
+    contentLuminance=1-(boot?.powerOffProgress?.()??0);
+   }else if(gameRevealActive){
+    if(!gameRevealFirstFrame)gameRevealStartedAt=now;
+    contentLuminance=gameRevealProgress(now-gameRevealStartedAt);
+    if(contentLuminance>=1){
      gameRevealActive=false;
-     revealPlane.visible=false;
      screen.style.pointerEvents='auto';
-    }else{
-     revealTexture.needsUpdate=true;
-     revealPlane.visible=true;
     }
-   }else revealPlane.visible=false;
+   }else contentLuminance=1;
    const syncStarted=performance.now();
    syncFX(terminalVisible);
    perf.recordDuration('sync',performance.now()-syncStarted);
@@ -837,7 +820,6 @@ function frame(now){
     if((!modal||modal==='scores')&&game.status!=='playing')
      textureUploads.upload(boardPopupTexture,'popup');
    }
-   if(revealPlane.visible)textureUploads.upload(revealTexture,'game-reveal');
    renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
@@ -849,8 +831,8 @@ function frame(now){
    if(terminalVisible)boot?.gpuFrame?.();
    if(gameRevealActive&&!gameRevealFirstFrame){
     gameRevealFirstFrame=true;
-    // Hide terminal cover only after a real masked game frame composes.
-    // Input remains disabled until the staged build is complete.
+    // Hide terminal cover after the completed game has been rendered
+    // at the SAME 0% brightness. Input waits for the 100% fade.
     boot?.rollFrame?.();
    }
    perf.recordWebglCalls(renderer.info.render.calls);
