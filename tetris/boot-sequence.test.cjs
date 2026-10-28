@@ -232,5 +232,7 @@ test('V082 fade-out leaves grayscale source intact while GPU luminance reaches z
  x.advance(6950);
  assert.equal(x.boot.powerOffProgress(),1);
  x.advance(7949);
- assert.equal(x.boot.isRolling(),true,'source switched only after the full near-black pause');
+ assert.equal(x.boot.isRolling(),false,'source is unchanged before the one-second hold ends');
+ x.advance(7950);
+ assert.equal(x.boot.isRolling(),true,'source switches at zero brightness after the hold');
 });
