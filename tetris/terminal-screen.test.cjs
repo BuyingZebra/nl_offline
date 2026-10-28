@@ -61,29 +61,37 @@ test('terminal is responsive and never scales out of its own screen bounds',()=>
  assert.ok(x.text.length>20);
 });
 
-test('V078 shows long-form version and touch instruction only after readiness',()=>{
+test('V079 shows long-form version and touch instruction only after readiness',()=>{
  const a=setup();
- a.terminal.paint(a.g,393,852,6000,'078',false);
- assert.ok(a.text.some(item=>item.v==='version: 078'));
+ a.terminal.paint(a.g,393,852,6000,'079',false);
+ assert.ok(a.text.some(item=>item.v==='version: 079'));
  assert.ok(a.text.some(item=>item.v==='READY TO PLAY.'));
  assert.ok(!a.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  const b=setup();
- b.terminal.paint(b.g,393,852,6300,'078',true);
+ b.terminal.paint(b.g,393,852,6300,'079',true);
  assert.ok(b.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  assert.ok(!b.text.some(item=>item.v==='READY TO PLAY.'));
 });
 
-test('V078 power-on begins with only a horizontal charging beam',()=>{
- const x=setup();
- x.terminal.paint(x.g,393,852,190,'078',false);
- assert.ok(x.fill.some(item=>item.h<8&&item.w>300));
- assert.ok(!x.text.some(item=>item.v.includes('NOMAD')));
- const y=setup();
- y.terminal.paint(y.g,393,852,780,'078',false);
- assert.ok(y.text.some(item=>item.v.length>0&&'NOMAD // TETRIS SYSTEM'.startsWith(item.v)));
- assert.ok(!y.text.some(item=>item.v==='BOOT SEQUENCE INITIATED'));
+test('V079 startup fades uniformly from off to #080808 without any bright horizontal beam',()=>{
+ const off=setup();
+ off.terminal.paint(off.g,393,852,0,'079',false);
+ assert.deepEqual(off.fill.map(v=>[v.w,v.h,v.color]),[[393,852,'rgb(0,0,0)']]);
+ const mid=setup();
+ mid.terminal.paint(mid.g,393,852,365,'079',false);
+ assert.equal(mid.fill.length,1,'no horizontal flash or additional raster geometry');
+ assert.equal(mid.fill[0].w,393);
+ assert.equal(mid.fill[0].h,852);
+ const lit=setup();
+ lit.terminal.paint(lit.g,393,852,680,'079',false);
+ assert.equal(lit.fill.length,1);
+ assert.equal(lit.fill[0].color,'rgb(8,8,8)');
+ const next=setup();
+ next.terminal.paint(next.g,393,852,780,'079',false);
+ assert.ok(next.text.some(item=>item.v.length>0&&'NOMAD // TETRIS SYSTEM'.startsWith(item.v)));
+ assert.ok(!next.text.some(item=>item.v==='BOOT SEQUENCE INITIATED'));
 });
-test('V078 types diagnostics, memory rows, modules and a final touch prompt in stages',()=>{
+test('V079 preserves typed diagnostics, memory rows, modules and the touch prompt',()=>{
  const early=setup();
  early.terminal.paint(early.g,393,852,1550,'078',false);
  assert.ok(early.text.some(item=>item.v.includes('BOOT')));
