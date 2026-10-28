@@ -13,7 +13,7 @@
  const clock=()=>root.performance?.now?.()??Date.now();
  const began=clock(),BOOT_MS=2800;
  const SNAP_OFF_MS=145,BLACK_MS=1000,PHOSPHOR_RAMP_MS=160;
- let ready=false,presented=false,started=false,revealed=false;
+ let ready=false,presented=false,started=false,gameHandoff=false,revealed=false;
  let startRoll=null,notifyPaint=null,revision=0,gpuFirstSeenAt=null;
  function elapsed(){return Math.max(0,clock()-began);}
  function canContinue(){return presented&&elapsed()>=BOOT_MS&&!started;}
@@ -51,6 +51,7 @@
    veil.classList.add('boot-black');
    doc.documentElement.classList.remove('boot-poweroff');
    root.setTimeout(()=>{
+    gameHandoff=true;
     if(typeof startRoll==='function')startRoll();
    },BLACK_MS);
   },SNAP_OFF_MS);
@@ -83,7 +84,7 @@
   get ready(){return ready;},
   get revealed(){return revealed;},
   get waitingForTap(){return canContinue();},
-  isRolling(){return started;},
+  isRolling(){return gameHandoff;},
   effects(){return intensity();},
   firstFrame(onStartRolling,onPaint){
    if(ready)return;
@@ -96,7 +97,7 @@
    veil.hidden=true;
   },
   rollFrame(){
-   if(!started||revealed)return;
+   if(!gameHandoff||revealed)return;
    revealed=true;
    veil.hidden=true;
   },
