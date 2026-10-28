@@ -28,11 +28,20 @@ with sync_playwright() as p:
     )
     # The startup ROM terminal covers incomplete WebGL frames. Wait for
     # its pop-off and the first actually rolled CRT frame before touching UI.
+    # V075 uses one real grayscale terminal canvas as both the loading
+    # cover and the CRT source. The cover hides when the GPU terminal paints;
+    # gameplay must not be tapped until the pop-off and pop-on complete.
     page.wait_for_function(
         "() => document.querySelector('#boot-overlay')?.hidden === true",
         timeout=30000,
     )
-    page.wait_for_timeout(200)
+    assert page.locator("#boot-canvas").count() == 1
+    page.screenshot(path=str(out / (browser_name + "-terminal-crt.png")))
+    page.wait_for_function(
+        "() => window.FieldAtlasTetrisBoot?.revealed === true",
+        timeout=30000,
+    )
+    page.wait_for_timeout(1650)  # two turns roll and settle
     assert page.locator("#screen").count() == 1
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
