@@ -1,4 +1,4 @@
-/* V080: terminal startup state machine, grayscale source / CRT GPU handoff.
+/* V081: terminal startup state machine, grayscale source / CRT GPU handoff.
  * Only user touch advances the fully populated, successfully rendered screen.
  * Phosphor colour ramps 0..100%; electrical voltage may briefly spike
  * luminance, never the selected green/amber tint itself.
@@ -13,13 +13,13 @@
  const clock=()=>root.performance?.now?.()??Date.now();
  const BOOT_MS=Terminal.durationMs||6100;
  let began=null;
- const SNAP_OFF_MS=145,BLACK_MS=1000,PHOSPHOR_RAMP_MS=160;
+ const FADE_OUT_MS=450,BLACK_MS=1000,PHOSPHOR_RAMP_MS=160;
  // Deliberately preserve the V078 analogue sync-fault schedule for
  // later experimentation, but remove it from the current presentation.
  const SIGNAL_GLITCH_ENABLED=false;
  let ready=false,presented=false,started=false,gameHandoff=false,revealed=false;
  let gpuFrames=0;
- let startRoll=null,notifyPaint=null,revision=0,gpuFirstSeenAt=null,powerDownAt=null;
+ let startGame=null,notifyPaint=null,revision=0,gpuFirstSeenAt=null,powerDownAt=null;
  function elapsed(){return began===null?0:Math.max(0,clock()-began);}
  function canContinue(){return presented&&elapsed()>=BOOT_MS&&!started;}
  function intensity(){
@@ -50,34 +50,35 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'080',presented&&elapsed()>=BOOT_MS,powerOffProgress());
+  Terminal.paint(ctx,w,h,elapsed(),'081',presented&&elapsed()>=BOOT_MS,powerOffProgress());
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
  function powerOffProgress(){
   if(!started||gameHandoff||powerDownAt===null)return 0;
-  return Math.max(0,Math.min(1,(clock()-powerDownAt)/SNAP_OFF_MS));
+  const p=Math.max(0,Math.min(1,(clock()-powerDownAt)/FADE_OUT_MS));
+  return p*p*(3-2*p);
  }
- function animatePowerOff(){
-  // Only source-image content shrinks. The CRT compositor and its fixed
-  // scanline coordinates remain mounted and active throughout shutdown.
+ function animateFadeOut(){
+  // Update only the grayscale terminal image. The actual CRT effect
+  // pipeline remains unchanged and stationary throughout both fades.
   paint();
-  if(powerOffProgress()<1)root.setTimeout(animatePowerOff,16);
+  if(powerOffProgress()<1)root.setTimeout(animateFadeOut,16);
  }
  function transition(){
   if(!canContinue())return false;
   started=true;
   powerDownAt=clock();
-  animatePowerOff();
+  animateFadeOut();
   root.setTimeout(()=>{
-   // Render exactly #080808 in the source at the beginning of the
-   // one-second blackout; leave the CRT renderer and mask untouched.
+   // Source is fully #080808. Hold it one second with the CRT
+   // compositor still active, then fade in the real game screen.
    paint();
    root.setTimeout(()=>{
     gameHandoff=true;
-    if(typeof startRoll==='function')startRoll();
+    if(typeof startGame==='function')startGame();
    },BLACK_MS);
-  },SNAP_OFF_MS);
+  },FADE_OUT_MS);
   return true;
  }
  function onTouch(event){
@@ -110,9 +111,9 @@
   isRolling(){return gameHandoff;},
   effects(){return intensity();},
   powerOffProgress(){return powerOffProgress();},
-  firstFrame(onStartRolling,onPaint){
+  firstFrame(onStartGame,onPaint){
    if(ready)return;
-   ready=true;startRoll=onStartRolling;notifyPaint=onPaint;
+   ready=true;startGame=onStartGame;notifyPaint=onPaint;
   },
   gpuFrame(){
    if(!ready||presented||started)return;
