@@ -31,7 +31,7 @@ function setup(){
    this.label='uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
     'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
     'uRadius' in u?'SOFTNESS':'uStart' in u?'VIGNETTE':
-    'uPattern' in u?'CRT':'UNKNOWN';
+    'uPattern' in u?'CRT':'uOffset' in u?'ROLL':'UNKNOWN';
   }
  }
  class OutputPass{constructor(){this.label='OUTPUT';}}
@@ -71,7 +71,7 @@ test('pass order remains exactly the approved version',()=>{
  const {composer}=setup();
  assert.deepEqual(composer.passes.map(p=>p.label),[
   'RENDER','BOARD BLUR','BOARD POPUP','GHOST','BLOOM','PHOSPHOR',
-  'SOFTNESS','VIGNETTE','CRT','OUTPUT'
+  'SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
  ]);
 });
 test('display effect settings target their own passes',()=>{
@@ -136,4 +136,24 @@ test('resize updates GPU sampling sizes and disposal releases owned textures',()
  pipeline.dispose();
  assert.equal(composer.disposed,true);
  assert.equal(externalPopup.disposed,undefined);
+});
+
+test('boot roll is dormant in normal gameplay and wraps only during handoff',()=>{
+ const {pipeline,composer}=setup();
+ const roll=composer.passes[9];
+ assert.equal(roll.label,'ROLL');
+ assert.equal(roll.enabled,false);
+ assert.equal(roll.uniforms.uOffset.value,0);
+ update(pipeline);
+ pipeline.setStartupRoll(.25);
+ assert.equal(roll.enabled,true);
+ assert.ok(Math.abs(roll.uniforms.uOffset.value-.25)<.00001);
+ pipeline.setStartupRoll(1.5);
+ assert.equal(roll.enabled,true);
+ assert.ok(Math.abs(roll.uniforms.uOffset.value-.5)<.00001);
+ pipeline.setStartupRoll(2);
+ assert.equal(roll.enabled,false);
+ assert.equal(roll.uniforms.uOffset.value,0);
+ pipeline.setStartupRoll(0);
+ assert.equal(roll.enabled,false);
 });
