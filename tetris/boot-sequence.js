@@ -53,6 +53,7 @@
   get revision(){return revision;},
   get elapsed(){return elapsed();},
   get ready(){return ready;},
+  get revealed(){return revealed;},
   isRolling(){return started;},
   firstFrame(onStartRolling,onPaint){
    if(ready)return;
