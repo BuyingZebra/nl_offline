@@ -200,27 +200,49 @@ test('V078 startup sync tearing shares the dormant boot-roll pass',()=>{
  assert.equal(signal.enabled,false);
 });
 
-test('V082 global luminance fades the entire composed image even when vignette is disabled',()=>{
+test('V083 independently preserves #080808 display base through zero-luminance source swaps',()=>{
  const {pipeline,composer}=setup();
- const vignette=composer.passes[7],crt=composer.passes[8];
+ const vignette=composer.passes[7],crt=composer.passes[8],outputGate=composer.passes[9];
  const fx={...states,vignette:false,scanlines:true};
  const input={fx,theme:'green',width:393,height:852,dpr:2,
   boardStatus:'playing',modalOpen:false};
  pipeline.syncFX({...input,contentLuminance:1});
- assert.equal(vignette.enabled,false,'normal game keeps optional vignette pass disabled');
+ assert.equal(vignette.enabled,false,'normal gameplay retains disabled vignette');
+ assert.equal(outputGate.enabled,false,'no extra pass during normal gameplay');
  pipeline.syncFX({...input,contentLuminance:0});
- assert.equal(vignette.enabled,true,'global fade operates even if vignette is off');
- assert.equal(vignette.uniforms.uContentLuminance.value,0);
- assert.equal(vignette.uniforms.uAmount.value,0,'global fade must not turn vignette on');
- assert.equal(crt.enabled,true,'CRT scanlines stay on at zero brightness');
+ assert.equal(vignette.enabled,false,'fade must not alter vignette setting');
+ assert.equal(outputGate.enabled,true,'final luminance pass activates only for transition');
+ assert.equal(outputGate.uniforms.uContentLuminance.value,0);
+ assert.equal(outputGate.uniforms.uDisplayBase.value.value,0x080808);
+ assert.equal(crt.enabled,true,'CRT mask stays enabled at zero luminance');
  pipeline.syncFX({...input,contentLuminance:.5});
- assert.equal(vignette.uniforms.uContentLuminance.value,.5);
- pipeline.syncFX({...input,contentLuminance:-5});
- assert.equal(vignette.uniforms.uContentLuminance.value,0);
- pipeline.syncFX({...input,contentLuminance:4});
- assert.equal(vignette.uniforms.uContentLuminance.value,1);
- assert.equal(vignette.enabled,false);
+ assert.equal(outputGate.uniforms.uContentLuminance.value,.5);
+ pipeline.syncFX({...input,contentLuminance:-2});
+ assert.equal(outputGate.uniforms.uContentLuminance.value,0);
+ pipeline.syncFX({...input,contentLuminance:8});
+ assert.equal(outputGate.uniforms.uContentLuminance.value,1);
+ assert.equal(outputGate.enabled,false);
  pipeline.syncFX({...input,fx:{...states,vignette:true},contentLuminance:0});
+ assert.equal(vignette.enabled,true);
  assert.equal(vignette.uniforms.uAmount.value,states.vignetteAmount);
  assert.equal(crt.uniforms.uOpacity.value,states.scanlineOpacity/100);
+ // A surviving roll or glitch must not accidentally disable the common gate.
+ pipeline.setStartupRoll(.38);
+ assert.equal(outputGate.enabled,true);
+ pipeline.setStartupRoll(0);
+ assert.equal(outputGate.enabled,true);
+ pipeline.syncFX({...input,contentLuminance:1});
+ assert.equal(outputGate.enabled,false);
+});
+test('V083 gamma-correct display base is after scanlines, with unchanged output and no double tint',()=>{
+ const shader=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
+ const crt=shader.indexOf('composer.addPass(scanlineOverlay)');
+ const shared=shader.indexOf('composer.addPass(bootRoll)');
+ const display=shader.indexOf('composer.addPass(new OutputPass())');
+ assert.ok(crt<shared&&shared<display);
+ assert.ok(shader.includes('uDisplayBase:{value:new THREE.Color(0x080808)}'));
+ assert.ok(shader.includes('vec3 emitted=completed-uDisplayBase'));
+ assert.ok(shader.includes('uDisplayBase+emitted*clamp(uContentLuminance,0.0,1.0)'));
+ assert.ok(!shader.includes('mix(vec3(8.0/255.0),finished'));
+ assert.ok(shader.includes('gl_FragCoord.x,uScreenHeight-gl_FragCoord.y'));
 });
