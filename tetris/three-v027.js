@@ -769,8 +769,8 @@ function frame(now){
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
   if(bootRolling){
-   // Steady rolling speed, easing smoothly to exactly two full revolutions.
-   const elapsed=clamp((now-bootRollStartedAt)/1550,0,1);
+   // Much faster initial roll: four full turns in 1.35s, easing to zero.
+   const elapsed=clamp((now-bootRollStartedAt)/1350,0,1);
    compositor.setStartupRoll(elapsed>=1?0:boot.rollTurns(elapsed));
    layers.reason('boot-roll');
    if(elapsed>=1)bootRolling=false;
