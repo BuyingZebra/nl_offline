@@ -23,9 +23,9 @@ test('single metadata marker determines build number without a hard-coded JS con
  assert.ok(!/const THREE_BUILD_VERSION=['"][0-9]{3}['"]/.test(main));
 });
 test('footer, browser title, accessible title and debug use same runtime value',()=>{
- assert.ok(main.includes("'Version: '+THREE_BUILD_VERSION"));
- assert.ok(main.includes("document.title='NOMAD — Tetris System V'+THREE_BUILD_VERSION"));
- assert.ok(main.includes("'Tetris System — Three.js V'+THREE_BUILD_VERSION"));
+ assert.ok(main.includes("'version: '+THREE_BUILD_VERSION"));
+ assert.ok(main.includes("document.title='NOMAD — Tetris System | version: '+THREE_BUILD_VERSION"));
+ assert.ok(main.includes("'Tetris System — Three.js version: '+THREE_BUILD_VERSION"));
  assert.ok(main.includes('version:THREE_BUILD_VERSION,createdAt:'));
  assert.ok(!/<title>[^<]*V[0-9]{3}<\/title>/.test(html));
  assert.ok(!/aria-label="Tetris System — Three.js V[0-9]{3}"/.test(html));
