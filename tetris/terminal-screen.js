@@ -69,7 +69,7 @@
   ['INPUT DEVICE','OK'],['ARCADE MODULE','OK'],
   ['TETRIS MATRIX','READY'],['PIECE LOGIC','READY'],['GAME BOARD','READY']
  ];
- function paint(g,w,h,elapsedMs=0,version='075'){
+ function paint(g,w,h,elapsedMs=0,version='077',canContinue=false){
   // Align proportions to the approved FIRST concept (not the later panels).
   // At landscape breakpoints a centered, full-height portrait viewport
   // prevents unreadable columns or unsafe horizontal clipping.
@@ -93,7 +93,7 @@
    g.beginPath();g.moveTo(a,y+.5);g.lineTo(b,y+.5);g.stroke();};
   const elapsed=Math.max(0,Number(elapsedMs)||0);
   txt('NOMAD // TETRIS SYSTEM',x0,81,22,218,700,'left',false);
-  txt('v'+version,362,93,8,151,400,'right');
+  txt('version: '+version,362,93,8,151,400,'right');
   rule(112);
   const checksVisible=Math.min(checks.length,Math.floor(Math.max(0,elapsed-130)/125));
   for(let i=0;i<checksVisible;i++){
@@ -132,7 +132,7 @@
   rule(711,32,269);
   if(elapsed>2250)txt('TETRIS MATRIX INITIALIZED.',32,739,11,204);
   if(elapsed>2390)txt('ALL SYSTEMS NOMINAL.',32,758,11,204);
-  if(elapsed>2560)txt('READY TO PLAY.',32,777,11,214);
+  if(elapsed>2560)txt(canContinue?'TOUCH SCREEN TO CONTINUE':'READY TO PLAY.',32,777,11,214);
   if(elapsed>2690){
    txt('>',32,805,13,216);
    // A genuine block cursor, not a Unicode character with font mismatch.
