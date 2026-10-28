@@ -725,7 +725,6 @@ function syncFX(terminalVisible=false){
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
   phosphorStrength:electrical?.phosphor??1,voltage:electrical?.voltage??1,
   glitch:electrical?.glitch??0,signalTime:electrical?.clock??0,
-  contentCollapse:terminalVisible?(boot?.powerOffProgress?.()??0):0,
   boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
   scoresOverlay:!terminalVisible&&modal==='scores',
   popupStatus:terminalVisible?null:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
