@@ -1,4 +1,4 @@
-/* V077: deterministic terminal tap gate, physics-inspired startup and poweroff. */
+/* V078: deterministic terminal tap gate, physics-inspired startup and poweroff. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -51,7 +51,7 @@ test('grayscale loading canvas paints immediately, with full version: prefix',()
  assert.equal(x.boot.canvas,x.canvas);
  assert.equal(x.canvas.width,786);
  assert.equal(x.canvas.height,1704);
- assert.equal(x.painted[0][4],'077');
+ assert.equal(x.painted[0][4],'078');
  x.advance(2750);
  assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.boot.isRolling(),false);
@@ -61,7 +61,7 @@ test('no auto-advance: diagnostic terminal holds indefinitely until touch',()=>{
  let rolls=0;
  x.boot.firstFrame(()=>rolls++);
  x.boot.gpuFrame();
- x.advance(2800);
+ x.advance(6200);
  assert.equal(x.boot.waitingForTap,true);
  assert.equal(x.veil.hidden,true);
  x.advance(25000);
@@ -77,7 +77,7 @@ test('early tap does not interrupt diagnostics or touch hidden gameplay',()=>{
  x.advance(2000);
  assert.deepEqual(x.tap(),{blocked:true,stopped:true});
  assert.equal(x.boot.isRolling(),false);
- x.advance(3000);
+ x.advance(6300);
  assert.equal(x.boot.waitingForTap,true);
  assert.equal(rolls,0);
 });
@@ -85,22 +85,22 @@ test('one touch collapses real GPU terminal, then one full second of black',()=>
  const x=harness();let rolls=0;
  x.boot.firstFrame(()=>rolls++);
  x.boot.gpuFrame();
- x.advance(3000);
+ x.advance(6400);
  x.tap();
  assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.rootClasses.has('boot-poweroff'),true);
  assert.equal(x.classes.has('boot-black'),false);
  assert.equal(x.boot.isRolling(),false,'game source must stay terminal during collapse');
- x.advance(3144);
+ x.advance(6544);
  assert.equal(x.veil.hidden,true,'CRT remains visible through snap-off');
- x.advance(3145);
- assert.equal(x.veil.hidden,false,'black cover is visible');
+ x.advance(6545);
+ assert.equal(x.veil.hidden,false,'near-black cover is visible');
  assert.equal(x.classes.has('boot-black'),true);
  assert.equal(x.rootClasses.has('boot-poweroff'),false);
  assert.equal(x.boot.isRolling(),false);
- x.advance(4144);
+ x.advance(7544);
  assert.equal(rolls,0,'1-second black interval has not ended');
- x.advance(4145);
+ x.advance(7545);
  assert.equal(rolls,1,'new game roll begins under black cover');
  assert.equal(x.boot.isRolling(),true);
  assert.equal(x.boot.revealed,false);
@@ -117,25 +117,27 @@ test('slow GPU readiness cannot reveal the game or enable tap prematurely',()=>{
  x.tap();
  assert.equal(x.boot.isRolling(),false);
  x.boot.gpuFrame();
+ assert.equal(x.boot.waitingForTap,false,'the timeline starts at first GPU frame');
+ x.advance(15100);
  assert.equal(x.boot.waitingForTap,true);
  x.tap();
- x.advance(10145);
+ x.advance(16245);
  assert.equal(rolls,1);
 });
 test('phosphor intensity never exceeds 100%; brief voltage spike only changes luminance',()=>{
  const x=harness();
  x.boot.firstFrame(()=>{});
- assert.deepEqual(x.boot.effects(),{phosphor:0,voltage:1});
+ assert.deepEqual(x.boot.effects(),{phosphor:0,voltage:1,glitch:0,clock:0});
  x.advance(500);
  x.boot.gpuFrame();
  x.advance(510);
  assert.ok(x.boot.effects().phosphor>0&&x.boot.effects().phosphor<1);
  assert.equal(x.boot.effects().voltage,1);
- x.advance(585);
- assert.equal(x.boot.effects().voltage,1.16);
- x.advance(616);
+ x.advance(666);
+ assert.equal(x.boot.effects().voltage,1.15);
+ x.advance(686);
  assert.equal(x.boot.effects().voltage,1);
- x.advance(670);
+ x.advance(700);
  assert.equal(x.boot.effects().phosphor,1);
  x.advance(25000);
  assert.equal(x.boot.effects().phosphor,1);
@@ -148,15 +150,34 @@ test('four-turn roll retains constant initial speed and smooth final rest',()=>{
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
-test('V077 source never uses a hue-rotation filter or abbreviated version label',()=>{
+test('V078 source never uses hue rotation or an abbreviated version label',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const terminal=fs.readFileSync(path.join(__dirname,'terminal-screen.js'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('name="tetris-build" content="077"'));
+ assert.ok(html.includes('name="tetris-build" content="078"'));
  assert.ok(!html.includes('hue-rotate'));
  assert.ok(html.includes('boot-poweroff #display'));
  assert.ok(terminal.includes("'version: '+version"));
  assert.ok(terminal.includes('TOUCH SCREEN TO CONTINUE'));
  assert.ok(app.includes("'version: '+THREE_BUILD_VERSION"));
  assert.ok(app.includes('phosphorStrength:electrical?.phosphor??1'));
+});
+
+test('V078 startup has staged signal disruptions and no automatic transition',()=>{
+ const x=harness();let launches=0;
+ x.boot.firstFrame(()=>launches++);
+ x.advance(6000);
+ assert.equal(x.boot.waitingForTap,false,'no GPU frame means no boot progression');
+ x.boot.gpuFrame();
+ assert.equal(x.boot.elapsed,0,'GPU presentation anchors timeline');
+ x.advance(6275); // t=275ms: first horizontal sync fault
+ assert.ok(x.boot.effects().glitch>0);
+ assert.ok(x.boot.effects().glitch<=1);
+ x.advance(8110); // t=2110ms: mid-diagnostic sync disturbance
+ assert.ok(x.boot.effects().glitch>0);
+ x.advance(12200);
+ assert.equal(x.boot.waitingForTap,true);
+ assert.equal(launches,0);
+ x.advance(20000);
+ assert.equal(launches,0,'completed terminal remains until touch');
 });
