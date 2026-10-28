@@ -98,3 +98,11 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - The October 26 Display System screenshot is the new baseline: phosphor ON (green default theme); CRT scanlines ON, APERTURE pattern at 49%; screen vignette ON at 57%; phosphor bloom ON at 22%.
 - Signal ghosting OFF, retained X 2px / Y 0px / intensity 22%; edge softness OFF, retained strength 64% / radius 3.0px.
 - Defaults apply to first-time visitors and the existing Restore Defaults action. Previously saved user adjustments remain intact until manually restored. Ghost-piece and sound defaults are unchanged; no screen layout or compositor changes.
+
+## V074: boot-to-CRT transition
+- The `boot-sequence.js` classic script runs before engine imports and types a longer fictional ROM/diagnostic transcript over an opaque DOM overlay, so unfinished WebGL canvases and font reloads remain unseen.
+- The terminal briefly collapses to a bright horizontal trace, then powers off to black; there is **no rolling of the terminal text**.
+- Only a successful `compositor.render()` after a complete source-layer paint signals initial readiness. After boot text finishes, a callback starts an already-offset vertical CRT roll in the finished GPU image; the black cover is removed only after the **first rolled GPU frame** is submitted.
+- `boot.rollTurns(t)` integrates constant initial speed followed by smooth deceleration through exactly two whole signal revolutions, returning to a zero-offset static image. The optional `compositor.setStartupRoll()` GPU pass is inserted after the approved CRT mask and before Output and is disabled outside the handoff.
+- No saved effects, score/game logic, layout, normal CRT settings, or gameplay textures are changed. A slow init leaves the boot terminal visible, rather than revealing uninitialized content. Boot animation is one-shot per navigation, not per modal/game session.
+- Run `boot-sequence.test.cjs`, `compositor.test.cjs` and existing regressions. Confirm signal appearance/timing on a real phone; CPU tests cannot certify GPU rendering.
