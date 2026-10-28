@@ -71,19 +71,12 @@
   ['INPUT DEVICE','OK'],['ARCADE MODULE','OK'],
   ['TETRIS MATRIX','READY'],['PIECE LOGIC','READY'],['GAME BOARD','READY']
  ];
- function paint(g,w,h,elapsedMs=0,version='081',canContinue=false,fadeOut=0){
+ function paint(g,w,h,elapsedMs=0,version='082',canContinue=false){
   // Align proportions to the approved FIRST concept (not the later panels).
   // At landscape breakpoints a centered, full-height portrait viewport
   // prevents unreadable columns or unsafe horizontal clipping.
   const scale=Math.min(w/393,h/852);
   g.save();
-  // Fade the ORIGINAL grayscale source toward near-black. There is no
-  // geometric collapse, and the downstream CRT mask never moves.
-  const shut=Math.max(0,Math.min(1,Number(fadeOut)||0));
-  if(shut>=1){
-   g.fillStyle='#080808';g.fillRect(0,0,w,h);
-   g.restore();return;
-  }
   // The display starts fully off (0 luminance) and gently approaches
   // the application's #080808 near-black over the first 650ms.
   const elapsed=Math.max(0,Number(elapsedMs)||0);
@@ -170,13 +163,6 @@
    }
   }
   g.restore();
-  if(shut>0){
-   g.save();
-   g.fillStyle='#080808';
-   g.globalAlpha=shut;
-   g.fillRect(0,0,w,h);
-   g.restore();
-  }
  }
  root.FieldAtlasTerminal=Object.freeze({paint,tileFace:blocks,checks,words,preview,durationMs:6100});
 })(window);
