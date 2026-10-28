@@ -46,7 +46,7 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'079',canContinue(),powerOffProgress());
+  Terminal.paint(ctx,w,h,elapsed(),'079',presented&&elapsed()>=BOOT_MS,powerOffProgress());
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
