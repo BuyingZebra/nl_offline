@@ -160,7 +160,7 @@ test('copy-debug status glyph and key remain in dedicated modal module',()=>{
 test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
- assert.ok(main.includes("from './modal-ui.js?v071'"));
+ assert.ok(main.includes("from './modal-ui.js?v079'"));
  assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
@@ -229,4 +229,10 @@ test('V069: table center alignment, row borders, and solid RETURN',()=>{
  assert.equal(buttons[0].args[0],'RETURN');
  assert.equal(buttons[0].args[5],'close');
  assert.equal(buttons[0].args[6].light,true);
+});
+
+test('V079 effect thumbnails clip to square corners without changing their image content',()=>{
+ const modal=fs.readFileSync(path.join(__dirname,'modal-ui.js'),'utf8');
+ assert.ok(modal.includes('g.rect(x+inset,y+inset,inner,inner)'));
+ assert.ok(!modal.includes('g.roundRect(x+inset,y+inset,inner,inner'));
 });
