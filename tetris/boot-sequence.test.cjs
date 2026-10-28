@@ -1,4 +1,4 @@
-/* V075: deterministic boot coordinator tests, no browser or GPU needed. */
+/* V077: deterministic terminal tap gate, physics-inspired startup and poweroff. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -6,111 +6,157 @@ const fs=require('node:fs');
 const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'boot-sequence.js'),'utf8');
 function harness(){
- const jobs=[],classes=new Set(),painted=[];
- let now=0,rendered=0;
+ const jobs=[],classes=new Set(),rootClasses=new Set(),events=new Map(),painted=[];
+ let now=0;
  const ctx={setTransform(){}};
  const canvas={width:0,height:0,getContext:()=>ctx};
  const veil={hidden:false,
   getBoundingClientRect:()=>({width:393,height:852}),
   classList:{add:c=>classes.add(c),contains:c=>classes.has(c)}};
- const document={getElementById:n=>n==='boot-overlay'?veil:n==='boot-canvas'?canvas:null};
- const window={document,innerWidth:393,innerHeight:852,devicePixelRatio:2,
-  localStorage:{getItem:()=>null},
+ const document={
+  getElementById:n=>n==='boot-overlay'?veil:n==='boot-canvas'?canvas:null,
+  documentElement:{classList:{
+   add:c=>rootClasses.add(c),remove:c=>rootClasses.delete(c),contains:c=>rootClasses.has(c)}},
+  addEventListener:(name,fn)=>events.set(name,fn)
+ };
+ const window={document,PointerEvent:class PointerEvent{},
+  innerWidth:393,innerHeight:852,devicePixelRatio:2,
   performance:{now:()=>now},
   FieldAtlasTerminal:{paint:(...args)=>painted.push(args)},
-  setTimeout(fn,ms){jobs.push({at:now+ms,fn});return jobs.length;}
+  setTimeout(fn,ms){jobs.push({at:now+ms,fn});return jobs.length}
  };
  new Function('window',source)(window);
  function advance(time){
   let loops=0;
   while(jobs.some(j=>j.at<=time)){
-   if(++loops>250)throw Error('timer loop');
+   if(++loops>1500)throw Error('unbounded timers');
    jobs.sort((a,b)=>a.at-b.at);
    const next=jobs.shift();now=next.at;next.fn();
   }
   now=time;
  }
- return {boot:window.FieldAtlasTetrisBoot,veil,canvas,classes,painted,advance,
-  get clock(){return now},get pending(){return jobs.length}};
+ function tap(){
+  let blocked=false,stopped=false;
+  events.get('pointerdown')?.({
+   cancelable:true,preventDefault(){blocked=true;},
+   stopImmediatePropagation(){stopped=true;}
+  });
+  return {blocked,stopped};
+ }
+ return {boot:window.FieldAtlasTetrisBoot,veil,canvas,classes,rootClasses,
+  painted,advance,tap,get now(){return now}};
 }
-test('the actual grayscale terminal canvas is painted synchronously before imports',()=>{
+test('grayscale loading canvas paints immediately, with full version: prefix',()=>{
  const x=harness();
- assert.ok(x.boot);
  assert.equal(x.boot.canvas,x.canvas);
  assert.equal(x.canvas.width,786);
  assert.equal(x.canvas.height,1704);
- assert.equal(x.boot.revision,1);
- assert.equal(x.painted[0][1],393);
- assert.equal(x.painted[0][2],852);
- assert.equal(x.veil.hidden,false);
- x.advance(200);
- assert.ok(x.boot.revision>1);
-});
-test('terminal stays visible until GPU frame and full boot timeline complete',()=>{
- const x=harness();
- let rolls=0,repaints=0;
- x.boot.firstFrame(()=>rolls++,()=>repaints++);
- x.advance(250);
- assert.ok(repaints>0);
- assert.equal(rolls,0);
- assert.equal(x.veil.hidden,false,'screen not yet handed over to WebGL');
- x.boot.gpuFrame();
- assert.equal(x.veil.hidden,true,'real CRT terminal now visible');
- // Complete diagnostic text has been on-screen since ~2.8s.
- x.advance(6790);
- assert.equal(rolls,0);
+ assert.equal(x.painted[0][4],'077');
+ x.advance(2750);
+ assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.boot.isRolling(),false);
- assert.equal(x.veil.hidden,true,'full terminal is readable for four seconds');
- x.advance(6800);
- assert.equal(x.boot.isRolling(),true);
- assert.equal(x.veil.hidden,false,'opaque cover performs snap-off');
- assert.equal(x.classes.has('boot-off'),true);
- x.advance(6945); // 145ms snap-off is over; 1s black begins
- assert.equal(rolls,0);
- x.advance(7944);
- assert.equal(rolls,0,'black intermission stays on-screen for one full second');
- assert.equal(x.veil.hidden,false,'cover remains opaque through blackout');
- x.advance(7945);
- assert.equal(rolls,1,'snap-on begins after blackout');
- x.boot.rollFrame();
- assert.equal(x.veil.hidden,true,'revealed game is already rolling');
- x.boot.rollFrame();
- assert.equal(rolls,1);
 });
-test('slow renderer leaves cover visible and waits before switching scenes',()=>{
+test('no auto-advance: diagnostic terminal holds indefinitely until touch',()=>{
  const x=harness();
- x.advance(9000);
- assert.equal(x.veil.hidden,false);
- assert.equal(x.boot.isRolling(),false);
  let rolls=0;
  x.boot.firstFrame(()=>rolls++);
- assert.equal(rolls,0);
  x.boot.gpuFrame();
- assert.equal(x.boot.isRolling(),true);
- x.advance(10144);
+ x.advance(2800);
+ assert.equal(x.boot.waitingForTap,true);
+ assert.equal(x.veil.hidden,true);
+ x.advance(25000);
+ assert.equal(x.boot.waitingForTap,true);
+ assert.equal(x.boot.isRolling(),false);
  assert.equal(rolls,0);
+ assert.equal(x.painted.at(-1)[5],true,'tap instruction is drawn');
+});
+test('early tap does not interrupt diagnostics or touch hidden gameplay',()=>{
+ const x=harness();let rolls=0;
+ x.boot.firstFrame(()=>rolls++);
+ x.boot.gpuFrame();
+ x.advance(2000);
+ assert.deepEqual(x.tap(),{blocked:true,stopped:true});
+ assert.equal(x.boot.isRolling(),false);
+ x.advance(3000);
+ assert.equal(x.boot.waitingForTap,true);
+ assert.equal(rolls,0);
+});
+test('one touch collapses real GPU terminal, then one full second of black',()=>{
+ const x=harness();let rolls=0;
+ x.boot.firstFrame(()=>rolls++);
+ x.boot.gpuFrame();
+ x.advance(3000);
+ x.tap();
+ assert.equal(x.boot.waitingForTap,false);
+ assert.equal(x.rootClasses.has('boot-poweroff'),true);
+ assert.equal(x.classes.has('boot-black'),false);
+ assert.equal(x.boot.isRolling(),false,'game source must stay terminal during collapse');
+ x.advance(3144);
+ assert.equal(x.veil.hidden,true,'CRT remains visible through snap-off');
+ x.advance(3145);
+ assert.equal(x.veil.hidden,false,'black cover is visible');
+ assert.equal(x.classes.has('boot-black'),true);
+ assert.equal(x.rootClasses.has('boot-poweroff'),false);
+ assert.equal(x.boot.isRolling(),false);
+ x.advance(4144);
+ assert.equal(rolls,0,'1-second black interval has not ended');
+ x.advance(4145);
+ assert.equal(rolls,1,'new game roll begins under black cover');
+ assert.equal(x.boot.isRolling(),true);
+ assert.equal(x.boot.revealed,false);
+ x.boot.rollFrame();
+ assert.equal(x.veil.hidden,true);
+ assert.equal(x.boot.revealed,true);
+});
+test('slow GPU readiness cannot reveal the game or enable tap prematurely',()=>{
+ const x=harness();let rolls=0;
+ x.advance(9000);
+ x.tap();
+ assert.equal(x.boot.isRolling(),false);
+ x.boot.firstFrame(()=>rolls++);
+ x.tap();
+ assert.equal(x.boot.isRolling(),false);
+ x.boot.gpuFrame();
+ assert.equal(x.boot.waitingForTap,true);
+ x.tap();
  x.advance(10145);
  assert.equal(rolls,1);
 });
-test('V076 faster roll is linear before the smooth landing and ends on full turns',()=>{
+test('phosphor intensity never exceeds 100%; brief voltage spike only changes luminance',()=>{
+ const x=harness();
+ x.boot.firstFrame(()=>{});
+ assert.deepEqual(x.boot.effects(),{phosphor:0,voltage:1});
+ x.advance(500);
+ x.boot.gpuFrame();
+ x.advance(510);
+ assert.ok(x.boot.effects().phosphor>0&&x.boot.effects().phosphor<1);
+ assert.equal(x.boot.effects().voltage,1);
+ x.advance(585);
+ assert.equal(x.boot.effects().voltage,1.16);
+ x.advance(616);
+ assert.equal(x.boot.effects().voltage,1);
+ x.advance(670);
+ assert.equal(x.boot.effects().phosphor,1);
+ x.advance(25000);
+ assert.equal(x.boot.effects().phosphor,1);
+ assert.equal(x.boot.effects().voltage,1);
+});
+test('four-turn roll retains constant initial speed and smooth final rest',()=>{
  const f=harness().boot.rollTurns;
- assert.equal(f(0),0);assert.equal(f(1),4);
- assert.equal(f(3),4);assert.equal(f(-3),0);
- for(let i=1;i<=1000;i++)
-  assert.ok(f(i/1000)>=f((i-1)/1000),'must never move backward');
+ assert.equal(f(0),0);assert.equal(f(1),4);assert.equal(f(3),4);
+ for(let i=1;i<=1000;i++)assert.ok(f(i/1000)>=f((i-1)/1000));
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
-
-test('V076 timing contracts ensure >2x initial rolling speed',()=>{
+test('V077 source never uses a hue-rotation filter or abbreviated version label',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
+ const terminal=fs.readFileSync(path.join(__dirname,'terminal-screen.js'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- const overlay=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
- assert.ok(overlay.includes('name="tetris-build" content="076"'));
- assert.ok(source.includes('BOOT_MS=2800,REST_MS=4000'));
- assert.ok(source.includes('SNAP_OFF_MS=145,BLACK_MS=1000'));
- assert.ok(app.includes('(now-bootRollStartedAt)/1350'));
- const f=harness().boot.rollTurns;
- const oldSpeed=(2/(.36+(1-.36)*.5))/1.55;
- const newSpeed=((f(.1)-f(.05))/.05)/1.35;
- assert.ok(newSpeed>2*oldSpeed,'initial roll must be more than twice as fast');
+ assert.ok(html.includes('name="tetris-build" content="077"'));
+ assert.ok(!html.includes('hue-rotate'));
+ assert.ok(html.includes('boot-poweroff #display'));
+ assert.ok(terminal.includes("'version: '+version"));
+ assert.ok(terminal.includes('TOUCH SCREEN TO CONTINUE'));
+ assert.ok(app.includes("'version: '+THREE_BUILD_VERSION"));
+ assert.ok(app.includes('phosphorStrength:electrical?.phosphor??1'));
 });
