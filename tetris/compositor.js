@@ -229,15 +229,24 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
    uOpacity:{value:.20},
    uScale:{value:1},
    uDpr:{value:1},
-   uScreenHeight:{value:1}
+   uScreenHeight:{value:1},
+   uContentCollapse:{value:0}
   },
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPattern;
-   uniform float uOpacity,uScale,uDpr,uScreenHeight;
+   uniform float uOpacity,uScale,uDpr,uScreenHeight,uContentCollapse;
    uniform vec2 uPatternSize;
    void main(){
-    vec3 image=texture2D(tDiffuse,vUv).rgb;
+    // Content collapses behind the stationary CRT mask. The scanline
+    // pattern always samples gl_FragCoord; it never contracts or shifts.
+    float shut=clamp(uContentCollapse,0.0,1.0);
+    float height=max(.001,1.0-shut*shut*(3.0-2.0*shut));
+    vec2 source=vec2(vUv.x,clamp(.5+(vUv.y-.5)/height,0.0,1.0));
+    float inside=(1.0-step(.5*height,abs(vUv.y-.5)))*
+     (1.0-step(.999,shut));
+    vec3 content=texture2D(tDiffuse,source).rgb;
+    vec3 image=mix(vec3(8.0/255.0),content,inside);
     vec2 pixel=vec2(gl_FragCoord.x,uScreenHeight-gl_FragCoord.y);
     vec2 period=max(.25,uScale)*max(1.0,uDpr)*uPatternSize;
     float luminance=texture2D(uPattern,pixel/period).r;
@@ -287,7 +296,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentCollapse=0}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -326,11 +335,15 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  edgeVignette.enabled=fx.vignette;
  edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
- scanlineOverlay.enabled=fx.scanlines&&fx.scanlineOpacity>0;
+ const collapse=clamp(Number(contentCollapse)||0,0,1);
+ scanlineOverlay.uniforms.uContentCollapse.value=collapse;
+ // Even if the user's scanlines are off, collapsing source content
+ // still works; its mask opacity below remains exactly zero.
+ scanlineOverlay.enabled=(fx.scanlines&&fx.scanlineOpacity>0)||collapse>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];
  scanlineOverlay.uniforms.uPatternSize.value.set(scanlinePreset.rows[0].length,scanlinePreset.rows.length);
- scanlineOverlay.uniforms.uOpacity.value=clamp(fx.scanlineOpacity/100,0,1);
+ scanlineOverlay.uniforms.uOpacity.value=fx.scanlines?clamp(fx.scanlineOpacity/100,0,1):0;
  scanlineOverlay.uniforms.uScale.value=CRT_PATTERN_SCALE;
  scanlineOverlay.uniforms.uDpr.value=DPR;
  scanlineOverlay.uniforms.uScreenHeight.value=H*DPR;
