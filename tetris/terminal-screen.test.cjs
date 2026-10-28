@@ -20,7 +20,7 @@ function setup(){
 }
 test('approved FIRST concept fills screen with header, statuses, dump and prompt',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6720 ,'082');
+ x.terminal.paint(x.g,393,852,6720 ,'083');
  const strings=x.text.map(item=>item.v);
  assert.ok(strings.includes('NOMAD // TETRIS SYSTEM'));
  assert.ok(strings.includes('BOOT SEQUENCE INITIATED'));
@@ -36,7 +36,7 @@ test('approved FIRST concept fills screen with header, statuses, dump and prompt
 });
 test('boot source remains exclusively gray, separate from phosphor colour',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6500 ,'082');
+ x.terminal.paint(x.g,393,852,6500 ,'083');
  const color=v=>/^#(?:080808|101010)$/.test(v)||/^rgb\((\d+),\1,\1\)$/.test(v);
  assert.ok(x.fill.every(v=>color(v.color)));
  assert.ok(x.text.every(v=>color(v.color)));
@@ -56,52 +56,52 @@ test('game and memory-dump miniature use one exact 8-layer beveled tile face',()
 });
 test('terminal is responsive and never scales out of its own screen bounds',()=>{
  const x=setup();
- x.terminal.paint(x.g,844,390,6500 ,'082');
+ x.terminal.paint(x.g,844,390,6500 ,'083');
  assert.ok(x.fill.length>10);
  assert.ok(x.text.length>20);
 });
 
-test('V082 shows long-form version and touch instruction only after readiness',()=>{
+test('V083 shows long-form version and touch instruction only after readiness',()=>{
  const a=setup();
- a.terminal.paint(a.g,393,852,6000,'082',false);
+ a.terminal.paint(a.g,393,852,6000,'083',false);
  assert.ok(a.text.some(item=>item.v==='version: 082'));
  assert.ok(a.text.some(item=>item.v==='READY TO PLAY.'));
  assert.ok(!a.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  const b=setup();
- b.terminal.paint(b.g,393,852,6300,'082',true);
+ b.terminal.paint(b.g,393,852,6300,'083',true);
  assert.ok(b.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
  assert.ok(!b.text.some(item=>item.v==='READY TO PLAY.'));
 });
 
-test('V082 startup fades uniformly from off to #080808 without any bright horizontal beam',()=>{
+test('V083 startup fades uniformly from off to #080808 without any bright horizontal beam',()=>{
  const off=setup();
- off.terminal.paint(off.g,393,852,0,'082',false);
+ off.terminal.paint(off.g,393,852,0,'083',false);
  assert.deepEqual(off.fill.map(v=>[v.w,v.h,v.color]),[[393,852,'rgb(0,0,0)']]);
  const mid=setup();
- mid.terminal.paint(mid.g,393,852,365,'082',false);
+ mid.terminal.paint(mid.g,393,852,365,'083',false);
  assert.equal(mid.fill.length,1,'no horizontal flash or additional raster geometry');
  assert.equal(mid.fill[0].w,393);
  assert.equal(mid.fill[0].h,852);
  const lit=setup();
- lit.terminal.paint(lit.g,393,852,680,'082',false);
+ lit.terminal.paint(lit.g,393,852,680,'083',false);
  assert.equal(lit.fill.length,1);
  assert.equal(lit.fill[0].color,'rgb(8,8,8)');
  const next=setup();
- next.terminal.paint(next.g,393,852,780,'082',false);
+ next.terminal.paint(next.g,393,852,780,'083',false);
  assert.ok(next.text.some(item=>item.v.length>0&&'NOMAD // TETRIS SYSTEM'.startsWith(item.v)));
  assert.ok(!next.text.some(item=>item.v==='BOOT SEQUENCE INITIATED'));
 });
-test('V082 preserves typed diagnostics, memory rows, modules and the touch prompt',()=>{
+test('V083 preserves typed diagnostics, memory rows, modules and the touch prompt',()=>{
  const early=setup();
- early.terminal.paint(early.g,393,852,1550 ,'082',false);
+ early.terminal.paint(early.g,393,852,1550 ,'083',false);
  assert.ok(early.text.some(item=>item.v.includes('BOOT')));
  assert.ok(!early.text.some(item=>item.v.startsWith('0x1000')));
  const middle=setup();
- middle.terminal.paint(middle.g,393,852,3160 ,'082',false);
+ middle.terminal.paint(middle.g,393,852,3160 ,'083',false);
  assert.ok(middle.text.some(item=>item.v.startsWith('0x1000')));
  assert.ok(!middle.text.some(item=>item.v.startsWith('0x1180')));
  const done=setup();
- done.terminal.paint(done.g,393,852,6400 ,'082',true);
+ done.terminal.paint(done.g,393,852,6400 ,'083',true);
  assert.ok(done.text.some(item=>item.v.startsWith('0x1180')));
  assert.ok(done.text.some(item=>item.v==='MODULES'));
  assert.ok(done.text.some(item=>item.v==='MEMORY'));
@@ -109,9 +109,9 @@ test('V082 preserves typed diagnostics, memory rows, modules and the touch promp
  assert.ok(done.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
 });
 
-test('V082 terminal image remains unchanged while GPU owns all luminance fades',()=>{
+test('V083 terminal image remains unchanged while GPU owns all luminance fades',()=>{
  const frame=setup();
- frame.terminal.paint(frame.g,393,852,6600,'082',true);
+ frame.terminal.paint(frame.g,393,852,6600,'083',true);
  assert.ok(frame.text.some(t=>t.v==='TOUCH SCREEN TO CONTINUE'));
  assert.ok(frame.text.some(t=>t.v==='NOMAD // TETRIS SYSTEM'));
  assert.ok(!frame.fill.some(t=>t.color==='#080808'&&t.alpha<1),
@@ -119,7 +119,7 @@ test('V082 terminal image remains unchanged while GPU owns all luminance fades',
  const main=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
  const boot=fs.readFileSync(path.join(__dirname,'boot-sequence.js'),'utf8');
  assert.ok(main.includes('contentLuminance=1-(boot?.powerOffProgress?.()??0)'));
- assert.ok(boot.includes("Terminal.paint(ctx,w,h,elapsed(),'082',presented&&elapsed()>=BOOT_MS)"));
+ assert.ok(boot.includes("Terminal.paint(ctx,w,h,elapsed(),'083',presented&&elapsed()>=BOOT_MS)"));
  const compositor=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
  assert.ok(compositor.includes('uContentLuminance'));
  assert.ok(compositor.includes('gl_FragCoord.x,uScreenHeight-gl_FragCoord.y'));
