@@ -157,3 +157,22 @@ test('boot roll is dormant in normal gameplay and wraps only during handoff',()=
  pipeline.setStartupRoll(0);
  assert.equal(roll.enabled,false);
 });
+
+test('V077 phosphor amount is strictly 0–100% and voltage is luminance-only',()=>{
+ const {pipeline,composer}=setup();
+ const ph=composer.passes[5];
+ const base={fx:states,theme:'green',width:393,height:852,dpr:2,
+  boardStatus:'playing',popupStatus:'ready',modalOpen:false};
+ const read=(phosphorStrength,voltage,fx=states)=>{
+  pipeline.syncFX({...base,fx,phosphorStrength,voltage});
+  return [ph.uniforms.uEnabled.value,ph.uniforms.uVoltage.value];
+ };
+ assert.deepEqual(read(-.7,4),[0,1.2]);
+ assert.deepEqual(read(.5,1.16),[.5,1.16]);
+ assert.deepEqual(read(5,-4),[1,1]);
+ assert.deepEqual(read(1,1,{...states,phosphor:false}),[0,1]);
+ const shader=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
+ assert.ok(shader.includes('clamp(uEnabled,0.0,1.0)'));
+ assert.ok(shader.includes('clamp(uVoltage,1.0,1.2)'));
+ assert.ok(!shader.includes('uTint.value.multiplyScalar'));
+});
