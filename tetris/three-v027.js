@@ -3,8 +3,8 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v082';
-import {gameRevealProgress} from './game-reveal.js?v082';
+import {createCompositor} from './compositor.js?v083';
+import {gameRevealProgress} from './game-reveal.js?v083';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
