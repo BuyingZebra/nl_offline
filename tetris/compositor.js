@@ -251,14 +251,26 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Vertical hold/roll is a pure signal-space transform AFTER all existing
  // phosphor and CRT treatments. It is disabled outside the boot handoff.
  // fract() wraps the complete image instead of exposing blank strips.
+ // Share one signal-space pass for momentary vertical sync errors,
+ // horizontal tearing and the existing vertical-roll handoff. No extra pass
+ // is added to the normal gameplay pipeline.
  const bootRoll=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uOffset:{value:0}},
+  uniforms:{tDiffuse:{value:null},uOffset:{value:0},
+   uGlitch:{value:0},uTime:{value:0}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uOffset;
+   uniform float uOffset,uGlitch,uTime;
    void main(){
-    vec2 position=vec2(vUv.x,fract(vUv.y+uOffset));
+    float band=floor(vUv.y*48.0);
+    float phase=floor(uTime*47.0);
+    float noise=fract(sin(band*97.17+phase*23.19)*43758.5453);
+    // Only a few horizontal strips slip during a sync fault.
+    float gate=step(.80,noise);
+    float dx=(noise-.5)*.065*uGlitch*gate;
+    float dy=step(.97,noise)*.007*uGlitch;
+    vec2 position=vec2(clamp(vUv.x+dx,0.0,1.0),
+     fract(vUv.y+uOffset+dy));
     gl_FragColor=texture2D(tDiffuse,position);
    }`
  });
@@ -275,7 +287,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -285,6 +297,10 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  // The instant startup voltage spike changes luminance only, never hue.
  tint.uniforms.uVoltage.value=clamp(voltage,1,1.2);
  tint.uniforms.uTint.value.copy(hues[theme]);
+ bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
+ bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
+ bootRoll.enabled=(bootRoll.uniforms.uOffset.value>0.00001&&
+  bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001;
  glow.enabled=fx.bloom;
  glow.strength=fx.bloomStrength;
  edgeSoftness.enabled=fx.softness;
@@ -323,7 +339,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   // Turns are complete-screen revolutions; a whole number is perfectly static.
   const offset=((Number(turns)||0)%1+1)%1;
   bootRoll.uniforms.uOffset.value=offset;
-  bootRoll.enabled=offset>0.00001&&offset<0.99999;
+  bootRoll.enabled=(offset>0.00001&&offset<0.99999)||bootRoll.uniforms.uGlitch.value>0.00001;
  }
  function resize(W,H,DPR){
   composer.setPixelRatio(DPR);
