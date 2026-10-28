@@ -20,7 +20,7 @@ function setup(){
 }
 test('approved FIRST concept fills screen with header, statuses, dump and prompt',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6500,'078');
+ x.terminal.paint(x.g,393,852,6720,'078');
  const strings=x.text.map(item=>item.v);
  assert.ok(strings.includes('NOMAD // TETRIS SYSTEM'));
  assert.ok(strings.includes('BOOT SEQUENCE INITIATED'));
