@@ -1,4 +1,4 @@
-/* V075: original NOMAD memory-dump concept, in grayscale Canvas2D.
+/* V078: original NOMAD diagnostic terminal with cinematic staged CRT signal-on.
  * One source serves the immediate loading cover and the real CRT compositor.
  * No tint/glow/scanline is baked into this image: the game owns all FX.
  * The tetromino face function is shared with gameplay (no visual duplicates).
@@ -69,7 +69,7 @@
   ['INPUT DEVICE','OK'],['ARCADE MODULE','OK'],
   ['TETRIS MATRIX','READY'],['PIECE LOGIC','READY'],['GAME BOARD','READY']
  ];
- function paint(g,w,h,elapsedMs=0,version='077',canContinue=false){
+ function paint(g,w,h,elapsedMs=0,version='078',canContinue=false){
   // Align proportions to the approved FIRST concept (not the later panels).
   // At landscape breakpoints a centered, full-height portrait viewport
   // prevents unreadable columns or unsafe horizontal clipping.
@@ -92,31 +92,62 @@
   const rule=(y,a=x0,b=x1)=>{g.strokeStyle=gray(119);g.lineWidth=.75;
    g.beginPath();g.moveTo(a,y+.5);g.lineTo(b,y+.5);g.stroke();};
   const elapsed=Math.max(0,Number(elapsedMs)||0);
-  txt('NOMAD // TETRIS SYSTEM',x0,81,22,218,700,'left',false);
-  txt('version: '+version,362,93,8,151,400,'right');
-  rule(112);
-  const checksVisible=Math.min(checks.length,Math.floor(Math.max(0,elapsed-130)/125));
-  for(let i=0;i<checksVisible;i++){
-   const [label,status]=checks[i],y=136+i*15.7;
-   txt(label,34,y,10,193);
-   txt('[ '+status+' ]',353,y,10,211,400,'right');
+  // Reference-video CRT power-on: a narrow horizontal beam blooms into the
+  // active raster. The canvas remains strictly grayscale; the GPU determines
+  // fixed phosphor hue and all phosphor saturation.
+  if(elapsed<720){
+   if(elapsed>=125){
+    const charge=Math.max(0,Math.min(1,(elapsed-125)/360));
+    const band=1+charge*11;
+    g.fillStyle=gray(115+90*charge);
+    g.fillRect(31,426-band/2,331,band);
+    if(elapsed>320){
+     const sweep=Math.max(0,Math.min(1,(elapsed-320)/400));
+     g.fillStyle=gray(16+28*sweep);
+     g.fillRect(31,426-340*sweep,331,680*sweep);
+    }
+   }
+   g.restore();
+   return;
   }
-  rule(285);
+  // Separate header, diagnostics and code stages rather than fading a fully
+  // populated screen in one jump.
+  const headline='NOMAD // TETRIS SYSTEM';
+  const titleChars=Math.min(headline.length,Math.floor((elapsed-720)/23));
+  txt(headline.slice(0,Math.max(0,titleChars)),x0,81,22,218,700,'left',false);
+  if(elapsed>=1180)txt('version: '+version,362,93,8,151,400,'right');
+  if(elapsed>=1210)rule(112);
+  const checksVisible=Math.min(checks.length,Math.floor(Math.max(0,elapsed-1380)/155)+1);
+  if(elapsed>=1380)for(let i=0;i<checksVisible;i++){
+   const [label,status]=checks[i],y=136+i*15.7;
+   const rowAge=elapsed-1380-i*155;
+   const chars=Math.min(label.length,Math.floor(rowAge/13));
+   txt(label.slice(0,Math.max(0,chars)),34,y,10,193);
+   txt(rowAge>=115?'[ '+status+' ]':'[ ... ]',353,y,10,211,400,'right');
+  }
+  if(elapsed>=2880)rule(285);
   // The first concept has a dense hex dump and a small integrated board
   // alongside it, not a large second-app UI with oversized cards.
-  const revealed=Math.min(words.length,Math.floor(Math.max(0,elapsed-1090)/47));
-  for(let i=0;i<revealed;i++)txt(words[i],32,307+i*14.2,9.1,194);
+  const revealed=Math.min(words.length,Math.floor(Math.max(0,elapsed-2920)/63)+1);
+  if(elapsed>=2920)for(let i=0;i<revealed;i++){
+   // Each memory row is written across, one character at a time.
+   const age=elapsed-2920-i*63;
+   const chars=Math.min(words[i].length,Math.floor(age/2.4));
+   txt(words[i].slice(0,Math.max(0,chars)),32,307+i*14.2,9.1,194);
+  }
   const px=278,py=303,c=8.8,pw=10*c,ph=20*c;
-  g.fillStyle='#101010';g.fillRect(px,py,pw,ph);
-  g.strokeStyle=gray(119);g.lineWidth=.8;g.strokeRect(px-.8,py-.8,pw+1.6,ph+1.6);
-  g.strokeStyle=gray(41);g.lineWidth=.5;g.beginPath();
-  for(let k=1;k<10;k++){g.moveTo(px+k*c,py);g.lineTo(px+k*c,py+ph)}
-  for(let k=1;k<20;k++){g.moveTo(px,py+k*c);g.lineTo(px+pw,py+k*c)}
-  g.stroke();
-  const pieceCount=Math.min(preview.length,Math.floor(Math.max(0,elapsed-1050)/61));
-  for(let i=0;i<pieceCount;i++){
-   const [col,row,type]=preview[i];
-   blocks(g,px+col*c,py+row*c,c,c,type);
+  if(elapsed>=3040){
+   g.fillStyle='#101010';g.fillRect(px,py,pw,ph);
+   g.strokeStyle=gray(119);g.lineWidth=.8;g.strokeRect(px-.8,py-.8,pw+1.6,ph+1.6);
+   g.strokeStyle=gray(41);g.lineWidth=.5;g.beginPath();
+   for(let k=1;k<10;k++){g.moveTo(px+k*c,py);g.lineTo(px+k*c,py+ph)}
+   for(let k=1;k<20;k++){g.moveTo(px,py+k*c);g.lineTo(px+pw,py+k*c)}
+   g.stroke();
+   const pieceCount=Math.min(preview.length,Math.floor(Math.max(0,elapsed-3160)/45));
+   for(let i=0;i<pieceCount;i++){
+    const [col,row,type]=preview[i];
+    blocks(g,px+col*c,py+row*c,c,c,type);
+   }
   }
   // Small status column follows the same typographic hierarchy.
   const mini=(title,y,rows)=>{
@@ -126,14 +157,14 @@
     txt(v,365,y+30+i*15.5,8.7,197,400,'right');
    });
   };
-  if(elapsed>1250)mini('MODULES',496,[['CORE SYS','OK'],['VIDEO','OK'],['LOGIC','OK'],['PIECES','OK']]);
-  if(elapsed>1700)mini('MEMORY',589,[['SYSTEM RAM','64 KB'],['VIDEO RAM','32 KB'],['BUFFER','OK']]);
-  if(elapsed>2060)mini('SIGNAL',662,[['DISPLAY','LOCK'],['REFRESH','59.94'],['MODE','ACTIVE']]);
-  rule(711,32,269);
-  if(elapsed>2250)txt('TETRIS MATRIX INITIALIZED.',32,739,11,204);
-  if(elapsed>2390)txt('ALL SYSTEMS NOMINAL.',32,758,11,204);
-  if(elapsed>2560)txt(canContinue?'TOUCH SCREEN TO CONTINUE':'READY TO PLAY.',32,777,11,214);
-  if(elapsed>2690){
+  if(elapsed>3860)mini('MODULES',496,[['CORE SYS','OK'],['VIDEO','OK'],['LOGIC','OK'],['PIECES','OK']]);
+  if(elapsed>4420)mini('MEMORY',589,[['SYSTEM RAM','64 KB'],['VIDEO RAM','32 KB'],['BUFFER','OK']]);
+  if(elapsed>4890)mini('SIGNAL',662,[['DISPLAY','LOCK'],['REFRESH','59.94'],['MODE','ACTIVE']]);
+  if(elapsed>5140)rule(711,32,269);
+  if(elapsed>5260)txt('TETRIS MATRIX INITIALIZED.',32,739,11,204);
+  if(elapsed>5480)txt('ALL SYSTEMS NOMINAL.',32,758,11,204);
+  if(elapsed>5740)txt(canContinue?'TOUCH SCREEN TO CONTINUE':'READY TO PLAY.',32,777,11,214);
+  if(elapsed>5950){
    txt('>',32,805,13,216);
    // A genuine block cursor, not a Unicode character with font mismatch.
    if(Math.floor(elapsed/420)%2===0){
@@ -142,5 +173,5 @@
   }
   g.restore();
  }
- root.FieldAtlasTerminal=Object.freeze({paint,tileFace:blocks,checks,words,preview});
+ root.FieldAtlasTerminal=Object.freeze({paint,tileFace:blocks,checks,words,preview,durationMs:6100});
 })(window);
