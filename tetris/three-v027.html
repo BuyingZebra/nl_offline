@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#080808">
 <!-- Single authoritative build number; update only this marker on each release. -->
-<meta name="tetris-build" content="074">
+<meta name="tetris-build" content="075">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -46,37 +46,35 @@ html.ios-standalone #display{height:100vh}
 #error{position:fixed;inset:25px;color:#e9e9e9;background:#080808;
  font:13px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;z-index:30}
 #error[hidden]{display:none}
-/* First paint is pure DOM/CSS, entirely independent of Three.js. */
+/* Same grayscale source canvas is available before WebGL, then sampled
+   by the native Tetris CRT compositor. No app-specific green source colours. */
 #boot-overlay{
- position:fixed;inset:0;z-index:20;overflow:hidden;pointer-events:auto;
- background:#050705;color:#96dd97;display:flex;align-items:center;justify-content:center;
- padding:calc(env(safe-area-inset-top,0px) + 28px) 22px
-         calc(env(safe-area-inset-bottom,0px) + 28px);
+ position:fixed;inset:0;z-index:20;background:#080808;
+ overflow:hidden;pointer-events:auto;
 }
-#boot-overlay.amber{color:#efb269;background:#080603}
 #boot-overlay[hidden]{display:none!important}
-#boot-terminal{
- width:min(100%,390px);font:400 clamp(12px,3.1vw,15px)/1.6
- "Share Tech Mono",ui-monospace,Menlo,monospace;
- letter-spacing:.045em;white-space:pre-wrap;
- text-shadow:0 0 7px currentColor;overflow:hidden;
+#boot-canvas{
+ display:block;width:100%;height:100%;
+ /* CSS fallback only during module startup. After WebGL composes one true
+    CRT terminal frame, the cover is hidden; real shader FX take over. */
+ filter:sepia(1) saturate(8) hue-rotate(66deg) brightness(.9);
 }
-#boot-heading{font-weight:700;letter-spacing:.11em;margin-bottom:20px;
- border-bottom:1px solid currentColor;padding-bottom:12px}
-#boot-log{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
-#boot-cursor{display:inline-block;animation:boot-blink .65s steps(1,end) infinite}
-#boot-cursor.waiting{animation-duration:.85s}
-#boot-overlay::after{content:"";position:absolute;inset:0;pointer-events:none;
- background:repeating-linear-gradient(0deg,transparent 0px,transparent 3px,
- rgba(0,0,0,.20) 4px,transparent 5px);opacity:.5}
-#boot-overlay.boot-off #boot-terminal{
+#boot-overlay.amber #boot-canvas{
+ filter:sepia(1) saturate(6) hue-rotate(338deg) brightness(.92);
+}
+#boot-overlay::after{
+ content:"";position:absolute;inset:0;pointer-events:none;
+ box-shadow:inset 0 0 80px 30px rgba(0,0,0,.7);
+ background:repeating-linear-gradient(0deg,transparent 0px,
+  transparent 3px,rgba(0,0,0,.24) 4px,transparent 5px);
+}
+#boot-overlay.boot-off #boot-canvas{
  animation:boot-collapse 145ms steps(2,end) forwards;
- transform-origin:center center;
+ transform-origin:center;
 }
-@keyframes boot-blink{50%{opacity:0}}
 @keyframes boot-collapse{
- 0%{opacity:1;transform:scaleY(1);filter:brightness(1)}
- 60%{opacity:1;transform:scaleY(.07);filter:brightness(2.5)}
+ 0%{opacity:1;transform:scaleY(1)}
+ 55%{opacity:1;transform:scaleY(.045);filter:brightness(4)}
  100%{opacity:0;transform:scaleY(.001);filter:brightness(0)}
 }
 </style>
@@ -86,13 +84,11 @@ html.ios-standalone #display{height:100vh}
 </head>
 <body>
 <!-- Black cover precedes all gameplay and persists until a complete rolled frame. -->
-<div id="boot-overlay" role="status" aria-label="Initializing Tetris System">
- <div id="boot-terminal">
-  <div id="boot-heading">NOMAD // TERMINAL</div>
-  <pre id="boot-log"></pre><span id="boot-cursor" aria-hidden="true">&#9608;</span>
- </div>
+<div id="boot-overlay" role="status" aria-label="NOMAD Tetris terminal initializing">
+ <canvas id="boot-canvas" aria-hidden="true"></canvas>
 </div>
-<script src="./boot-sequence.js?v074"></script>
+<script src="./terminal-screen.js?v075"></script>
+<script src="./boot-sequence.js?v075"></script>
 <div id="display" role="application" aria-label="Tetris System — Three.js">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT compositor"></canvas>
 </div>
