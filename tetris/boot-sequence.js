@@ -1,4 +1,4 @@
-/* V075 boot coordination. The SAME grayscale canvas is shown during module
+/* V076 boot coordination. The SAME grayscale canvas is shown during module
  * loading and used as a Three.js CanvasTexture after initialization.
  * The renderer owns phosphor, bloom, scanlines, vignette and the signal roll.
  */
@@ -14,9 +14,11 @@
    veil.classList.add('amber');
  }catch(e){}
  const clock=()=>root.performance?.now?.()??Date.now();
- const began=clock(),BOOT_MS=2800,REST_MS=250;
+ // Keep the COMPLETE terminal readable for four seconds after its reveal.
+ const began=clock(),BOOT_MS=2800,REST_MS=4000;
+ const SNAP_OFF_MS=145,BLACK_MS=1000;
  let ready=false,presented=false,started=false,revealed=false;
- let startRoll=null,notifyPaint=null,revision=0,redrawTimer=false;
+ let startRoll=null,notifyPaint=null,revision=0;
  function elapsed(){return Math.max(0,clock()-began);}
  function paint(){
   if(started)return;
@@ -27,7 +29,7 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'075');
+  Terminal.paint(ctx,w,h,elapsed(),'076');
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
@@ -40,7 +42,7 @@
   veil.classList.add('boot-off');
   root.setTimeout(()=>{
    if(typeof startRoll==='function')startRoll();
-  },145);
+  },SNAP_OFF_MS+BLACK_MS);
  }
  function tick(){
   if(started)return;
@@ -69,13 +71,13 @@
    if(!started||revealed)return;
    revealed=true;veil.hidden=true;
   },
-  // Initial motion is constant speed, then a C1-continuous ease to zero.
+  // Four fast revolutions with an initial linear segment and a smooth stop.
   rollTurns(t){
    t=Math.max(0,Math.min(1,Number(t)||0));
-   const linear=.36,tail=(t-linear)/(1-linear);
+   const linear=.28,tail=(t-linear)/(1-linear);
    const distance=t<=linear?t:linear+(1-linear)*
     (tail-tail*tail*tail+.5*Math.pow(tail,4));
-   return 2*distance/(linear+(1-linear)*.5);
+   return 4*distance/(linear+(1-linear)*.5);
   }
  });
  // Draw synchronously: the cover is useful before Three.js can even import.
