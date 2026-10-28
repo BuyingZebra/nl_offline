@@ -1,4 +1,4 @@
-# Tetris System architecture (V076)
+# Tetris System architecture (V077)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -122,3 +122,12 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - The 145ms terminal snap-off is followed by precisely **1000ms of opaque black**; only then does the fully rendered game snap on already rolling.
 - Startup roll now completes **four full revolutions in 1350ms** (was two in 1550ms), with constant initial velocity for 28% of the animation and a smooth continuous deceleration to zero offset.
 - Grayscale artwork, shared bevelled block renderer, existing compositor settings, fonts and saved gameplay states remain untouched.
+
+
+## V077: CRT-limited phosphor colour and touch-gated terminal
+- The terminal remains on screen indefinitely after its ~2.8s diagnostics reveal; there is **no automatic transition**. Once the GPU has rendered the terminal and content is fully populated, its prompt changes to TOUCH SCREEN TO CONTINUE. A captured touchscreen pointer event triggers the handoff; it is consumed so the same tap cannot act on game controls. Touches before readiness do nothing.
+- The immediate pre-WebGL canvas fallback remains grayscale (0% phosphor); the former CSS sepia/saturation/hue filters are removed. Once the real CRT composer renders the terminal, the phosphor mix ramps from 0% to **at most 100% of the chosen fixed green/amber tint** in 160ms. No colour tint may exceed full strength.
+- A 40ms, single-episode 16% voltage flicker briefly increases luminance around 75–115ms after the GPU terminal appears, independently of colour tint. All stronger brightness is clamped to 1.2 in the shader; saved FX settings and theme colour remain unchanged.
+- Power-off collapses the **actual live GPU phosphor display** in 145ms instead of re-showing an alternate CSS-coloured fallback image. After collapse, an opaque black cover holds for the previous 1000ms, then the game snaps on into the previous rapid four-turn roll.
+- Both terminal and game footer, as well as accessible title labels, spell the build prefix as `version: 077`, not abbreviated `v077` or `V077`.
+- No change to gameplay, board geometry, tiles, saved settings, score persistence or the established 1.35s rolling deceleration.
