@@ -38,7 +38,7 @@
   return {phosphor,voltage,glitch,clock:t};
  }
  function paint(){
-  if(started)return;
+  if(gameHandoff)return;
   const bounds=veil.getBoundingClientRect?.();
   const w=Math.max(1,Math.round(bounds?.width||root.innerWidth||393));
   const h=Math.max(1,Math.round(bounds?.height||root.innerHeight||852));
@@ -46,7 +46,7 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'079',canContinue());
+  Terminal.paint(ctx,w,h,elapsed(),'079',canContinue(),powerOffProgress());
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
@@ -57,7 +57,7 @@
  function animatePowerOff(){
   // Only source-image content shrinks. The CRT compositor and its fixed
   // scanline coordinates remain mounted and active throughout shutdown.
-  if(typeof notifyPaint==='function')notifyPaint();
+  paint();
   if(powerOffProgress()<1)root.setTimeout(animatePowerOff,16);
  }
  function transition(){
@@ -66,9 +66,9 @@
   powerDownAt=clock();
   animatePowerOff();
   root.setTimeout(()=>{
-   // The compositor now renders #080808 source throughout the blackout.
-   // No DOM black cover, scaling or re-colouring obscures the scanlines.
-   if(typeof notifyPaint==='function')notifyPaint();
+   // Render exactly #080808 in the source at the beginning of the
+   // one-second blackout; leave the CRT renderer and mask untouched.
+   paint();
    root.setTimeout(()=>{
     gameHandoff=true;
     if(typeof startRoll==='function')startRoll();
