@@ -49,7 +49,9 @@ html.ios-standalone #display{height:100vh}
 /* Same grayscale source canvas is available before WebGL, then sampled
    by the native Tetris CRT compositor. No app-specific green source colours. */
 #boot-overlay{
- position:fixed;inset:0;z-index:20;background:#080808;
+ position:fixed;inset:0;z-index:20;background:#000;
+ /* The unlit first source frame is exactly black. After two complete GPU
+    renders, the source itself fades gradually toward #080808. */
  overflow:hidden;pointer-events:auto;
 }
 #boot-overlay[hidden]{display:none!important}
