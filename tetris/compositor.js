@@ -248,12 +248,28 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures.original;
  scanlineOverlay.enabled=false;
  composer.addPass(scanlineOverlay);
+ // Vertical hold/roll is a pure signal-space transform AFTER all existing
+ // phosphor and CRT treatments. It is disabled outside the boot handoff.
+ // fract() wraps the complete image instead of exposing blank strips.
+ const bootRoll=new ShaderPass({
+  uniforms:{tDiffuse:{value:null},uOffset:{value:0}},
+  vertexShader:passVertex,
+  fragmentShader:`
+   varying vec2 vUv;uniform sampler2D tDiffuse;
+   uniform float uOffset;
+   void main(){
+    vec2 position=vec2(vUv.x,fract(vUv.y+uOffset));
+    gl_FragColor=texture2D(tDiffuse,position);
+   }`
+ });
+ bootRoll.enabled=false;
+ composer.addPass(bootRoll);
  composer.addPass(new OutputPass());
  // Keep the exact pass order, source textures and FX behavior. Measure the
  // CPU time spent issuing each pass only; no extra GL renders or readbacks.
  const passProfiler=instrumentCompositorPasses(composer.passes,[
   'Scene + uploads','Board blur H','Board popup','Ghost','Bloom',
-  'Phosphor','Edge softness','Vignette','CRT mask','Output'
+  'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
  const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
  // Immutable popup blur parameters and pass references need no per-frame allocation.
@@ -300,6 +316,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  scanlineOverlay.uniforms.uDpr.value=DPR;
  scanlineOverlay.uniforms.uScreenHeight.value=H*DPR;
 }
+ function setStartupRoll(turns=0){
+  // Turns are complete-screen revolutions; a whole number is perfectly static.
+  const offset=((Number(turns)||0)%1+1)%1;
+  bootRoll.uniforms.uOffset.value=offset;
+  bootRoll.enabled=offset>0.00001&&offset<0.99999;
+ }
  function resize(W,H,DPR){
   composer.setPixelRatio(DPR);
   composer.setSize(W,H);
@@ -320,6 +342,6 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   for(const pass of composer.passes)if(pass.enabled!==false)activePasses++;
   return {activePasses,totalPasses:composer.passes.length};
  }
- return Object.freeze({syncFX,resize,render:()=>composer.render(),dispose,passStats,
+ return Object.freeze({syncFX,resize,setStartupRoll,render:()=>composer.render(),dispose,passStats,
   activeScanlinePreset,SCANLINE_PRESETS});
 }
