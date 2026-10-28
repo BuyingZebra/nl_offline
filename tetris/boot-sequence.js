@@ -1,4 +1,4 @@
-/* V081: terminal startup state machine, grayscale source / CRT GPU handoff.
+/* V082: terminal startup state machine, grayscale source / CRT GPU handoff.
  * Only user touch advances the fully populated, successfully rendered screen.
  * Phosphor colour ramps 0..100%; electrical voltage may briefly spike
  * luminance, never the selected green/amber tint itself.
@@ -50,7 +50,9 @@
   const cw=Math.round(w*dpr),ch=Math.round(h*dpr);
   if(canvas.width!==cw||canvas.height!==ch){canvas.width=cw;canvas.height=ch;}
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  Terminal.paint(ctx,w,h,elapsed(),'081',presented&&elapsed()>=BOOT_MS,powerOffProgress());
+  // Terminal pixels stay at full luminance; the shared GPU compositor fades
+  // the final emitted image via powerOffProgress(), including bloom.
+  Terminal.paint(ctx,w,h,elapsed(),'082',presented&&elapsed()>=BOOT_MS);
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
@@ -60,9 +62,9 @@
   return p*p*(3-2*p);
  }
  function animateFadeOut(){
-  // Update only the grayscale terminal image. The actual CRT effect
-  // pipeline remains unchanged and stationary throughout both fades.
-  paint();
+  // Keep the unchanged terminal source and source-specific textures intact;
+  // redraw only to supply the new global luminance multiplier.
+  if(typeof notifyPaint==='function')notifyPaint();
   if(powerOffProgress()<1)root.setTimeout(animateFadeOut,16);
  }
  function transition(){
@@ -71,9 +73,9 @@
   powerDownAt=clock();
   animateFadeOut();
   root.setTimeout(()=>{
-   // Source is fully #080808. Hold it one second with the CRT
-   // compositor still active, then fade in the real game screen.
-   paint();
+   // Shared luminance has reached 0. Keep the terminal source mounted
+   // during the hold, then switch to a complete game at the same 0%.
+   if(typeof notifyPaint==='function')notifyPaint();
    root.setTimeout(()=>{
     gameHandoff=true;
     if(typeof startGame==='function')startGame();
