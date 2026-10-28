@@ -20,7 +20,7 @@ function setup(){
 }
 test('approved FIRST concept fills screen with header, statuses, dump and prompt',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6720,'078');
+ x.terminal.paint(x.g,393,852,6720 ,'079');
  const strings=x.text.map(item=>item.v);
  assert.ok(strings.includes('NOMAD // TETRIS SYSTEM'));
  assert.ok(strings.includes('BOOT SEQUENCE INITIATED'));
@@ -36,7 +36,7 @@ test('approved FIRST concept fills screen with header, statuses, dump and prompt
 });
 test('boot source remains exclusively gray, separate from phosphor colour',()=>{
  const x=setup();
- x.terminal.paint(x.g,393,852,6500,'078');
+ x.terminal.paint(x.g,393,852,6500 ,'079');
  const color=v=>/^#(?:080808|101010)$/.test(v)||/^rgb\((\d+),\1,\1\)$/.test(v);
  assert.ok(x.fill.every(v=>color(v.color)));
  assert.ok(x.text.every(v=>color(v.color)));
@@ -56,7 +56,7 @@ test('game and memory-dump miniature use one exact 8-layer beveled tile face',()
 });
 test('terminal is responsive and never scales out of its own screen bounds',()=>{
  const x=setup();
- x.terminal.paint(x.g,844,390,6500,'078');
+ x.terminal.paint(x.g,844,390,6500 ,'079');
  assert.ok(x.fill.length>10);
  assert.ok(x.text.length>20);
 });
@@ -93,18 +93,33 @@ test('V079 startup fades uniformly from off to #080808 without any bright horizo
 });
 test('V079 preserves typed diagnostics, memory rows, modules and the touch prompt',()=>{
  const early=setup();
- early.terminal.paint(early.g,393,852,1550,'078',false);
+ early.terminal.paint(early.g,393,852,1550 ,'079',false);
  assert.ok(early.text.some(item=>item.v.includes('BOOT')));
  assert.ok(!early.text.some(item=>item.v.startsWith('0x1000')));
  const middle=setup();
- middle.terminal.paint(middle.g,393,852,3160,'078',false);
+ middle.terminal.paint(middle.g,393,852,3160 ,'079',false);
  assert.ok(middle.text.some(item=>item.v.startsWith('0x1000')));
  assert.ok(!middle.text.some(item=>item.v.startsWith('0x1180')));
  const done=setup();
- done.terminal.paint(done.g,393,852,6400,'078',true);
+ done.terminal.paint(done.g,393,852,6400 ,'079',true);
  assert.ok(done.text.some(item=>item.v.startsWith('0x1180')));
  assert.ok(done.text.some(item=>item.v==='MODULES'));
  assert.ok(done.text.some(item=>item.v==='MEMORY'));
  assert.ok(done.text.some(item=>item.v==='SIGNAL'));
  assert.ok(done.text.some(item=>item.v==='TOUCH SCREEN TO CONTINUE'));
+});
+
+test('V079 power-off squeezes only grayscale source while retaining full eight-layer tiles',()=>{
+ const frame=setup();
+ frame.terminal.paint(frame.g,393,852,6600,'079',true,.5);
+ assert.equal(frame.fill[0].color,'#080808','off-state background remains near-black');
+ assert.ok(frame.text.some(t=>t.v==='TOUCH SCREEN TO CONTINUE'));
+ const fullyOff=setup();
+ fullyOff.terminal.paint(fullyOff.g,393,852,6600,'079',true,1);
+ assert.deepEqual(fullyOff.fill.map(v=>v.color),['#080808']);
+ assert.equal(fullyOff.text.length,0,'terminal content disappears while background stays');
+ const compositor=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
+ assert.ok(!compositor.includes('uContentCollapse'),'CRT pipeline must not animate');
+ assert.ok(compositor.includes('gl_FragCoord.x,uScreenHeight-gl_FragCoord.y'),
+  'scanlines remain fixed in screen pixel coordinates');
 });
