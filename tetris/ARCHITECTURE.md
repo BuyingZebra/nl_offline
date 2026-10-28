@@ -1,4 +1,4 @@
-# Tetris System architecture (V081)
+# Tetris System architecture (V082)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -164,3 +164,12 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - Instead of rolling or staged section-by-section assembly, the real finished gameplay screen now appears under a **single fullscreen, smooth 850ms grayscale/alpha mask fade**. It covers header, board, pieces, controls, and footer together. The mask is a scene layer *upstream* of the same phosphor/CRT effects; scanlines and optics remain static while luminance is revealed.
 - The prior V074/V076 vertical-roll shader, curve and V081 staged regional reveal remain recoverable from Git history. The roll pass is explicitly reset to zero on handoff and no section mask is scheduled.
 - Input is unavailable until the **entire game-screen fade completes**. All square-corner containers, shared beveled tetromino faces, saved settings and gameplay remain unchanged.
+
+
+## V082: single global post-composite luminance transition
+- The V081 fade issue originated from a **transparent source-scene mask** blending independently over separately rendered gameplay surfaces, with bloom following that layer. It could visually reveal UI elements at different rates. The mask canvas, texture, scene plane and uploads are completely removed.
+- The already existing optical/vignette GPU shader now has `uContentLuminance` in `[0,1]`. After scene meshes, overlays, ghosting, bloom, phosphor and edge softness have been resolved, **one identical multiplier** blends all completed pixels toward the fixed `#080808` screen baseline. This pass sits directly before the original stationary CRT mask. It is temporarily enabled even if vignette is OFF and automatically returns to its previous disabled state at luminance 100%. Its original vignette treatment is unchanged whenever enabled.
+- The terminal `Canvas2D` no longer paints its own fading overlay. A tap runs a 450ms easing curve on the **same compositor luminance uniform** from 1 to 0, followed by a 1000ms hold at 0. Only then is the terminal source swapped for all existing game planes (base, board, sidebar, controls, popup), while luminance still equals **exactly 0**.
+- On the **first genuinely rendered game frame**, the 850ms ease-in clock is anchored so that its luminance value is exactly 0 (no early partial reveal). Every element appears together as one already-assembled, fully postprocessed image. Input stays disabled until the fade reaches 1.
+- The chosen phosphor hue, bloom, five CRT patterns, original tile bevels, square container/button corners, user settings, Tetris rules and saved scores are preserved. Vertical roll remains installed but dormant; horizontal glitch schedule remains saved behind `SIGNAL_GLITCH_ENABLED=false`.
+- There are no extra pass allocations or render-target uploads during normal gameplay. The existing vignette shader doubles as the fade gate only while the transition is active. Full verified visual behavior still requires observation on a real phone.
