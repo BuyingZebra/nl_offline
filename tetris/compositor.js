@@ -105,9 +105,9 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  composer.addPass(ghostPass);
 
  const tint=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uTint:{value:new THREE.Vector3(.2,1,.2)}},
+  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uVoltage:{value:1},uTint:{value:new THREE.Vector3(.2,1,.2)}},
   vertexShader:passVertex,
-  fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb;float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,uEnabled),1.);}'
+  fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled,uVoltage;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb*clamp(uVoltage,1.0,1.2);float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,clamp(uEnabled,0.0,1.0)),1.);}'
  });
 
  // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
@@ -275,12 +275,15 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
  ghostPass.uniforms.uStrength.value=fx.ghostStrength/100;
- tint.uniforms.uEnabled.value=fx.phosphor?1:0;
+ // Colour strength is bounded to the selected fixed phosphor tint.
+ tint.uniforms.uEnabled.value=fx.phosphor?clamp(phosphorStrength,0,1):0;
+ // The instant startup voltage spike changes luminance only, never hue.
+ tint.uniforms.uVoltage.value=clamp(voltage,1,1.2);
  tint.uniforms.uTint.value.copy(hues[theme]);
  glow.enabled=fx.bloom;
  glow.strength=fx.bloomStrength;
