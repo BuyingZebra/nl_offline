@@ -1,4 +1,4 @@
-/* V082: terminal startup state machine, grayscale source / CRT GPU handoff.
+/* V083: terminal startup state machine, grayscale source / CRT GPU handoff.
  * Only user touch advances the fully populated, successfully rendered screen.
  * Phosphor colour ramps 0..100%; electrical voltage may briefly spike
  * luminance, never the selected green/amber tint itself.
@@ -52,7 +52,7 @@
   ctx.setTransform(dpr,0,0,dpr,0,0);
   // Terminal pixels stay at full luminance; the shared GPU compositor fades
   // the final emitted image via powerOffProgress(), including bloom.
-  Terminal.paint(ctx,w,h,elapsed(),'082',presented&&elapsed()>=BOOT_MS);
+  Terminal.paint(ctx,w,h,elapsed(),'083',presented&&elapsed()>=BOOT_MS);
   revision++;
   if(ready&&typeof notifyPaint==='function')notifyPaint();
  }
