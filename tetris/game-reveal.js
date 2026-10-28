@@ -1,4 +1,4 @@
-/* V082: shared game-side luminance curve.
+/* V083: shared game-side luminance curve.
  * The GPU receives one progress value for the finished combined image.
  * Regional and canvas-mask reveal experiments remain in Git history.
  */
