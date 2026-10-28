@@ -1,4 +1,4 @@
-/* V082: deterministic terminal tap gate, physics-inspired startup and poweroff. */
+/* V083: deterministic terminal tap gate, physics-inspired startup and poweroff. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -51,7 +51,7 @@ test('grayscale loading canvas paints immediately, with full version: prefix',()
  assert.equal(x.boot.canvas,x.canvas);
  assert.equal(x.canvas.width,786);
  assert.equal(x.canvas.height,1704);
- assert.equal(x.painted[0][4],'082');
+ assert.equal(x.painted[0][4],'083');
  x.advance(2750);
  assert.equal(x.boot.waitingForTap,false);
  assert.equal(x.boot.isRolling(),false);
@@ -156,11 +156,11 @@ test('four-turn roll retains constant initial speed and smooth final rest',()=>{
  assert.ok(Math.abs((f(.1)-f(.05))-(f(.2)-f(.15)))<1e-9);
  assert.ok(f(1)-f(.99)<f(.2)-f(.19));
 });
-test('V082 screen uses original compositor and long-form version labels',()=>{
+test('V083 screen uses original compositor and long-form version labels',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const terminal=fs.readFileSync(path.join(__dirname,'terminal-screen.js'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('name="tetris-build" content="082"'));
+ assert.ok(html.includes('name="tetris-build" content="083"'));
  assert.ok(!html.includes('hue-rotate'));
  assert.ok(!html.includes('boot-poweroff #display'));
  assert.ok(!html.includes('@keyframes boot-collapse'));
@@ -171,7 +171,7 @@ test('V082 screen uses original compositor and long-form version labels',()=>{
  assert.ok(app.includes('phosphorStrength:electrical?.phosphor??1'));
 });
 
-test('V082 retains glitch code but disables synchronization tearing',()=>{
+test('V083 retains glitch code but disables synchronization tearing',()=>{
  const x=harness();let launches=0;
  x.boot.firstFrame(()=>launches++);
  x.advance(6000);
@@ -195,16 +195,16 @@ test('V082 retains glitch code but disables synchronization tearing',()=>{
  assert.ok(source.includes('if(SIGNAL_GLITCH_ENABLED)for('),
   'original timings are preserved behind a feature flag');
 });
-test('V082 removes competing redirect and preserves continuous initial blackout',()=>{
+test('V083 removes competing redirect and preserves continuous initial blackout',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const entry=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
  assert.ok(!entry.includes('http-equiv="refresh"'));
  assert.ok(entry.includes('location.replace('));
  assert.ok(html.includes('z-index:20;background:#000;'));
- assert.ok(html.includes('name="tetris-build" content="082"'));
+ assert.ok(html.includes('name="tetris-build" content="083"'));
 });
 
-test('V082 uses a smooth 450ms fade before the original one-second pause',()=>{
+test('V083 uses a smooth 450ms fade before the original one-second pause',()=>{
  const x=harness();
  x.boot.firstFrame(()=>{});
  x.boot.gpuFrame();x.boot.gpuFrame();
@@ -217,7 +217,7 @@ test('V082 uses a smooth 450ms fade before the original one-second pause',()=>{
  assert.ok(!source.includes('SNAP_OFF_MS'));
 });
 
-test('V082 fade-out leaves grayscale source intact while GPU luminance reaches zero',()=>{
+test('V083 fade-out leaves grayscale source intact while GPU luminance reaches zero',()=>{
  const x=harness();
  let invalidations=0;
  x.boot.firstFrame(()=>{},()=>{invalidations++;});
