@@ -3,7 +3,7 @@
  * Engine and scores are the unchanged V027 modules, shared with live Tetris.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v077';
+import {createCompositor} from './compositor.js?v078';
 import {createCanvasUI} from './canvas-ui.js?v072';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -720,6 +720,7 @@ function syncFX(terminalVisible=false){
  const electrical=terminalVisible?boot?.effects?.():null;
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
   phosphorStrength:electrical?.phosphor??1,voltage:electrical?.voltage??1,
+  glitch:electrical?.glitch??0,signalTime:electrical?.clock??0,
   boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
   scoresOverlay:!terminalVisible&&modal==='scores',
   popupStatus:terminalVisible?null:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
