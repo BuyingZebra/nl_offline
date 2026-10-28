@@ -1,4 +1,4 @@
-# Tetris System architecture (V080)
+# Tetris System architecture (V081)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -156,3 +156,11 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - The `/tetris/` entry page previously contained both a zero-second HTML meta refresh and a JavaScript `location.replace`. The redundant meta refresh is removed to prevent two competing navigations. The permanent bookmarked URL remains unchanged and the redirect continues to work.
 - These changes address plausible startup flashing sources, but do not establish that caching/memory was the root cause. Browser/WebGL first presentation and obsolete service-worker state remain device-specific possibilities. No automatic clearing of site data or scores is performed.
 - A later *game-reveal* animation could stage existing UI and board source layers after tap, while preserving their positions, the original cell bevels, and the current CRT effects. It is not introduced in V080 without visual approval.
+
+
+## V081: simplify handoff to matching content fades
+- The V080 full terminal remains the same including tap-to-continue, saved phosphor themes, luminance-only voltage flickers and disabled archived sync glitches. Tap now triggers a **450ms smooth grayscale source fade to near-black `#080808`**; the source no longer collapses vertically, and **no CSS screen transform or compositor shader changes** occur.
+- The terminal then holds at `#080808` for **1000ms** with the same CRT pipeline/scanline sampling as always.
+- Instead of rolling or staged section-by-section assembly, the real finished gameplay screen now appears under a **single fullscreen, smooth 850ms grayscale/alpha mask fade**. It covers header, board, pieces, controls, and footer together. The mask is a scene layer *upstream* of the same phosphor/CRT effects; scanlines and optics remain static while luminance is revealed.
+- The prior V074/V076 vertical-roll shader, curve and V081 staged regional reveal remain recoverable from Git history. The roll pass is explicitly reset to zero on handoff and no section mask is scheduled.
+- Input is unavailable until the **entire game-screen fade completes**. All square-corner containers, shared beveled tetromino faces, saved settings and gameplay remain unchanged.
