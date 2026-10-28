@@ -1,4 +1,4 @@
-# Tetris System architecture (V075)
+# Tetris System architecture (V076)
 
 ## Runtime
 - `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
@@ -115,3 +115,10 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - `boot-sequence.js` coordinates startup typing/progressive reveal, the completed GPU terminal frame, terminal snap-off, and the rolling game pop-on. Existing gameplay uses the normal source canvas again once rolling starts, and its input is disabled until the game is revealed.
 - The saved V073 CRT controls, UI fonts, display settings, game layout, scores and physics are not changed. The terminal is transitory, rendered only during a cold navigation.
 - `boot-sequence.test.cjs` and `terminal-screen.test.cjs` verify readiness, luminance, shared blocks and terminal hierarchy; browser/phone visual validation remains necessary.
+
+
+## V076: extended terminal hold, black pause and faster roll
+- The original first-concept terminal is allowed to finish its type-on/reveal (~2.8s), then its **complete content remains on screen another four seconds**. GPU readiness is still mandatory before transition.
+- The 145ms terminal snap-off is followed by precisely **1000ms of opaque black**; only then does the fully rendered game snap on already rolling.
+- Startup roll now completes **four full revolutions in 1350ms** (was two in 1550ms), with constant initial velocity for 28% of the animation and a smooth continuous deceleration to zero offset.
+- Grayscale artwork, shared bevelled block renderer, existing compositor settings, fonts and saved gameplay states remain untouched.
