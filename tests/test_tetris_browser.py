@@ -27,9 +27,9 @@ with sync_playwright() as p:
         timeout=30000,
     )
     # The startup ROM terminal covers incomplete WebGL frames. Wait for
-    # its pop-off and the first actually rolled CRT frame before touching UI.
+    # its fade-off and the first genuine game fade-in frame before touching UI.
     # V075 uses one real grayscale terminal canvas as both the loading
-    # cover and the CRT source. The cover hides when the GPU terminal paints;
+    # cover and the CRT source. The cover hides after the GPU terminal paints;
     # gameplay must not be tapped until the pop-off and pop-on complete.
     page.wait_for_function(
         "() => window.FieldAtlasTetrisBoot?.waitingForTap === true",
@@ -45,7 +45,7 @@ with sync_playwright() as p:
         "() => window.FieldAtlasTetrisBoot?.revealed === true",
         timeout=30000,
     )
-    page.wait_for_timeout(1450)  # four rapid turns finish in 1.35s
+    page.wait_for_timeout(950)  # V081: full game screen fades in over 850ms
     assert page.locator("#screen").count() == 1
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
