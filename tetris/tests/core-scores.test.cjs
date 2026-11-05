@@ -92,3 +92,135 @@ test('high score schema and legacy key remain compatible',()=>{
  assert.equal(Scores.read(storage)[0].score,42);
  assert.equal(map.get('fieldAtlasTetrisBest'),'42');
 });
+
+test('game event subscriptions are removable, and invalid listeners are rejected',()=>{
+ const g=fresh(),events=[];
+ assert.throws(()=>g.onEvent(null),TypeError);
+ const unsubscribe=g.onEvent(event=>events.push(event.type));
+ assert.equal(typeof unsubscribe,'function');
+ assert.equal(g.start(),true);
+ assert.equal(g.hardDrop(),true);
+ assert.deepEqual(events,['piece-locked']);
+ assert.equal(unsubscribe(),true);
+ assert.equal(unsubscribe(),false);
+ g.reset();
+ assert.deepEqual(events,['piece-locked']);
+});
+test('failed game-event observers cannot interrupt a lock or other listeners',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(()=>{throw Error('broken renderer');});
+ g.onEvent(event=>events.push(event.type));
+ g.start();
+ assert.equal(g.hardDrop(),true);
+ assert.equal(g.pieces,1);
+ assert.deepEqual(events,['piece-locked']);
+});
+test('event observers removed during dispatch are not invoked later in that event',()=>{
+ const g=fresh(),events=[];
+ let removeOther;
+ g.onEvent(()=>{events.push('first');removeOther();});
+ removeOther=g.onEvent(()=>events.push('removed'));
+ g.start();g.hardDrop();
+ assert.deepEqual(events,['first']);
+});
+test('hard drop reports exactly one read-only piece lock with final engine state',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(event=>events.push(event));
+ g.start();
+ const locked=g.current.kind;
+ g.hardDrop();
+ assert.deepEqual(events.map(x=>x.type),['piece-locked']);
+ const event=events[0];
+ assert.equal(Object.isFrozen(event),true);
+ assert.equal(event.kind,locked);
+ assert.equal(event.cleared,0);
+ assert.equal(event.score,g.score);
+ assert.equal(event.lines,g.lines);
+ assert.equal(event.level,g.level);
+ assert.equal(event.status,'playing');
+ assert.equal(g.pieces,1);
+});
+test('gravity locking emits the same event once, without needing any renderer',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(e=>events.push(e.type));
+ g.start();
+ g.current=g.piece('O');g.current.y=18;
+ for(let n=0;n<6;n++)g.tick(100);
+ assert.deepEqual(events,['piece-locked']);
+ assert.equal(g.pieces,1);
+});
+test('completed rows include the exact pre-clear landed board and row indices',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(event=>events.push(event));
+ g.start();
+ g.board=Array.from({length:20},()=>Array(10).fill(0));
+ for(let y=18;y<=19;y++)for(let x=0;x<10;x++)
+  g.board[y][x]=(x===4||x===5)?0:'J';
+ g.current=g.piece('O');
+ g.hardDrop();
+ assert.deepEqual(events.map(x=>x.type),['piece-locked','lines-cleared']);
+ const clear=events[1];
+ assert.equal(clear.count,2);
+ assert.deepEqual(clear.rows,[18,19]);
+ assert.equal(clear.status,'playing');
+ assert.equal(clear.lines,2);
+ assert.equal(clear.score,g.score);
+ assert.equal(Object.isFrozen(clear),true);
+ assert.equal(Object.isFrozen(clear.rows),true);
+ assert.equal(Object.isFrozen(clear.board),true);
+ assert.equal(Object.isFrozen(clear.board[19]),true);
+ assert.ok(clear.board[18].every(Boolean));
+ assert.ok(clear.board[19].every(Boolean));
+ assert.equal(clear.board[18][4],'O');
+ assert.equal(clear.board[19][5],'O');
+ assert.ok(g.board[18].every(c=>!c));
+ assert.ok(g.board[19].every(c=>!c));
+ assert.notEqual(clear.board,g.board);
+ assert.throws(()=>{clear.board[19][0]='X';},TypeError);
+});
+test('level changes are ordered after the lock and clear, with the old and new levels',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(event=>events.push(event));
+ g.start();g.lines=9;g.level=1;
+ g.board=Array.from({length:20},()=>Array(10).fill(0));
+ for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
+ g.current=g.piece('O');g.current.y=18;
+ g.hardDrop();
+ assert.deepEqual(events.map(x=>x.type),['piece-locked','lines-cleared','level-changed']);
+ assert.deepEqual([events[1].count,...events[1].rows],[1,19]);
+ assert.equal(events[2].from,1);
+ assert.equal(events[2].to,2);
+ assert.equal(events[2].lines,10);
+ assert.equal(g.level,2);
+});
+test('blocked spawn during hold emits game-over without a lock event',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(event=>events.push(event));
+ g.start();g.hold='O';
+ g.board[0][4]='Z';
+ assert.equal(g.holdPiece(),true);
+ assert.equal(g.status,'over');
+ assert.deepEqual(events.map(x=>x.type),['game-over']);
+ assert.equal(events[0].reason,'spawn-blocked');
+});
+test('a lock above the board reports top-out without a successful lock',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(event=>events.push(event));
+ g.start();g.current=g.piece('O');g.current.y=-1;
+ g.lockPiece();
+ assert.equal(g.status,'over');
+ assert.deepEqual(events.map(x=>x.type),['game-over']);
+ assert.equal(events[0].reason,'top-out');
+});
+test('reset emits a clean ready-state event and does not keep stale gameplay state',()=>{
+ const g=fresh(),events=[];
+ g.onEvent(event=>events.push(event));
+ g.start();g.hardDrop();
+ events.length=0;
+ g.reset();
+ assert.deepEqual(events.map(x=>x.type),['reset']);
+ assert.equal(events[0].status,'ready');
+ assert.equal(events[0].score,0);
+ assert.equal(events[0].level,1);
+ assert.equal(g.pieces,0);
+});
