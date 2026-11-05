@@ -49,11 +49,16 @@ function setup(){
  const instrumentCompositorPasses=new Function(
   profilerSource.replace('export function ','function ')+
   '\nreturn instrumentCompositorPasses;')();
+ const feedbackSource=fs.readFileSync(path.join(__dirname,'button-feedback.js'),'utf8');
+ const feedback=new Function(feedbackSource.replace(/\bexport\s+/g,'')+
+  '\nreturn {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT};')();
  const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
  assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
  const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document','instrumentCompositorPasses',
+  'MAX_BUTTON_FLASHES','BUTTON_FEEDBACK_VERTEX','BUTTON_FEEDBACK_FRAGMENT',
   standalone+'\nreturn createCompositor;')
-  (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses);
+  (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses,
+   feedback.MAX_BUTTON_FLASHES,feedback.BUTTON_FEEDBACK_VERTEX,feedback.BUTTON_FEEDBACK_FRAGMENT);
  const externalPopup={external:true};
  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
  return {pipeline,composer:instances[0],externalPopup,instances,textures};
