@@ -22,3 +22,7 @@ P31, P1, and P4 similarly use historical 10%-time checkpoints and *illustrative*
 The pass stores fast and slow histories in two half-resolution GPU render targets (square-root encoded RGBA8), blends *only* residual history over the original sharp grayscale source, and then uses NOMAD's existing bloom and tint. The profile tint triplets are approximate display colours, **not measured spectra, CIE chromaticities, or emitted radiances**. Spatial kernel/beam-spot optics, electron-gun voltage response, raster phase, and verified display gamma are future work.
 
 V096 remains available instantly by switching **PHOSPHOR HISTORY** off in Display System. On navigation, resize, or visibility changes, history resets intentionally to prevent cross-screen ghosts.
+
+## Validation
+
+Browser smoke testing is required for changes to this pass: Chromium and WebKit must launch the app, produce real WebGL output, and complete the offline/bfcache checks. Automated browser completion is not physical calibration; measured camera/photodiode curves and real-device performance still remain future validation tasks.
