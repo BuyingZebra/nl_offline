@@ -47,7 +47,7 @@ A locking move emits these in game-rule order: piece locked, lines cleared (if a
 
 ## Offline support and installation contract (V092)
 
-- The Tetris app now bundles **Three.js r180** and its required post-processing modules in `tetris/vendor/three/`, retaining the MIT license. The same shader source and pass order run online and offline.
+- The Tetris app now bundles **Three.js r180** (both `three.module.js` and its required `three.core.js`) and all required post-processing modules in `tetris/vendor/three/`, retaining the MIT license. The same shader source and pass order run online and offline.
 - `tetris/manifest.webmanifest` and local PNG/SVG Home Screen icons enable standalone installation; the existing Safari/iOS standalone viewport rules remain unchanged.
 - `tetris/sw.js` is now an actual **Tetris-scoped offline worker**, not the former PixiJS unregistration tombstone. After one successful online install, its installation phase precaches a fixed list of all essential Tetris HTML, scripts, modules, icons and Three.js dependencies. **Incomplete essential precaches reject installation.**
 - Same-origin Tetris assets use network-first requests with a cached fallback; ephemeral `?live=` and build-check query parameters resolve to the same canonical cache keys. This prevents unbounded cache growth and permits checking for updated published builds.
