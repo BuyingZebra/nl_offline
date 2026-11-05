@@ -354,7 +354,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  // Active profiles have their own approximate emission hue; the original
  // theme selection remains authoritative with PHOSPHOR HISTORY disabled.
  tint.uniforms.uTint.value.copy(historyEnabled?
-  (profileHues[fx.persistenceProfile]||profileHues.p39):hues[theme]);
+  (theme==='amber'?hues.amber:profileHues.p31):hues[theme]);
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
  const faded=clamp(Number(contentLuminance),0,1);
