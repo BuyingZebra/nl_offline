@@ -14,7 +14,8 @@ const scope='https://buyingzebra.github.io/nl_offline/tetris/';
 function workerHarness(){
  const events=new Map(),storage=new Map(),deleted=[],claims=[];
  let online=true,failPath=null,version='old';
- const asURL=item=>typeof item==='string'?new URL(item,scope).href:item.url;
+ const asURL=item=>typeof item==='string'?new URL(item,scope).href:
+  item instanceof URL?item.href:item.url;
  async function fetchMock(item){
   const url=new URL(asURL(item));
   if(!online||url.pathname===failPath)throw Error('Network unavailable');
