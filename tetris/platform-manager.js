@@ -21,7 +21,7 @@ export function measureDisplayViewport(display,devicePixelRatio){
 export function createPlatformManager({
  window,document,display,safeProbe,baseModuleURL,buildVersion,
  getGameStatus,isScreenOpen,onViewport,onVisibility,
- onPageHide=()=>{},onPageShow=()=>{},
+ onPageHide=()=>{},onPageShow=()=>{},canReloadNewBuild=()=>true,
  now=()=>Date.now(),
  fetchPage=(url,options)=>window.fetch(url,options),
  reloadPage=()=>window.location.reload()
@@ -65,7 +65,7 @@ export function createPlatformManager({
    if(!reply.ok)return false;
    const published=parsePublishedBuild(await reply.text());
    // Check eligibility AFTER awaiting the network, not just before it.
-   if(started&&shouldReloadBuild(buildVersion,published,{
+   if(started&&canReloadNewBuild()&&shouldReloadBuild(buildVersion,published,{
     hidden:document.hidden,modalOpen:isScreenOpen(),gameStatus:getGameStatus()
    })){
     reloadPage();
