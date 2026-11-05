@@ -17,7 +17,7 @@ function target(){
 }
 function harness(repeating=false,canInteract=()=>true,regions=null){
  const screen=target(),document=target(),window=target();
- let captured=null,released=0,actions=[],invalidations=0,buttonPresses=[];
+ let captured=null,released=0,actions=[],invalidations=0,buttonPresses=[],buttonReleases=[];
  screen.getBoundingClientRect=()=>({left:0,top:0,width:100,height:60});
  screen.setPointerCapture=id=>{captured=id};
  screen.hasPointerCapture=id=>captured===id;
@@ -32,7 +32,8 @@ function harness(repeating=false,canInteract=()=>true,regions=null){
   setSetting:()=>{},settingValue:()=>0,toggleScanlineMenu:()=>{},chooseScanline:()=>{},
   openModal:()=>{},invalidate:()=>{invalidations++},
   clamp:(n,a,b)=>Math.max(a,Math.min(b,n)),canInteract,
-  onButtonPress:hit=>buttonPresses.push(hit)
+  onButtonPress:(hit,now,held)=>buttonPresses.push({hit,held}),
+  onButtonRelease:hit=>buttonReleases.push(hit)
  });
  function down(id=3){
   screen.emit('pointerdown',{
@@ -43,7 +44,7 @@ function harness(repeating=false,canInteract=()=>true,regions=null){
  return {controller,screen,document,window,down,
   get captured(){return captured},get released(){return released},
   get actions(){return actions},get invalidations(){return invalidations},
-  get buttonPresses(){return buttonPresses}
+  get buttonPresses(){return buttonPresses},get buttonReleases(){return buttonReleases}
  };
 }
 test('input ownership registers one matching listener for each event',()=>{
@@ -104,19 +105,22 @@ test('suspended and recovering pages cannot receive hidden pointer or keyboard a
  h.controller.dispose();
 });
 
-test('button presses trigger short-lived glow for pointer and keyboard input',()=>{
+test('pointer holds and keyboard taps share button luminance model',()=>{
  const hit={x:0,y:0,w:100,h:60,act:'left',kind:'button',repeat:false};
  const h=harness(false,()=>true,[hit]);
  h.down();
  assert.equal(h.buttonPresses.length,1);
- assert.equal(h.buttonPresses[0],hit);
+ assert.equal(h.buttonPresses[0].hit,hit);
+ assert.equal(h.buttonPresses[0].held,true);
  h.controller.cancel();
+ assert.equal(h.buttonReleases[0],hit);
  h.document.emit('keydown',{code:'ArrowLeft',repeat:false,preventDefault(){}});
  assert.equal(h.buttonPresses.length,2);
- assert.equal(h.buttonPresses[1],hit);
+ assert.equal(h.buttonPresses[1].hit,hit);
+ assert.equal(h.buttonPresses[1].held,false);
  h.controller.dispose();
 });
-test('non-button gameplay gestures never trigger the glow overlay',()=>{
+test('non-button gameplay gestures do not trigger button luminance',()=>{
  const hit={x:0,y:0,w:100,h:60,act:'board',board:true};
  const h=harness(false,()=>true,[hit]);
  h.down();

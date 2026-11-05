@@ -3,14 +3,14 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v095';
+import {createCompositor} from './compositor.js?v096';
 import {drawTileFace} from './tile-face.js?v094';
-import {createButtonFeedback} from './button-feedback.js?v095';
-import {createCanvasUI} from './canvas-ui.js?v079';
+import {createButtonFeedback} from './button-feedback.js?v096';
+import {createCanvasUI} from './canvas-ui.js?v096';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
-import {createInputController} from './input-controller.js?v094';
+import {createInputController} from './input-controller.js?v096';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
@@ -166,7 +166,7 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
-// A short-lived interaction model brightens only the pressed button rectangle.
+// Held buttons are bright until release, then return smoothly to their source.
 // Existing CRT bloom handles glow; no UI texture uploads are required.
 const buttonFeedback=createButtonFeedback();
 let buttonGlowWasActive=false;
@@ -244,6 +244,8 @@ const screenManager=createScreenManager({
  onChange:(previous,next)=>{
   // Preserve menu-local reset, touch capture and score popup invalidation.
   modalUI.reset();scrollVelocity=0;inputController?.cancel();
+  // Never illuminate newly opened/closed menu pixels using stale feedback.
+  buttonFeedback.clear();
   if(previous==='scores'||next==='scores')layers.mark('base');
   if(next===null)regions=baseRegions;
   invalidate();
@@ -273,7 +275,7 @@ function onInitialsKeydown(e){
 initialsInput.addEventListener('input',onInitialsInput);
 initialsInput.addEventListener('keydown',onInitialsKeydown);
 const {panel,wrapText,text,rect,region,key}=createCanvasUI({
- getContext:()=>g,getRegions:()=>regions,getPressed:()=>inputController?.pressed,
+ getContext:()=>g,getRegions:()=>regions,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
 });
@@ -614,13 +616,27 @@ inputController=createInputController({
   else if(act==='board')layers.mark('board');
   else if(act)layers.mark('controls');
  },
- handleAction:actions.dispatch,perform:actions.perform,
+ handleAction:act=>{
+  const previous=game.status;
+  const result=actions.dispatch(act);
+  if(game.status!==previous)buttonFeedback.clear();
+  return result;
+ },
+ perform:act=>{
+  const previous=game.status;
+  const result=actions.perform(act);
+  if(game.status!==previous)buttonFeedback.clear();
+  return result;
+ },
  setSetting:actions.setSetting,settingValue,
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp,
- onButtonPress:hit=>{
-  if(buttonFeedback.press(hit,performance.now()))invalidate('button-press');
+ onButtonPress:(hit,now,held)=>{
+  if(buttonFeedback.press(hit,now,held))invalidate('button-press');
+ },
+ onButtonRelease:(hit,now)=>{
+  if(buttonFeedback.release(hit,now))invalidate('button-release');
  },
  canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
@@ -677,7 +693,11 @@ function frame(now){
     game.level!==prior.level)layers.mark('controls');
    if(game.pieces!==prior.pieces||game.hold!==prior.hold||
     game.current!==prior.piece)layers.mark('sidebar');
-   if(game.status!==prior.status)layers.mark('base');
+   if(game.status!==prior.status){
+    layers.mark('base');
+    // Start/stop/paused transitions remove the previous screen's press.
+    buttonFeedback.clear();
+   }
    layers.reason('gravity');
    if(game.lines>prior.lines)tone(590,.1);
    else if(game.pieces>prior.pieces)tone(180,.04);
@@ -692,7 +712,7 @@ function frame(now){
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
   // Only GPU parameters animate. A final clean frame removes the
-  // afterimage; don't re-upload the full menu CanvasTexture on every fade.
+  // released-button fade; don't re-upload the menu CanvasTexture.
   const buttonSparks=buttonFeedback.sample(now);
   if(buttonSparks.length||buttonGlowWasActive)layers.reason('button-afterglow');
   buttonGlowWasActive=buttonSparks.length>0;

@@ -3,7 +3,7 @@ import {makeRegion,makeButtonControl} from './ui-controls.js?v065';
  * Drawing targets and hitboxes are caller-owned and resolve on each draw,
  * allowing the same primitives to draw gameplay and modal canvases.
  */
-export function createCanvasUI({getContext,getRegions,getPressed,C,FONT,
+export function createCanvasUI({getContext,getRegions,C,FONT,
  LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
 function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
@@ -74,9 +74,9 @@ function key(label,x,y,w,h,act,opts={}){
  const model=makeButtonControl(label,x,y,w,h,act,opts);
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- const down=getPressed()?.action===model.act&&getPressed()?.box?.x===model.x;
+ // No Canvas2D pressed-state fill: the GPU is the single source of feedback.
  panel(model.x,model.y,model.w,model.h,8,
-  down?C.solid:(model.light?C.bright:C.button),model.light?C.bright:C.border);
+  model.light?C.bright:C.button,model.light?C.bright:C.border);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
   model.light?C.dark:C.ink,'center',Math.max(10,model.w-14));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,

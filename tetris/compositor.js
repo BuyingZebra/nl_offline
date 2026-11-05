@@ -9,7 +9,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
-import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v095';
+import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v096';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -94,7 +94,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
    tDiffuse:{value:null},
    uViewport:{value:new THREE.Vector2(1,1)},
    uRects:{value:Array.from({length:MAX_BUTTON_FLASHES},()=>new THREE.Vector4())},
-   uPower:{value:Array(MAX_BUTTON_FLASHES).fill(0)}
+   uPower:{value:Array(MAX_BUTTON_FLASHES).fill(0)},
+    uMode:{value:Array(MAX_BUTTON_FLASHES).fill(0)}
   },
   vertexShader:BUTTON_FEEDBACK_VERTEX,
   fragmentShader:BUTTON_FEEDBACK_FRAGMENT
@@ -319,10 +320,12 @@ function syncButtonFeedback(flashes,width,height){
   buttonPulsePass.uniforms.uViewport.value.set(width,height);
   const rects=buttonPulsePass.uniforms.uRects.value;
   const powers=buttonPulsePass.uniforms.uPower.value;
+   const modes=buttonPulsePass.uniforms.uMode.value;
   for(let i=0;i<MAX_BUTTON_FLASHES;i++){
    const flash=flashes[i];
    if(flash)rects[i].set(flash.x,flash.y,flash.w,flash.h);
    powers[i]=flash?flash.power:0;
+    modes[i]=flash?flash.mode:0;
   }
 }
 function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){

@@ -9,7 +9,7 @@ export function createInputController({screen,document,window,initialsInput,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
- onButtonPress=()=>{}}){
+ onButtonPress=()=>{},onButtonRelease=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
  function listen(target,name,handler,options){
@@ -44,7 +44,7 @@ listen(screen,'pointerdown',e=>{
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
  const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
- if(isVisualButton(r))onButtonPress(r,performance.now());
+ if(isVisualButton(r))onButtonPress(r,performance.now(),true);
  stopRepeat();setScrollVelocity(0);
  pressed={
   id:e.pointerId,region:r,start:p,last:p,action:r?.act,
@@ -90,6 +90,7 @@ function releaseTouch(e){
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
  const touch=pressed,p=eventPoint(e);pressed=null;
+  if(isVisualButton(touch.region))onButtonRelease(touch.region,performance.now());
  // Redraw only the touched button's cropped HUD texture on release.
  if(!getModal())setBaseDirty(touch.action);
  try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(err){}
@@ -126,7 +127,7 @@ function releaseTouch(e){
 }
 listen(screen,'pointerup',releaseTouch);
 listen(screen,'pointercancel',releaseTouch);
-listen(window,'blur',stopRepeat);
+listen(window,'blur',cancel);
 listen(screen,'wheel',e=>{
  if(disposed||!canInteract())return;
  if(getModal()==='options'){
@@ -148,13 +149,14 @@ listen(document,'keydown',e=>{
  e.preventDefault();
  if(e.repeat&&['hard','hold','pause','start'].includes(a))return;
  const keyRegion=getRegions().find(r=>r.kind==='button'&&r.act===a);
- if(keyRegion)onButtonPress(keyRegion,performance.now());
+ if(keyRegion)onButtonPress(keyRegion,performance.now(),false);
  perform(a);
 });
 
  function cancel(){
   stopRepeat();
   if(pressed){
+   if(isVisualButton(pressed.region))onButtonRelease(pressed.region,performance.now());
    try{
     if(screen.hasPointerCapture?.(pressed.id))screen.releasePointerCapture(pressed.id);
    }catch(error){/* The pointer may have been released by the browser. */}

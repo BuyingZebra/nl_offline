@@ -9,7 +9,7 @@ export function makeButtonControl(label,x,y,w,h,act,
  {light=false,repeat=false,arrow=false,modalControl=false}={}){
  return {
   kind:'button',label,x,y,w,h,act,light,repeat,arrow,modalControl,
-  hitbox:makeRegion(x,y,w,h,act,{kind:'button',repeat,modalControl})
+  hitbox:makeRegion(x,y,w,h,act,{kind:'button',light,repeat,modalControl})
  };
 }
 // Slider label/value geometry and pointer hitbox must always agree.
