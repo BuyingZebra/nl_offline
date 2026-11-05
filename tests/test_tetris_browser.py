@@ -46,6 +46,37 @@ with sync_playwright() as p:
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
     page.screenshot(path=str(out / f"{browser_name}-landscape.png"))
+
+    # Optional browser-level stress: ask the real WebGL context to disappear,
+    # then return. No reliance on renderer internals or debug-only globals.
+    supported = page.evaluate("""() => {
+      const canvas = document.querySelector('#screen');
+      const gl = canvas?.getContext('webgl2');
+      const extension = gl?.getExtension('WEBGL_lose_context');
+      if (!extension) return false;
+      const probe = {lost:false,restored:false,extension};
+      window.__nomadContextProbe = probe;
+      canvas.addEventListener('webglcontextlost', () => {probe.lost=true;}, {once:true});
+      canvas.addEventListener('webglcontextrestored', () => {probe.restored=true;}, {once:true});
+      extension.loseContext();
+      return true;
+    }""")
+    if supported:
+        page.wait_for_function("() => window.__nomadContextProbe.lost === true", timeout=10000)
+        page.evaluate("() => window.__nomadContextProbe.extension.restoreContext()")
+        page.wait_for_function("() => window.__nomadContextProbe.restored === true", timeout=10000)
+        page.wait_for_timeout(700)
+        assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
+        assert not errors, errors
+        recovered = out / f"{browser_name}-context-recovered.png"
+        page.screenshot(path=str(recovered))
+        pixels = Image.open(recovered).convert("RGB").getdata()
+        assert sum(1 for rgb in pixels if max(rgb) > 85) > 1000, (
+            "No visible output after WebGL context restoration"
+        )
+        print(f"{browser_name}: context loss/restoration smoke passed")
+    else:
+        print(f"{browser_name}: WEBGL_lose_context unavailable; stress check skipped")
     browser.close()
 
 print(f"NOMAD browser smoke passed: {browser_name}")
