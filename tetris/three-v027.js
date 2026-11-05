@@ -206,12 +206,17 @@ function tone(freq=240,len=.04){
  if(!settings.soundOn)return;
  try{const AC=window.AudioContext||window.webkitAudioContext;
   if(!AC)return;if(!audioCtx)audioCtx=new AC();
-  if(audioCtx.state==='suspended')void audioCtx.resume();
+  if(audioCtx.state==='suspended'){
+   const wake=audioCtx.resume();
+   wake?.catch?.(()=>{}); // Safari may reject an interrupted gesture.
+  }
   const osc=audioCtx.createOscillator(),vol=audioCtx.createGain();
   osc.type='square';osc.frequency.value=freq;
   vol.gain.setValueAtTime(.014,audioCtx.currentTime);
   vol.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+len);
-  osc.connect(vol).connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+len);
+  osc.connect(vol).connect(audioCtx.destination);
+  osc.onended=()=>{osc.disconnect();vol.disconnect();};
+  osc.start();osc.stop(audioCtx.currentTime+len);
  }catch(e){}
 }
 function invalidate(reason='input'){
