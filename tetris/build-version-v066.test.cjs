@@ -9,7 +9,7 @@ const versionFns=new Function(read('build-version.js')
  .replace(/export const /g,'const ').replace(/export function /g,'function ')+
  '\nreturn {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild};')();
 const {getBuildVersion,parsePublishedBuild,shouldReloadBuild}=versionFns;
-const html=read('three-v027.html'),main=read('three-v027.js');
+const html=read('three-v027.html'),main=read('three-v027.js'),platform=read('platform-manager.js');
 const documentWithVersion=v=>({querySelector:s=>s==='meta[name="tetris-build"]'&&v!==null?
  {getAttribute:attr=>attr==='content'?v:null}:null});
 test('single metadata marker determines build number without a hard-coded JS constant',()=>{
@@ -58,13 +58,15 @@ test('stale, equal, offline or invalid published versions never reload',()=>{
  assert.equal(shouldReloadBuild('', '067'),false);
  assert.equal(shouldReloadBuild('065','064'),false);
 });
-test('live update polling fetches uncached HTML, not JS source or gameplay files',()=>{
- assert.ok(main.includes("new URL('./three-v027.html?update-check='+now,import.meta.url)"));
- assert.ok(main.includes("fetch(url,{cache:'no-store'})"));
- assert.ok(main.includes('parsePublishedBuild(await reply.text())'));
- assert.ok(main.includes('shouldReloadBuild(THREE_BUILD_VERSION,published,'));
- assert.ok(main.includes("if(document.hidden||checkingBuild||modal||game.status!=='ready')return;"));
- assert.ok(!main.includes("new URL('./three-v027.js?update-check="));
+test('live update polling belongs to Platform Manager and fetches only uncached HTML',()=>{
+ assert.ok(main.includes('createPlatformManager({'));
+ assert.ok(main.includes('void platform.checkForNewBuild();'));
+ assert.ok(platform.includes("new URL('./three-v027.html?update-check='+time,baseModuleURL)"));
+ assert.ok(platform.includes("fetchPage(url,{cache:'no-store'})"));
+ assert.ok(platform.includes('parsePublishedBuild(await reply.text())'));
+ assert.ok(platform.includes('shouldReloadBuild(buildVersion,published,'));
+ assert.ok(platform.includes("getGameStatus()!=='ready')return false;"));
+ assert.ok(!platform.includes("new URL('./three-v027.js?update-check="));
 });
 test('release keeps permanent link and always imports main module freshly',()=>{
  const index=read('index.html');
