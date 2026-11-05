@@ -28,7 +28,7 @@ const CORE_ASSETS=Object.freeze([
  './display-settings-catalog.js','./settings-manager.js',
  './screen-manager.js','./action-controller.js','./graphics-health.js',
  './compositor-pass-profiler.js','./ui-controls.js',
- './vendor/three/three.module.js',
+ './vendor/three/three.module.js','./vendor/three/three.core.js',
  './vendor/three/addons/postprocessing/EffectComposer.js',
  './vendor/three/addons/postprocessing/RenderPass.js',
  './vendor/three/addons/postprocessing/UnrealBloomPass.js',
