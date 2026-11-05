@@ -620,7 +620,12 @@ inputController=createInputController({
  chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp,
  onButtonPress:hit=>{
-  if(buttonFeedback.press(hit,performance.now()))invalidate('button-press');
+  const started=performance.now();
+  const accepted=buttonFeedback.press(hit,started);
+  if(window.__nomadV094Probe?.presses)
+   window.__nomadV094Probe.presses.push({act:hit.act,x:hit.x,y:hit.y,w:hit.w,h:hit.h,
+    at:started,accepted});
+  if(accepted)invalidate('button-press');
  },
  canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
@@ -694,6 +699,11 @@ function frame(now){
   // Only GPU parameters animate. A final clean frame removes the
   // afterimage; don't re-upload the full menu CanvasTexture on every fade.
   const buttonSparks=buttonFeedback.sample(now);
+  if(window.__nomadV094Probe?.frames && buttonSparks.length){
+   const frames=window.__nomadV094Probe.frames;
+   frames.push({at:now,power:buttonSparks[0].power,count:buttonSparks.length});
+   if(frames.length>45)frames.shift();
+  }
   if(buttonSparks.length||buttonGlowWasActive)layers.reason('button-afterglow');
   buttonGlowWasActive=buttonSparks.length>0;
   if(layers.needsRender()){
