@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="NOMAD Tetris icon">
+ <rect width="512" height="512" fill="#080808"/>
+ <rect x="51" y="51" width="410" height="410" rx="77" fill="#181818" stroke="#b98d55" stroke-width="9"/>
+ <path d="M147 374V138h59l105 142V138h57v236h-58L204 232v142z" fill="#f2d08e"/>
+</svg>
