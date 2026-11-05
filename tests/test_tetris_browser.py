@@ -73,6 +73,14 @@ with sync_playwright() as p:
     hot_pixels = list(hot.crop(crop).getdata())
     cold_pixels = list(cold.crop(crop).getdata())
     glow_delta = (sum(hot_pixels) - sum(cold_pixels)) / len(hot_pixels)
+    print("BUTTON GLOW DIAGNOSTIC:", {"hotMean":sum(hot_pixels)/len(hot_pixels),
+      "coldMean":sum(cold_pixels)/len(cold_pixels),
+      "delta":glow_delta, "pageErrors":errors[:6],
+      "consoleErrors":console_errors[-10:],
+      "visibleError":page.locator("#error").is_visible(),
+      "errorMessage":page.locator("#error").text_content()[:400]})
+    hot.save(out / f"{browser_name}-glow-hot.png")
+    cold.save(out / f"{browser_name}-glow-cold.png")
     assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
     settings_screen = page.screenshot()
     assert settings_screen != ready.read_bytes(), "Options did not change the screen"
