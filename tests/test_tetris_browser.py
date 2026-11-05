@@ -59,6 +59,30 @@ with sync_playwright() as p:
     page.screenshot(path=str(ready))
     lit = sum(1 for rgb in Image.open(ready).convert("RGB").getdata()
               if max(rgb) > 85)
+    if lit <= 1000:
+        print("BLANK-FRAME DIAGNOSTICS", page.evaluate("""() => ({
+          url:location.href,
+          error:document.querySelector('#error')?.textContent,
+          errorVisible:!document.querySelector('#error')?.hidden,
+          canvas:Array.from(document.querySelectorAll('canvas')).map(c=>({
+            id:c.id,w:c.width,h:c.height,visible:getComputedStyle(c).display
+          })),
+          debug:window.__tetris?.debugReport?.()||null,
+          gl: (() => {try {
+            const c=document.querySelector('#screen');
+            const gl=c?.getContext('webgl2')||c?.getContext('webgl');
+            return gl?{version:gl.getParameter(gl.VERSION), error:gl.getError()}:null;
+          }catch(e){return String(e)}})()
+        })"""))
+        print("PAGE ERRORS",errors)
+        print("CONSOLE ERRORS",console_errors[:30])
+        print("FAILED REQUESTS",failures[:12])
+        page.wait_for_timeout(1800)
+        late=out / f"{browser_name}-late.png"
+        page.screenshot(path=str(late))
+        later=sum(1 for rgb in Image.open(late).convert("RGB").getdata()
+                  if max(rgb)>85)
+        print("LATE BRIGHT PIXELS",later)
     assert lit > 1000, f"Game compositor appears blank ({lit} bright pixels)"
 
     # Exercise real canvas input and menu integration, not only rendering.
