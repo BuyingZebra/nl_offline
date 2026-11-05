@@ -15,7 +15,7 @@ function target(){
   emit(name,event){return listeners.get(name)?.handler(event);}
  };
 }
-function harness(repeating=false){
+function harness(repeating=false,canInteract=()=>true){
  const screen=target(),document=target(),window=target();
  let captured=null,released=0,actions=[],invalidations=0;
  screen.getBoundingClientRect=()=>({left:0,top:0,width:100,height:60});
@@ -31,7 +31,7 @@ function harness(repeating=false){
   setBaseDirty:()=>{},handleAction:a=>actions.push(a),perform:a=>actions.push(a),
   setSetting:()=>{},settingValue:()=>0,toggleScanlineMenu:()=>{},chooseScanline:()=>{},
   openModal:()=>{},invalidate:()=>{invalidations++},
-  clamp:(n,a,b)=>Math.max(a,Math.min(b,n))
+  clamp:(n,a,b)=>Math.max(a,Math.min(b,n)),canInteract
  });
  function down(id=3){
   screen.emit('pointerdown',{
@@ -83,5 +83,21 @@ test('temporary cancel retains listeners for browser restoration',()=>{
  h.down(4);
  assert.equal(h.controller.pressed.id,4);
  assert.deepEqual(h.actions,['left','left']);
+ h.controller.dispose();
+});
+
+test('suspended and recovering pages cannot receive hidden pointer or keyboard actions',()=>{
+ let active=false;
+ const h=harness(false,()=>active);
+ h.down();h.document.emit('keydown',{code:'ArrowLeft',preventDefault(){}});
+ assert.deepEqual(h.actions,[]);
+ assert.equal(h.controller.pressed,null);
+ active=true;
+ h.down(5);
+ assert.deepEqual(h.actions,['left']);
+ active=false;
+ h.screen.emit('pointerup',{pointerId:5,clientX:20,clientY:20,timeStamp:3});
+ assert.equal(h.controller.pressed,null);
+ assert.deepEqual(h.actions,['left']);
  h.controller.dispose();
 });
