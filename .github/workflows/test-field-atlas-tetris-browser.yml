@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'tetris/**'
+      - 'tests/test_tetris_browser.py'
       - '.github/workflows/test-field-atlas-tetris-browser.yml'
   workflow_dispatch:
 
