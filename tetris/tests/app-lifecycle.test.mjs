@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAppLifecycle,createGraphicsCleanup} from '../app-lifecycle.js';
+import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from '../app-lifecycle.js';
 import {createPlatformManager} from '../platform-manager.js';
 
 test('visibility suspension preserves the session and can be resumed once',()=>{
@@ -168,4 +168,31 @@ test('real platform hooks keep a cached page alive and release only on final hid
  assert.equal(platform.running,false);
  assert.equal(windowListeners.size,0);
  assert.equal(documentListeners.size,0);
+});
+
+test('individual teardown failures do not skip listener, scene or audio cleanup',()=>{
+ const calls=[];
+ const app=createAppLifecycle({
+  onDispose:()=>runCleanupTasks([
+   ['input',()=>{calls.push('input');throw Error('pointer release failed');}],
+   ['graphics-health',()=>calls.push('graphics-health')],
+   ['platform',()=>calls.push('platform')],
+   ['graphics',()=>calls.push('graphics')],
+   ['audio',()=>calls.push('audio')]
+  ])
+ });
+ assert.equal(app.dispose(),true);
+ assert.equal(app.dispose(),false);
+ assert.deepEqual(calls,['input','graphics-health','platform','graphics','audio']);
+ assert.match(app.snapshot().lastError,/input: pointer release failed/);
+ assert.equal(app.status,'disposed');
+});
+test('successful cleanup sequence reports every completed step',()=>{
+ const calls=[];
+ const count=runCleanupTasks([
+  ['first',()=>calls.push(1)],
+  ['second',()=>calls.push(2)]
+ ]);
+ assert.equal(count,2);
+ assert.deepEqual(calls,[1,2]);
 });
