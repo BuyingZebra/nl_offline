@@ -97,3 +97,39 @@ test('diagnostics are collected quietly with a bounded sample history',()=>{
  assert.ok(code.includes('enabled:true,intervalMs:2000,log:()=>{}'));
  assert.ok(!code.includes('console.log(report)'));
 });
+
+test('Copy Debug includes bounded WebGL lifecycle and recovery history',()=>{
+ const report=format({
+  version:'089',
+  gpu:{textures:17,geometries:6,programs:12,activePasses:8,totalPasses:11},
+  graphics:{
+   status:'ready',losses:1,restores:1,renderFailures:0,lastError:null,
+   lossDurationMs:null,history:[
+    {at:'2026-11-05T10:00:00.000Z',type:'context-lost'},
+    {at:'2026-11-05T10:00:01.000Z',type:'context-restored'},
+    {at:'2026-11-05T10:00:02.000Z',type:'frame-recovered'}
+   ]
+  },
+  samples:[
+   {gpu:{textures:15,geometries:6,programs:12}},
+   {gpu:{textures:18,geometries:6,programs:12}},
+   {gpu:{textures:17,geometries:6,programs:12}}
+  ]
+ });
+ assert.ok(report.includes('WEBGL LIFECYCLE'));
+ assert.ok(report.includes('Context: ready / losses 1 / restore events 1 / frame errors 0'));
+ assert.ok(report.includes('context-lost'));
+ assert.ok(report.includes('frame-recovered'));
+ assert.ok(report.includes('Textures: first 15 / latest 17 / peak 18 / change +2'));
+ assert.ok(report.includes('not measured GPU memory usage or proof of a leak'));
+});
+test('debug report remains safe with missing history and failure details',()=>{
+ const report=format({
+  graphics:{status:'lost',losses:1,restores:0,renderFailures:1,
+   lossDurationMs:1235,lastError:'test failure\ncontinued',history:[]}
+ });
+ assert.ok(report.includes('No resource trend samples yet.'));
+ assert.ok(report.includes('Context unavailable for 1235ms'));
+ assert.ok(report.includes('Last render error: test failure continued'));
+ assert.ok(report.includes('Recent graphics events: none'));
+});
