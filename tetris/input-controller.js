@@ -8,7 +8,8 @@ export function createInputController({screen,document,window,initialsInput,
  getViewport,getRegions,getModal,getModalView,getOptionsScroll,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
- chooseScanline,openModal,invalidate,clamp,canInteract=()=>true}){
+ chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
+ onButtonPress=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
  function listen(target,name,handler,options){
@@ -36,12 +37,14 @@ const optionPoint=p=>getModal()==='options'&&getModalView()&&
  p.x>=getModalView().x&&p.x<=getModalView().x+getModalView().w&&
  p.y>=getModalView().y&&p.y<=getModalView().y+getModalView().h;
 const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
+const isVisualButton=r=>r?.kind==='button'||r?.act==='patternSelect'||r?.act==='scanlineChoice';
 listen(screen,'pointerdown',e=>{
  if(disposed||!canInteract())return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
  const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
+ if(isVisualButton(r))onButtonPress(r,performance.now());
  stopRepeat();setScrollVelocity(0);
  pressed={
   id:e.pointerId,region:r,start:p,last:p,action:r?.act,
@@ -144,6 +147,8 @@ listen(document,'keydown',e=>{
  if(!a)return;
  e.preventDefault();
  if(e.repeat&&['hard','hold','pause','start'].includes(a))return;
+ const keyRegion=getRegions().find(r=>r.kind==='button'&&r.act===a);
+ if(keyRegion)onButtonPress(keyRegion,performance.now());
  perform(a);
 });
 
