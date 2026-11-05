@@ -342,7 +342,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
  persistencePass.enabled=historyEnabled;
- persistencePass.configure(fx.persistenceProfile);
+ persistencePass.configure(fx.persistenceProfile,fx.scanRefreshHz);
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
