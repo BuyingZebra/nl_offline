@@ -50,12 +50,15 @@ test('suspension cancels afterglow immediately and cannot preserve stale state',
  assert.equal(f.clear(),false);
  assert.equal(f.sample(200).length,0);
 });
-test('shader preserves grayscale and renders in existing CSS-pixel coordinates',()=>{
+test('button shader reaches full luminance only inside its hitbox, leaving bloom to the compositor',()=>{
  assert.match(BUTTON_FEEDBACK_VERTEX,/gl_Position/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec2 uViewport/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec4 uRects\[8\]/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform float uPower\[8\]/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/original\+\(vec3\(1\.0\)-original\)\*flash/);
+ assert.match(BUTTON_FEEDBACK_FRAGMENT,/float inside=step\(lo\.x,p\.x\)/);
+    assert.match(BUTTON_FEEDBACK_FRAGMENT,/flash=max\(flash,power\*inside\)/);
+    assert.match(BUTTON_FEEDBACK_FRAGMENT,/mix\(original,vec3\(1\.0\),clamp\(flash,0\.0,1\.0\)\)/);
+    assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/float halo|float rim|float distance|exp\(/);
  assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/\bvec3\s*\(\s*\d+\.\d+\s*,\s*\d+\.\d+\s*,\s*\d+\.\d+/);
  assert.ok(BUTTON_FLASH_TOTAL_MS<700,'glow must fade promptly');
 });
