@@ -1,4 +1,4 @@
-# NOMAD Tetris — current architecture (V089)
+# NOMAD Tetris — current architecture (V090)
 
 This describes the current implementation rather than retaining a diary of every iteration. The authoritative build number is the `tetris-build` HTML meta tag.
 
@@ -6,7 +6,7 @@ This describes the current implementation rather than retaining a diary of every
 
 | Module | Responsibility |
 | --- | --- |
-| `core.js` | Game rules, gravity, collision, scoring and gameplay status |
+| `core.js` | Game rules, gravity, collision, scoring, gameplay status and read-only game events |
 | `scores.js` | Top-five ranking, migration and persistence |
 | `action-controller.js` | Gameplay commands, saved-score events and menu action routing |
 | `screen-manager.js` | Screen/navigation state and pause-before-menu rules |
@@ -20,6 +20,20 @@ This describes the current implementation rather than retaining a diary of every
 | `graphics-health.js` | WebGL loss/recovery lifecycle, bounded error/event history |
 | `compositor.js` | GPU CRT effects and processing order |
 | `three-v027.js` | Scene/canvas allocation, renderer, game-frame scheduling and diagnostics |
+
+## Core gameplay event contract (V090)
+
+The game engine offers `game.onEvent(listener)`, returning an unsubscribe function.
+Subscribers receive synchronous, read-only events and cannot affect deterministic rules by throwing.
+The renderer listens to `lines-cleared` to preserve the exact approved line-flash effect without replacing `game.lockPiece()`.
+
+- `piece-locked`: kind, position, rotation, cleared count and final score/status
+- `lines-cleared`: count, original row indices and frozen landed-board snapshot **before removal** (only allocated for actual clears with subscribers)
+- `level-changed`: previous and new levels
+- `game-over`: reason (`top-out` or `spawn-blocked`)
+- `reset`: fresh ready-state information
+
+A locking move emits these in game-rule order: piece locked, lines cleared (if applicable), level changed (if applicable), then game over (if the next piece cannot spawn). Event observation does not replace existing sound/score/UI state transitions. Rendering never mutates core methods.
 
 ## Non-negotiable behaviour
 
@@ -44,7 +58,6 @@ Current focused tests live in `tetris/tests/`. Selected legacy technical tests r
 
 ## Remaining engineering
 
-- Replace the renderer's direct `game.lockPiece` override with an explicit game event interface.
 - Verify WebGL restoration on physical devices and investigate long-session resource growth. The existing Copy Debug report includes bounded WebGL events, failure counts, and recent resource-count trends (not measured GPU memory bytes).
 - Review graphics-resource teardown without breaking iOS Home Screen resume.
 - Plan future install/offline packaging (manifest, icons and dependable local assets).
