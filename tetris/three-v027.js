@@ -13,7 +13,7 @@ import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v062';
+import {formatDebugReport} from './debug-report.js?v089';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v085';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
@@ -21,7 +21,8 @@ import {createHudDrawing} from './hud-drawing.js?v071';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v073';
 import {createSettingsManager} from './settings-manager.js?v085';
 import {createScreenManager} from './screen-manager.js?v086';
-import {createActionController} from './action-controller.js?v088';
+import {createActionController} from './action-controller.js?v089';
+import {createGraphicsHealth} from './graphics-health.js?v089';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -169,7 +170,32 @@ const textureUploads=createTextureUploadProfiler({renderer,
 const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
 const {SCANLINE_PRESETS}=compositor;
-
+const graphicsHealth=createGraphicsHealth({
+ canvas:screen,
+ onLost:()=>{
+  // An interrupted GPU must never advance unseen gameplay or repeat inputs.
+  if(game.status==='playing')actions.perform('pause');
+  inputController?.cancel();scrollVelocity=0;
+  lastTime=performance.now();perf.resetPacing();
+ },
+ onRestored:()=>{
+  try{
+   // Three.js recreates its internal WebGL context. Re-upload all current
+   // CanvasTextures, including hidden UI planes, on the first recovered frame.
+   compositor.resize(W,H,DPR);
+   for(const source of [texture,boardTexture,sidebarTexture,controlsTexture,
+    modalTexture,boardPopupTexture])source.needsUpdate=true;
+   lastPaintedBoardPopupStatus=null;cachedLayout=null;
+   lastTime=performance.now();perf.resetPacing();
+   layers.mark('base','board','sidebar','controls');
+   invalidate('context-restored');
+  }catch(error){
+   fatal.hidden=false;
+   fatal.textContent='WebGL restoration failed: '+String(error.stack||error);
+   throw error;
+  }
+ }
+});
 
 // Game and terminal now share precisely the same tile-face renderer.
 function tone(freq=240,len=.04){
@@ -232,7 +258,8 @@ const actions=createActionController({
  tone:(freq,len)=>tone(freq,len),
  getInitialsInput:()=>initialsInput,
  onCopyDebug:()=>copyDebugReport(),
- onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;}
+ onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
+ canInteract:()=>graphicsHealth.status==='ready'
 });
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -525,7 +552,7 @@ function createDebugReport(){
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
   display:{theme:settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
    settings:JSON.stringify({...settings.effects,pieceGhost:settings.pieceGhost,sound:settings.soundOn})},
-  gpu,samples:recentPerf,current:perf.currentSnapshot()
+  gpu,graphics:graphicsHealth.snapshot(),samples:recentPerf,current:perf.currentSnapshot()
  });
 }
 function copyDebugReport(){
@@ -592,10 +619,11 @@ function syncFX(){
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
 function requestFrame(){
- if(!queued&&!document.hidden){queued=true;requestAnimationFrame(frame);}
+ if(!queued&&!document.hidden&&graphicsHealth.canRender){queued=true;requestAnimationFrame(frame);}
 }
 function frame(now){
  queued=false;
+ if(!graphicsHealth.canRender)return;
  perf.recordRaf(now);
  const frameStarted=perf.startFrame();
  try{
@@ -655,6 +683,7 @@ function frame(now){
    renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
+   graphicsHealth.rendered(); // A successful real frame completes recovery.
    perf.endRender(renderStarted);
    perf.recordWebglCalls(renderer.info.render.calls);
    const memory=renderer.info.memory;
@@ -666,6 +695,7 @@ function frame(now){
   perf.endFrame(frameStarted);
   if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
+  graphicsHealth.recordFailure(e);
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
  }
@@ -697,6 +727,7 @@ const platform=createPlatformManager({
   if(!hidden)invalidate();
  }
 });
+graphicsHealth.attach();
 platform.start();
 requestFrame();
 // One check after initialization also covers standalone cold launches.
