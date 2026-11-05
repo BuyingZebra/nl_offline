@@ -109,7 +109,7 @@ with sync_playwright() as p:
         )
         cache_count = page.evaluate("""async () => {
           const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v093');
+          const name = names.find(n => n === 'nomad-tetris-offline-v094');
           if (!name) return 0;
           const cache = await caches.open(name);
           return (await cache.keys()).length;
