@@ -36,6 +36,12 @@ function setup(){
   dispose(){this.disposeCount=(this.disposeCount||0)+1;}
  }
  class OutputPass{constructor(){this.label='OUTPUT';}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
+ function createPhosphorPersistencePass(){return {
+  label:'HISTORY',enabled:false,needsSwap:true,resetCount:0,
+  configure(id){this.profile=id;},reset(){this.resetCount++;},
+  setSize(w,h){this.size=[w,h];},
+  dispose(){this.disposeCount=(this.disposeCount||0)+1;}
+ };}
  const THREE={
   Vector2:Vec2,Vector3:Vec3,Vector4:Vec4,Color,CanvasTexture:Texture,
   RepeatWrapping:'repeat',NearestFilter:'nearest'
@@ -55,10 +61,11 @@ function setup(){
  const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
  assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
  const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document','instrumentCompositorPasses',
-  'MAX_BUTTON_FLASHES','BUTTON_FEEDBACK_VERTEX','BUTTON_FEEDBACK_FRAGMENT',
+  'MAX_BUTTON_FLASHES','BUTTON_FEEDBACK_VERTEX','BUTTON_FEEDBACK_FRAGMENT','createPhosphorPersistencePass',
   standalone+'\nreturn createCompositor;')
   (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses,
-   feedback.MAX_BUTTON_FLASHES,feedback.BUTTON_FEEDBACK_VERTEX,feedback.BUTTON_FEEDBACK_FRAGMENT);
+   feedback.MAX_BUTTON_FLASHES,feedback.BUTTON_FEEDBACK_VERTEX,feedback.BUTTON_FEEDBACK_FRAGMENT,
+   createPhosphorPersistencePass);
  const externalPopup={external:true};
  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
  return {pipeline,composer:instances[0],externalPopup,instances,textures};
@@ -66,7 +73,8 @@ function setup(){
 const states={
  phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
  softness:true,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.39,
- scanlines:true,scanlineOpacity:20,scanlinePreset:'original'
+ scanlines:true,scanlineOpacity:20,scanlinePreset:'original',
+ persistence:true,persistenceProfile:'p39'
 };
 const update=(pipeline,override={})=>pipeline.syncFX({
  fx:{...states,...override},theme:'green',width:393,height:852,dpr:3,
@@ -76,26 +84,32 @@ const update=(pipeline,override={})=>pipeline.syncFX({
 test('pass order remains exactly the approved version',()=>{
  const {composer}=setup();
  assert.deepEqual(composer.passes.map(p=>p.label),[
-  'RENDER','BOARD BLUR','BOARD POPUP','BUTTON RESPONSE','GHOST','BLOOM','PHOSPHOR',
-  'SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
+  'RENDER','BOARD BLUR','BOARD POPUP','BUTTON RESPONSE','HISTORY','GHOST','BLOOM',
+  'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
  ]);
 });
 test('display effect settings target their own passes',()=>{
  const {pipeline,composer}=setup();
  update(pipeline);
  const p=composer.passes;
- assert.equal(p[4].enabled,true);
- assert.equal(p[4].uniforms.uStrength.value,.22);
+ assert.equal(p[4].enabled,true,'history active');
+ assert.equal(p[4].profile,'p39');
  assert.equal(p[5].enabled,true);
- assert.equal(p[5].strength,.3);
- assert.equal(p[6].uniforms.uEnabled.value,1);
- assert.equal(p[7].enabled,true);
+ assert.equal(p[5].uniforms.uStrength.value,.22);
+ assert.equal(p[6].enabled,true);
+ assert.equal(p[6].strength,.3);
+ assert.equal(p[7].uniforms.uEnabled.value,1);
  assert.equal(p[8].enabled,true);
  assert.equal(p[9].enabled,true);
- assert.equal(p[9].uniforms.uScreenHeight.value,2556);
- update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false});
- for(const i of [4,5,7,8,9])assert.equal(p[i].enabled,false);
- assert.equal(p[6].uniforms.uEnabled.value,0);
+ assert.equal(p[10].enabled,true);
+ assert.equal(p[10].uniforms.uScreenHeight.value,2556);
+ update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false,persistence:false});
+ for(const i of [4,5,6,8,9,10])assert.equal(p[i].enabled,false);
+ assert.equal(p[7].uniforms.uEnabled.value,0);
+ const before=p[4].resetCount;
+ update(pipeline,{persistence:true,persistenceProfile:'p31'});
+ assert.equal(p[4].profile,'p31');
+ assert.ok(p[4].resetCount>before);
 });
 test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
  const {pipeline,composer}=setup();
@@ -133,7 +147,7 @@ test('resize updates GPU sampling sizes and disposal releases owned textures',()
  pipeline.resize(844,390,3);
  assert.deepEqual(composer.size,[844,390]);
  assert.equal(composer.dpr,3);
- for(const i of [1,2,4,7]){
+ for(const i of [1,2,5,8]){
   assert.equal(composer.passes[i].uniforms.uSize.value.x,844);
   assert.equal(composer.passes[i].uniforms.uSize.value.y,390);
  }
