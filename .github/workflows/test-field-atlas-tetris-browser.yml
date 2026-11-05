@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["chromium","webkit"]' || '["chromium"]') }}
+        browser: ${{ fromJSON((github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[pwa-smoke]')) && '["chromium","webkit"]' || '["chromium"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
