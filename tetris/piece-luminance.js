@@ -4,13 +4,13 @@
  * NO colored piece pixels enter the phosphor/CRT compositor.
  */
 export const TETROMINO_RGB=Object.freeze({
- I:'#00f0f0', // cyan
- J:'#0000f0', // blue
- L:'#f0a000', // orange
- O:'#f0f000', // yellow
- S:'#00f000', // green
- T:'#a000f0', // purple
- Z:'#f00000'  // red
+ I:'#00ffff', // cyan
+ J:'#0000ff', // blue
+ L:'#ff9900', // orange
+ O:'#ffff00', // yellow
+ S:'#00ff00', // green
+ T:'#a020f0', // purple
+ Z:'#ff0000'  // red
 });
 const srgbToLinear=c=>{
  const x=c/255;
