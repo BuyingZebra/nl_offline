@@ -39,7 +39,7 @@ test('no imported module is wired twice from a single source',()=>{
 });
 test('entrypoint remains single-screen Three.js with no redundant framework',()=>{
  const s=source('three-v027.js'),html=source('three-v027.html');
- assert.match(s,/compositor\\.render\\(/);
+ assert.ok(s.includes('compositor.render('));
  assert.ok(s.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
  assert.ok(s.includes("import {getBuildVersion} from './build-version.js?v066'"));
  assert.ok(source('platform-manager.js').includes("import {parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066'"));
