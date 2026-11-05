@@ -50,39 +50,25 @@ with sync_playwright() as p:
         print("CONSOLE ERRORS:", console_errors[:12])
         print("FAILED REQUESTS:", failures[:12])
         raise
-    page.wait_for_timeout(900)
+    # WebKit's headless software compositor may produce its first physical
+    # pixels after the WebGL canvas has already reached the right dimensions.
+    # Wait for visible output, not an arbitrary 900ms launch delay.
+    ready = out / f"{browser_name}-ready.png"
+    lit = 0
+    for attempt in range(16):
+        page.wait_for_timeout(250)
+        page.screenshot(path=str(ready))
+        lit = sum(1 for rgb in Image.open(ready).convert("RGB").getdata()
+                  if max(rgb) > 85)
+        if lit > 1000:
+            break
+    print("FIRST VISIBLE FRAME:", {"pixels": lit, "attempts": attempt+1})
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
-
-    # Detect blank or uninitialized output rather than comparing artwork.
-    ready = out / f"{browser_name}-ready.png"
-    page.screenshot(path=str(ready))
-    lit = sum(1 for rgb in Image.open(ready).convert("RGB").getdata()
-              if max(rgb) > 85)
     if lit <= 1000:
-        print("BLANK-FRAME DIAGNOSTICS", page.evaluate("""() => ({
-          url:location.href,
-          error:document.querySelector('#error')?.textContent,
-          errorVisible:!document.querySelector('#error')?.hidden,
-          canvas:Array.from(document.querySelectorAll('canvas')).map(c=>({
-            id:c.id,w:c.width,h:c.height,visible:getComputedStyle(c).display
-          })),
-          debug:window.__tetris?.debugReport?.()||null,
-          gl: (() => {try {
-            const c=document.querySelector('#screen');
-            const gl=c?.getContext('webgl2')||c?.getContext('webgl');
-            return gl?{version:gl.getParameter(gl.VERSION), error:gl.getError()}:null;
-          }catch(e){return String(e)}})()
-        })"""))
-        print("PAGE ERRORS",errors)
-        print("CONSOLE ERRORS",console_errors[:30])
-        print("FAILED REQUESTS",failures[:12])
-        page.wait_for_timeout(1800)
-        late=out / f"{browser_name}-late.png"
-        page.screenshot(path=str(late))
-        later=sum(1 for rgb in Image.open(late).convert("RGB").getdata()
-                  if max(rgb)>85)
-        print("LATE BRIGHT PIXELS",later)
+        print("BLANK-FRAME JAVASCRIPT ERRORS:", errors)
+        print("BLANK-FRAME CONSOLE ERRORS:", console_errors[:30])
+        print("BLANK-FRAME FAILED REQUESTS:", failures[:12])
     assert lit > 1000, f"Game compositor appears blank ({lit} bright pixels)"
 
     # Exercise real canvas input and menu integration, not only rendering.
