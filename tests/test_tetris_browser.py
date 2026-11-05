@@ -65,7 +65,7 @@ with sync_playwright() as p:
     # Test against a static ready-state control so modal redraws cannot
     # conceal a missing afterglow. The PAUSE key has a visible button even
     # before a session starts; input is inert but phosphor still responds.
-    page.evaluate("() => window.__nomadV094Probe={presses:[],frames:[]}")
+    page.evaluate("() => window.__nomadV094Probe={presses:[],frames:[],renders:[]}")
     page.mouse.click(265, 792)
     # Playwright screenshots may wait long enough for a 500ms pulse to fade.
     # Keep tapping the real pointer handler while obtaining the hot frame.
