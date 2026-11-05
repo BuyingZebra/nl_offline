@@ -34,8 +34,8 @@ jobs:
             tetris/ui-controls-v065.test.cjs
 
   browser:
-    name: Optional browser launch and resize smoke
-    if: github.event_name == 'workflow_dispatch'
+    name: Optional browser and offline launch smoke
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[pwa-smoke]')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
