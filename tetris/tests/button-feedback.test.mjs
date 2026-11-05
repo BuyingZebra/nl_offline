@@ -82,3 +82,11 @@ test('physical phosphor mode stops excitation on release instead of double-fadin
  f.press(hit,2000,true);f.release(hit,2010);
  assert.ok(f.sample(2100,false)[0].power>0);
 });
+
+test('fast touch is latched for one frame but never given the cosmetic fade in physical mode',()=>{
+ const f=createButtonFeedback();
+ const hit={x:12,y:22,w:40,h:40,kind:'button',light:true};
+ f.press(hit,1000,true);f.release(hit,1000);
+ assert.equal(f.sample(1016,true)[0].power,1);
+ assert.deepEqual(f.sample(1035,true),[]);
+});

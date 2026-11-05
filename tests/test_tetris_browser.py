@@ -79,24 +79,13 @@ with sync_playwright() as p:
     # conceal a missing afterglow. The PAUSE key has a visible button even
     # before a session starts; input is inert but phosphor still responds.
 
-    page.mouse.click(265, 792)
-    # Playwright screenshots may wait long enough for a 500ms pulse to fade.
-    # Keep tapping the real pointer handler while obtaining the hot frame.
-    # A separate cooldown screenshot confirms the footprint disappears.
-    page.evaluate("""() => {
-      let pointerId=1000;
-      window.__nomadGlowTimer=setInterval(()=>{
-        const canvas=document.querySelector('#screen');
-        const id=++pointerId;
-        const options={bubbles:true,pointerType:'touch',pointerId:id,
-          clientX:265,clientY:792,button:0};
-        canvas.dispatchEvent(new PointerEvent('pointerdown',options));
-        canvas.dispatchEvent(new PointerEvent('pointerup',options));
-      },90);
-    }""")
-    page.wait_for_timeout(200)
+    # A genuine held input crosses multiple compositor frames. Instantaneous
+    # synthetic down/up within one JS task never excites a physical raster.
+    page.mouse.move(265, 792)
+    page.mouse.down()
+    page.wait_for_timeout(180)
     hot = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
-    page.evaluate("() => clearInterval(window.__nomadGlowTimer)")
+    page.mouse.up()
     page.wait_for_timeout(680)
     cold = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
     hot.save(out / f"{browser_name}-glow-hot.png")

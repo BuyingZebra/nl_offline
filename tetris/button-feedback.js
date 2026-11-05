@@ -1,6 +1,8 @@
 /* NOMAD V096 — input-owned button luminance; CRT bloom provides all glow. */
 export const MAX_BUTTON_FLASHES=8;
 export const BUTTON_FLASH_PEAK_MS=90;
+// A quick touch must reach at least one raster/compositor frame.
+export const MIN_PRESS_FRAME_MS=34;
 export const BUTTON_AFTERGLOW_MS=410;
 export const BUTTON_FLASH_TOTAL_MS=BUTTON_FLASH_PEAK_MS+BUTTON_AFTERGLOW_MS;
 export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
@@ -13,7 +15,7 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
   const existing=hits.findIndex(a=>same(a,r));
   if(existing>=0)hits.splice(existing,1);
   hits.push({x,y,w,h,mode:r.kind!=='button'?2:r.light?0:1,
-   releasedAt:held?null:now+BUTTON_FLASH_PEAK_MS});
+   pressedAt:now,releasedAt:held?null:now+BUTTON_FLASH_PEAK_MS});
   if(hits.length>limit)hits.shift();
   return true;
  }
@@ -27,7 +29,10 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
   if(!Number.isFinite(now))return [];
   for(let i=hits.length-1;i>=0;i--){
    const a=hits[i];
-   if(a.releasedAt!==null&&now>=a.releasedAt&&physicalPersistence){hits.splice(i,1);continue;}
+   if(a.releasedAt!==null&&physicalPersistence&&
+     now>=Math.max(a.releasedAt,a.pressedAt+MIN_PRESS_FRAME_MS)){
+     hits.splice(i,1);continue;
+    }
    if(a.releasedAt!==null&&now-a.releasedAt>=BUTTON_AFTERGLOW_MS)hits.splice(i,1);
   }
   return hits.map(a=>{
