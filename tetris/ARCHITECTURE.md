@@ -1,4 +1,4 @@
-# NOMAD Tetris — current architecture (V091)
+# NOMAD Tetris — current architecture (V092)
 
 This describes the current implementation rather than retaining a diary of every iteration. The authoritative build number is the `tetris-build` HTML meta tag.
 
@@ -45,6 +45,17 @@ A locking move emits these in game-rule order: piece locked, lines cleared (if a
 - The existing **Copy Debug** report includes suspension/resume counts and recent page lifecycle transitions. No background telemetry, persistence, or remote reporting was added.
 - Full browser history restoration and actual iOS Home Screen behaviour still require physical device verification. Never dispose only because a page is hidden.
 
+## Offline support and installation contract (V092)
+
+- The Tetris app now bundles **Three.js r180** and its required post-processing modules in `tetris/vendor/three/`, retaining the MIT license. The same shader source and pass order run online and offline.
+- `tetris/manifest.webmanifest` and local PNG/SVG Home Screen icons enable standalone installation; the existing Safari/iOS standalone viewport rules remain unchanged.
+- `tetris/sw.js` is now an actual **Tetris-scoped offline worker**, not the former PixiJS unregistration tombstone. After one successful online install, its installation phase precaches a fixed list of all essential Tetris HTML, scripts, modules, icons and Three.js dependencies. **Incomplete essential precaches reject installation.**
+- Same-origin Tetris assets use network-first requests with a cached fallback; ephemeral `?live=` and build-check query parameters resolve to the same canonical cache keys. This prevents unbounded cache growth and permits checking for updated published builds.
+- Existing Google Fonts CSS/fonts are opportunistically cached when reachable. A failed font download must never prevent the essential offline game from installing; system font fallbacks remain available offline.
+- The worker touches only its own `nomad-tetris-offline-*` caches and retired Pixi arcade caches, never NOMAD map caches, Tetris high scores or settings. It does not unregister itself or call `skipWaiting()`, which could replace a running game's version.
+- Each future release MUST update the HTML `tetris-build` marker and the worker `CACHE_VERSION` together, review the precache allowlist, and verify a real offline reload. Do not make the update worker aggressively reload an active or paused game.
+- **Copy Debug** includes online/offline connectivity and service-worker control state (indicators, not guarantees against browser storage eviction). Actual installed iOS offline behaviour still needs physical-device verification.
+
 ## Non-negotiable behaviour
 
 - Preserve the approved game rules, grayscale source artwork, square-corner interface, font roles and beveled block faces.
@@ -56,7 +67,7 @@ A locking move emits these in game-rule order: piece locked, lines cleared (if a
 
 ## Terminal and legacy service workers
 
-The terminal is developed separately at `dev/nomad-terminal`, with its V083 original reference at `archive/nomad-tetris-v083-terminal`. It is not present or loaded on main. The `tetris/sw.js` file is deliberately kept as an **unregistration tombstone** for older PixiJS installations; it is not offline caching for the current game.
+The terminal is developed separately at `dev/nomad-terminal`, with its V083 original reference at `archive/nomad-tetris-v083-terminal`. It is not present or loaded on main. The former PixiJS worker and its caches are retired; V092's `tetris/sw.js` provides the active, scoped offline cache.
 
 ## Technical tests
 
@@ -69,5 +80,5 @@ Current focused tests live in `tetris/tests/`. Selected legacy technical tests r
 ## Remaining engineering
 
 - Verify WebGL restoration on physical devices and investigate long-session resource growth. The existing Copy Debug report includes bounded WebGL events, failure counts, and recent resource-count trends (not measured GPU memory bytes).
-- Plan future install/offline packaging (manifest, icons and dependable local assets).
+- Validate offline launch on actual iPhone and Android devices, including Home Screen mode, font availability, storage eviction and updates.
 - Update this description when boundaries change; use Git history for older revisions.
