@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v083';
 import {drawTileFace} from './tile-face.js?v094';
-import {createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v094';
+import {createButtonFeedback} from './button-feedback.js?v094';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
@@ -166,24 +166,10 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
-// One additive grayscale GPU layer restores the old button glow, over each
-// button's original footprint. The existing CRT pass handles tint and bloom;
-// no full-screen CanvasTexture upload is needed during the short decay.
+// A short-lived interaction model drives a post-popup compositor pass,
+// preserving every button's outline without refreshing UI source textures.
 const buttonFeedback=createButtonFeedback();
-const buttonGlowMaterial=new THREE.ShaderMaterial({
- uniforms:{
-  uViewport:{value:new THREE.Vector2(1,1)},
-  uRects:{value:Array.from({length:MAX_BUTTON_FLASHES},()=>new THREE.Vector4())},
-  uPower:{value:Array(MAX_BUTTON_FLASHES).fill(0)}
- },
- vertexShader:BUTTON_FEEDBACK_VERTEX,fragmentShader:BUTTON_FEEDBACK_FRAGMENT,
- transparent:true,blending:THREE.AdditiveBlending,
- depthTest:false,depthWrite:false,toneMapped:false
-});
-const buttonGlowPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),buttonGlowMaterial);
-buttonGlowPlane.frustumCulled=false;buttonGlowPlane.renderOrder=3;
-buttonGlowPlane.position.z=.04;buttonGlowPlane.visible=false;
-scene.add(buttonGlowPlane);
+let buttonGlowWasActive=false;
 
 // Upload changed canvases before submitting the composer so that the first
 // RenderPass no longer conflates texture transfer and scene rendering.
@@ -198,7 +184,7 @@ const graphicsHealth=createGraphicsHealth({
   // An interrupted GPU must never advance unseen gameplay or repeat inputs.
   if(game.status==='playing')actions.perform('pause');
   inputController?.cancel();scrollVelocity=0;
-  buttonFeedback.clear();buttonGlowPlane.visible=false;
+  buttonFeedback.clear();buttonGlowWasActive=false;
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
  },
  onRestored:()=>{
@@ -705,26 +691,21 @@ function frame(now){
    if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
-  // Animate only GPU uniforms; a final clean frame removes the old footprint.
+  // Only GPU parameters animate. A final clean frame removes the
+  // afterimage; don't re-upload the full menu CanvasTexture on every fade.
   const buttonSparks=buttonFeedback.sample(now);
-  if(buttonSparks.length||buttonGlowPlane.visible){
-   buttonGlowPlane.visible=buttonSparks.length>0;
-   const rects=buttonGlowMaterial.uniforms.uRects.value;
-   const powers=buttonGlowMaterial.uniforms.uPower.value;
-   for(let i=0;i<MAX_BUTTON_FLASHES;i++){
-    const hit=buttonSparks[i];
-    if(hit)rects[i].set(hit.x,hit.y,hit.w,hit.h);
-    powers[i]=hit?hit.power:0;
-   }
-   layers.reason('button-afterglow');
-  }
+  if(buttonSparks.length||buttonGlowWasActive)layers.reason('button-afterglow');
+  buttonGlowWasActive=buttonSparks.length>0;
   if(layers.needsRender()){
-   perf.recordRedrawReasons(layers.beginRender());
-   paintGame();
+   const why=layers.beginRender();
+   perf.recordRedrawReasons(why);
+   const canvasDirty=['base','board','sidebar','controls'].some(layer=>layers.needs(layer));
+   if(canvasDirty||why.some(reason=>reason!=='button-afterglow'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
    surface.material.map=texture;
    const syncStarted=performance.now();
    syncFX();
+   compositor.syncButtonFeedback(buttonSparks,W,H);
    perf.recordDuration('sync',performance.now()-syncStarted);
    if(surface.visible)textureUploads.upload(texture,'base');
    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
@@ -746,7 +727,7 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
-  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||buttonGlowPlane.visible)requestFrame();
+  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||buttonGlowWasActive)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
   // A WebGL loss can interrupt a frame in progress. Its restoration event
@@ -776,7 +757,7 @@ appLifecycle=createAppLifecycle({
    layers.mark('base','board','controls');
   }
   inputController?.cancel();scrollVelocity=0;
-  buttonFeedback.clear();buttonGlowPlane.visible=false;
+  buttonFeedback.clear();buttonGlowWasActive=false;
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
    try{void audioCtx.suspend().catch(()=>{});}catch(error){}
@@ -812,7 +793,7 @@ const platform=createPlatformManager({
   cachedLayout=null;
   if(!unchanged){
    W=width;H=height;DPR=dpr;
-   buttonGlowMaterial.uniforms.uViewport.value.set(W,H);
+   buttonFeedback.clear();buttonGlowWasActive=false;
    input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
    boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
    g.setTransform(DPR,0,0,DPR,0,0);
