@@ -9,7 +9,12 @@ export function createInputController({screen,document,window,initialsInput,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp}){
- let pressed=null,repeatDelay=null,repeatInterval=null;
+ let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
+ const listeners=[];
+ function listen(target,name,handler,options){
+  target.addEventListener(name,handler,options);
+  listeners.push({target,name,handler,options});
+ }
 function stopRepeat(){
  if(repeatDelay!==null){clearTimeout(repeatDelay);repeatDelay=null;}
  if(repeatInterval!==null){clearInterval(repeatInterval);repeatInterval=null;}
@@ -31,7 +36,7 @@ const optionPoint=p=>getModal()==='options'&&getModalView()&&
  p.x>=getModalView().x&&p.x<=getModalView().x+getModalView().w&&
  p.y>=getModalView().y&&p.y<=getModalView().y+getModalView().h;
 const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
-screen.addEventListener('pointerdown',e=>{
+listen(screen,'pointerdown',e=>{
  if(e.pointerType==='mouse'&&e.button!==0)return;
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
@@ -53,7 +58,7 @@ screen.addEventListener('pointerdown',e=>{
  }
  invalidate();
 });
-screen.addEventListener('pointermove',e=>{
+listen(screen,'pointermove',e=>{
  if(!pressed||pressed.id!==e.pointerId)return;
  const p=eventPoint(e),r=pressed.region,touch=pressed;
  if(!getModal())return;
@@ -113,10 +118,10 @@ function releaseTouch(e){
  }
  invalidate();
 }
-screen.addEventListener('pointerup',releaseTouch);
-screen.addEventListener('pointercancel',releaseTouch);
-window.addEventListener('blur',stopRepeat);
-screen.addEventListener('wheel',e=>{
+listen(screen,'pointerup',releaseTouch);
+listen(screen,'pointercancel',releaseTouch);
+listen(window,'blur',stopRepeat);
+listen(screen,'wheel',e=>{
  if(getModal()==='options'){
   e.preventDefault();setOptionsScroll(clamp(getOptionsScroll()+e.deltaY,0,getOptionsMaxScroll()));invalidate();
  }
@@ -124,7 +129,7 @@ screen.addEventListener('wheel',e=>{
 const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
  ArrowDown:'hard',Space:'hard',KeyC:'hold',ShiftLeft:'hold',
  KeyP:'pause',Escape:'pause'};
-document.addEventListener('keydown',e=>{
+listen(document,'keydown',e=>{
  if(document.activeElement===initialsInput)return;
  if(getModal()){
   if(e.code==='Escape'){e.preventDefault();openModal(null);}
@@ -137,6 +142,24 @@ document.addEventListener('keydown',e=>{
  perform(a);
 });
 
- function cancel(){stopRepeat();pressed=null;}
- return Object.freeze({get pressed(){return pressed;},stopRepeat,cancel});
+ function cancel(){
+  stopRepeat();
+  if(pressed){
+   try{
+    if(screen.hasPointerCapture?.(pressed.id))screen.releasePointerCapture(pressed.id);
+   }catch(error){/* The pointer may have been released by the browser. */}
+  }
+  pressed=null;
+ }
+ function dispose(){
+  if(disposed)return false;
+  disposed=true;cancel();
+  for(const {target,name,handler,options} of listeners)
+   target.removeEventListener(name,handler,options);
+  listeners.length=0;
+  return true;
+ }
+ return Object.freeze({get pressed(){return pressed;},stopRepeat,cancel,dispose,
+  get disposed(){return disposed;}
+ });
 }
