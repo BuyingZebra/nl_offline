@@ -727,6 +727,12 @@ function frame(now){
    renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
+   if(window.__nomadV094Probe?.renders&&buttonSparks.length){
+    const log=window.__nomadV094Probe.renders;
+    log.push({at:now,passes:compositor.passStats().activePasses,
+     gpuCalls:renderer.info.render.calls,power:buttonSparks[0].power});
+    if(log.length>45)log.shift();
+   }
    graphicsHealth.rendered(); // A successful real frame completes recovery.
    perf.endRender(renderStarted);
    perf.recordWebglCalls(renderer.info.render.calls);
