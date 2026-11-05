@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v083';
-import {gameRevealProgress} from './game-reveal.js?v083';
+import {drawTileFace} from './tile-face.js?v084';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
 import {createInputController} from './input-controller.js?v065';
@@ -81,13 +81,6 @@ let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let queued=false,lastTime=performance.now(),audioCtx=null;
-// Terminal is independent of WebGL; only a completed frame can release it.
-const boot=window.FieldAtlasTetrisBoot;
-// Suppress accidental taps while the fully composited terminal is active.
-if(boot)screen.style.pointerEvents='none';
-let firstComposedFrame=false,gameRevealActive=false,gameRevealFirstFrame=false;
-let lastBootRevision=-1;
-let gameRevealStartedAt=0,contentLuminance=1;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
 // Small rolling history: no overlay, network, persistent storage, or console spam.
@@ -115,13 +108,6 @@ const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getC
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
 if(!g||!boardContext||!sidebarContext||!controlsContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
-// This grayscale source is already painted while the engine downloads.
-const bootTexture=boot?.canvas?new THREE.CanvasTexture(boot.canvas):null;
-if(bootTexture){
- bootTexture.colorSpace=THREE.SRGBColorSpace;
- bootTexture.minFilter=THREE.LinearFilter;bootTexture.magFilter=THREE.LinearFilter;
- bootTexture.generateMipmaps=false;
-}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const boardTexture=new THREE.CanvasTexture(boardCanvas);
@@ -211,16 +197,6 @@ function tone(freq=240,len=.04){
 }
 function invalidate(reason='input'){
  layers.reason(reason);requestFrame();
-}
-function beginGameReveal(){
- if(gameRevealActive||gameRevealFirstFrame)return;
- // The original vertical roll shader and rollTurns curve are preserved
- // for future tests, but deliberately disabled in this sequence.
- compositor.setStartupRoll(0);
- gameRevealStartedAt=0; // Start at 0% on the first actual game-source render.
- gameRevealActive=true;
- layers.mark('base','board','sidebar','controls');
- invalidate('game-reveal');
 }
 // Core synchronously removes rows on lock; this renderer-only observer
 // captures the exact filled squares before deletion for the short animation.
@@ -325,7 +301,7 @@ if(document.fonts?.load){
 // Fresh grayscale tile styling for both the board and miniature previews:
 // thin bevel rim, darker inset cap, luminous upper edge and lower shadow.
 function tileFace(x,y,w,h,kind){
- window.FieldAtlasTerminal.tileFace(g,x,y,w,h,kind);
+ drawTileFace(g,x,y,w,h,kind);
 }
 function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
@@ -716,20 +692,16 @@ window.addEventListener('pageshow',()=>{void checkForNewBuild();});
 window.addEventListener('focus',()=>{void checkForNewBuild();});
 // Some standalone sessions never report another foreground transition.
 setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
-function syncFX(terminalVisible=false){
+function syncFX(){
  const scoreBounds=modal==='scores'?modalUI.modalBounds('scores'):null;
  const blurredLayout=scoreBounds?.landscapeFallback?{
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
- const electrical=terminalVisible?boot?.effects?.():null;
  compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
-  contentLuminance,
-  phosphorStrength:electrical?.phosphor??1,voltage:electrical?.voltage??1,
-  glitch:electrical?.glitch??0,signalTime:electrical?.clock??0,
-  boardStatus:terminalVisible?'playing':game.status,modalOpen:terminalVisible||Boolean(modal),
-  scoresOverlay:!terminalVisible&&modal==='scores',
-  popupStatus:terminalVisible?null:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
+  boardStatus:game.status,modalOpen:Boolean(modal),
+  scoresOverlay:modal==='scores',
+  popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
 function requestFrame(){
  if(!queued&&!document.hidden){queued=true;requestAnimationFrame(frame);}
@@ -777,64 +749,25 @@ function frame(now){
    if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
-  if(gameRevealActive)layers.reason('game-reveal');
   if(layers.needsRender()){
    perf.recordRedrawReasons(layers.beginRender());
    paintGame();
-   const terminalVisible=Boolean(bootTexture&&boot&&!boot.isRolling());
-   if(terminalVisible){
-    // Exactly the game CRT pipeline: only the underlying grayscale image swaps.
-    surface.material.map=bootTexture;
-    surface.visible=true;
-    boardPlane.visible=false;sidebarPlane.visible=false;
-    controlsPlane.visible=false;modalPlane.visible=false;scrimPlane.visible=false;
-    if(lastBootRevision!==boot.revision){
-     bootTexture.needsUpdate=true;
-     lastBootRevision=boot.revision;
-    }
-   }else{
-    surface.material.map=texture;
-   }
-   // Terminal/game source changes only at 0% shared luminance.
-   // Bloom and the independently updated HUD planes are composed FIRST.
-   if(terminalVisible){
-    contentLuminance=1-(boot?.powerOffProgress?.()??0);
-   }else if(gameRevealActive){
-    if(!gameRevealFirstFrame)gameRevealStartedAt=now;
-    contentLuminance=gameRevealProgress(now-gameRevealStartedAt);
-    if(contentLuminance>=1){
-     gameRevealActive=false;
-     screen.style.pointerEvents='auto';
-    }
-   }else contentLuminance=1;
+   // Game remains visible immediately; terminal startup runs only in its own branch.
+   surface.material.map=texture;
    const syncStarted=performance.now();
-   syncFX(terminalVisible);
+   syncFX();
    perf.recordDuration('sync',performance.now()-syncStarted);
-   if(terminalVisible)textureUploads.upload(bootTexture,'terminal');
-   else{
-    if(surface.visible)textureUploads.upload(texture,'base');
-    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
-    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
-    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
-    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-    if((!modal||modal==='scores')&&game.status!=='playing')
-     textureUploads.upload(boardPopupTexture,'popup');
-   }
+   if(surface.visible)textureUploads.upload(texture,'base');
+   if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
+   if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
+   if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
+   if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
+   if((!modal||modal==='scores')&&game.status!=='playing')
+    textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
    compositor.render();
    perf.endRender(renderStarted);
-   if(!firstComposedFrame){
-    firstComposedFrame=true;
-    boot?.firstFrame?.(beginGameReveal,()=>invalidate('terminal-typing'));
-   }
-   if(terminalVisible)boot?.gpuFrame?.();
-   if(gameRevealActive&&!gameRevealFirstFrame){
-    gameRevealFirstFrame=true;
-    // Hide terminal cover after the completed game has been rendered
-    // at the SAME 0% brightness. Input waits for the 100% fade.
-    boot?.rollFrame?.();
-   }
    perf.recordWebglCalls(renderer.info.render.calls);
    const memory=renderer.info.memory;
    perf.setGPUStats({...compositor.passStats(),
@@ -843,7 +776,7 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
-  if(game.status==='playing'||gameRevealActive||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
