@@ -4,12 +4,13 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v083';
-import {drawTileFace} from './tile-face.js?v084';
+import {drawTileFace} from './tile-face.js?v094';
+import {createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v094';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
-import {createInputController} from './input-controller.js?v091';
+import {createInputController} from './input-controller.js?v094';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
@@ -165,6 +166,25 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
+// One additive grayscale GPU layer restores the old button glow, over each
+// button's original footprint. The existing CRT pass handles tint and bloom;
+// no full-screen CanvasTexture upload is needed during the short decay.
+const buttonFeedback=createButtonFeedback();
+const buttonGlowMaterial=new THREE.ShaderMaterial({
+ uniforms:{
+  uViewport:{value:new THREE.Vector2(1,1)},
+  uRects:{value:Array.from({length:MAX_BUTTON_FLASHES},()=>new THREE.Vector4())},
+  uPower:{value:Array(MAX_BUTTON_FLASHES).fill(0)}
+ },
+ vertexShader:BUTTON_FEEDBACK_VERTEX,fragmentShader:BUTTON_FEEDBACK_FRAGMENT,
+ transparent:true,blending:THREE.AdditiveBlending,
+ depthTest:false,depthWrite:false,toneMapped:false
+});
+const buttonGlowPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),buttonGlowMaterial);
+buttonGlowPlane.frustumCulled=false;buttonGlowPlane.renderOrder=3;
+buttonGlowPlane.position.z=.04;buttonGlowPlane.visible=false;
+scene.add(buttonGlowPlane);
+
 // Upload changed canvases before submitting the composer so that the first
 // RenderPass no longer conflates texture transfer and scene rendering.
 const textureUploads=createTextureUploadProfiler({renderer,
@@ -178,6 +198,7 @@ const graphicsHealth=createGraphicsHealth({
   // An interrupted GPU must never advance unseen gameplay or repeat inputs.
   if(game.status==='playing')actions.perform('pause');
   inputController?.cancel();scrollVelocity=0;
+  buttonFeedback.clear();buttonGlowPlane.visible=false;
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
  },
  onRestored:()=>{
@@ -612,6 +633,9 @@ inputController=createInputController({
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp,
+ onButtonPress:hit=>{
+  if(buttonFeedback.press(hit,performance.now()))invalidate('button-press');
+ },
  canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 // Browser and installed-app lifecycle, viewport and update polling are delegated
@@ -681,6 +705,19 @@ function frame(now){
    if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
+  // Animate only GPU uniforms; a final clean frame removes the old footprint.
+  const buttonSparks=buttonFeedback.sample(now);
+  if(buttonSparks.length||buttonGlowPlane.visible){
+   buttonGlowPlane.visible=buttonSparks.length>0;
+   const rects=buttonGlowMaterial.uniforms.uRects.value;
+   const powers=buttonGlowMaterial.uniforms.uPower.value;
+   for(let i=0;i<MAX_BUTTON_FLASHES;i++){
+    const hit=buttonSparks[i];
+    if(hit)rects[i].set(hit.x,hit.y,hit.w,hit.h);
+    powers[i]=hit?hit.power:0;
+   }
+   layers.reason('button-afterglow');
+  }
   if(layers.needsRender()){
    perf.recordRedrawReasons(layers.beginRender());
    paintGame();
@@ -709,7 +746,7 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
-  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
+  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||buttonGlowPlane.visible)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
   // A WebGL loss can interrupt a frame in progress. Its restoration event
@@ -739,6 +776,7 @@ appLifecycle=createAppLifecycle({
    layers.mark('base','board','controls');
   }
   inputController?.cancel();scrollVelocity=0;
+  buttonFeedback.clear();buttonGlowPlane.visible=false;
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
    try{void audioCtx.suspend().catch(()=>{});}catch(error){}
@@ -774,6 +812,7 @@ const platform=createPlatformManager({
   cachedLayout=null;
   if(!unchanged){
    W=width;H=height;DPR=dpr;
+   buttonGlowMaterial.uniforms.uViewport.value.set(W,H);
    input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
    boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
    g.setTransform(DPR,0,0,DPR,0,0);
