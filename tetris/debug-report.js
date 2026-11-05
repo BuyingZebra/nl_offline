@@ -1,7 +1,7 @@
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,graphics,lifecycle,samples=[],current}={}){
+export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,graphics,lifecycle,offline,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -107,6 +107,13 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   rows.push('Recent page events: '+(recent.length?recent.map(event=>
    value(event.type)+'('+value(event.reason)+')').join(' | '):'none'));
   rows.push('Temporary background and bfcache suspensions preserve WebGL resources.');
+ }
+ if(offline){
+  rows.push('', 'OFFLINE PACKAGE');
+  rows.push('Network: '+value(offline.network)+
+   ' / service worker: '+(offline.supported?'supported':'unsupported')+
+   ' / controlling page: '+(offline.controlled?'yes':'no'));
+  rows.push('Offline use requires a completed online install; browser cache may be cleared or evicted.');
  }
  rows.push('Current settings: '+value(display?.settings));
  return rows.join('\n');
