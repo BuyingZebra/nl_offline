@@ -1,55 +1,69 @@
-/* NOMAD V098: independent neutral decay and raster timing.
- * t10 checkpoints are approximate historic data. Component weights are
- * experimental, NOT calibrated fits. Hue is applied later by the compositor.
+/* NOMAD V099 — continuous CRT controls and reference raster integration.
+ * A single exponential persistence constant is an explicit idealization.
+ * Refresh and decay are parameters, not phosphor chemistry presets.
  */
-export const CRT_REFRESH_RATES=Object.freeze([50,60,75]);
-export const PHOSPHOR_PROFILES=Object.freeze([
- Object.freeze({id:'balanced',label:'CUSTOM / SHORT-MEDIUM',fastWeight:.98,
-  slowWeight:.02,fastTau:.005,slowTau:.19,riseTau:.14,tailMs:1500,referenceT10:null}),
- Object.freeze({id:'p39',label:'P39 / LONG',fastWeight:.98,
-  slowWeight:.02,fastTau:.060,slowTau:1.2,riseTau:.20,tailMs:5000,referenceT10:.150}),
- Object.freeze({id:'p31',label:'P31 / SHORT',fastWeight:.98,
-  slowWeight:.02,fastTau:.000015,slowTau:.14,riseTau:.12,tailMs:900,referenceT10:.000038}),
- Object.freeze({id:'p1',label:'P1 / MEDIUM',fastWeight:.98,
-  slowWeight:.02,fastTau:.010,slowTau:.25,riseTau:.16,tailMs:1700,referenceT10:.024}),
- Object.freeze({id:'p4',label:'P4 / SHORT',fastWeight:.98,
-  slowWeight:.02,fastTau:.000024,slowTau:.08,riseTau:.08,tailMs:600,referenceT10:.000060})
-]);
-export function phosphorProfile(id){
- return PHOSPHOR_PROFILES.find(p=>p.id===id)||PHOSPHOR_PROFILES[0];
-}
-export function nextPhosphorProfile(id){
- const i=PHOSPHOR_PROFILES.findIndex(p=>p.id===id);
- return PHOSPHOR_PROFILES[(i+1)%PHOSPHOR_PROFILES.length].id;
-}
-export function phosphorEnvelope(profile,seconds){
- const p=typeof profile==='string'?phosphorProfile(profile):profile;
- const t=Math.max(0,Number(seconds)||0);
- return p.fastWeight*Math.exp(-t/p.fastTau)+p.slowWeight*Math.exp(-t/p.slowTau);
-}
+export const CRT_BOUNDS=Object.freeze({
+ minHz:30,maxHz:120,defaultHz:60,
+ minPersistenceMs:10,maxPersistenceMs:2000,
+ stepPersistenceMs:10,defaultPersistenceMs:190
+});
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 export function normalizeCRTRefresh(value){
- const n=Number(value);return CRT_REFRESH_RATES.includes(n)?n:60;
+ const x=Number(value);
+ return Number.isFinite(x)?Math.round(clamp(x,CRT_BOUNDS.minHz,CRT_BOUNDS.maxHz)):
+  CRT_BOUNDS.defaultHz;
 }
-export function nextCRTRefresh(value){
- const i=CRT_REFRESH_RATES.indexOf(normalizeCRTRefresh(value));
- return CRT_REFRESH_RATES[(i+1)%CRT_REFRESH_RATES.length];
+export function normalizePersistenceMs(value){
+ const x=Number(value);
+ return Number.isFinite(x)?
+  clamp(Math.round(x/CRT_BOUNDS.stepPersistenceMs)*CRT_BOUNDS.stepPersistenceMs,
+   CRT_BOUNDS.minPersistenceMs,CRT_BOUNDS.maxPersistenceMs):
+  CRT_BOUNDS.defaultPersistenceMs;
 }
-// Two sample rows per virtual beam line minimum avoids aliasing.
-export function crtRasterLines(historyPixelHeight){
- return Math.max(1,Math.min(360,Math.floor(Math.max(1,historyPixelHeight)/2.5)));
+export function crtRasterLines(height){
+ return Math.max(1,Math.min(360,Math.floor(Math.max(1,height)/2.5)));
 }
 export function advanceCRTPhase(phase,seconds,refreshHz=60){
  const cycles=Math.max(0,Number(seconds)||0)*normalizeCRTRefresh(refreshHz);
- return (Math.max(0,Number(phase)||0)+cycles)%1;
+ return (((Number(phase)||0)+cycles)%1+1)%1;
 }
 export function crtScanPosition(x,y,lines){
- const row=Math.max(0,Math.min(lines-1,Math.floor(y*lines)));
- return (row+Math.max(0,Math.min(1,x)))/lines;
+ const n=Math.max(1,Math.floor(lines));
+ const row=Math.max(0,Math.min(n-1,Math.floor(y*n)));
+ return (row+clamp(x,0,0.999999))/n;
 }
-export function beamHitsPixel(startPhase,cycles,scanPos){
- if(cycles>=1)return true;
- if(cycles<=0)return false;
- const end=(startPhase+cycles)%1;
- const age=(end-scanPos+1)%1;
- return age<=cycles;
+// Number of beam visits and time since the newest visit in a frame interval.
+export function rasterVisits(startPhase,seconds,hz,position){
+ const refresh=normalizeCRTRefresh(hz);
+ const cycles=Math.max(0,Number(seconds)||0)*refresh;
+ const start=Number(startPhase)||0;
+ const end=start+cycles;
+ const eps=1e-8;
+ const count=Math.max(0,Math.floor(end-position+eps)-Math.floor(start-position+eps));
+ const ageCycles=((end-position)%1+1)%1;
+ return {count,ageSeconds:ageCycles/refresh,phase:((end%1)+1)%1};
+}
+// Ideal first-order phosphor: each beam passage deposits enough energy so
+// steady time-AVERAGED luminance equals the requested grayscale drive.
+// The returned average is emission integrated over the presentation interval.
+export function integratePhosphor({
+ prior=0,drive=0,seconds=1/60,refreshHz=60,persistenceMs=190,
+ phase=0,position=0,spot=1
+}={}){
+ const hz=normalizeCRTRefresh(refreshHz);
+ const tau=normalizePersistenceMs(persistenceMs)/1000;
+ const dt=Math.max(.000001,Math.min(.1,Number(seconds)||1/60));
+ const start=Math.max(0,Number(prior)||0);
+ const target=clamp(Number(drive)||0,0,1)*clamp(Number(spot)||0,0,1.1);
+ const {count,ageSeconds}=rasterVisits(phase,dt,hz,position);
+ const period=1/hz;
+ const d=Math.exp(-dt/tau);
+ const a=Math.exp(-ageSeconds/tau);
+ const nSum=count?(1-Math.exp(-count*period/tau))/(1-Math.exp(-period/tau)):0;
+ const impulse=target*period/tau;
+ const end=start*d+impulse*a*nSum;
+ const integrated=start*tau*(1-d)+
+  impulse*tau*(count-a*nSum);
+ const average=integrated/dt;
+ return {end,average,count};
 }

@@ -10,7 +10,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
 import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v096';
-import {createPhosphorPersistencePass} from './phosphor-persistence.js?v098';
+import {createPhosphorPersistencePass} from './phosphor-persistence.js?v099';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -317,8 +317,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  ],onPassTiming);
  const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
  // Approximate colours, not measured spectral power distributions.
- const profileHues={p39:new THREE.Vector3(.59,1,.21),p31:new THREE.Vector3(.22,1,.34),
-  p1:new THREE.Vector3(.46,1,.23),p4:new THREE.Vector3(1,1,1)};
+ // Creative tint is not encoded in decay constants or material presets.
+ const preferredGreen=new THREE.Vector3(.22,1,.34);
  let persistenceWasEnabled=false;
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
@@ -342,7 +342,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
  persistencePass.enabled=historyEnabled;
- persistencePass.configure(fx.persistenceProfile,fx.scanRefreshHz);
+ persistencePass.configure(fx.scanRefreshHz,fx.persistenceMs);
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -354,7 +354,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  // Active profiles have their own approximate emission hue; the original
  // theme selection remains authoritative with PHOSPHOR HISTORY disabled.
  tint.uniforms.uTint.value.copy(historyEnabled?
-  (theme==='amber'?hues.amber:profileHues.p31):hues[theme]);
+  (theme==='amber'?hues.amber:preferredGreen):hues[theme]);
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
  const faded=clamp(Number(contentLuminance),0,1);

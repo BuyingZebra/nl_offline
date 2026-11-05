@@ -1,73 +1,95 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {PHOSPHOR_PROFILES,phosphorProfile,nextPhosphorProfile,phosphorEnvelope,
- CRT_REFRESH_RATES,normalizeCRTRefresh,nextCRTRefresh,crtRasterLines,
- advanceCRTPhase,crtScanPosition,beamHitsPixel} from '../phosphor-model.js';
+import {
+ CRT_BOUNDS,normalizeCRTRefresh,normalizePersistenceMs,crtRasterLines,
+ crtScanPosition,advanceCRTPhase,rasterVisits,integratePhosphor
+} from '../phosphor-model.js';
+import {makeSliderControl,sliderValueAt} from '../ui-controls.js';
+import {DISPLAY_EFFECTS} from '../display-settings-catalog.js';
 
-test('custom blend is first and all decay profiles are neutral, valid models',()=>{
- assert.deepEqual(PHOSPHOR_PROFILES.map(p=>p.id),['balanced','p39','p31','p1','p4']);
- assert.equal(phosphorProfile('unknown').id,'balanced');
- for(const p of PHOSPHOR_PROFILES){
-  assert.ok(Math.abs(p.fastWeight+p.slowWeight-1)<1e-9,p.id);
-  assert.ok(p.fastTau>0&&p.slowTau>p.fastTau,p.id);
-  assert.ok(p.tailMs>0&&p.tailMs<10000,p.id);
-  assert.equal('tint' in p,false,'hue must not belong to decay profiles');
- }
- assert.equal(phosphorProfile('balanced').slowTau,.19);
+test('refresh and decay are continuous bounded parameters, not phosphor presets',()=>{
+ assert.equal(normalizeCRTRefresh(30),30);
+ assert.equal(normalizeCRTRefresh(72.8),73);
+ assert.equal(normalizeCRTRefresh(200),120);
+ assert.equal(normalizeCRTRefresh(-4),30);
+ assert.equal(normalizeCRTRefresh(NaN),60);
+ assert.equal(normalizePersistenceMs(10),10);
+ assert.equal(normalizePersistenceMs(190),190);
+ assert.equal(normalizePersistenceMs(587),590);
+ assert.equal(normalizePersistenceMs(9000),2000);
+ assert.equal(normalizePersistenceMs(NaN),190);
+ assert.equal(CRT_BOUNDS.defaultHz,60);
+ assert.equal(CRT_BOUNDS.defaultPersistenceMs,190);
 });
-test('historic 10% timing benchmarks and monotone fades',()=>{
- const ages=[0,.000038,.001,.05,.15,.5,1,2,3,7];
- for(const p of PHOSPHOR_PROFILES){
-  if(p.referenceT10!==null){
-   const at10=phosphorEnvelope(p,p.referenceT10);
-   assert.ok(at10>.08&&at10<.12,p.id+': '+at10);
-  }
-  const values=ages.map(t=>phosphorEnvelope(p,t));
-  assert.ok(values.every(x=>Number.isFinite(x)&&x>=0),p.id);
-  assert.ok(values.every((x,i)=>i===0||x<=values[i-1]),p.id);
+test('both CRT controls are true pointer sliders with visible units and endpoints',()=>{
+ const crt=DISPLAY_EFFECTS.find(x=>x.id==='persistence');
+ assert.ok(crt);
+ assert.equal(crt.sliders.length,2);
+ assert.deepEqual(crt.sliders.map(s=>s[1]),['scanRefreshHz','persistenceMs']);
+ for(const setting of crt.sliders){
+  const ctrl=makeSliderControl(80,40,180,setting,
+   setting[1]==='scanRefreshHz'?60:190);
+  assert.equal(sliderValueAt(ctrl.hitbox,ctrl.trackX),setting[2]);
+  assert.equal(sliderValueAt(ctrl.hitbox,ctrl.trackX+ctrl.trackW),setting[3]);
+  assert.equal(ctrl.unit,setting[5]);
  }
- assert.ok(phosphorEnvelope('p39',3)>.001);
- assert.ok(phosphorEnvelope('p31',3)<.001);
+ assert.ok(!('profile' in crt));
+ assert.ok(!('refresh' in crt));
 });
-test('decay profiles cycle without changing their emission hue',()=>{
- let id='balanced';
- for(const next of ['p39','p31','p1','p4','balanced']){
-  id=nextPhosphorProfile(id);assert.equal(id,next);
- }
-});
-test('raster refresh is constrained and independent of host redraw',()=>{
- assert.deepEqual(CRT_REFRESH_RATES,[50,60,75]);
- assert.equal(normalizeCRTRefresh(99),60);
- assert.equal(nextCRTRefresh(50),60);
- assert.equal(nextCRTRefresh(60),75);
- assert.equal(nextCRTRefresh(75),50);
+test('virtual beam scans left-right and top-bottom, independent of host fps',()=>{
+ assert.ok(crtScanPosition(.2,.1,300)<crtScanPosition(.8,.1,300));
+ assert.ok(crtScanPosition(.8,.1,300)<crtScanPosition(.2,.2,300));
+ assert.ok(crtRasterLines(1000)<=360);
  assert.ok(Math.abs(advanceCRTPhase(.9,.005,60)-.2)<1e-9);
- assert.ok(Math.abs(advanceCRTPhase(.1,1/60,60)-.1)<1e-9);
+ const first=rasterVisits(.9,.005,60,.95);
+ const wrap=rasterVisits(.9,.005,60,.05);
+ const missed=rasterVisits(.9,.005,60,.45);
+ assert.equal(first.count,1);
+ assert.equal(wrap.count,1);
+ assert.equal(missed.count,0);
 });
-test('beam travels left-to-right then top-to-bottom; wraps correctly',()=>{
- const left=crtScanPosition(.1,.05,10);
- const right=crtScanPosition(.9,.05,10);
- const next=crtScanPosition(.1,.15,10);
- assert.ok(left<right&&right<next);
- assert.equal(beamHitsPixel(0,.2,left),true);
- assert.equal(beamHitsPixel(0,.2,crtScanPosition(.5,.9,10)),false);
- assert.equal(beamHitsPixel(.9,.3,.95),true);
- assert.equal(beamHitsPixel(.9,.3,.05),true);
- assert.equal(beamHitsPixel(.9,.3,.45),false);
- assert.equal(beamHitsPixel(0,1,.99),true);
- assert.ok(crtRasterLines(850)<=360);
- assert.ok(crtRasterLines(850)*2<=850);
+test('steady frame-average excitation equals drive across refresh and persistence',()=>{
+ for(const hz of [30,60,90,120]){
+  for(const ms of [10,80,190,600,2000]){
+   let state=0,phase=0,avg=0;
+   const dt=1/60;
+   for(let i=0;i<700;i++){
+    const r=integratePhosphor({prior:state,drive:.6,seconds:dt,
+     refreshHz:hz,persistenceMs:ms,phase,position:.37});
+    state=r.end;avg=r.average;
+    phase=advanceCRTPhase(phase,dt,hz);
+   }
+   // At frame rate not synchronized to the simulated scan some single
+   // intervals differ; average across a later set of output frames.
+   let sum=0;
+   for(let i=0;i<120;i++){
+    const r=integratePhosphor({prior:state,drive:.6,seconds:dt,
+     refreshHz:hz,persistenceMs:ms,phase,position:.37});
+    state=r.end;sum+=r.average;
+    phase=advanceCRTPhase(phase,dt,hz);
+   }
+   assert.ok(Math.abs(sum/120-.6)<.035,`hz=${hz},tau=${ms},mean=${sum/120}`);
+  }
+ }
 });
-test('GPU state contains scan phase, excitation, decay and crisp reconstruction',()=>{
- const source=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- for(const name of ['uPhase','uCycles','uHz','uLines','uFastTau',
-  'uSlowTau','uFastDecay','uSlowDecay','tPrevious','uReset',
-  'WebGLRenderTarget','FullScreenQuad','ageCycles','eventLight'])
-  assert.ok(source.includes(name),name);
- assert.match(source,/sqrt\(clamp/);
- assert.match(source,/Math\.ceil\(width\/2\)/);
- assert.match(source,/float lingering=/);
- assert.doesNotMatch(source,/UnrealBloomPass/);
- assert.doesNotMatch(source,/uTint/);
+test('emission after drive stops decays monotonically instead of disappearing',()=>{
+ for(const ms of [20,190,1500]){
+  const tau=ms/1000;
+  const dt=.02;
+  const a=integratePhosphor({prior:.8,drive:0,seconds:dt,
+   refreshHz:60,persistenceMs:ms});
+  assert.ok(Math.abs(a.end-.8*Math.exp(-dt/tau))<1e-8);
+  assert.ok(a.average>.0&&a.average<=.8);
+ }
+});
+test('GPU shader integrates beam impulses into frame-average luminance',()=>{
+ const s=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
+ for(const part of ['uPhase','uCycles','uHz','uLines','uTau','visits',
+  'float integrated=','float average=','prior*atten+excitation*aged*ratio',
+  'sqrt(clamp','STORE_SCALE','WebGLRenderTarget','FullScreenQuad'])
+  assert.ok(s.includes(part),part);
+ assert.ok(!s.includes('profileHues'));
+ assert.ok(!s.includes('uTint'));
+ assert.ok(!s.includes('max(prior*'));
 });

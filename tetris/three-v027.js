@@ -3,8 +3,7 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v098';
-import {phosphorProfile} from './phosphor-model.js?v098';
+import {createCompositor} from './compositor.js?v099';
 import {drawTileFace} from './tile-face.js?v094';
 import {createButtonFeedback} from './button-feedback.js?v096';
 import {createCanvasUI} from './canvas-ui.js?v096';
@@ -171,7 +170,7 @@ modalPlane.visible=false;scene.add(modalPlane);
 // Existing CRT bloom handles glow; no UI texture uploads are required.
 const buttonFeedback=createButtonFeedback();
 let buttonGlowWasActive=false;
-let phosphorUntil=0,lastHistoryRender=0;
+let lastHistoryRender=0;
 
 // Upload changed canvases before submitting the composer so that the first
 // RenderPass no longer conflates texture transfer and scene rendering.
@@ -187,7 +186,7 @@ const graphicsHealth=createGraphicsHealth({
   if(game.status==='playing')actions.perform('pause');
   inputController?.cancel();scrollVelocity=0;
   buttonFeedback.clear();buttonGlowWasActive=false;
-  compositor.resetPersistence();phosphorUntil=0;
+  compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
  },
  onRestored:()=>{
@@ -197,7 +196,7 @@ const graphicsHealth=createGraphicsHealth({
    // reupload immediately; hidden planes upload on their next appearance.
    renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
    compositor.resize(W,H,DPR);
-   compositor.resetPersistence();phosphorUntil=0;
+   compositor.resetPersistence();
    for(const source of [texture,boardTexture,sidebarTexture,controlsTexture,
     modalTexture,boardPopupTexture])source.needsUpdate=true;
    lastPaintedBoardPopupStatus=null;cachedLayout=null;
@@ -249,7 +248,7 @@ const screenManager=createScreenManager({
   // Preserve menu-local reset, touch capture and score popup invalidation.
   modalUI.reset();scrollVelocity=0;inputController?.cancel();
   // Never illuminate newly opened/closed menu pixels using stale feedback.
-  buttonFeedback.clear();compositor.resetPersistence();phosphorUntil=0;
+  buttonFeedback.clear();compositor.resetPersistence();
   if(previous==='scores'||next==='scores')layers.mark('base');
   if(next===null)regions=baseRegions;
   invalidate();
@@ -623,26 +622,18 @@ inputController=createInputController({
  handleAction:act=>{
   const previous=game.status;
   const result=actions.dispatch(act);
-  if(game.status!==previous){buttonFeedback.clear();compositor.resetPersistence();phosphorUntil=0;}
+  if(game.status!==previous){buttonFeedback.clear();compositor.resetPersistence();}
   return result;
  },
  perform:act=>{
   const previous=game.status;
   const result=actions.perform(act);
-  if(game.status!==previous){buttonFeedback.clear();compositor.resetPersistence();phosphorUntil=0;}
+  if(game.status!==previous){buttonFeedback.clear();compositor.resetPersistence();}
   return result;
  },
  setSetting:actions.setSetting,settingValue,
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
- cyclePhosphorProfile:()=>{
-  settings.cyclePhosphorProfile();
-  compositor.resetPersistence();phosphorUntil=0;
- },
- cycleCRTRefresh:()=>{
-  settings.cycleCRTRefresh();
-  compositor.resetPersistence();phosphorUntil=0;
- },
  openModal:()=>screenManager.close(),invalidate,clamp,
  onButtonPress:(hit,now,held)=>{
   if(buttonFeedback.press(hit,now,held))invalidate('button-press');
@@ -708,7 +699,7 @@ function frame(now){
    if(game.status!==prior.status){
     layers.mark('base');
     // Start/stop/paused transitions remove the previous screen's press.
-    buttonFeedback.clear();compositor.resetPersistence();phosphorUntil=0;
+    buttonFeedback.clear();compositor.resetPersistence();
    }
    layers.reason('gravity');
    if(game.lines>prior.lines)tone(590,.1);
@@ -738,9 +729,6 @@ function frame(now){
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
-   if(phosphorOn&&why.some(reason=>reason!=='phosphor-history'))
-    phosphorUntil=now+phosphorProfile(settings.effects.persistenceProfile).tailMs;
-   if(!phosphorOn)phosphorUntil=0;
    const canvasDirty=['base','board','sidebar','controls'].some(layer=>layers.needs(layer));
    if(canvasDirty||why.some(reason=>reason!=='button-afterglow'&&reason!=='phosphor-history'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
@@ -806,7 +794,7 @@ appLifecycle=createAppLifecycle({
   }
   inputController?.cancel();scrollVelocity=0;
   buttonFeedback.clear();buttonGlowWasActive=false;
-  compositor.resetPersistence();phosphorUntil=0;
+  compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
    try{void audioCtx.suspend().catch(()=>{});}catch(error){}
@@ -814,7 +802,7 @@ appLifecycle=createAppLifecycle({
  },
  onResume:()=>{
   lastTime=performance.now();perf.resetPacing();
-  compositor.resetPersistence();phosphorUntil=0;
+  compositor.resetPersistence();
   // Re-measure the safe area after iOS Home Screen and bfcache returns.
   platform.resize(true);
   invalidate('resume');
@@ -844,13 +832,13 @@ const platform=createPlatformManager({
   if(!unchanged){
    W=width;H=height;DPR=dpr;
    buttonFeedback.clear();buttonGlowWasActive=false;
-  compositor.resetPersistence();phosphorUntil=0;
+  compositor.resetPersistence();
    input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
    boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
    g.setTransform(DPR,0,0,DPR,0,0);
    renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
    compositor.resize(W,H,DPR);
-   compositor.resetPersistence();phosphorUntil=0;
+   compositor.resetPersistence();
    perf.setViewport(W,H,DPR);
   }
   layers.mark('base','board','sidebar','controls');

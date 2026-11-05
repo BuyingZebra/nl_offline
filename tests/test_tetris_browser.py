@@ -157,12 +157,12 @@ with sync_playwright() as p:
         )
         cache_count = page.evaluate("""async () => {
           const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v098');
+          const name = names.find(n => n === 'nomad-tetris-offline-v099');
           if (!name) return 0;
           const cache = await caches.open(name);
           return (await cache.keys()).length;
         }""")
-        assert cache_count >= 38, f"Incomplete V098 offline cache: {cache_count} entries"
+        assert cache_count >= 38, f"Incomplete V099 offline cache: {cache_count} entries"
 
         page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
         page.context.set_offline(True)

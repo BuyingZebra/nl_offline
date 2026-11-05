@@ -106,38 +106,49 @@ test('settings work if local persistence throws',()=>{
 });
 
 
-test('V098 defaults to independent intermediate decay, and refresh/profile cycle',()=>{
+test('V099 uses two bounded continuous sliders and persists both settings',()=>{
  const store=memoryStorage(),settings=createSettingsManager(store);
  assert.equal(settings.effects.persistence,true);
- assert.equal(settings.effects.persistenceProfile,'balanced');
  assert.equal(settings.effects.scanRefreshHz,60);
- for(const p of ['p39','p31','p1','p4','balanced'])
-  assert.equal(settings.cyclePhosphorProfile(),p);
- assert.equal(settings.cycleCRTRefresh(),75);
- assert.equal(settings.cycleCRTRefresh(),50);
- assert.equal(settings.cycleCRTRefresh(),60);
- settings.setSetting('scanRefreshHz',500);
- assert.equal(settings.effects.scanRefreshHz,60);
- settings.setSetting('scanRefreshHz',50);
- settings.setSetting('persistenceProfile','p39');
+ assert.equal(settings.effects.persistenceMs,190);
+ settings.setSetting('scanRefreshHz',87);
+ settings.setSetting('persistenceMs',560);
+ assert.equal(settings.effects.scanRefreshHz,87);
+ assert.equal(settings.effects.persistenceMs,560);
  settings.setSetting('persistence',false);
  const reopened=createSettingsManager(store);
- assert.equal(reopened.effects.persistenceProfile,'p39');
- assert.equal(reopened.effects.scanRefreshHz,50);
+ assert.equal(reopened.effects.scanRefreshHz,87);
+ assert.equal(reopened.effects.persistenceMs,560);
  assert.equal(reopened.effects.persistence,false);
  reopened.restoreDefaults();
- assert.equal(reopened.effects.persistenceProfile,'balanced');
  assert.equal(reopened.effects.scanRefreshHz,60);
+ assert.equal(reopened.effects.persistenceMs,190);
  assert.equal(reopened.theme,'green');
 });
-test('invalid decay profiles are rejected and legacy saved profiles still load',()=>{
+test('range extremes clamp and older profile strings cannot enter settings',()=>{
  const store=memoryStorage(),settings=createSettingsManager(store);
- settings.setSetting('persistenceProfile','unphysical');
- assert.equal(settings.effects.persistenceProfile,'balanced');
- settings.setSetting('persistenceProfile','p31');
- assert.equal(settings.effects.persistenceProfile,'p31');
- const old=memoryStorage({
-  [STORAGE_KEYS.effects]:JSON.stringify({persistenceProfile:'p39',persistence:true})
+ settings.setSetting('scanRefreshHz',999);
+ assert.equal(settings.effects.scanRefreshHz,120);
+ settings.setSetting('scanRefreshHz',-40);
+ assert.equal(settings.effects.scanRefreshHz,30);
+ settings.setSetting('persistenceMs',90000);
+ assert.equal(settings.effects.persistenceMs,2000);
+ settings.setSetting('persistenceMs',0);
+ assert.equal(settings.effects.persistenceMs,10);
+ settings.setSetting('persistenceMs',193);
+ assert.equal(settings.effects.persistenceMs,190);
+ settings.setSetting('persistenceProfile','p39');
+ assert.equal('persistenceProfile' in settings.effects,false);
+});
+test('legacy P39 profile selection migrates harmlessly to custom decay',()=>{
+ const store=memoryStorage({
+  [STORAGE_KEYS.effects]:JSON.stringify({
+   persistenceProfile:'p39',scanRefreshHz:75,persistence:true
+  })
  });
- assert.equal(createSettingsManager(old).effects.persistenceProfile,'p39');
+ const effects=createSettingsManager(store).effects;
+ assert.equal(effects.persistenceMs,190);
+ assert.equal(effects.scanRefreshHz,75);
+ assert.equal(effects.persistence,true);
+ assert.equal('persistenceProfile' in effects,false);
 });

@@ -8,8 +8,7 @@ export function createInputController({screen,document,window,initialsInput,
  getViewport,getRegions,getModal,getModalView,getOptionsScroll,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
- chooseScanline,cyclePhosphorProfile=()=>{},cycleCRTRefresh=()=>{},
- openModal,invalidate,clamp,canInteract=()=>true,
+ chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
  onButtonPress=()=>{},onButtonRelease=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
@@ -38,7 +37,7 @@ const optionPoint=p=>getModal()==='options'&&getModalView()&&
  p.x>=getModalView().x&&p.x<=getModalView().x+getModalView().w&&
  p.y>=getModalView().y&&p.y<=getModalView().y+getModalView().h;
 const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
-const isVisualButton=r=>r?.kind==='button'||['toggle','patternSelect','scanlineChoice','phosphorProfile','scanRefresh'].includes(r?.act);
+const isVisualButton=r=>r?.kind==='button'||['toggle','patternSelect','scanlineChoice'].includes(r?.act);
 listen(screen,'pointerdown',e=>{
  if(disposed||!canInteract())return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
@@ -109,8 +108,6 @@ function releaseTouch(e){
      else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
      else if(r.act==='patternSelect'&&optionPoint(p))toggleScanlineMenu();
      else if(r.act==='scanlineChoice'&&optionPoint(p))chooseScanline(r.field);
-     else if(r.act==='phosphorProfile'&&optionPoint(p))cyclePhosphorProfile();
-      else if(r.act==='scanRefresh'&&optionPoint(p))cycleCRTRefresh();
      else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
     }
    }else if(touch.mode==='slider'&&touch.region?.act==='slider'){

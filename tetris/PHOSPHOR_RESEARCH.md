@@ -1,26 +1,36 @@
-# NOMAD V098 — experimental scanned CRT light field
+# NOMAD V099 — continuously adjustable CRT simulator
 
-**Status: research-informed engineering prototype; not calibrated against a particular CRT.**
+**Status:** research-informed first-order raster/phosphor simulation. This is not calibrated against a physical tube.
 
-## Render sequence
-1. Existing Canvas2D grayscale text, controls and game pieces represent the video drive signal.
-2. A simulated electron beam traverses **left-to-right, top-to-bottom**, independently of the phone refresh, at selectable **50, 60 or 75 Hz**.
-3. Each scanned location excites a neutral phosphor field. The vertical beam footprint itself generates the scanline gaps, so the previous static scanline mask is disabled in this mode.
-4. Two sqrt-encoded GPU luminance histories represent rapid and faint/slow decay; a third channel records the downsampled current drive. The full-resolution grayscale signal is used to reconstruct sharp edges, while removed content can linger.
-5. Existing optical bloom follows the monochrome simulation. **Colour is applied only afterward** using the existing user-selected green or amber tint, regardless of decay profile.
+## Independent controls
 
-**CUSTOM / SHORT-MEDIUM** approximates a 5ms fast component and 190ms weak tail. P39, P31, P1 and P4 remain selectable decay comparisons. These weights, beam width, subframe exposure integration and colour mapping are modelling choices, not measurements.
+DISPLAY SYSTEM → CRT SIMULATION contains two touch sliders:
+- **RATE: 30–120 Hz**, 1 Hz increments (default 60). This is the simulated electron-beam refresh rate, **not** the phone's display refresh.
+- **PERSIST: 10–2,000 ms**, 10 ms increments (default 190). This is the phosphor's exponential decay time constant, `tau`, not a named phosphor material or measured P31/P39 curve.
 
-## Evidence and limitations
-- Hewlett-Packard, Application Note 115 (historical phosphor decay tables).
-- Compton, *Selecting phosphors for displays*, Information Display (1989).
-- Di Lollo et al., *Phosphor persistence of oscilloscopic displays*, Spatial Vision (1997).
-- Historical CRT terminal readability measurements.
+Colour remains a separate artistic green/amber tint applied only after grayscale light has been calculated. There are **no phosphor presets** in the user interface. Historic P31, P39, P1, P4 names are no longer used as decay selection.
 
-The model uses a beam trajectory and integrated illumination but does **not** yet simulate a measured electron-gun transfer function, individual spectral emission, calibrated point-spread function, beam retrace/blanking or full field-by-field raster physics. Very short excitation pulses are integrated over a smartphone frame to avoid aliasing. The current phosphor curves are illustrative, not validated instrument traces.
+## First-order mathematical model
 
-## Controls / compatibility
-DISPLAY SYSTEM → CRT SIMULATION enables the new model. The two selectors cycle phosphor decay and raster refresh. The user's separate green/amber choice remains untouched. Turning simulation off restores the pre-V097 independent effects, including the legacy scanline texture. Existing game logic, save data and settings storage keys are preserved. Context loss, resizing and screen transitions clear phosphor history.
+The grayscale video source drives a beam scanning **left to right, top to bottom**. Between visits a simulated phosphor pixel decays as `L(t)=L0*exp(-t/tau)`. The amount deposited by a visit is proportional to source drive and beam footprint.
 
-## Validation
-Unit tests cover decay monotonicity, raster direction, scan wrapping, refresh settings and legacy fallback. Chromium/WebKit browser launch, button-response, viewport and offline smoke tests are run as technical gates. Real-device photometric calibration and GPU profiling remain next steps.
+To avoid V098's dark, alias-prone snapshots, the shader now accumulates all beam visits within the elapsed display interval. For scan period `T=1/refreshHz`, deposited amount `Q=videoDrive*spot*T/tau` normalizes *steady-state frame-averaged brightness* across refresh and persistence settings.
+
+For `N` visits in the interval and `age` since the latest visit, with `R=(1-exp(-N*T/tau))/(1-exp(-T/tau))`, the state and time-integrated light are:
+
+- `stateEnd=stateStart*exp(-dt/tau)+Q*exp(-age/tau)*R`
+- `emissionMean=[stateStart*tau*(1-exp(-dt/tau))+Q*tau*(N-exp(-age/tau)*R)]/dt`
+
+These exact integrations apply to the **idealized single-exponential model** with piecewise-constant video drive over a GPU frame, not to a calibrated multi-component physical phosphor. The GPU stores end-state, interval-average emission and sampled video drive in a half-resolution sqrt-encoded RGBA8 texture, and reconstructs sharp glyph edges using the full-resolution source.
+
+The simulated beam's spatial footprint generates subtle line spacing. NOMAD's existing optical bloom/vignette run afterward, followed by the green/amber tint. The old CRT effect remains available when CRT SIMULATION is off.
+
+## Important limitations
+
+Real phosphors have multi-component intensity-dependent decay, non-instant excitation, measured spectra and optical scattering. This idealized single-parameter model does **not** claim those properties or realistic absolute nits. Tube retrace/blanking, detailed transfer response and calibrated optics are also not yet modeled.
+
+References for future calibration: Hewlett-Packard *Application Note 115*, Compton (1989), and Di Lollo et al. (1997). To validate physical accuracy, compare against measured photodiode curves and a real device. Automated Chromium/WebKit tests verify software behaviour, not absolute physical fidelity.
+
+## Release validation
+
+Unit tests cover refresh/decay ranges, slider hit geometry, raster order and wrap, steady-state brightness across 30–120Hz and 10–2000ms, decay after signal removal, settings migration and legacy fallback. Browser smoke tests cover startup, WebGL output, controls, viewport changes and offline launch.

@@ -7,10 +7,12 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
  softness:false,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.57,
- persistence:true,persistenceProfile:'balanced',scanRefreshHz:60});
+ persistence:true,scanRefreshHz:60,persistenceMs:190});
 export const DISPLAY_EFFECTS=[
  {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
- {id:'persistence',title:'CRT SIMULATION',toggle:'persistence',profile:true,refresh:true},
+ {id:'persistence',title:'CRT SIMULATION',toggle:'persistence',
+  sliders:[['RATE','scanRefreshHz',30,120,1,'Hz'],
+   ['PERSIST','persistenceMs',10,2000,10,'ms']]},
  {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
   sliders:[['','scanlineOpacity',0,100,1,'%']]},
  {id:'vignette',title:'SCREEN VIGNETTE',toggle:'vignette',
