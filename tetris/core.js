@@ -63,7 +63,24 @@
   class Game {
     constructor(rng=Math.random) {
       this.rng=rng;
+      // Game observers never own rules, rendering or mutable board data.
+      this._eventListeners=new Set();
       this.reset();
+    }
+    onEvent(listener) {
+      if(typeof listener!=='function')throw new TypeError('Game event listener must be a function');
+      this._eventListeners.add(listener);
+      // Unsubscribe is safe to call repeatedly and during an event.
+      return ()=>this._eventListeners.delete(listener);
+    }
+    _emit(event) {
+      if(!this._eventListeners.size)return;
+      const message=Object.freeze(event);
+      // A UI/diagnostic observer must never corrupt deterministic gameplay.
+      for(const listener of [...this._eventListeners]){
+        if(!this._eventListeners.has(listener))continue;
+        try{listener(message);}catch(error){/* Observer failure is isolated. */}
+      }
     }
     reset() {
       this.board=blankBoard();
@@ -85,6 +102,7 @@
       this.current=null;
       this.spawn();
       this.status='ready';
+      this._emit({type:'reset',status:this.status,score:this.score,lines:this.lines,level:this.level});
     }
     fillQueue() {
       while(this.queue.length<7)this.queue.push(...shuffledBag(this.rng));
@@ -93,7 +111,7 @@
       const matrix=copyMatrix(SHAPES[kind]);
       return {kind,matrix,rotation:0,x:Math.floor((COLS-matrix[0].length)/2),y:0};
     }
-    spawn(kind) {
+    spawn(kind,notifyGameOver=true) {
       if (!kind) { this.fillQueue(); kind=this.queue.shift(); this.fillQueue(); }
       this.current=this.piece(kind);
       this.gravityClock=0;
@@ -102,6 +120,10 @@
       if(this.collides(this.current)) {
         this.status='over';
         this.lastEvent='GAME OVER';
+        if(notifyGameOver)this._emit({
+          type:'game-over',reason:'spawn-blocked',
+          score:this.score,lines:this.lines,level:this.level,status:this.status
+        });
         return false;
       }
       return true;
@@ -202,23 +224,56 @@
         if(y<0)above=true;
         else if(y<ROWS&&x>=0&&x<COLS)this.board[y][x]=kind;
       }
-      if(above){this.status='over';this.lastEvent='GAME OVER';return;}
+      if(above){
+        this.status='over';this.lastEvent='GAME OVER';
+        this._emit({type:'game-over',reason:'top-out',
+          score:this.score,lines:this.lines,level:this.level,status:this.status});
+        return;
+      }
       // A successful placement scores even when a piece settles by gravity.
       // This small bonus complements, rather than replaces, drop/line points.
       this.score+=10*this.level;
-      const remaining=this.board.filter(row=>row.some(cell=>!cell));
-      const cleared=ROWS-remaining.length;
+      const remaining=[],completed=[];
+      for(let y=0;y<ROWS;y++){
+        const row=this.board[y];
+        if(row.every(Boolean))completed.push(y);
+        else remaining.push(row);
+      }
+      const cleared=completed.length;
+      // Capture the exact landed board before completed rows are removed.
+      // Only allocate the frozen board snapshot when there are rows to flash.
+      const beforeClear=cleared&&this._eventListeners.size?
+       Object.freeze(this.board.map(row=>Object.freeze(row.slice()))):null;
       while(remaining.length<ROWS)remaining.unshift(Array(COLS).fill(0));
       this.board=remaining;
       this.lastClear=cleared;
+      const priorLevel=this.level;
       this.score+=CLEAR_POINTS[cleared]*this.level;
       this.lines+=cleared;
       this.level=1+Math.floor(this.lines/10);
       this.pieces++;
       this.canHold=true;
       this.lastEvent=cleared===4?'TETRIS!':cleared?cleared+' LINE'+(cleared!==1?'S':''):'LOCK';
-      this.spawn();
-      if(this.status==='over')this.lastEvent='GAME OVER';
+      // Suppress early game-over notification until the lock and clear events
+      // have been delivered in game-rule order.
+      const spawned=this.spawn(undefined,false);
+      if(!spawned)this.lastEvent='GAME OVER';
+      this._emit({
+        type:'piece-locked',kind:p.kind,x:p.x,y:p.y,rotation:p.rotation,
+        cleared,score:this.score,lines:this.lines,level:this.level,status:this.status
+      });
+      if(cleared)this._emit({
+        type:'lines-cleared',count:cleared,rows:Object.freeze(completed),
+        board:beforeClear,score:this.score,lines:this.lines,level:this.level,status:this.status
+      });
+      if(this.level!==priorLevel)this._emit({
+        type:'level-changed',from:priorLevel,to:this.level,
+        score:this.score,lines:this.lines,status:this.status
+      });
+      if(!spawned)this._emit({
+        type:'game-over',reason:'spawn-blocked',
+        score:this.score,lines:this.lines,level:this.level,status:this.status
+      });
     }
     get dropMs() {
       return Math.max(65,Math.round(850*Math.pow(.78,this.level-1)));
