@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v083';
 import {drawTileFace} from './tile-face.js?v084';
 import {createCanvasUI} from './canvas-ui.js?v079';
-import {getBuildVersion,parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066';
+import {getBuildVersion} from './build-version.js?v066';
+import {createPlatformManager} from './platform-manager.js?v087';
 import {createInputController} from './input-controller.js?v065';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
@@ -43,10 +44,7 @@ const THREE_BUILD_VERSION=getBuildVersion(document);
 // The HTML build meta is authoritative; title, accessibility and debug labels derive from it.
 document.title='NOMAD — Tetris System | version: '+THREE_BUILD_VERSION;
 display.setAttribute('aria-label','Tetris System — Three.js version: '+THREE_BUILD_VERSION);
-// Mobile fill-rate guard: 2x reduces a 3x Retina compositor to 4/9 as many pixels.
-// Geometry and touch coordinates stay in CSS pixels; the source canvas and GPU
-// render target share this cap to avoid uploading unnecessarily large images.
-const MAX_RENDER_DPR=2;
+// Viewport measurements and render DPR cap now belong to Platform Manager.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
 const UI_GAP=6;
@@ -405,17 +403,9 @@ function paintBoardPopup(r){
   }
   }finally{g=baseContext;}
 }
-// Layout calculations are pure, cached, and invalidated on viewport resize.
-let cachedInsets=null,cachedLayout=null;
-function insets(){
- if(cachedInsets)return cachedInsets;
- const cs=getComputedStyle(safeProbe);
- cachedInsets={
-  top:parseFloat(cs.paddingTop)||0,bottom:parseFloat(cs.paddingBottom)||0,
-  left:parseFloat(cs.paddingLeft)||0,right:parseFloat(cs.paddingRight)||0
- };
- return cachedInsets;
-}
+// Pure layout calculation remains in layout.js; platform owns safe-area measurement.
+let cachedLayout=null;
+function insets(){return platform.safeInsets();}
 function layout(){
  return cachedLayout||(cachedLayout=ScreenLayout.computeLayout(W,H,insets(),UI_SPACE));
 }
@@ -645,37 +635,8 @@ inputController=createInputController({
  chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp
 });
-// iOS Home Screen web apps can resume a suspended page without reloading it.
-// Check the running renderer against the published build on reactivation.
-// Never interrupt a game or a dialog just to install an update.
-let checkingBuild=false,lastBuildCheck=0;
-async function checkForNewBuild(){
- if(document.hidden||checkingBuild||screenManager.hasModal||game.status!=='ready')return;
- const now=Date.now();
- if(now-lastBuildCheck<15000)return;
- checkingBuild=true;lastBuildCheck=now;
- try{
-  const url=new URL('./three-v027.html?update-check='+now,import.meta.url);
-  const reply=await fetch(url,{cache:'no-store'});
-  if(!reply.ok)return;
-  const published=parsePublishedBuild(await reply.text());
-  if(shouldReloadBuild(THREE_BUILD_VERSION,published,{
-   hidden:document.hidden,modalOpen:screenManager.hasModal,gameStatus:game.status})){
-   location.reload();
-  }
- }catch(e){/* Offline: keep the current playable build. */}
- finally{checkingBuild=false;}
-}
-document.addEventListener('visibilitychange',()=>{
- if(document.hidden&&game.status==='playing')perform('pause');
- lastTime=performance.now();
- perf.resetPacing();
- if(!document.hidden){invalidate();void checkForNewBuild();}
-});
-window.addEventListener('pageshow',()=>{void checkForNewBuild();});
-window.addEventListener('focus',()=>{void checkForNewBuild();});
-// Some standalone sessions never report another foreground transition.
-setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
+// Browser and installed-app lifecycle, viewport and update polling are delegated
+// to Platform Manager. The renderer retains only its drawing responsibilities.
 function syncFX(){
  const scoreBounds=screenManager.isScores?modalUI.modalBounds('scores'):null;
  const blurredLayout=scoreBounds?.landscapeFallback?{
@@ -766,27 +727,35 @@ function frame(now){
   console.error(e);
  }
 }
-function resize(forceLayout=false){
- const b=display.getBoundingClientRect(),w=Math.max(1,Math.round(b.width)),h=Math.max(1,Math.round(b.height));
- const d=Math.min(MAX_RENDER_DPR,Math.max(1,window.devicePixelRatio||1));
- // A pending redraw must never force another allocation at the same size.
- if(w===W&&h===H&&d===DPR){
-  if(forceLayout===true){cachedLayout=null;cachedInsets=null;layers.mark('base');layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate('resize');}
-  return;
+const platform=createPlatformManager({
+ window,document,display,safeProbe,baseModuleURL:import.meta.url,
+ buildVersion:THREE_BUILD_VERSION,
+ getGameStatus:()=>game.status,
+ isScreenOpen:()=>screenManager.hasModal,
+ onViewport:({width,height,dpr})=>{
+  const unchanged=width===W&&height===H&&dpr===DPR;
+  cachedLayout=null;
+  if(!unchanged){
+   W=width;H=height;DPR=dpr;
+   input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
+   boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
+   g.setTransform(DPR,0,0,DPR,0,0);
+   renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
+   compositor.resize(W,H,DPR);
+   perf.setViewport(W,H,DPR);
+  }
+  layers.mark('base','board','sidebar','controls');
+  invalidate('resize');
+ },
+ onVisibility:hidden=>{
+  if(hidden&&game.status==='playing')perform('pause');
+  lastTime=performance.now();
+  perf.resetPacing();
+  if(!hidden)invalidate();
  }
- W=w;H=h;DPR=d;cachedLayout=null;cachedInsets=null;
- input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
- boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
- g.setTransform(DPR,0,0,DPR,0,0);
- renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
- compositor.resize(W,H,DPR);
- perf.setViewport(W,H,DPR);
- layers.mark('base','board','sidebar','controls');invalidate('resize');
-}
-new ResizeObserver(()=>resize()).observe(display);
-window.addEventListener('orientationchange',()=>resize(true));
-resize();
+});
+platform.start();
 requestFrame();
 // One check after initialization also covers standalone cold launches.
-void checkForNewBuild();
+void platform.checkForNewBuild();
 
