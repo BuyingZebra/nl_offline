@@ -750,7 +750,11 @@ function frame(now){
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
-   compositor.render(dt/1000);
+   // Use time between actual GPU frames, not every gameplay RAF tick.
+   // Idle phosphor frames render at ~30 Hz; this keeps physical decay
+   // independent of render cadence.
+   const elapsedRenderMs=lastHistoryRender>0?now-lastHistoryRender:dt;
+   compositor.render(Math.max(1,Math.min(100,elapsedRenderMs))/1000);
    lastHistoryRender=now;
    graphicsHealth.rendered(); // A successful real frame completes recovery.
    perf.endRender(renderStarted);
