@@ -200,3 +200,16 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 ## Proposed next architecture iteration
 - Separate screen/navigation state and application lifecycle from the central renderer, with explicit state transitions and input routing.
 - Start with a transition map and behavioral tests; preserve the approved layouts and pause/score behaviour while extracting responsibilities.
+
+## V086: Screen Manager — state and navigation separated from rendering
+- `screen-manager.js` is the sole owner of the currently active menu screen (`null`, `options`, `scores`, `restart`, or `entry`), with `game` as the derived view when no menu is open. The game engine still owns `ready/playing/paused/over` and is not duplicated in the Screen Manager.
+- The manager handles user-facing navigation rules: opening Display System or High Scores requests a pause **before** opening the screen if gameplay is active; restart confirmation is allowed only while paused; high-score entry can open after game over; closing a screen never automatically resumes gameplay.
+- All valid screen openings (even re-opening the same screen) notify the renderer via an `onChange(previous,next)` adapter so it performs the exact existing menu scroll reset, pointer cancellation, board-popup invalidation for scores, base hitbox restoration on close, and re-render scheduling.
+- `three-v027.js` still owns graphics, audio, gameplay actions, input wiring, lifecycle events, and high-score submission. It reads `screenManager.active` and derived flags; it no longer keeps its own mutable `modal` variable or implements a second copy of menu pause/restart rules.
+- The existing `modal-ui.js`, `input-controller.js`, `core.js`, `layout.js`, `hud-drawing.js` and `compositor.js` rendering and rules are unchanged. `input-controller.js` receives the same callback shape for Escape; it is not coupled directly to the Screen Manager.
+- `tetris/tests/screen-manager.test.mjs` verifies initial gameplay view, pause-before-open, score-board placement flag, restart gating, high-score entry, close-without-resume, and repeat openings. The old `modal-ui-v064.test.cjs` fixture is updated to use the V085 settings callback and to avoid hard-coding old module versions.
+- Run the focused tests with Node 22+: `node --test tetris/tests/screen-manager.test.mjs tetris/tests/settings-manager.test.mjs`. Also run the existing `tetris/*.test.cjs` regression suite.
+- Visual and interaction checks on actual iOS Safari and standalone Home Screen remain required to establish that the change is imperceptible to players.
+
+## Next possible architecture extraction
+- Separate platform lifecycle (viewport and foreground/background update checks) from rendering while preserving exactly the approved Safari versus standalone behaviour. Plan device tests before modifying CSS safe-area handling.
