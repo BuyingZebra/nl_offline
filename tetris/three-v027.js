@@ -14,7 +14,7 @@ import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v091';
+import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v085';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
@@ -548,6 +548,9 @@ function createDebugReport(){
   display:{theme:settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
    settings:JSON.stringify({...settings.effects,pieceGhost:settings.pieceGhost,sound:settings.soundOn})},
   gpu,graphics:graphicsHealth.snapshot(),lifecycle:appLifecycle?.snapshot(),
+  offline:{network:navigator.onLine===false?'offline':'online',
+   supported:'serviceWorker' in navigator,
+   controlled:Boolean(navigator.serviceWorker?.controller)},
   samples:recentPerf,current:perf.currentSnapshot()
  });
 }
