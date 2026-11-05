@@ -9,6 +9,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
+import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v094';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -85,6 +86,21 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  boardBlurHorizontal.enabled=false;boardPopupPass.enabled=false;
  composer.addPass(boardBlurHorizontal);
  composer.addPass(boardPopupPass);
+
+ // Button pulse is blended AFTER the opaque board popup so no button
+ // loses its glow beneath a later composited menu, but BEFORE CRT effects.
+ const buttonPulsePass=new ShaderPass({
+  uniforms:{
+   tDiffuse:{value:null},
+   uViewport:{value:new THREE.Vector2(1,1)},
+   uRects:{value:Array.from({length:MAX_BUTTON_FLASHES},()=>new THREE.Vector4())},
+   uPower:{value:Array(MAX_BUTTON_FLASHES).fill(0)}
+  },
+  vertexShader:BUTTON_FEEDBACK_VERTEX,
+  fragmentShader:BUTTON_FEEDBACK_FRAGMENT
+ });
+ buttonPulsePass.enabled=false;
+ composer.addPass(buttonPulsePass);
 
  // Analog ghost is a displaced image sample, not a duplicate HTML element.
  const ghostPass=new ShaderPass({
@@ -290,13 +306,25 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Keep the exact pass order, source textures and FX behavior. Measure the
  // CPU time spent issuing each pass only; no extra GL renders or readbacks.
  const passProfiler=instrumentCompositorPasses(composer.passes,[
-  'Scene + uploads','Board blur H','Board popup','Ghost','Bloom',
+  'Scene + uploads','Board blur H','Board popup','Button response','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
  const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
+function syncButtonFeedback(flashes,width,height){
+  buttonPulsePass.enabled=flashes.length>0;
+  if(!buttonPulsePass.enabled)return;
+  buttonPulsePass.uniforms.uViewport.value.set(width,height);
+  const rects=buttonPulsePass.uniforms.uRects.value;
+  const powers=buttonPulsePass.uniforms.uPower.value;
+  for(let i=0;i<MAX_BUTTON_FLASHES;i++){
+   const flash=flashes[i];
+   if(flash)rects[i].set(flash.x,flash.y,flash.w,flash.h);
+   powers[i]=flash?flash.power:0;
+  }
+}
 function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
@@ -389,6 +417,6 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   for(const pass of composer.passes)if(pass.enabled!==false)activePasses++;
   return {activePasses,totalPasses:composer.passes.length};
  }
- return Object.freeze({syncFX,resize,setStartupRoll,render:()=>composer.render(),dispose,passStats,
+ return Object.freeze({syncFX,syncButtonFeedback,resize,setStartupRoll,render:()=>composer.render(),dispose,passStats,
   activeScanlinePreset,SCANLINE_PRESETS});
 }
