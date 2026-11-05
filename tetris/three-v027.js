@@ -19,6 +19,7 @@ import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v071';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v073';
 import {createSettingsManager} from './settings-manager.js?v085';
+import {createScreenManager} from './screen-manager.js?v086';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -67,7 +68,7 @@ const UI_SPACE=Object.freeze({
 const settings=createSettingsManager(window.localStorage);
 const game=new Core.Game();
 let highs=Scores.read(window.localStorage),overOffered=false;
-let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null;
+let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let queued=false,lastTime=performance.now(),audioCtx=null;
@@ -211,20 +212,23 @@ game.lockPiece=function(){
   }
  }
 };
-function openModal(name){
- const previous=modal;
- modal=name;modalUI.reset();scrollVelocity=0;inputController?.cancel();
- // Repaint the popup when entering or leaving the Top Five view.
- if(previous==='scores'||name==='scores')layers.mark('base');
- if(!modal)regions=baseRegions;
- invalidate();
-}
+const screenManager=createScreenManager({
+ getGameStatus:()=>game.status,
+ pauseGame:()=>perform('pause'),
+ onChange:(previous,next)=>{
+  // Preserve menu-local reset, touch capture and score popup invalidation.
+  modalUI.reset();scrollVelocity=0;inputController?.cancel();
+  if(previous==='scores'||next==='scores')layers.mark('base');
+  if(next===null)regions=baseRegions;
+  invalidate();
+ }
+});
 function onOver(){
  if(game.status!=='over'||overOffered)return;
  overOffered=true;
  if(Scores.qualifies(highs,game.score)){
   initialsInput.value=settings.readInitials();
-  openModal('entry');
+  screenManager.openHighScoreEntry();
  }
 }
 function perform(type){
@@ -256,15 +260,13 @@ function perform(type){
 }
 function restart(){
  lineClearFX=null;
- game.reset();game.start();layers.mark('board');layers.mark('sidebar');layers.mark('controls');layers.mark('base');overOffered=false;openModal(null);invalidate();
+ game.reset();game.start();layers.mark('board');layers.mark('sidebar');layers.mark('controls');layers.mark('base');overOffered=false;screenManager.close();invalidate();
 }
-function options(){if(game.status==='playing')perform('pause');openModal('options');}
-function scores(){if(game.status==='playing')perform('pause');openModal('scores');}
 function saveScore(){
  const tag=Scores.initials(initialsInput.value);
  highs=Scores.save(window.localStorage,Scores.add(highs,
   {name:tag,score:game.score,lines:game.lines,level:game.level,at:Date.now()}));
- settings.saveInitials(tag);initialsInput.blur();layers.mark('sidebar');openModal('scores');
+ settings.saveInitials(tag);initialsInput.blur();layers.mark('sidebar');screenManager.openScores();
 }
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -367,7 +369,7 @@ function paintBoardPopup(r){
  try{
   // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
   // Do not draw PAUSED/GAME OVER controls beneath the score screen.
-  if(modal==='scores'){
+  if(screenManager.isScores){
    modalUI.paintModal(modalUI.modalBounds('scores'));
    return;
   }
@@ -523,7 +525,7 @@ function paintGame(){
   paintControlsLayer();
   perf.recordDuration('controls',performance.now()-started);
  }
- if(modal&&modal!=='scores'){
+ if(screenManager.paintsModalLayer){
   const started=performance.now();
   paintModalOverlay();
   perf.recordDuration('modal',performance.now()-started);
@@ -557,7 +559,7 @@ const modalUI=createModalUI({
  settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
  invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
  getHighs:()=>highs,getGame:()=>game,getInitialsInput:()=>initialsInput,
- getModal:()=>modal
+ getModal:()=>screenManager.active
 });
 function createDebugReport(){
  const memory=renderer.info.memory;
@@ -585,10 +587,10 @@ function paintModalOverlay(){
  // Repaint exactly one active dialog. Always clear the entire backing image
  // so no pixels from a previous modal remain after a menu transition.
  // Options is now its own screen: hide the game rather than darken it.
- const standaloneSettings=modal==='options';
+ const standaloneSettings=screenManager.isOptions;
  surface.visible=!standaloneSettings;boardPlane.visible=!standaloneSettings;
  sidebarPlane.visible=!standaloneSettings;controlsPlane.visible=!standaloneSettings;
- const q=modalUI.modalBounds(modal);
+ const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
   modalCanvas.width=cw;modalCanvas.height=ch;
@@ -598,7 +600,7 @@ function paintModalOverlay(){
  modalContext.setTransform(DPR,0,0,DPR,0,0);
  modalPlane.visible=true;
  // Don't dim the HUD while the score list occupies the board.
- scrimPlane.visible=!standaloneSettings&&modal!=='scores';
+ scrimPlane.visible=!standaloneSettings&&!screenManager.isScores;
  g=modalContext;
  try{modalUI.paintModal(q);}
  finally{g=baseContext;}
@@ -607,16 +609,16 @@ function paintModalOverlay(){
 }
 function handleAction(act){
  if(act==='block'||act==='scroll'||act==='board')return;
- if(act==='close'){openModal(null);return;}
+ if(act==='close'){screenManager.close();return;}
  if(act==='copyDebug'){copyDebugReport();return;}
- if(act==='options'){options();return;}
- if(act==='scores'){scores();return;}
+ if(act==='options'){screenManager.openOptions();return;}
+ if(act==='scores'){screenManager.openScores();return;}
  if(act==='theme'){
   settings.toggleTheme();layers.mark('base');invalidate();return;
  }
- if(act==='restart'){if(game.status==='paused')openModal('restart');return;}
+ if(act==='restart'){screenManager.requestRestart();return;}
  if(act==='restartYes'){restart();return;}
- if(act==='skipScore'){initialsInput.blur();openModal(null);return;}
+ if(act==='skipScore'){initialsInput.blur();screenManager.close();return;}
  if(act==='saveScore'){saveScore();return;}
  if(act==='typeInitials'){initialsInput.focus();return;}
  if(act==='resetFX'){
@@ -629,7 +631,7 @@ function handleAction(act){
 inputController=createInputController({
  screen,document,window,initialsInput,
  getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
- getModal:()=>modal,getModalView:()=>modalUI.view,
+ getModal:()=>screenManager.active,getModalView:()=>modalUI.view,
  getOptionsScroll:()=>modalUI.scroll,setOptionsScroll:v=>{modalUI.scroll=v;},
  getOptionsMaxScroll:()=>modalUI.maxScroll,
  setScrollVelocity:v=>{scrollVelocity=v;},
@@ -640,14 +642,15 @@ inputController=createInputController({
  },
  handleAction,perform,setSetting,settingValue,
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
- chooseScanline:id=>modalUI.chooseScanline(id),openModal,invalidate,clamp
+ chooseScanline:id=>modalUI.chooseScanline(id),
+ openModal:()=>screenManager.close(),invalidate,clamp
 });
 // iOS Home Screen web apps can resume a suspended page without reloading it.
 // Check the running renderer against the published build on reactivation.
 // Never interrupt a game or a dialog just to install an update.
 let checkingBuild=false,lastBuildCheck=0;
 async function checkForNewBuild(){
- if(document.hidden||checkingBuild||modal||game.status!=='ready')return;
+ if(document.hidden||checkingBuild||screenManager.hasModal||game.status!=='ready')return;
  const now=Date.now();
  if(now-lastBuildCheck<15000)return;
  checkingBuild=true;lastBuildCheck=now;
@@ -657,7 +660,7 @@ async function checkForNewBuild(){
   if(!reply.ok)return;
   const published=parsePublishedBuild(await reply.text());
   if(shouldReloadBuild(THREE_BUILD_VERSION,published,{
-   hidden:document.hidden,modalOpen:Boolean(modal),gameStatus:game.status})){
+   hidden:document.hidden,modalOpen:screenManager.hasModal,gameStatus:game.status})){
    location.reload();
   }
  }catch(e){/* Offline: keep the current playable build. */}
@@ -674,14 +677,14 @@ window.addEventListener('focus',()=>{void checkForNewBuild();});
 // Some standalone sessions never report another foreground transition.
 setInterval(()=>{if(!document.hidden)void checkForNewBuild();},60000);
 function syncFX(){
- const scoreBounds=modal==='scores'?modalUI.modalBounds('scores'):null;
+ const scoreBounds=screenManager.isScores?modalUI.modalBounds('scores'):null;
  const blurredLayout=scoreBounds?.landscapeFallback?{
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
  compositor.syncFX({fx:settings.effects,theme:settings.theme,width:W,height:H,dpr:DPR,
-  boardStatus:game.status,modalOpen:Boolean(modal),
-  scoresOverlay:modal==='scores',
+  boardStatus:game.status,modalOpen:screenManager.hasModal,
+  scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
 function requestFrame(){
@@ -723,7 +726,7 @@ function frame(now){
    onOver();
   }
   perf.recordGameChanges({advanced,visualChanged});
-  if(modal==='options'&&Math.abs(scrollVelocity)>.015){
+  if(screenManager.isOptions&&Math.abs(scrollVelocity)>.015){
    const before=modalUI.scroll;
    modalUI.scroll=clamp(modalUI.scroll+scrollVelocity*dt,0,modalUI.maxScroll);
    scrollVelocity*=Math.exp(-dt/190);
@@ -743,7 +746,7 @@ function frame(now){
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if((!modal||modal==='scores')&&game.status!=='playing')
+   if((!screenManager.hasModal||screenManager.isScores)&&game.status!=='playing')
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
