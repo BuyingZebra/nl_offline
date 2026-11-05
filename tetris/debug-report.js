@@ -89,7 +89,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    ' / frame errors '+value(graphics.renderFailures));
   if(graphics.lossDurationMs!==null&&graphics.lossDurationMs!==undefined)
    rows.push('Context unavailable for '+value(Math.round(graphics.lossDurationMs),'ms'));
-  if(graphics.lastError)rows.push('Last render error: '+String(graphics.lastError).replace(/\\s+/g,' ').slice(0,240));
+  if(graphics.lastError)rows.push('Last render error: '+String(graphics.lastError).replace(/\s+/g,' ').slice(0,240));
   const recent=(graphics.history||[]).slice(-8);
   rows.push('Recent graphics events: '+(recent.length?recent.map(event=>
    value(event.at)+' '+value(event.type)).join(' | '):'none'));
