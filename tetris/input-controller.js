@@ -8,7 +8,7 @@ export function createInputController({screen,document,window,initialsInput,
  getViewport,getRegions,getModal,getModalView,getOptionsScroll,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
- chooseScanline,openModal,invalidate,clamp}){
+ chooseScanline,openModal,invalidate,clamp,canInteract=()=>true}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
  function listen(target,name,handler,options){
@@ -37,6 +37,7 @@ const optionPoint=p=>getModal()==='options'&&getModalView()&&
  p.y>=getModalView().y&&p.y<=getModalView().y+getModalView().h;
 const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
 listen(screen,'pointerdown',e=>{
+ if(disposed||!canInteract())return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
@@ -59,6 +60,7 @@ listen(screen,'pointerdown',e=>{
  invalidate();
 });
 listen(screen,'pointermove',e=>{
+ if(disposed||!canInteract())return;
  if(!pressed||pressed.id!==e.pointerId)return;
  const p=eventPoint(e),r=pressed.region,touch=pressed;
  if(!getModal())return;
@@ -81,6 +83,7 @@ listen(screen,'pointermove',e=>{
  touch.last=p;touch.time=eventStamp(e);
 });
 function releaseTouch(e){
+ if(disposed||!canInteract()){cancel();return;}
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
  const touch=pressed,p=eventPoint(e);pressed=null;
@@ -122,6 +125,7 @@ listen(screen,'pointerup',releaseTouch);
 listen(screen,'pointercancel',releaseTouch);
 listen(window,'blur',stopRepeat);
 listen(screen,'wheel',e=>{
+ if(disposed||!canInteract())return;
  if(getModal()==='options'){
   e.preventDefault();setOptionsScroll(clamp(getOptionsScroll()+e.deltaY,0,getOptionsMaxScroll()));invalidate();
  }
@@ -130,6 +134,7 @@ const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
  ArrowDown:'hard',Space:'hard',KeyC:'hold',ShiftLeft:'hold',
  KeyP:'pause',Escape:'pause'};
 listen(document,'keydown',e=>{
+ if(disposed||!canInteract())return;
  if(document.activeElement===initialsInput)return;
  if(getModal()){
   if(e.code==='Escape'){e.preventDefault();openModal(null);}
