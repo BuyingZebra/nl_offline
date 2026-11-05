@@ -726,7 +726,9 @@ function frame(now){
   // Only GPU parameters animate. A final clean frame removes the
   // released-button fade; don't re-upload the menu CanvasTexture.
   const phosphorOn=settings.effects.persistence===true;
-  if(phosphorOn&&now<phosphorUntil&&now-lastHistoryRender>=33)
+  // The electron beam never stops rastering while the CRT is powered.
+  // Keep a ~30 FPS display integration even with stationary game content.
+  if(phosphorOn&&now-lastHistoryRender>=33)
    layers.reason('phosphor-history');
   // When the physical phosphor model is active, excitation ceases at
    // release. Its GPU history owns decay, not V096's cosmetic fade.
@@ -773,7 +775,7 @@ function frame(now){
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
   if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||
-   buttonGlowWasActive||(phosphorOn&&now<phosphorUntil))requestFrame();
+   buttonGlowWasActive||phosphorOn)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
   // A WebGL loss can interrupt a frame in progress. Its restoration event
