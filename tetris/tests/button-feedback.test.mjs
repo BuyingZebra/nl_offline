@@ -55,7 +55,7 @@ test('shader preserves grayscale and renders in existing CSS-pixel coordinates',
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec2 uViewport/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec4 uRects\[8\]/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform float uPower\[8\]/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/vec3\(clamp\(energy/);
+ assert.match(BUTTON_FEEDBACK_FRAGMENT,/original\+\(vec3\(1\.0\)-original\)\*flash/);
  assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/\bvec3\s*\(\s*\d+\.\d+\s*,\s*\d+\.\d+\s*,\s*\d+\.\d+/);
  assert.ok(BUTTON_FLASH_TOTAL_MS<700,'glow must fade promptly');
 });
