@@ -71,8 +71,9 @@ export function createGraphicsCleanup({
   safe('scene-traverse',()=>scene?.traverse?.(object=>{
    if(object.geometry)geometries.add(object.geometry);
    const material=object.material;
-   if(Array.isArray(material))for(const m of material)if(m)materials.add(m);
-   else if(material)materials.add(material);
+   if(Array.isArray(material)){
+    for(const item of material)if(item)materials.add(item);
+   }else if(material)materials.add(material);
   }));
   for(const geometry of geometries)safe('geometry',()=>geometry.dispose?.());
   for(const material of materials)safe('material',()=>material.dispose?.());
