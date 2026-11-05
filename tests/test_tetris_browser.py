@@ -64,9 +64,10 @@ with sync_playwright() as p:
     # Keep these smoke interactions separate from screenshot artwork tests.
     page.mouse.click(353, 40)
     page.wait_for_timeout(70)
-    hot = Image.open(io.BytesIO(page.screenshot())).convert("L")
+    hot = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
     page.wait_for_timeout(680)
-    cold = Image.open(io.BytesIO(page.screenshot())).convert("L")
+    cold = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
+    # Compare at CSS resolution (screenshots otherwise use DPR=2 device pixels).
     # A short-lived phosphor footprint must visibly brighten the actual
     # Options button, then decay to its baseline without changing the menu.
     crop = (332, 19, 376, 64)
