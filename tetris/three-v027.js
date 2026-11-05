@@ -215,29 +215,15 @@ function tone(freq=240,len=.04){
 function invalidate(reason='input'){
  layers.reason(reason);requestFrame();
 }
-// Core synchronously removes rows on lock; this renderer-only observer
-// captures the exact filled squares before deletion for the short animation.
-const coreLockPiece=game.lockPiece.bind(game);
-game.lockPiece=function(){
- const beforeLines=game.lines;
- const snapshot=game.board.map(row=>row.slice());
- const p=game.current;
- if(p){
-  p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
-   const x=p.x+rx,y=p.y+ry;
-   if(kind&&x>=0&&x<Core.COLS&&y>=0&&y<Core.ROWS)snapshot[y][x]=kind;
-  }));
- }
- coreLockPiece();
- if(game.lines>beforeLines&&game.status==='playing'){
-  const rows=[];
-  snapshot.forEach((row,y)=>{if(row.every(Boolean))rows.push(y);});
-  if(rows.length){
-   lineClearFX={board:snapshot,rows:new Set(rows),elapsed:0};
-   layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate();
-  }
- }
-};
+// The core owns piece locking and line-clear detection. Its read-only event
+// includes the landed board BEFORE row removal, preserving the approved flash.
+// No core method is replaced or monkeypatched by rendering code.
+game.onEvent(event=>{
+ if(event.type!=='lines-cleared'||event.status!=='playing')return;
+ if(!event.board||!event.rows.length)return;
+ lineClearFX={board:event.board,rows:new Set(event.rows),elapsed:0};
+ layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate();
+});
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
  pauseGame:()=>actions.perform('pause'),
