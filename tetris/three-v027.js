@@ -7,8 +7,9 @@ import {createCompositor} from './compositor.js?v083';
 import {drawTileFace} from './tile-face.js?v084';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion} from './build-version.js?v066';
-import {createPlatformManager} from './platform-manager.js?v087';
-import {createInputController} from './input-controller.js?v065';
+import {createPlatformManager} from './platform-manager.js?v091';
+import {createAppLifecycle,createGraphicsCleanup} from './app-lifecycle.js?v091';
+import {createInputController} from './input-controller.js?v091';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
 import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
@@ -70,7 +71,8 @@ const game=new Core.Game();
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
-let queued=false,lastTime=performance.now(),audioCtx=null;
+let queued=false,frameHandle=null,lastTime=performance.now(),audioCtx=null;
+let appLifecycle=null;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
 // Small rolling history: no overlay, network, persistent storage, or console spam.
@@ -218,7 +220,7 @@ function invalidate(reason='input'){
 // The core owns piece locking and line-clear detection. Its read-only event
 // includes the landed board BEFORE row removal, preserving the approved flash.
 // No core method is replaced or monkeypatched by rendering code.
-game.onEvent(event=>{
+const unsubscribeGameEvents=game.onEvent(event=>{
  if(event.type!=='lines-cleared'||event.status!=='playing')return;
  if(!event.board||!event.rows.length)return;
  lineClearFX={board:event.board,rows:new Set(event.rows),elapsed:0};
@@ -249,11 +251,15 @@ const actions=createActionController({
  onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
  canInteract:()=>graphicsHealth.status==='ready'
 });
-initialsInput.addEventListener('input',()=>{
+function onInitialsInput(){
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
  invalidate();
-});
-initialsInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();actions.saveScore();}});
+}
+function onInitialsKeydown(e){
+ if(e.key==='Enter'){e.preventDefault();actions.saveScore();}
+}
+initialsInput.addEventListener('input',onInitialsInput);
+initialsInput.addEventListener('keydown',onInitialsKeydown);
 const {panel,wrapText,text,rect,region,key}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,getPressed:()=>inputController?.pressed,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
@@ -263,6 +269,7 @@ const {panel,wrapText,text,rect,region,key}=createCanvasUI({
 if(document.fonts?.load){
  const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"'];
  Promise.allSettled(specs.map(spec=>document.fonts.load(spec))).then(results=>{
+  if(appLifecycle?.status==='disposed')return;
   if(!results.some(r=>r.status==='fulfilled'&&r.value.length))return;
   layers.mark('base','board','sidebar','controls');
   invalidate('font-ready');
@@ -540,7 +547,8 @@ function createDebugReport(){
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
   display:{theme:settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
    settings:JSON.stringify({...settings.effects,pieceGhost:settings.pieceGhost,sound:settings.soundOn})},
-  gpu,graphics:graphicsHealth.snapshot(),samples:recentPerf,current:perf.currentSnapshot()
+  gpu,graphics:graphicsHealth.snapshot(),lifecycle:appLifecycle?.snapshot(),
+  samples:recentPerf,current:perf.currentSnapshot()
  });
 }
 function copyDebugReport(){
@@ -606,12 +614,19 @@ function syncFX(){
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
+function cancelPendingFrame(){
+ if(frameHandle!==null){cancelAnimationFrame(frameHandle);frameHandle=null;}
+ queued=false;
+}
 function requestFrame(){
- if(!queued&&!document.hidden&&graphicsHealth.canRender){queued=true;requestAnimationFrame(frame);}
+ if(!queued&&!document.hidden&&graphicsHealth.canRender&&
+    appLifecycle?.canWork!==false){
+  queued=true;frameHandle=requestAnimationFrame(frame);
+ }
 }
 function frame(now){
- queued=false;
- if(!graphicsHealth.canRender)return;
+ queued=false;frameHandle=null;
+ if(!graphicsHealth.canRender||appLifecycle?.canWork===false)return;
  perf.recordRaf(now);
  const frameStarted=perf.startFrame();
  try{
