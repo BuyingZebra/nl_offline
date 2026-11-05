@@ -20,6 +20,7 @@ const CORE_ASSETS=Object.freeze([
  './','./index.html','./three-v027.html','./manifest.webmanifest',
  './icon.svg','./icon-192.png','./icon-512.png',
  './core.js','./scores.js','./layout.js','./three-v027.js',
+ './piece-luminance.js',
  './button-feedback.js',
  './compositor.js','./tile-face.js','./canvas-ui.js','./build-version.js',
  './platform-manager.js','./app-lifecycle.js','./input-controller.js',
