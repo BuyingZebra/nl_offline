@@ -698,6 +698,9 @@ function frame(now){
   if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
+  // A WebGL loss can interrupt a frame in progress. Its restoration event
+  // owns recovery; never leave a persistent fatal banner for that case.
+  if(graphicsHealth.status==='lost')return;
   fatal.hidden=false;fatal.textContent='Three.js Tetris frame failed: '+String(e.stack||e);
   console.error(e);
  }
