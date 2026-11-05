@@ -3,9 +3,9 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v083';
+import {createCompositor} from './compositor.js?v095';
 import {drawTileFace} from './tile-face.js?v094';
-import {createButtonFeedback} from './button-feedback.js?v094';
+import {createButtonFeedback} from './button-feedback.js?v095';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
@@ -166,8 +166,8 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
-// A short-lived interaction model drives a post-popup compositor pass,
-// preserving every button's outline without refreshing UI source textures.
+// A short-lived interaction model brightens only the pressed button rectangle.
+// Existing CRT bloom handles glow; no UI texture uploads are required.
 const buttonFeedback=createButtonFeedback();
 let buttonGlowWasActive=false;
 

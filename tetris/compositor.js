@@ -9,7 +9,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
-import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v094';
+import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v095';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -87,8 +87,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  composer.addPass(boardBlurHorizontal);
  composer.addPass(boardPopupPass);
 
- // Button pulse is blended AFTER the opaque board popup so no button
- // loses its glow beneath a later composited menu, but BEFORE CRT effects.
+ // Button-only luminance boost runs after the opaque popup and before CRT bloom.
+ // No local halo or extra glow is introduced by this pass.
  const buttonPulsePass=new ShaderPass({
   uniforms:{
    tDiffuse:{value:null},

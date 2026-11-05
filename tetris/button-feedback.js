@@ -1,6 +1,6 @@
-/* NOMAD V094 — temporary phosphor response for all Canvas2D buttons.
+/* NOMAD V095 — button-only luminance response for all Canvas2D buttons.
  * Pure time/geometry state; the renderer draws this as one small GPU shader
- * over its current screen, avoiding repeated full-screen CanvasTexture uploads.
+ * over the composited screen, avoiding repeated CanvasTexture uploads.
  */
 export const MAX_BUTTON_FLASHES=8;
 export const BUTTON_FLASH_PEAK_MS=90;
@@ -41,9 +41,8 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
  });
 }
 
-// A shader pass is placed AFTER board-popup compositing and BEFORE glow,
-// tint and other CRT effects, so ALL button types (including board popups)
-// receive the same pulse without extra CanvasTexture uploads.
+// The button-only luminance pass runs AFTER board-popup compositing and BEFORE
+// glow, tint and other CRT effects. The global bloom produces all visible glow.
 export const BUTTON_FEEDBACK_VERTEX=String.raw`
 varying vec2 vUv;
 void main(){
@@ -59,27 +58,21 @@ uniform vec4 uRects[${MAX_BUTTON_FLASHES}];
 uniform float uPower[${MAX_BUTTON_FLASHES}];
 varying vec2 vUv;
 void main(){
- vec2 p=vec2(vUv.x*uViewport.x,(1.0-vUv.y)*uViewport.y);
- float energy=0.0;
- for(int i=0;i<${MAX_BUTTON_FLASHES};i++){
-  float power=uPower[i];
-  if(power<=0.0001)continue;
-  vec2 lo=uRects[i].xy;
-  vec2 hi=lo+uRects[i].zw;
-  vec2 outside=max(max(lo-p,p-hi),vec2(0.0));
-  float distance=length(outside);
-  float face=1.0-smoothstep(0.0,1.2,distance);
-  float innerDist=min(min(p.x-lo.x,hi.x-p.x),
-                     min(p.y-lo.y,hi.y-p.y));
-  float rim=face*(1.0-smoothstep(0.0,2.4,innerDist));
-  // The near-field glow stays inside/around the original button outline
-  // and decays with the pulse: no indefinite screen burn or ghost textures.
-  float halo=exp(-distance*distance/(2.0*11.0*11.0));
-  energy+=power*(face*.42+rim*.36+halo*.22);
- }
- // Raise original luminance on button press; retain panel and text detail.
- // The full result stays grayscale until the ordinary phosphor tint stage.
- vec3 original=texture2D(tDiffuse,vUv).rgb;
- float flash=clamp(energy*0.82,0.0,1.0);
- gl_FragColor=vec4(original+(vec3(1.0)-original)*flash,1.0);
+  vec2 p=vec2(vUv.x*uViewport.x,(1.0-vUv.y)*uViewport.y);
+  float flash=0.0;
+  for(int i=0;i<${MAX_BUTTON_FLASHES};i++){
+    float power=uPower[i];
+    if(power<=0.0001)continue;
+    vec2 lo=uRects[i].xy;
+    vec2 hi=lo+uRects[i].zw;
+    // No halo, rim, or pixels outside the original button rectangle.
+    float inside=step(lo.x,p.x)*step(p.x,hi.x)*
+                 step(lo.y,p.y)*step(p.y,hi.y);
+    flash=max(flash,power*inside);
+  }
+  // At the peak the button reaches white (100% source luminance),
+  // then returns smoothly to its untouched grayscale appearance.
+  // The existing global bloom pass supplies the entire phosphor glow.
+  vec3 original=texture2D(tDiffuse,vUv).rgb;
+  gl_FragColor=vec4(mix(original,vec3(1.0),clamp(flash,0.0,1.0)),1.0);
 }`;
