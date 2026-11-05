@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#080808">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Single authoritative build number; update only this marker on each release. -->
 <meta name="tetris-build" content="091">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -48,7 +50,7 @@ html.ios-standalone #display{height:100vh}
 #error[hidden]{display:none}
 </style>
 <script type="importmap">
-{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
+{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}
 </script>
 </head>
 <body>
@@ -62,19 +64,14 @@ html.ios-standalone #display{height:100vh}
 <script src="./scores.js?three=v027-r1"></script>
 <script src="./layout.js?three=v050-r1"></script>
 <script>
-// Retire an old PixiJS Tetris worker if this installation still has one.
-// Never unregister other repository service workers or clear saved scores.
+// Install the scoped V092 offline cache. Registration is asynchronous and never
+// interrupts an active game. A successful online install is needed before the
+// app can be launched offline; subsequent visits can use its cached modules.
 if('serviceWorker' in navigator){
- navigator.serviceWorker.getRegistration(new URL('./',location.href)).then(reg=>{
-  const script=reg?.active?.scriptURL||reg?.waiting?.scriptURL||reg?.installing?.scriptURL;
-  if(script&&new URL(script).pathname===new URL('./sw.js',location.href).pathname)
-   return reg.unregister();
- }).catch(()=>{});
-}
-if('caches' in window){
- caches.keys().then(keys=>Promise.all(
-  keys.filter(key=>key.startsWith('field-atlas-arcade-')).map(key=>caches.delete(key))
- )).catch(()=>{});
+ window.addEventListener('load',()=>{
+  navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'})
+   .catch(error=>console.warn('NOMAD offline setup unavailable:',error));
+ },{once:true});
 }
 </script>
 <script type="module">
