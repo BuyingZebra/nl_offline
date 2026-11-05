@@ -1,4 +1,4 @@
-/* NOMAD V092 — offline cache and installability regression tests. */
+/* NOMAD V093 — release-coherent offline cache and installability tests. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -13,14 +13,16 @@ const scope='https://buyingzebra.github.io/nl_offline/tetris/';
 
 function workerHarness(){
  const events=new Map(),storage=new Map(),deleted=[],claims=[];
- let online=true,failPath=null,version='old';
+ let online=true,failPath=null,version='old',shellBuild='093';
  const asURL=item=>typeof item==='string'?new URL(item,scope).href:
   item instanceof URL?item.href:item.url;
  async function fetchMock(item){
   const url=new URL(asURL(item));
   if(!online||url.pathname===failPath)throw Error('Network unavailable');
   if(url.origin!==new URL(scope).origin)throw Error('Optional fonts unavailable');
-  return new Response(version+' '+url.pathname,{status:200});
+  const html=url.pathname.endsWith('/three-v027.html')?
+   '<meta name="tetris-build" content="'+shellBuild+'">':'';
+  return new Response(version+' '+url.pathname+' '+html,{status:200});
  }
  class TestCache{
   entries=new Map();
@@ -63,7 +65,8 @@ function workerHarness(){
  }
  return {emit,assets,storage,caches,claims,deleted,
   setOnline:x=>online=x,setVersion:x=>version=x,setFailPath:x=>failPath=x,
-  get cache(){return storage.get('nomad-tetris-offline-v092');}
+  setShellBuild:x=>shellBuild=x,
+  get cache(){return storage.get('nomad-tetris-offline-v093');}
  };
 }
 
@@ -153,18 +156,54 @@ test('offline HTML and cache-busted scripts load with no unbounded cache growth'
  }
  assert.equal(h.cache.entries.size,h.assets.length);
 });
-test('online updates refresh canonical HTML and stay available offline',async()=>{
+test('published updates bypass the old pinned shell but cannot mutate it',async()=>{
  const h=workerHarness();await h.emit('install');h.setVersion('new');
- const updated=await h.emit('fetch',{
+ h.setShellBuild('094');
+ const published=await h.emit('fetch',{
   request:new Request(new URL('./three-v027.html?update-check=10',scope))
  });
- assert.ok((await updated.response.text()).startsWith('new '));
+ assert.ok((await published.response.text()).startsWith('new '));
+ const active=await h.emit('fetch',{
+  request:new Request(new URL('./three-v027.html?live=42',scope))
+ });
+ assert.ok((await active.response.text()).startsWith('old '));
+ for(const script of ['three-v027.js','core.js','vendor/three/three.module.js']){
+  const request=new Request(new URL('./'+script+'?live=43',scope));
+  const response=await h.emit('fetch',{request});
+  assert.ok((await response.response.text()).startsWith('old '),script);
+ }
  h.setOnline(false);
  const cached=await h.emit('fetch',{
-  request:new Request(new URL('./three-v027.html?update-check=11',scope))
+  request:new Request(new URL('./three-v027.html?live=44',scope))
  });
- assert.ok((await cached.response.text()).startsWith('new '));
+ assert.ok((await cached.response.text()).startsWith('old '));
+ await assert.rejects(h.emit('fetch',{
+  request:new Request(new URL('./three-v027.html?update-check=45',scope))
+ }));
  assert.equal(h.cache.entries.size,h.assets.length);
+});
+test('a mismatched shell build rejects install and deletes the staged cache',async()=>{
+ const h=workerHarness();h.setShellBuild('094');
+ await assert.rejects(h.emit('install'),/version mismatch/);
+ assert.equal(h.cache,undefined);
+});
+test('a missing pinned runtime file fails closed instead of fetching another version',async()=>{
+ const h=workerHarness();await h.emit('install');h.setVersion('new');
+ h.cache.entries.delete(new URL('./three-v027.js',scope).href);
+ const response=await h.emit('fetch',{request:new Request(new URL('./three-v027.js?live=123',scope))});
+ assert.equal(response.handled,true);
+ assert.equal(response.response.status,0);
+ assert.equal(h.cache.entries.size,h.assets.length-1);
+});
+test('new staging does not delete the previous release before activation',async()=>{
+ const h=workerHarness();
+ const previous=await h.caches.open('nomad-tetris-offline-v092');
+ await previous.put(new URL('./core.js',scope),new Response('V092 core'));
+ await h.emit('install');
+ assert.ok((await h.caches.keys()).includes('nomad-tetris-offline-v092'));
+ assert.equal((await (await previous.match(new URL('./core.js',scope))).text()),'V092 core');
+ await h.emit('activate');
+ assert.ok(!(await h.caches.keys()).includes('nomad-tetris-offline-v092'));
 });
 test('requests outside the allowlist and repository sub-app are left alone',async()=>{
  const h=workerHarness();await h.emit('install');h.setOnline(false);
@@ -179,21 +218,31 @@ test('requests outside the allowlist and repository sub-app are left alone',asyn
 });
 test('activation cleans only older Tetris/Pixi caches',async()=>{
  const h=workerHarness();await h.emit('install');
- await h.caches.open('nomad-tetris-offline-v091');
+ await h.caches.open('nomad-tetris-offline-v092');
  await h.caches.open('field-atlas-arcade-old');
  await h.caches.open('nomad-map-offline-v2');
  await h.emit('activate');
- assert.deepEqual(h.deleted.sort(),['field-atlas-arcade-old','nomad-tetris-offline-v091']);
+ assert.deepEqual(h.deleted.sort(),['field-atlas-arcade-old','nomad-tetris-offline-v092']);
  assert.ok((await h.caches.keys()).includes('nomad-map-offline-v2'));
  assert.equal(h.claims.length,1);
 });
 test('a missing critical asset fails installation instead of leaving a partial cache',async()=>{
  const h=workerHarness();h.setFailPath('/nl_offline/tetris/scores.js');
  await assert.rejects(h.emit('install'));
- assert.equal(h.cache.entries.size,0);
+ assert.equal(h.cache,undefined);
 });
 test('the worker never unregisters itself or force-activates during a game',()=>{
  assert.ok(!swCode.includes('skipWaiting('));
  assert.ok(!swCode.includes('registration.unregister('));
  assert.ok(!swCode.includes('localStorage.clear'));
+});
+
+test('release marker, pinned cache name, and no-mixing policy stay in lockstep',()=>{
+ const current=html.match(/name="tetris-build" content="([0-9]{3})"/)?.[1];
+ const worker=swCode.match(/const CACHE_VERSION='v([0-9]{3})'/)?.[1];
+ assert.equal(current,'093');
+ assert.equal(worker,current);
+ assert.ok(swCode.includes('fromPinnedCache(url)'));
+ assert.ok(!swCode.includes('networkFirst('));
+ assert.ok(!swCode.includes('skipWaiting('));
 });
