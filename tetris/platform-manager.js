@@ -21,6 +21,7 @@ export function measureDisplayViewport(display,devicePixelRatio){
 export function createPlatformManager({
  window,document,display,safeProbe,baseModuleURL,buildVersion,
  getGameStatus,isScreenOpen,onViewport,onVisibility,
+ onPageHide=()=>{},onPageShow=()=>{},
  now=()=>Date.now(),
  fetchPage=(url,options)=>window.fetch(url,options),
  reloadPage=()=>window.location.reload()
@@ -78,7 +79,11 @@ export function createPlatformManager({
   onVisibility(Boolean(document.hidden));
   if(!document.hidden)void checkForNewBuild();
  };
- const onWake=()=>{void checkForNewBuild();};
+ const onWake=event=>{
+  if(event?.type==='pageshow')onPageShow(Boolean(event.persisted));
+  void checkForNewBuild();
+ };
+ const onHide=event=>onPageHide(Boolean(event?.persisted));
  const onOrientation=()=>{resize(true);};
  const onPoll=()=>{if(!document.hidden)void checkForNewBuild();};
 
@@ -90,6 +95,7 @@ export function createPlatformManager({
   window.addEventListener('orientationchange',onOrientation);
   document.addEventListener('visibilitychange',onVisibilityChange);
   window.addEventListener('pageshow',onWake);
+  window.addEventListener('pagehide',onHide);
   window.addEventListener('focus',onWake);
   interval=window.setInterval(onPoll,CHECK_INTERVAL_MS);
   resize();
@@ -102,6 +108,7 @@ export function createPlatformManager({
   window.removeEventListener('orientationchange',onOrientation);
   document.removeEventListener('visibilitychange',onVisibilityChange);
   window.removeEventListener('pageshow',onWake);
+  window.removeEventListener('pagehide',onHide);
   window.removeEventListener('focus',onWake);
   if(interval!==null){window.clearInterval(interval);interval=null;}
   return true;
