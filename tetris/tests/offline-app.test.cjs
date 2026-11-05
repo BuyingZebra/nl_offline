@@ -184,7 +184,7 @@ test('published updates bypass the old pinned shell but cannot mutate it',async(
  assert.equal(h.cache.entries.size,h.assets.length);
 });
 test('a mismatched shell build rejects install and deletes the staged cache',async()=>{
- const h=workerHarness();h.setShellBuild('098');
+ const h=workerHarness();h.setShellBuild('097');
  await assert.rejects(h.emit('install'),/version mismatch/);
  assert.equal(h.cache,undefined);
 });
