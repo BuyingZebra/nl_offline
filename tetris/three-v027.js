@@ -3,8 +3,8 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v097';
-import {phosphorProfile} from './phosphor-model.js?v097';
+import {createCompositor} from './compositor.js?v098';
+import {phosphorProfile} from './phosphor-model.js?v098';
 import {drawTileFace} from './tile-face.js?v094';
 import {createButtonFeedback} from './button-feedback.js?v096';
 import {createCanvasUI} from './canvas-ui.js?v096';
@@ -637,6 +637,10 @@ inputController=createInputController({
  chooseScanline:id=>modalUI.chooseScanline(id),
  cyclePhosphorProfile:()=>{
   settings.cyclePhosphorProfile();
+  compositor.resetPersistence();phosphorUntil=0;
+ },
+ cycleCRTRefresh:()=>{
+  settings.cycleCRTRefresh();
   compositor.resetPersistence();phosphorUntil=0;
  },
  openModal:()=>screenManager.close(),invalidate,clamp,
