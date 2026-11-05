@@ -95,7 +95,7 @@ test('display effect settings target their own passes',()=>{
  assert.equal(p[9].uniforms.uScreenHeight.value,2556);
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false});
  for(const i of [4,5,7,8,9])assert.equal(p[i].enabled,false);
- assert.equal(p[5].uniforms.uEnabled.value,0);
+ assert.equal(p[6].uniforms.uEnabled.value,0);
 });
 test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
  const {pipeline,composer}=setup();
