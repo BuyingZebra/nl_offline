@@ -133,3 +133,28 @@ test('debug report remains safe with missing history and failure details',()=>{
  assert.ok(report.includes('Last render error: test failure continued'));
  assert.ok(report.includes('Recent graphics events: none'));
 });
+
+test('Copy Debug reports bfcache resumes without implying GPU resource disposal',()=>{
+ const report=format({
+  lifecycle:{
+   status:'active',suspends:3,resumes:3,disposals:0,
+   lastReason:'bfcache',lastError:null,events:[
+    {type:'suspend',reason:'visibility'},
+    {type:'resume',reason:'visibility'},
+    {type:'suspend',reason:'bfcache'},
+    {type:'resume',reason:'bfcache'}
+   ]
+  }
+ });
+ assert.ok(report.includes('APPLICATION LIFECYCLE'));
+ assert.ok(report.includes('Page: active / suspensions 3 / resumes 3 / disposals 0'));
+ assert.ok(report.includes('suspend(bfcache)'));
+ assert.ok(report.includes('resume(bfcache)'));
+ assert.ok(report.includes('preserve WebGL resources'));
+});
+test('lifecycle report tolerates missing activity and sanitizes errors',()=>{
+ const report=format({lifecycle:{status:'suspended',suspends:1,resumes:0,
+  disposals:0,lastReason:'visibility',lastError:'failure\nnext line',events:[]}});
+ assert.ok(report.includes('Last lifecycle error: failure next line'));
+ assert.ok(report.includes('Recent page events: none'));
+});
