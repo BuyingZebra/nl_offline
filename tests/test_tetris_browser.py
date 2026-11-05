@@ -125,7 +125,7 @@ with sync_playwright() as p:
           const cache = await caches.open(name);
           return (await cache.keys()).length;
         }""")
-        assert cache_count >= 38, f"Incomplete V092 offline cache: {cache_count} entries"
+        assert cache_count >= 38, f"Incomplete V094 offline cache: {cache_count} entries"
 
         page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
         page.context.set_offline(True)
