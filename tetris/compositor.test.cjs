@@ -8,12 +8,12 @@ const fs=require('node:fs');
 const path=require('node:path');
 
 function setup(){
- const instances=[];
+ const instances=[],textures=[];
  class Vec2{constructor(x,y){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
  class Vec3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}copy(o){this.x=o.x;this.y=o.y;this.z=o.z;return this;}}
  class Vec4{constructor(x,y,z,w){this.x=x;this.y=y;this.z=z;this.w=w;}set(x,y,z,w){Object.assign(this,{x,y,z,w});return this;}}
  class Color{constructor(value){this.value=value;}}
- class Texture{constructor(canvas){this.canvas=canvas;this.disposed=false;}dispose(){this.disposed=true;}}
+ class Texture{constructor(canvas){this.canvas=canvas;this.disposed=false;textures.push(this);}dispose(){this.disposed=true;}}
  class EffectComposer{
   constructor(){this.passes=[];this.renderCount=0;this.disposed=false;instances.push(this);}
   addPass(p){this.passes.push(p);}
@@ -22,8 +22,8 @@ function setup(){
   setSize(w,h){this.size=[w,h];}
   dispose(){this.disposed=true;}
  }
- class RenderPass{constructor(){this.label='RENDER';}}
- class UnrealBloomPass{constructor(){this.label='BLOOM';this.highPassUniforms={smoothWidth:{value:0}};}}
+ class RenderPass{constructor(){this.label='RENDER';}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
+ class UnrealBloomPass{constructor(){this.label='BLOOM';this.highPassUniforms={smoothWidth:{value:0}};}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
  class ShaderPass{
   constructor(shader){
    this.uniforms=shader.uniforms;
@@ -33,8 +33,9 @@ function setup(){
     'uRadius' in u?'SOFTNESS':'uStart' in u?'VIGNETTE':
     'uPattern' in u?'CRT':'uOffset' in u?'ROLL':'UNKNOWN';
   }
+  dispose(){this.disposeCount=(this.disposeCount||0)+1;}
  }
- class OutputPass{constructor(){this.label='OUTPUT';}}
+ class OutputPass{constructor(){this.label='OUTPUT';}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
  const THREE={
   Vector2:Vec2,Vector3:Vec3,Vector4:Vec4,Color,CanvasTexture:Texture,
   RepeatWrapping:'repeat',NearestFilter:'nearest'
@@ -55,7 +56,7 @@ function setup(){
   (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses);
  const externalPopup={external:true};
  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
- return {pipeline,composer:instances[0],externalPopup,instances};
+ return {pipeline,composer:instances[0],externalPopup,instances,textures};
 }
 const states={
  phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
@@ -123,7 +124,7 @@ test('CRT patterns have stable original order and fallback',()=>{
  assert.equal(pipeline.activeScanlinePreset('dot').id,'dot');
 });
 test('resize updates GPU sampling sizes and disposal releases owned textures',()=>{
- const {pipeline,composer,externalPopup}=setup();
+ const {pipeline,composer,externalPopup,textures}=setup();
  pipeline.resize(844,390,3);
  assert.deepEqual(composer.size,[844,390]);
  assert.equal(composer.dpr,3);
@@ -133,7 +134,24 @@ test('resize updates GPU sampling sizes and disposal releases owned textures',()
  }
  pipeline.render();
  assert.equal(composer.renderCount,1);
- pipeline.dispose();
+ assert.equal(pipeline.dispose(),true);
  assert.equal(composer.disposed,true);
  assert.equal(externalPopup.disposed,undefined);
+ assert.ok(composer.passes.length>=10);
+ for(const pass of composer.passes)
+  assert.equal(pass.disposeCount,1,pass.label+' must dispose owned resources');
+ assert.ok(textures.length>=5);
+ assert.ok(textures.every(texture=>texture.disposed),'CRT pattern textures must all be released');
+ assert.equal(pipeline.dispose(),false,'cleanup is idempotent');
+ for(const pass of composer.passes)assert.equal(pass.disposeCount,1);
+});
+test('a failing compositor pass cannot prevent other effects or composer cleanup',()=>{
+ const {pipeline,composer,textures}=setup();
+ const failing=composer.passes[2];
+ failing.dispose=()=>{throw Error('failed shader cleanup')};
+ assert.throws(()=>pipeline.dispose(),/failed shader cleanup/);
+ assert.equal(composer.disposed,true);
+ assert.equal(composer.passes.at(-1).disposeCount,1);
+ assert.ok(textures.every(texture=>texture.disposed));
+ assert.equal(pipeline.dispose(),false);
 });
