@@ -1,4 +1,4 @@
-# NOMAD Tetris — current architecture (V090)
+# NOMAD Tetris — current architecture (V091)
 
 This describes the current implementation rather than retaining a diary of every iteration. The authoritative build number is the `tetris-build` HTML meta tag.
 
@@ -12,12 +12,13 @@ This describes the current implementation rather than retaining a diary of every
 | `screen-manager.js` | Screen/navigation state and pause-before-menu rules |
 | `settings-manager.js` | Preferences, original storage keys and resets |
 | `display-settings-catalog.js` | CRT defaults, effect choices and slider conversion |
-| `platform-manager.js` | Viewport, DPR limit, safe areas, background/resume, update checks |
-| `input-controller.js`, `ui-controls.js` | Pointer/keyboard input and shared hitbox geometry |
+| `platform-manager.js` | Viewport, DPR limit, safe areas, pagehide/pageshow, background/resume and update checks |
+| `input-controller.js`, `ui-controls.js` | Pointer/keyboard input, hitboxes, and disposable event listeners/repeat timers |
 | `layout.js` | Responsive layout in CSS pixels |
 | `modal-ui.js`, `hud-drawing.js`, `canvas-ui.js`, `tile-face.js` | Menu and HUD drawing; shared block artwork |
 | `render-invalidation.js` | Repaint requests and dirty-layer tracking |
 | `graphics-health.js` | WebGL loss/recovery lifecycle, bounded error/event history |
+| `app-lifecycle.js` | Suspension/bfcache preservation, final-page teardown and idempotent owned graphics-resource cleanup |
 | `compositor.js` | GPU CRT effects and processing order |
 | `three-v027.js` | Scene/canvas allocation, renderer, game-frame scheduling and diagnostics |
 
@@ -34,6 +35,15 @@ The renderer listens to `lines-cleared` to preserve the exact approved line-flas
 - `reset`: fresh ready-state information
 
 A locking move emits these in game-rule order: piece locked, lines cleared (if applicable), level changed (if applicable), then game over (if the next piece cannot spawn). Event observation does not replace existing sound/score/UI state transitions. Rendering never mutates core methods.
+
+## Application lifecycle contract (V091)
+
+- `visibilitychange` or a `pagehide` with `persisted=true` **suspends**, without freeing WebGL resources, canvas textures, scene materials, or the game state. A running game pauses before being hidden.
+- Returning via visibility or a cached `pageshow` remeasures viewport/safe areas, invalidates drawing, resets frame pacing, and **does not resume gameplay automatically**.
+- A final `pagehide` with `persisted=false` performs one-time teardown: cancels RAF and pointer-repeat timers, unregisters listeners and the game event subscription, stops the platform observer and polling, detaches WebGL lifecycle events, disposes compositor render targets and owned textures/materials/geometries/renderer, releases backing canvases, and closes audio.
+- Hidden, disposed, or still-recovering pages do not accept gameplay or settings input.
+- The existing **Copy Debug** report includes suspension/resume counts and recent page lifecycle transitions. No background telemetry, persistence, or remote reporting was added.
+- Full browser history restoration and actual iOS Home Screen behaviour still require physical device verification. Never dispose only because a page is hidden.
 
 ## Non-negotiable behaviour
 
@@ -59,6 +69,5 @@ Current focused tests live in `tetris/tests/`. Selected legacy technical tests r
 ## Remaining engineering
 
 - Verify WebGL restoration on physical devices and investigate long-session resource growth. The existing Copy Debug report includes bounded WebGL events, failure counts, and recent resource-count trends (not measured GPU memory bytes).
-- Review graphics-resource teardown without breaking iOS Home Screen resume.
 - Plan future install/offline packaging (manifest, icons and dependable local assets).
 - Update this description when boundaries change; use Git history for older revisions.
