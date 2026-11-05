@@ -724,7 +724,9 @@ function frame(now){
   const phosphorOn=settings.effects.persistence===true;
   if(phosphorOn&&now<phosphorUntil&&now-lastHistoryRender>=33)
    layers.reason('phosphor-history');
-  const buttonSparks=buttonFeedback.sample(now);
+  // When the physical phosphor model is active, excitation ceases at
+   // release. Its GPU history owns decay, not V096's cosmetic fade.
+   const buttonSparks=buttonFeedback.sample(now,phosphorOn);
   if(buttonSparks.length||buttonGlowWasActive)layers.reason('button-afterglow');
   buttonGlowWasActive=buttonSparks.length>0;
   if(layers.needsRender()){

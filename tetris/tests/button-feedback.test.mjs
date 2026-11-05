@@ -65,3 +65,20 @@ test('shader brightens source face, protects dark glyphs, and creates no local h
  assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/float halo|float rim|float distance|exp\(/);
  assert.ok(BUTTON_FLASH_TOTAL_MS<700);
 });
+
+test('physical phosphor mode stops excitation on release instead of double-fading',()=>{
+ const f=createButtonFeedback();
+ const hit={x:12,y:22,w:40,h:40,kind:'button',light:true};
+ f.press(hit,0,true);
+ assert.equal(f.sample(100,true)[0].power,1);
+ f.release(hit,200);
+ assert.deepEqual(f.sample(200,true),[]);
+ assert.equal(f.count,0);
+ // A keyboard pulse has a minimum peak hold, then yields to GPU history.
+ f.press(hit,1000,false);
+ assert.equal(f.sample(1070,true)[0].power,1);
+ assert.deepEqual(f.sample(1100,true),[]);
+ // Unmodified V096 baseline still has its quadratic fade.
+ f.press(hit,2000,true);f.release(hit,2010);
+ assert.ok(f.sample(2100,false)[0].power>0);
+});

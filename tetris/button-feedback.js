@@ -23,15 +23,16 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
   if(!a||a.releasedAt!==null)return false;
   a.releasedAt=now;return true;
  }
- function sample(now){
+ function sample(now,physicalPersistence=false){
   if(!Number.isFinite(now))return [];
   for(let i=hits.length-1;i>=0;i--){
    const a=hits[i];
+   if(a.releasedAt!==null&&now>=a.releasedAt&&physicalPersistence){hits.splice(i,1);continue;}
    if(a.releasedAt!==null&&now-a.releasedAt>=BUTTON_AFTERGLOW_MS)hits.splice(i,1);
   }
   return hits.map(a=>{
    const age=a.releasedAt===null?0:Math.max(0,now-a.releasedAt);
-   const fade=Math.max(0,1-age/BUTTON_AFTERGLOW_MS);
+   const fade=physicalPersistence?1:Math.max(0,1-age/BUTTON_AFTERGLOW_MS);
    return Object.freeze({x:a.x,y:a.y,w:a.w,h:a.h,mode:a.mode,power:fade*fade});
   });
  }
