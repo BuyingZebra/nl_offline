@@ -10,6 +10,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
 import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v096';
+import {createPhosphorPersistencePass} from './phosphor-persistence.js?v097';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -102,6 +103,10 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  });
  buttonPulsePass.enabled=false;
  composer.addPass(buttonPulsePass);
+ // Experimental phosphor time history: grayscale, before optical glow/tint.
+ // Disabled when users toggle PHOSPHOR HISTORY off (V096 baseline).
+ const persistencePass=createPhosphorPersistencePass();
+ composer.addPass(persistencePass);
 
  // Analog ghost is a displaced image sample, not a duplicate HTML element.
  const ghostPass=new ShaderPass({
@@ -307,10 +312,14 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Keep the exact pass order, source textures and FX behavior. Measure the
  // CPU time spent issuing each pass only; no extra GL renders or readbacks.
  const passProfiler=instrumentCompositorPasses(composer.passes,[
-  'Scene + uploads','Board blur H','Board popup','Button response','Ghost','Bloom',
+  'Scene + uploads','Board blur H','Board popup','Button response','Phosphor history','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
  const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
+ // Approximate colours, not measured spectral power distributions.
+ const profileHues={p39:new THREE.Vector3(.59,1,.21),p31:new THREE.Vector3(.22,1,.34),
+  p1:new THREE.Vector3(.46,1,.23),p4:new THREE.Vector3(1,1,1)};
+ let persistenceWasEnabled=false;
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
@@ -329,6 +338,11 @@ function syncButtonFeedback(flashes,width,height){
   }
 }
 function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+ const historyEnabled=fx.persistence===true;
+ if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
+ persistenceWasEnabled=historyEnabled;
+ persistencePass.enabled=historyEnabled;
+ persistencePass.configure(fx.persistenceProfile);
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -337,7 +351,10 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  tint.uniforms.uEnabled.value=fx.phosphor?clamp(phosphorStrength,0,1):0;
  // The instant startup voltage spike changes luminance only, never hue.
  tint.uniforms.uVoltage.value=clamp(voltage,1,1.2);
- tint.uniforms.uTint.value.copy(hues[theme]);
+ // Active profiles have their own approximate emission hue; the original
+ // theme selection remains authoritative with PHOSPHOR HISTORY disabled.
+ tint.uniforms.uTint.value.copy(historyEnabled?
+  (profileHues[fx.persistenceProfile]||profileHues.p39):hues[theme]);
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
  const faded=clamp(Number(contentLuminance),0,1);
@@ -420,6 +437,8 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   for(const pass of composer.passes)if(pass.enabled!==false)activePasses++;
   return {activePasses,totalPasses:composer.passes.length};
  }
- return Object.freeze({syncFX,syncButtonFeedback,resize,setStartupRoll,render:()=>composer.render(),dispose,passStats,
+ return Object.freeze({syncFX,syncButtonFeedback,resize,setStartupRoll,
+  resetPersistence:()=>persistencePass.reset(),
+  render:(dt)=>composer.render(dt),dispose,passStats,
   activeScanlinePreset,SCANLINE_PRESETS});
 }

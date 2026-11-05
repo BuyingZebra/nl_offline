@@ -3,7 +3,9 @@
  * dependencies. Historical storage keys and reset behaviour are preserved.
  */
 import {DEFAULT_EFFECTS,effectSettingValue,effectSettingToStored}
- from './display-settings-catalog.js?v073';
+ from './display-settings-catalog.js?v097';
+import {phosphorProfile,nextPhosphorProfile,PHOSPHOR_PROFILES}
+ from './phosphor-model.js?v097';
 
 export const STORAGE_KEYS=Object.freeze({
  effects:'fieldAtlasThreeV027FX01',
@@ -32,6 +34,7 @@ export function createSettingsManager(storage){
  }catch(e){}
  // Match the existing V084 migration of out-of-range historical bloom values.
  effects.bloomStrength=clamp(Number(effects.bloomStrength)||0,0,1);
+ effects.persistenceProfile=phosphorProfile(effects.persistenceProfile).id;
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
  let theme=read(STORAGE_KEYS.theme,'green')==='amber'?'amber':'green';
@@ -53,10 +56,16 @@ export function createSettingsManager(storage){
    write(STORAGE_KEYS.sound,soundOn?'yes':'no');
    return;
   }
+  if(key==='persistenceProfile'&&!PHOSPHOR_PROFILES.some(p=>p.id===value))return;
   if(Object.prototype.hasOwnProperty.call(DEFAULT_EFFECTS,key)){
    effects[key]=effectSettingToStored(key,value,clamp);
    persistEffects();
   }
+ }
+ function cyclePhosphorProfile(){
+  effects.persistenceProfile=nextPhosphorProfile(effects.persistenceProfile);
+  persistEffects();
+  return effects.persistenceProfile;
  }
  function chooseScanline(id){
   effects.scanlines=id!=='off';
@@ -81,7 +90,7 @@ export function createSettingsManager(storage){
   get pieceGhost(){return pieceGhost;},
   get soundOn(){return soundOn;},
   get theme(){return theme;},
-  settingValue,setSetting,chooseScanline,toggleTheme,restoreDefaults,
+  settingValue,setSetting,chooseScanline,cyclePhosphorProfile,toggleTheme,restoreDefaults,
   readInitials:()=>read(STORAGE_KEYS.initials,'AAA'),
   saveInitials:value=>write(STORAGE_KEYS.initials,value)
  });

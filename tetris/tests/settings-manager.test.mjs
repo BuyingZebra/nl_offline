@@ -104,3 +104,30 @@ test('settings work if local persistence throws',()=>{
  assert.equal(settings.soundOn,true);
  assert.deepEqual(settings.effects,DEFAULT_EFFECTS);
 });
+
+
+test('V097 long persistence defaults to P39 and profiles cycle without affecting older controls',()=>{
+ const storage=memoryStorage(),s=createSettingsManager(storage);
+ assert.equal(s.effects.persistence,true);
+ assert.equal(s.effects.persistenceProfile,'p39');
+ assert.equal(s.cyclePhosphorProfile(),'p31');
+ assert.equal(s.cyclePhosphorProfile(),'p1');
+ assert.equal(s.cyclePhosphorProfile(),'p4');
+ assert.equal(s.cyclePhosphorProfile(),'p39');
+ s.setSetting('persistence',false);
+ assert.equal(s.effects.persistence,false);
+ assert.equal(s.effects.bloomStrength,.22);
+ const reopened=createSettingsManager(storage);
+ assert.equal(reopened.effects.persistenceProfile,'p39');
+ assert.equal(reopened.effects.persistence,false);
+ reopened.restoreDefaults();
+ assert.equal(reopened.effects.persistence,true);
+ assert.equal(reopened.effects.persistenceProfile,'p39');
+});
+test('unknown phosphor profile strings cannot enter stored settings',()=>{
+ const storage=memoryStorage(),s=createSettingsManager(storage);
+ s.setSetting('persistenceProfile','made-up');
+ assert.equal(s.effects.persistenceProfile,'p39');
+ s.setSetting('persistenceProfile','p31');
+ assert.equal(s.effects.persistenceProfile,'p31');
+});

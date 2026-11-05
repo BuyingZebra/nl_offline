@@ -8,7 +8,7 @@ export function createInputController({screen,document,window,initialsInput,
  getViewport,getRegions,getModal,getModalView,getOptionsScroll,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
- chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
+ chooseScanline,cyclePhosphorProfile=()=>{},openModal,invalidate,clamp,canInteract=()=>true,
  onButtonPress=()=>{},onButtonRelease=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
@@ -108,6 +108,7 @@ function releaseTouch(e){
      else if(r.act==='toggle')setSetting(r.field,!settingValue(r.field));
      else if(r.act==='patternSelect'&&optionPoint(p))toggleScanlineMenu();
      else if(r.act==='scanlineChoice'&&optionPoint(p))chooseScanline(r.field);
+     else if(r.act==='phosphorProfile'&&optionPoint(p))cyclePhosphorProfile();
      else if(!touch.inOptions||optionPoint(p))handleAction(r.act);
     }
    }else if(touch.mode==='slider'&&touch.region?.act==='slider'){
