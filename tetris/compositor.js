@@ -386,7 +386,8 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  edgeVignette.enabled=fx.vignette;
  edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
- scanlineOverlay.enabled=fx.scanlines&&fx.scanlineOpacity>0;
+ // The raster beam creates its own physical line gaps; no duplicate mask.
+ scanlineOverlay.enabled=!historyEnabled&&fx.scanlines&&fx.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];
  scanlineOverlay.uniforms.uPatternSize.value.set(scanlinePreset.rows[0].length,scanlinePreset.rows.length);
