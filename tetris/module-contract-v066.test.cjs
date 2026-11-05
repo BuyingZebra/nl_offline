@@ -10,7 +10,7 @@ const modulePaths=[
  'three-v027.js','build-version.js','canvas-ui.js','input-controller.js',
  'ui-controls.js','modal-ui.js','hud-drawing.js','display-settings-catalog.js',
  'cropped-ui-layers.js','render-invalidation.js','game-visual-state.js',
- 'settings-manager.js','screen-manager.js','tile-face.js',
+ 'settings-manager.js','screen-manager.js','platform-manager.js','tile-face.js',
  'compositor.js','perf-monitor.js','debug-report.js',
  'debug-clipboard.js','texture-upload-profiler.js','compositor-pass-profiler.js'
 ];
@@ -41,7 +41,8 @@ test('entrypoint remains single-screen Three.js with no redundant framework',()=
  const s=source('three-v027.js'),html=source('three-v027.html');
  assert.ok(s.includes('compositor.render();'));
  assert.ok(s.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
- assert.ok(s.includes("getBuildVersion,parsePublishedBuild,shouldReloadBuild"));
+ assert.ok(s.includes("import {getBuildVersion} from './build-version.js?v066'"));
+ assert.ok(source('platform-manager.js').includes("import {parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066'"));
  assert.ok(s.includes('paintGame();'));
  assert.ok(html.includes('canvas id="screen"'));
  assert.ok(html.includes('const freshModule='));
