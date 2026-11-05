@@ -16,15 +16,36 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 393, "height": 852},
                             device_scale_factor=2, is_mobile=True, has_touch=True)
     errors = []
+    failures = []
+    console_errors = []
     page.on("pageerror", lambda err: errors.append(str(err)))
+    page.on("requestfailed", lambda req: failures.append((req.url, req.failure)))
+    page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
 
     page.goto("http://127.0.0.1:8765/tetris/", wait_until="domcontentloaded")
     page.wait_for_url("**/tetris/three-v027.html", timeout=15000)
-    page.wait_for_function(
-        "() => { const c=document.querySelector('#screen');"
-        " return !!c && c.width >= 300 && c.height >= 700; }",
-        timeout=30000,
-    )
+    try:
+        page.wait_for_function(
+            "() => { const c=document.querySelector('#screen');"
+            " return !!c && c.width >= 300 && c.height >= 700; }",
+            timeout=30000,
+        )
+    except Exception:
+        state = page.evaluate("""() => ({
+          url: location.href, ready: document.readyState,
+          error: document.querySelector('#error')?.textContent,
+          errorVisible: !document.querySelector('#error')?.hidden,
+          width: document.querySelector('#screen')?.width,
+          height: document.querySelector('#screen')?.height,
+          build: document.querySelector('meta[name="tetris-build"]')?.content,
+          worker: !!navigator.serviceWorker?.controller,
+          webgl2: !!document.createElement('canvas').getContext('webgl2')
+        })""")
+        print("STARTUP DIAGNOSTICS:", state)
+        print("JAVASCRIPT ERRORS:", errors)
+        print("CONSOLE ERRORS:", console_errors[:12])
+        print("FAILED REQUESTS:", failures[:12])
+        raise
     page.wait_for_timeout(900)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
