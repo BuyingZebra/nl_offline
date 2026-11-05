@@ -17,7 +17,8 @@ import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v079';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v071';
-import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices,effectSettingValue,effectSettingToStored} from './display-settings-catalog.js?v073';
+import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v073';
+import {createSettingsManager} from './settings-manager.js?v085';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -36,8 +37,7 @@ const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink
 const ICON_FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const FONT='"Roboto Condensed",'+ICON_FONT;
 const TERMINAL_FONT='"Share Tech Mono",'+ICON_FONT;
-// Persist only user-facing settings; interface treatment is fixed design.
-const DEFAULT=DEFAULT_EFFECTS;
+// User preferences are owned by the Settings Manager, independent of rendering.
 const THREE_BUILD_VERSION=getBuildVersion(document);
 // The HTML build meta is authoritative; title, accessibility and debug labels derive from it.
 document.title='NOMAD — Tetris System | version: '+THREE_BUILD_VERSION;
@@ -64,19 +64,9 @@ const UI_SPACE=Object.freeze({
  padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
  holdHeight:88,nextHeight:162,statsHeight:92
 });
-const PREF='fieldAtlasThreeV027FX01';
-const load=(key,fallback)=>{try{return localStorage.getItem(key)??fallback}catch(e){return fallback}};
-const store=(key,value)=>{try{localStorage.setItem(key,String(value))}catch(e){}};
-let FX={...DEFAULT};
-try{const s=JSON.parse(load(PREF,'null'));if(s&&typeof s==='object')for(const [k,v] of Object.entries(DEFAULT))if(typeof s[k]===typeof v)FX[k]=s[k];}catch(e){}
-// Older saved bloom values may exceed the new slider upper bound.
-FX.bloomStrength=clamp(Number(FX.bloomStrength)||0,0,1);
-const persist=()=>store(PREF,JSON.stringify(FX));
+const settings=createSettingsManager(window.localStorage);
 const game=new Core.Game();
 let highs=Scores.read(window.localStorage),overOffered=false;
-let showGhost=load('fieldAtlasTetrisGhost','yes')!=='no';
-let soundOn=load('fieldAtlasTetrisSound','yes')!=='no';
-let theme=load('fieldAtlasThemeV06','green')==='amber'?'amber':'green';
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null,modal=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
@@ -184,7 +174,7 @@ const {SCANLINE_PRESETS}=compositor;
 
 // Game and terminal now share precisely the same tile-face renderer.
 function tone(freq=240,len=.04){
- if(!soundOn)return;
+ if(!settings.soundOn)return;
  try{const AC=window.AudioContext||window.webkitAudioContext;
   if(!AC)return;if(!audioCtx)audioCtx=new AC();
   if(audioCtx.state==='suspended')void audioCtx.resume();
@@ -233,7 +223,7 @@ function onOver(){
  if(game.status!=='over'||overOffered)return;
  overOffered=true;
  if(Scores.qualifies(highs,game.score)){
-  initialsInput.value=load('fieldAtlasTetrisInitials','AAA');
+  initialsInput.value=settings.readInitials();
   openModal('entry');
  }
 }
@@ -274,7 +264,7 @@ function saveScore(){
  const tag=Scores.initials(initialsInput.value);
  highs=Scores.save(window.localStorage,Scores.add(highs,
   {name:tag,score:game.score,lines:game.lines,level:game.level,at:Date.now()}));
- store('fieldAtlasTetrisInitials',tag);initialsInput.blur();layers.mark('sidebar');openModal('scores');
+ settings.saveInitials(tag);initialsInput.blur();layers.mark('sidebar');openModal('scores');
 }
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -355,7 +345,7 @@ function stage(r,drawPieces=true,recordRegion=true){
  }));
  if(!lineClearFX&&game.current&&game.status!=='over'){
   const p=game.current;
-  if(showGhost&&(game.status==='playing'||game.status==='paused')){
+  if(settings.pieceGhost&&(game.status==='playing'||game.status==='paused')){
    const target=game.ghostY();
    p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{if(kind)cell(offX,offY,p.x+rx,target+ry,tile,kind,true);}));
   }
@@ -549,17 +539,11 @@ function paintGame(){
 // Keep the canonical game effect settings and existing storage keys unchanged.
 const SCANLINE_CHOICES=scanlineChoices(SCANLINE_PRESETS);
 function settingValue(k){
- return effectSettingValue(k,FX,{ghost:showGhost,sound:soundOn});
+ return settings.settingValue(k);
 }
 function setSetting(k,value){
- if(k==='pieceGhost'){
-  showGhost=Boolean(value);store('fieldAtlasTetrisGhost',showGhost?'yes':'no');layers.mark('board');
- }else if(k==='sound'){
-  soundOn=Boolean(value);store('fieldAtlasTetrisSound',soundOn?'yes':'no');
- }else{
-  FX[k]=effectSettingToStored(k,value,clamp);
-  persist();
- }
+ settings.setSetting(k,value);
+ if(k==='pieceGhost')layers.mark('board');
  invalidate();
 }
 // The menu module owns its scroll, picker and canvas drawing state.
@@ -569,8 +553,9 @@ const modalUI=createModalUI({
  getViewport:()=>({W,H,DPR}),layout,insets,
  clearRegions:()=>{regions=[];},getContext:()=>g,
  panel,text,rect,region,key,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
- getFX:()=>FX,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
- settingValue,persist,invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
+ getFX:()=>settings.effects,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
+ settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
+ invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
  getHighs:()=>highs,getGame:()=>game,getInitialsInput:()=>initialsInput,
  getModal:()=>modal
 });
@@ -583,8 +568,8 @@ function createDebugReport(){
   platform:navigator.userAgent,
   viewport:{width:W,height:H,dpr:DPR,deviceDpr:Math.max(1,window.devicePixelRatio||1)},
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
-  display:{theme,orientation:W>H?'landscape':'portrait',phosphor:FX.phosphor,
-   settings:JSON.stringify({...FX,pieceGhost:showGhost,sound:soundOn})},
+  display:{theme:settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
+   settings:JSON.stringify({...settings.effects,pieceGhost:settings.pieceGhost,sound:settings.soundOn})},
   gpu,samples:recentPerf,current:perf.currentSnapshot()
  });
 }
@@ -627,8 +612,7 @@ function handleAction(act){
  if(act==='options'){options();return;}
  if(act==='scores'){scores();return;}
  if(act==='theme'){
-  theme=theme==='green'?'amber':'green';
-  store('fieldAtlasThemeV06',theme);layers.mark('base');invalidate();return;
+  settings.toggleTheme();layers.mark('base');invalidate();return;
  }
  if(act==='restart'){if(game.status==='paused')openModal('restart');return;}
  if(act==='restartYes'){restart();return;}
@@ -636,10 +620,7 @@ function handleAction(act){
  if(act==='saveScore'){saveScore();return;}
  if(act==='typeInitials'){initialsInput.focus();return;}
  if(act==='resetFX'){
-  FX={...DEFAULT};persist();
-  showGhost=true;soundOn=true;
-  store('fieldAtlasTetrisGhost','yes');
-  store('fieldAtlasTetrisSound','yes');
+  settings.restoreDefaults();
   modalUI.resetSettings();scrollVelocity=0;
   layers.mark('base');invalidate();return;
  }
@@ -698,7 +679,7 @@ function syncFX(){
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
- compositor.syncFX({fx:FX,theme,width:W,height:H,dpr:DPR,
+ compositor.syncFX({fx:settings.effects,theme:settings.theme,width:W,height:H,dpr:DPR,
   boardStatus:game.status,modalOpen:Boolean(modal),
   scoresOverlay:modal==='scores',
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
