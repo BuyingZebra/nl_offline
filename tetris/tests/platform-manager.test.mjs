@@ -10,7 +10,7 @@ function createHarness(){
  const events={window:new Map(),document:new Map()};
  const metrics={observed:0,disconnected:0,intervals:[],cleared:[],fetches:[],reloads:0,viewports:[],visibility:[],pageEvents:[]};
  let observer;
- let currentTime=20000,gameStatus='ready',screenOpen=false;
+ let currentTime=20000,gameStatus='ready',screenOpen=false,reloadAllowed=true;
  let response={ok:true,text:async()=>'<meta name="tetris-build" content="086">'};
  let fetchImpl=async()=>response;
  const display={getBoundingClientRect:()=>({...bounds})};
@@ -41,6 +41,7 @@ function createHarness(){
   onVisibility:hidden=>h.metrics.visibility.push(hidden),
   onPageHide:persisted=>h.metrics.pageEvents.push(['hide',persisted]),
   onPageShow:persisted=>h.metrics.pageEvents.push(['show',persisted]),
+  canReloadNewBuild:()=>reloadAllowed,
   now:()=>currentTime
  });
  const h={platform,window,document,display,safeProbe,metrics,
@@ -51,6 +52,7 @@ function createHarness(){
   setTime:n=>{currentTime=n;},
   setStatus:s=>{gameStatus=s;},
   setScreenOpen:v=>{screenOpen=v;},
+  setReloadAllowed:v=>{reloadAllowed=v;},
   setResponse:r=>{response=r;},
   setFetch:fn=>{fetchImpl=fn;}
  };
@@ -216,4 +218,17 @@ test('stop unregisters pagehide callbacks as well as other listeners',()=>{
  assert.equal(h.events.window.has('pagehide'),false);
  h.emit('window','pagehide',{persisted:false});
  assert.deepEqual(h.metrics.pageEvents,[]);
+});
+
+test('pinned service-worker generations cannot trigger stale-shell reload loops',async()=>{
+ const h=createHarness();h.platform.start();
+ h.setReloadAllowed(false);
+ h.setResponse({ok:true,text:async()=>'<meta name="tetris-build" content="093">'});
+ assert.equal(await h.platform.checkForNewBuild(),false);
+ assert.equal(h.metrics.fetches.length,1,'network check remains visible');
+ assert.equal(h.metrics.reloads,0,'controlled game must not reload old cached shell');
+ h.setReloadAllowed(true);
+ h.setTime(40000);
+ assert.equal(await h.platform.checkForNewBuild(),true);
+ assert.equal(h.metrics.reloads,1,'uncontrolled page may update when idle');
 });
