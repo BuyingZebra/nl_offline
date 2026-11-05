@@ -10,7 +10,7 @@ const modulePaths=[
  'three-v027.js','build-version.js','canvas-ui.js','input-controller.js',
  'ui-controls.js','modal-ui.js','hud-drawing.js','display-settings-catalog.js',
  'cropped-ui-layers.js','render-invalidation.js','game-visual-state.js',
- 'settings-manager.js','screen-manager.js','platform-manager.js','action-controller.js','graphics-health.js','tile-face.js',
+ 'settings-manager.js','screen-manager.js','platform-manager.js','app-lifecycle.js','action-controller.js','graphics-health.js','tile-face.js',
  'compositor.js','perf-monitor.js','debug-report.js',
  'debug-clipboard.js','texture-upload-profiler.js','compositor-pass-profiler.js'
 ];
