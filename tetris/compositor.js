@@ -363,11 +363,25 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   boardBlurHorizontal.uniforms.uSize.value.set(W,H);
   boardPopupPass.uniforms.uSize.value.set(W,H);
  }
- // Dispose is explicit; never dispose source textures owned by the game UI.
+ // EffectComposer.dispose() only owns its render targets and copy pass.
+ // It does NOT release added passes (notably bloom render targets/materials).
+ // All pass resources and CRT pattern textures must be explicitly released.
+ let disposed=false;
  function dispose(){
-  passProfiler.dispose();
-  composer.dispose();
-  for(const texture of Object.values(scanlineTextures))texture.dispose();
+  if(disposed)return false;
+  disposed=true;
+  const failures=[];
+  function safe(name,fn){
+   try{fn();}catch(error){failures.push(name+': '+String(error?.message||error));}
+  }
+  safe('profiler',()=>passProfiler.dispose());
+  for(const pass of composer.passes)
+   safe('pass',()=>pass.dispose?.());
+  safe('composer',()=>composer.dispose());
+  for(const texture of Object.values(scanlineTextures))
+   safe('scanline',()=>texture.dispose());
+  if(failures.length)throw new Error(failures.join(' | ').slice(0,240));
+  return true;
  }
  // Sampling is opt-in; do not scan the pipeline during normal gameplay.
  function passStats(){
