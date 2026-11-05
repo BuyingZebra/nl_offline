@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAppLifecycle,createGraphicsCleanup} from '../app-lifecycle.js';
+import {createPlatformManager} from '../platform-manager.js';
 
 test('visibility suspension preserves the session and can be resumed once',()=>{
  const events=[];
@@ -115,4 +116,56 @@ test('a failed resource disposal does not skip later resources or retry failures
  assert.equal(cleanup.errors[0].name,'texture');
  assert.equal(cleanup.dispose(),false);
  assert.equal(calls.length,3);
+});
+
+test('real platform hooks keep a cached page alive and release only on final hide',()=>{
+ const windowListeners=new Map(),documentListeners=new Map();
+ const calls=[];
+ const win={
+  devicePixelRatio:2,
+  getComputedStyle:()=>({paddingTop:'0px',paddingBottom:'0px',paddingLeft:'0px',paddingRight:'0px'}),
+  ResizeObserver:class {observe(){}disconnect(){calls.push('observer-stop')}},
+  addEventListener:(name,cb)=>windowListeners.set(name,cb),
+  removeEventListener:name=>windowListeners.delete(name),
+  setInterval:()=>3,clearInterval:()=>calls.push('timer-stop')
+ };
+ const document={
+  hidden:false,
+  addEventListener:(name,cb)=>documentListeners.set(name,cb),
+  removeEventListener:name=>documentListeners.delete(name)
+ };
+ const life=createAppLifecycle({
+  onSuspend:()=>calls.push('pause'),
+  onResume:()=>calls.push('redraw'),
+  onDispose:()=>{
+   calls.push('destroy');
+   platform.stop();
+  }
+ });
+ const platform=createPlatformManager({
+  window:win,document,display:{getBoundingClientRect:()=>({width:393,height:852})},
+  safeProbe:{},baseModuleURL:'https://example.test/tetris/three-v027.js',
+  buildVersion:'090',getGameStatus:()=>'paused',isScreenOpen:()=>false,
+  onViewport:()=>{},onVisibility:hidden=>
+   hidden?life.suspend('visibility'):life.resume('visibility'),
+  onPageHide:persisted=>life.pageHide(persisted),
+  onPageShow:persisted=>life.pageShow(persisted)
+ });
+ platform.start();
+ document.hidden=true;
+ documentListeners.get('visibilitychange')();
+ windowListeners.get('pagehide')({persisted:true});
+ assert.equal(life.status,'suspended');
+ assert.deepEqual(calls,['pause']);
+ document.hidden=false;
+ documentListeners.get('visibilitychange')();
+ windowListeners.get('pageshow')({type:'pageshow',persisted:true});
+ assert.equal(life.status,'active');
+ assert.deepEqual(calls,['pause','redraw']);
+ windowListeners.get('pagehide')({persisted:false});
+ assert.equal(life.status,'disposed');
+ assert.deepEqual(calls,['pause','redraw','pause','destroy','observer-stop','timer-stop']);
+ assert.equal(platform.running,false);
+ assert.equal(windowListeners.size,0);
+ assert.equal(documentListeners.size,0);
 });
