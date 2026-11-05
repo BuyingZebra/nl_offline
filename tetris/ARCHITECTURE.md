@@ -1,4 +1,4 @@
-# NOMAD Tetris — current architecture (V088)
+# NOMAD Tetris — current architecture (V089)
 
 This describes the current implementation rather than retaining a diary of every iteration. The authoritative build number is the `tetris-build` HTML meta tag.
 
@@ -17,6 +17,7 @@ This describes the current implementation rather than retaining a diary of every
 | `layout.js` | Responsive layout in CSS pixels |
 | `modal-ui.js`, `hud-drawing.js`, `canvas-ui.js`, `tile-face.js` | Menu and HUD drawing; shared block artwork |
 | `render-invalidation.js` | Repaint requests and dirty-layer tracking |
+| `graphics-health.js` | WebGL loss/recovery lifecycle, bounded error/event history |
 | `compositor.js` | GPU CRT effects and processing order |
 | `three-v027.js` | Scene/canvas allocation, renderer, game-frame scheduling and diagnostics |
 
@@ -37,13 +38,14 @@ The terminal is developed separately at `dev/nomad-terminal`, with its V083 orig
 
 The GitHub Actions workflow `.github/workflows/test-field-atlas-tetris-browser.yml` runs a curated Node test suite on relevant pushes. It covers hard-to-reproduce game rules, storage corruption, screen/action/platform races, layout and hitbox boundaries, shader-pass configuration, diagnostics and module references.
 
-Browser smoke tests (Chromium and WebKit) run only when manually triggered from GitHub Actions. They check actual startup, JS errors, non-blank output and viewport resize. Neither test suite replaces real-device visual, gameplay-feel or GPU performance testing.
+Browser smoke tests (Chromium and WebKit) run only when manually triggered from GitHub Actions. They check actual startup, JS errors, non-blank output, viewport resize and, when supported, simulated WebGL context loss/restoration. Neither test suite replaces real-device visual, gameplay-feel or GPU performance testing.
 
 Current focused tests live in `tetris/tests/`. Selected legacy technical tests remain at `tetris/*.test.cjs` until their behaviour-oriented coverage can be consolidated. Obsolete tests tied to earlier source locations or to the archived terminal were removed rather than retained on main.
 
 ## Remaining engineering
 
 - Replace the renderer's direct `game.lockPiece` override with an explicit game event interface.
-- Investigate WebGL context loss/recovery, cleanup and long-session memory behaviour.
+- Verify WebGL restoration on physical devices and investigate long-session resource growth. The existing Copy Debug report includes bounded WebGL events, failure counts, and recent resource-count trends (not measured GPU memory bytes).
+- Review graphics-resource teardown without breaking iOS Home Screen resume.
 - Plan future install/offline packaging (manifest, icons and dependable local assets).
 - Update this description when boundaries change; use Git history for older revisions.
