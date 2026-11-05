@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createActionController,GAME_ACTIONS} from '../action-controller.js';
 
-function harness(initialStatus='ready'){
+function harness(initialStatus='ready',canInteract=()=>true){
  const events=[],storage={getItem:()=>null,setItem:()=>{}};
  const game={
   status:initialStatus,pieces:0,lines:0,score:0,level:1,hold:null,
@@ -54,7 +54,7 @@ function harness(initialStatus='ready'){
   getInitialsInput:()=>initials,
   onCopyDebug:()=>events.push(['debug']),
   onResetSettingsUI:()=>events.push(['resetSettingsUI']),
-  now:()=>123456
+  canInteract,now:()=>123456
  });
  return {actions,events,game,initials,scores,settings,screens,
   setLineClear:value=>{lineClear=value;},
@@ -185,4 +185,26 @@ test('controller is isolated from UI, renderer, and event listener ownership',()
  assert.equal(Object.isFrozen(h.actions),true);
  for(const forbidden of ['renderer','context','screen','layout','canvas'])
   assert.equal(forbidden in h.actions,false,forbidden);
+});
+
+test('GPU interruption blocks invisible gameplay and menu actions',()=>{
+ const h=harness('paused',()=>false);
+ assert.equal(h.actions.perform('pause'),false);
+ assert.equal(h.actions.perform('hard'),false);
+ assert.equal(h.actions.perform('start'),false);
+ h.actions.dispatch('restartYes');
+ h.actions.dispatch('options');
+ h.actions.dispatch('theme');
+ h.actions.setSetting('bloomStrength',35);
+ h.actions.saveScore();
+ assert.deepEqual(h.events,[]);
+ assert.equal(h.game.status,'paused');
+});
+test('context-loss safety pause remains possible even if interaction is disabled',()=>{
+ const h=harness('playing',()=>false);
+ assert.equal(h.actions.perform('pause'),true);
+ assert.equal(h.game.status,'paused');
+ assert.equal(h.actions.perform('pause'),false);
+ assert.equal(h.game.status,'paused');
+ assert.deepEqual(h.events,[['dirty','board','controls'],['dirty','base'],['invalidate']]);
 });
