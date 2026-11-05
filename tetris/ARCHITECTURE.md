@@ -181,3 +181,22 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 - The optical/vignette pass returns to its original, completely independent state; it no longer owns fading or activates when disabled. No new GPU pass is added; the existing signal pass activates during fade, and remains dormant in normal gameplay.
 - Terminal 450ms 100→0, 1000ms hold, first game frame at 0, game 850ms 0→100; tap gate, disabled old glitch and roll effects, square UI corners and beveled Tetris tiles remain intact.
 - At normal content brightness, existing base canvases and scene styling are unchanged. The independently defined output base takes over the screen specifically during luminance transitions, and is never incorrectly gamma-converted as an sRGB byte value.
+
+## V084: terminal archived and removed from main startup
+- The complete original V083 source remains preserved on `archive/nomad-tetris-v083-terminal` with an independent development branch `dev/nomad-terminal`.
+- The main game no longer imports the terminal or boot sequence, and opens directly to its original READY screen. No gameplay mechanics, menus, CRT settings or styles were redesigned.
+- To avoid removing the original shared gameplay tile renderer, the tile-face implementation was extracted without geometry/luminance changes into `tile-face.js`.
+- Reintegrate the terminal only through an explicit optional lifecycle boundary once its independent preview is stable.
+
+## V085: settings manager extraction
+- `settings-manager.js` owns live preferences, persistence, defaults, ghost-piece and sound flags, theme selection, and preferred high-score initials. The existing storage keys are **unchanged**.
+- `display-settings-catalog.js` continues to own effect definitions, values and UI conversion; `compositor.js` remains independent of storage.
+- `three-v027.js` reads settings through the manager instead of owning mutable FX flags and `localStorage` calls. `modal-ui.js` delegates scanline changes to the manager instead of editing FX directly.
+- Restore Defaults continues to reset effects, ghost piece and sound, **not the green/amber theme**. Previously saved compatible values load as before.
+- Initial defaults, screen layout, menu drawing, touch actions, gameplay rules, normal CRT output and audio synthesis are intentionally unchanged.
+- Run `node --test tetris/tests/settings-manager.test.mjs` with Node 22+ for focused persistence regression coverage. Keep existing `tetris/*.test.cjs` regression suites.
+- Device verification is still needed for Safari and the installed iOS Home Screen app; static and unit checks do not prove pixel-equivalent output.
+
+## Proposed next architecture iteration
+- Separate screen/navigation state and application lifecycle from the central renderer, with explicit state transitions and input routing.
+- Start with a transition map and behavioral tests; preserve the approved layouts and pause/score behaviour while extracting responsibilities.
