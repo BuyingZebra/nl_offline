@@ -178,7 +178,7 @@ const graphicsHealth=createGraphicsHealth({
   // An interrupted GPU must never advance unseen gameplay or repeat inputs.
   if(game.status==='playing')actions.perform('pause');
   inputController?.cancel();scrollVelocity=0;
-  lastTime=performance.now();perf.resetPacing();
+  cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
  },
  onRestored:()=>{
   try{
@@ -706,6 +706,44 @@ function frame(now){
   console.error(e);
  }
 }
+// All GPU and input resources belong to this page. They remain allocated
+// during visibility suspension and Safari back/forward-cache navigation.
+// Release only when the browser abandons the page without caching it.
+const graphicsCleanup=createGraphicsCleanup({
+ renderer,compositor,scene,
+ textures:[texture,boardTexture,sidebarTexture,controlsTexture,
+  modalTexture,boardPopupTexture],
+ canvases:[input,boardCanvas,sidebarCanvas,controlsCanvas,
+  modalCanvas,boardPopupCanvas],
+ getAudioContext:()=>audioCtx
+});
+appLifecycle=createAppLifecycle({
+ onSuspend:()=>{
+  // Never advance gameplay invisibly or resume automatically on return.
+  if(game.status==='playing')actions.perform('pause');
+  inputController?.cancel();scrollVelocity=0;
+  cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
+  if(audioCtx?.state==='running'){
+   try{void audioCtx.suspend().catch(()=>{});}catch(error){}
+  }
+ },
+ onResume:()=>{
+  lastTime=performance.now();perf.resetPacing();
+  // Re-measure the safe area after iOS Home Screen and bfcache returns.
+  platform.resize(true);
+  invalidate('resume');
+ },
+ onDispose:()=>{
+  cancelPendingFrame();
+  unsubscribeGameEvents();
+  inputController?.dispose();
+  initialsInput.removeEventListener('input',onInitialsInput);
+  initialsInput.removeEventListener('keydown',onInitialsKeydown);
+  graphicsHealth.detach();
+  platform.stop();
+  graphicsCleanup.dispose();
+ }
+});
 const platform=createPlatformManager({
  window,document,display,safeProbe,baseModuleURL:import.meta.url,
  buildVersion:THREE_BUILD_VERSION,
@@ -727,11 +765,11 @@ const platform=createPlatformManager({
   invalidate('resize');
  },
  onVisibility:hidden=>{
-  if(hidden&&game.status==='playing')actions.perform('pause');
-  lastTime=performance.now();
-  perf.resetPacing();
-  if(!hidden)invalidate();
- }
+  if(hidden)appLifecycle.suspend('visibility');
+  else appLifecycle.resume('visibility');
+ },
+ onPageHide:persisted=>appLifecycle.pageHide(persisted),
+ onPageShow:persisted=>appLifecycle.pageShow(persisted)
 });
 graphicsHealth.attach();
 platform.start();
