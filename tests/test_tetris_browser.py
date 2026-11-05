@@ -62,27 +62,26 @@ with sync_playwright() as p:
     # Coordinates are derived from the current deterministic portrait layout
     # (header Options at x=330..376, board center/start near x=147,y=390).
     # Keep these smoke interactions separate from screenshot artwork tests.
-    page.mouse.click(353, 40)
+    # Test against a static ready-state control so modal redraws cannot
+    # conceal a missing afterglow. The PAUSE key has a visible button even
+    # before a session starts; input is inert but phosphor still responds.
+    page.mouse.click(265, 792)
     page.wait_for_timeout(70)
     hot = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
     page.wait_for_timeout(680)
     cold = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
-    # Compare at CSS resolution (screenshots otherwise use DPR=2 device pixels).
-    # A short-lived phosphor footprint must visibly brighten the actual
-    # Options button, then decay to its baseline without changing the menu.
-    crop = (332, 19, 376, 64)
+    hot.save(out / f"{browser_name}-glow-hot.png")
+    cold.save(out / f"{browser_name}-glow-cold.png")
+    crop = (200, 770, 332, 817)
     hot_pixels = list(hot.crop(crop).getdata())
     cold_pixels = list(cold.crop(crop).getdata())
     glow_delta = (sum(hot_pixels) - sum(cold_pixels)) / len(hot_pixels)
     print("BUTTON GLOW DIAGNOSTIC:", {"hotMean":sum(hot_pixels)/len(hot_pixels),
-      "coldMean":sum(cold_pixels)/len(cold_pixels),
-      "delta":glow_delta, "pageErrors":errors[:6],
-      "consoleErrors":console_errors[-10:],
-      "visibleError":page.locator("#error").is_visible(),
-      "errorMessage":page.locator("#error").text_content()[:400]})
-    hot.save(out / f"{browser_name}-glow-hot.png")
-    cold.save(out / f"{browser_name}-glow-cold.png")
+          "coldMean":sum(cold_pixels)/len(cold_pixels),"delta":glow_delta,
+          "pageErrors":errors,"consoleErrors":console_errors})
     assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
+    page.mouse.click(353, 40)
+    page.wait_for_timeout(150)
     settings_screen = page.screenshot()
     assert settings_screen != ready.read_bytes(), "Options did not change the screen"
     page.keyboard.press("Escape")
