@@ -1,12 +1,13 @@
-/* NOMAD Tetris V092 — self-contained, scoped offline application cache.
+/* NOMAD Tetris V093 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
  * Upgrade rule: bump CACHE_VERSION and review CORE_ASSETS with each release.
- * Never skipWaiting: an existing live game must finish on its current build.
+ * Existing clients keep their active worker; a waiting worker activates only
+ * once those clients close. Never skipWaiting or mix cache generations.
  */
 'use strict';
-const CACHE_VERSION='v092';
+const CACHE_VERSION='v093';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -63,11 +64,21 @@ async function warmOptionalFonts(cache){
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{
   const cache=await caches.open(CACHE_NAME);
-  // addAll must succeed before activating: an incomplete core cache is not offline ready.
-  const sources=CORE_ASSETS.map(asset=>new Request(new URL(asset,SCOPE),{cache:'reload'}));
-  await cache.addAll(sources);
-  await warmOptionalFonts(cache);
-  // Intentionally no skipWaiting: do not replace a running build.
+  try{
+   // All essential resources must arrive together, before this worker is usable.
+   const sources=CORE_ASSETS.map(asset=>new Request(new URL(asset,SCOPE),{cache:'reload'}));
+   await cache.addAll(sources);
+   // Reject a partial deployment: the cached shell MUST be from this release.
+   const shell=await cache.match(new URL('./three-v027.html',SCOPE));
+   const html=shell?.ok?await shell.text():'';
+   const build=html.match(/<meta\s+name=["']tetris-build["']\s+content=["']([0-9]{3})["']/i)?.[1];
+   if(build!==CACHE_VERSION.slice(1))throw Error('NOMAD offline shell version mismatch');
+   await warmOptionalFonts(cache);
+  }catch(error){
+   await caches.delete(CACHE_NAME);
+   throw error;
+  }
+  // Intentionally no skipWaiting: a running game keeps its own version.
  })());
 });
 
@@ -87,17 +98,11 @@ function canonicalAsset(url){
  // Normalizing prevents an unbounded cache entry per app launch.
  return new Request(url.origin+url.pathname,{credentials:'same-origin'});
 }
-async function networkFirst(request,key,event){
+async function fromPinnedCache(url){
+ // Never refresh individual runtime assets from the network: doing so could
+ // combine V093 HTML with another build's renderer or Three.js shaders.
  const cache=await caches.open(CACHE_NAME);
- try{
-  const response=await fetch(request);
-  if(response.ok){
-   event.waitUntil(cache.put(key,response.clone()).catch(()=>{}));
-  }
-  return response;
- }catch(error){
-  return await cache.match(key)||Response.error();
- }
+ return await cache.match(canonicalAsset(url))||Response.error();
 }
 async function fontsCacheFirst(request,event){
  const cache=await caches.open(CACHE_NAME);
@@ -120,5 +125,11 @@ self.addEventListener('fetch',event=>{
   event.respondWith(fontsCacheFirst(request,event));return;
  }
  if(url.origin!==SCOPE.origin||!ALLOWED_PATHS.has(url.pathname))return;
- event.respondWith(networkFirst(request,canonicalAsset(url),event));
+ // A build check must see the published HTML even while a pinned older
+ // worker controls the page. It never mutates the active shell cache.
+ if(url.pathname===new URL('./three-v027.html',SCOPE).pathname&&
+    url.searchParams.has('update-check')){
+  event.respondWith(fetch(request));return;
+ }
+ event.respondWith(fromPinnedCache(url));
 });
