@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Opt-in technical browser smoke for current NOMAD Tetris (no terminal assumptions)."""
 import os
+import io
 from pathlib import Path
 from PIL import Image
 from playwright.sync_api import sync_playwright
@@ -62,7 +63,17 @@ with sync_playwright() as p:
     # (header Options at x=330..376, board center/start near x=147,y=390).
     # Keep these smoke interactions separate from screenshot artwork tests.
     page.mouse.click(353, 40)
-    page.wait_for_timeout(150)
+    page.wait_for_timeout(70)
+    hot = Image.open(io.BytesIO(page.screenshot())).convert("L")
+    page.wait_for_timeout(680)
+    cold = Image.open(io.BytesIO(page.screenshot())).convert("L")
+    # A short-lived phosphor footprint must visibly brighten the actual
+    # Options button, then decay to its baseline without changing the menu.
+    crop = (332, 19, 376, 64)
+    hot_pixels = list(hot.crop(crop).getdata())
+    cold_pixels = list(cold.crop(crop).getdata())
+    glow_delta = (sum(hot_pixels) - sum(cold_pixels)) / len(hot_pixels)
+    assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
     settings_screen = page.screenshot()
     assert settings_screen != ready.read_bytes(), "Options did not change the screen"
     page.keyboard.press("Escape")
