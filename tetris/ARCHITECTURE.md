@@ -228,3 +228,17 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 
 ## Next architecture work
 - Audit `three-v027.js` for remaining coupled app coordination (high scores, sound cues, action dispatch, render scheduling). Extract only responsibilities with a narrow testable boundary; avoid moving the CRT pass graph or changing layout/pixels during architecture-only iterations.
+
+## V088: Action Controller — gameplay commands and app event routing
+- Preserve V087 as an immutable reference at `archive/nomad-tetris-v087`. This is an architectural-only extraction; no visible UI, layout, CRT, input geometry, game rule or score format changes are intended.
+- `action-controller.js` owns the user-facing application action dispatcher (`dispatch(action)`), gameplay command dispatch (`perform(type)`), score qualification/once-only game-over prompt (`onGameOver()`), manual restart, initials/score submission, settings mutation callbacks, and user-visible reaction routing (sounds and render invalidations).
+- `three-v027.js` remains responsible for drawing frames, WebGL/CRT scene and materials, renderer texture invalidation, audio oscillator synthesis, browser input wiring, and the game engine's tick/line-clear capture. Rather than containing another action map or mutable high scores, it injects minimal callbacks for layer marks, invalidation, sound, active line-clear status and score input.
+- The `Core.Game` instance still owns readiness/playing/paused/game-over, gravity, rule enforcement and scoring. `scores.js` continues to implement score persistence and qualification. The action controller owns the **live high-score list** returned by `Scores.read`; the existing HUD and high-score painter read it via `actions.highs`.
+- The V086 Screen Manager still owns which screen is open and pause-before-menu policy; it receives `actions.perform('pause')` as its callback. Input Controller keeps its existing action callback contract; the app passes `actions.dispatch`, `actions.perform`, and `actions.setSetting`. Direct keyboard and pointer input maps are unchanged.
+- A high-score entry is offered once after a qualifying game over; entering or saving initials, saving `{name,score,lines,level,at}`, resetting on restart, clearing the line-flash input lock, pausing during a flash, theme toggles, Restore Defaults, score menu opening and rendering/sound notifications retain their previous event order.
+- Action Controller has no Canvas, Three.js, WebGL or browser event listeners; input field focus/blur, clipboard, settings-menu state, audio and drawing are invoked only through injected adapters.
+- Run `node --test tetris/tests/action-controller.test.mjs` (13 tests) and existing `tetris/tests/{settings-manager,screen-manager,platform-manager}.test.mjs` suites, plus the legacy `tetris/*.test.cjs` suite.
+- Verify on a real device: start, left/right/rotate/drop/hold, pause/resume, restart confirmation, line clearing, game over/high score, settings and restore defaults, theme toggle, background pause, and browser/installed mode. Isolated logic tests do not establish pixel-equivalent output.
+
+## Next planned architecture audit
+- Audit remaining rendering lifecycle, score feedback, performance diagnostics and failure recovery; prefer narrow independent modules over another bulk rewrite. Keep visual refinements deferred as requested.
