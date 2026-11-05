@@ -1,4 +1,4 @@
-# NOMAD Tetris — current architecture (V093)
+# NOMAD Tetris — current architecture (V094)
 
 This describes the current implementation rather than retaining a diary of every iteration. The authoritative build number is the `tetris-build` HTML meta tag.
 
@@ -62,7 +62,14 @@ A locking move emits these in game-rule order: piece locked, lines cleared (if a
 - Finished WebAudio oscillators and gain nodes disconnect after playback. Rejected Safari AudioContext resume promises are handled without unhandled rejections; the audio context closes at final teardown.
 - Copy Debug's late asynchronous clipboard completion cannot redraw an already disposed page.
 - Node integration tests run **real game rules, action controller, score persistence, settings, screens, graphics health, and lifecycle together**, including scoring/line-clear events, menu-induced pause, browser suspension and resumed interaction. The browser smoke checks actual canvas boot, menu/input response, bfcache-like suspension, an offline reload and WebGL restoration.
-- No changes to approved CRT passes/shader order, game mechanics, layout geometry, user preferences, high-score storage, or branding. This closes the **planned architectural cleanup**; further work shifts toward **visual cohesion**, with technical fixes reopened only for demonstrated failures.
+- V093 completed architectural cleanup without changing the approved visuals. V094 begins **visual cohesion**, adding one opt-in-duration button response pass within the otherwise unchanged CRT processing order and calibrated monochrome tile values; technical fixes reopen only for demonstrated failures.
+
+## V094 — visual cohesion: tactile response and piece luminance
+
+- A temporary **button response shader** is composited after the board popup and before the unchanged phosphor, bloom, CRT and vignette passes. It restores the historical press brightness and fading phosphor footprint on ALL Canvas2D buttons, including overlay and menu controls. Pointer and keyboard input use the same feedback; gestures on the board do not trigger button reactions.
+- The pulse peaks for about 90ms and decays smoothly over 410ms. Up to eight recent button footprints are tracked; completed feedback and suspended-page remnants are discarded. During the afterglow, shader uniforms are updated without continuously repainting or re-uploading large UI canvases.
+- The established tetromino identities use familiar canonical RGB reference colours, converted to **Rec.709 relative luminance in linear sRGB**, then re-encoded as neutral grayscale for the existing beveled tile renderer. This preserves the meaningful bright yellow/cyan versus darker blue/purple visual hierarchy without injecting coloured pixels. Game board, HOLD and NEXT use the same module.
+- All button spacing, typography, touch-region geometry, gameplay mechanics, settings, high scores, and pre-existing CRT shader settings remain unchanged. Real iPhone intensity and animation timing can be tuned during visual polish without reopening the architecture.
 
 ## Non-negotiable behaviour
 
