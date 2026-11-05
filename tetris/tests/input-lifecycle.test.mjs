@@ -15,9 +15,9 @@ function target(){
   emit(name,event){return listeners.get(name)?.handler(event);}
  };
 }
-function harness(repeating=false,canInteract=()=>true){
+function harness(repeating=false,canInteract=()=>true,regions=null){
  const screen=target(),document=target(),window=target();
- let captured=null,released=0,actions=[],invalidations=0;
+ let captured=null,released=0,actions=[],invalidations=0,buttonPresses=[];
  screen.getBoundingClientRect=()=>({left:0,top:0,width:100,height:60});
  screen.setPointerCapture=id=>{captured=id};
  screen.hasPointerCapture=id=>captured===id;
@@ -25,13 +25,14 @@ function harness(repeating=false,canInteract=()=>true){
  const controller=createInputController({
   screen,document,window,initialsInput:{},
   getViewport:()=>({width:100,height:60}),
-  getRegions:()=>[{x:0,y:0,w:100,h:60,act:'left',repeat:repeating}],
+  getRegions:()=>regions||[{x:0,y:0,w:100,h:60,act:'left',repeat:repeating}],
   getModal:()=>null,getModalView:()=>null,getOptionsScroll:()=>0,
   setOptionsScroll:()=>{},getOptionsMaxScroll:()=>0,setScrollVelocity:()=>{},
   setBaseDirty:()=>{},handleAction:a=>actions.push(a),perform:a=>actions.push(a),
   setSetting:()=>{},settingValue:()=>0,toggleScanlineMenu:()=>{},chooseScanline:()=>{},
   openModal:()=>{},invalidate:()=>{invalidations++},
-  clamp:(n,a,b)=>Math.max(a,Math.min(b,n)),canInteract
+  clamp:(n,a,b)=>Math.max(a,Math.min(b,n)),canInteract,
+  onButtonPress:hit=>buttonPresses.push(hit)
  });
  function down(id=3){
   screen.emit('pointerdown',{
@@ -41,7 +42,8 @@ function harness(repeating=false,canInteract=()=>true){
  }
  return {controller,screen,document,window,down,
   get captured(){return captured},get released(){return released},
-  get actions(){return actions},get invalidations(){return invalidations}
+  get actions(){return actions},get invalidations(){return invalidations},
+  get buttonPresses(){return buttonPresses}
  };
 }
 test('input ownership registers one matching listener for each event',()=>{
@@ -99,5 +101,33 @@ test('suspended and recovering pages cannot receive hidden pointer or keyboard a
  h.screen.emit('pointerup',{pointerId:5,clientX:20,clientY:20,timeStamp:3});
  assert.equal(h.controller.pressed,null);
  assert.deepEqual(h.actions,['left']);
+ h.controller.dispose();
+});
+
+test('button presses trigger short-lived glow for pointer and keyboard input',()=>{
+ const hit={x:0,y:0,w:100,h:60,act:'left',kind:'button',repeat:false};
+ const h=harness(false,()=>true,[hit]);
+ h.down();
+ assert.equal(h.buttonPresses.length,1);
+ assert.equal(h.buttonPresses[0],hit);
+ h.controller.cancel();
+ h.document.emit('keydown',{code:'ArrowLeft',repeat:false,preventDefault(){}});
+ assert.equal(h.buttonPresses.length,2);
+ assert.equal(h.buttonPresses[1],hit);
+ h.controller.dispose();
+});
+test('non-button gameplay gestures never trigger the glow overlay',()=>{
+ const hit={x:0,y:0,w:100,h:60,act:'board',board:true};
+ const h=harness(false,()=>true,[hit]);
+ h.down();
+ assert.deepEqual(h.buttonPresses,[]);
+ h.controller.dispose();
+});
+test('inactive and recovering sessions cannot trigger afterglow events',()=>{
+ const hit={x:0,y:0,w:100,h:60,act:'left',kind:'button'};
+ const h=harness(false,()=>false,[hit]);
+ h.down();
+ h.document.emit('keydown',{code:'ArrowLeft',preventDefault(){}});
+ assert.deepEqual(h.buttonPresses,[]);
  h.controller.dispose();
 });
