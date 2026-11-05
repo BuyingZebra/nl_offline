@@ -21,6 +21,7 @@ import {createHudDrawing} from './hud-drawing.js?v071';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v073';
 import {createSettingsManager} from './settings-manager.js?v085';
 import {createScreenManager} from './screen-manager.js?v086';
+import {createActionController} from './action-controller.js?v088';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
@@ -65,7 +66,6 @@ const UI_SPACE=Object.freeze({
 });
 const settings=createSettingsManager(window.localStorage);
 const game=new Core.Game();
-let highs=Scores.read(window.localStorage),overOffered=false;
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
@@ -212,7 +212,7 @@ game.lockPiece=function(){
 };
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
- pauseGame:()=>perform('pause'),
+ pauseGame:()=>actions.perform('pause'),
  onChange:(previous,next)=>{
   // Preserve menu-local reset, touch capture and score popup invalidation.
   modalUI.reset();scrollVelocity=0;inputController?.cancel();
@@ -221,56 +221,24 @@ const screenManager=createScreenManager({
   invalidate();
  }
 });
-function onOver(){
- if(game.status!=='over'||overOffered)return;
- overOffered=true;
- if(Scores.qualifies(highs,game.score)){
-  initialsInput.value=settings.readInitials();
-  screenManager.openHighScoreEntry();
- }
-}
-function perform(type){
- // Allow pause during the line-clear animation; block gameplay moves.
- if(lineClearFX&&game.status==='playing'&&['left','right','cw','hard','hold'].includes(type))return false;
- const was=game.status,pieces=game.pieces,lines=game.lines,score=game.score,held=game.hold;
- let ok=false;
- if(type==='left')ok=game.move(-1);
- else if(type==='right')ok=game.move(1);
- else if(type==='cw')ok=game.rotate(1);
- else if(type==='hard')ok=game.hardDrop();
- else if(type==='hold')ok=game.holdPiece();
- else if(type==='pause')ok=game.pause();
- else if(type==='start')ok=game.start();
- if(ok){
-  layers.mark('board');layers.mark('controls');
-  if(game.pieces!==pieces||game.hold!==held)layers.mark('sidebar');
-  if(game.score!==score||game.lines!==lines)layers.mark('controls');
-  if(game.status!==was)layers.mark('base'); // refresh READY/PAUSED/OVER popup
-  if(was==='over'&&game.status==='playing')overOffered=false;
-  if(game.lines>lines)tone(610,.14);
-  else if(game.pieces>pieces)tone(175);
-  else if(type==='cw')tone(305);
-  else if(type==='hard')tone(185);
-  else if(type==='hold')tone(265);
-  onOver();invalidate();
- }
- return ok;
-}
-function restart(){
- lineClearFX=null;
- game.reset();game.start();layers.mark('board');layers.mark('sidebar');layers.mark('controls');layers.mark('base');overOffered=false;screenManager.close();invalidate();
-}
-function saveScore(){
- const tag=Scores.initials(initialsInput.value);
- highs=Scores.save(window.localStorage,Scores.add(highs,
-  {name:tag,score:game.score,lines:game.lines,level:game.level,at:Date.now()}));
- settings.saveInitials(tag);initialsInput.blur();layers.mark('sidebar');screenManager.openScores();
-}
+// All game commands, menu actions and score-entry coordination are delegated.
+// UI and render adapters remain here; the controller never paints.
+const actions=createActionController({
+ game,scores:Scores,storage:window.localStorage,settings,screens:screenManager,
+ getLineClearActive:()=>Boolean(lineClearFX),
+ clearLineClear:()=>{lineClearFX=null;},
+ markLayers:(...names)=>layers.mark(...names),
+ invalidate:()=>invalidate(),
+ tone:(freq,len)=>tone(freq,len),
+ getInitialsInput:()=>initialsInput,
+ onCopyDebug:()=>copyDebugReport(),
+ onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;}
+});
 initialsInput.addEventListener('input',()=>{
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
  invalidate();
 });
-initialsInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveScore();}});
+initialsInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();actions.saveScore();}});
 const {panel,wrapText,text,rect,region,key}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,getPressed:()=>inputController?.pressed,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
@@ -429,7 +397,7 @@ function paintBoardLayer(){
 }
 // Keep all original drawing commands and labels; only their render target changes.
 const {drawSidebar,drawControls}=createHudDrawing({
- panel,text,rect,key,smallPiece,getGame:()=>game,getHighs:()=>highs,
+ panel,text,rect,key,smallPiece,getGame:()=>game,getHighs:()=>actions.highs,
  C,UI_SPACE,fmt
 });
 // Cached opaque crops cover stale duplicates on the full-screen base. The
@@ -533,11 +501,6 @@ const SCANLINE_CHOICES=scanlineChoices(SCANLINE_PRESETS);
 function settingValue(k){
  return settings.settingValue(k);
 }
-function setSetting(k,value){
- settings.setSetting(k,value);
- if(k==='pieceGhost')layers.mark('board');
- invalidate();
-}
 // The menu module owns its scroll, picker and canvas drawing state.
 // Only live data and existing Canvas primitives cross this boundary.
 const modalUI=createModalUI({
@@ -548,7 +511,7 @@ const modalUI=createModalUI({
  getFX:()=>settings.effects,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
  settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
  invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
- getHighs:()=>highs,getGame:()=>game,getInitialsInput:()=>initialsInput,
+ getHighs:()=>actions.highs,getGame:()=>game,getInitialsInput:()=>initialsInput,
  getModal:()=>screenManager.active
 });
 function createDebugReport(){
@@ -597,27 +560,6 @@ function paintModalOverlay(){
  modalTexture.needsUpdate=true;
  perf.textureChanged('modal');
 }
-function handleAction(act){
- if(act==='block'||act==='scroll'||act==='board')return;
- if(act==='close'){screenManager.close();return;}
- if(act==='copyDebug'){copyDebugReport();return;}
- if(act==='options'){screenManager.openOptions();return;}
- if(act==='scores'){screenManager.openScores();return;}
- if(act==='theme'){
-  settings.toggleTheme();layers.mark('base');invalidate();return;
- }
- if(act==='restart'){screenManager.requestRestart();return;}
- if(act==='restartYes'){restart();return;}
- if(act==='skipScore'){initialsInput.blur();screenManager.close();return;}
- if(act==='saveScore'){saveScore();return;}
- if(act==='typeInitials'){initialsInput.focus();return;}
- if(act==='resetFX'){
-  settings.restoreDefaults();
-  modalUI.resetSettings();scrollVelocity=0;
-  layers.mark('base');invalidate();return;
- }
- if(['start','pause','hold','left','right','cw','hard'].includes(act))perform(act);
-}
 inputController=createInputController({
  screen,document,window,initialsInput,
  getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
@@ -630,7 +572,8 @@ inputController=createInputController({
   else if(act==='board')layers.mark('board');
   else if(act)layers.mark('controls');
  },
- handleAction,perform,setSetting,settingValue,
+ handleAction:actions.dispatch,perform:actions.perform,
+ setSetting:actions.setSetting,settingValue,
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp
@@ -684,7 +627,7 @@ function frame(now){
    layers.reason('gravity');
    if(game.lines>prior.lines)tone(590,.1);
    else if(game.pieces>prior.pieces)tone(180,.04);
-   onOver();
+   actions.onGameOver();
   }
   perf.recordGameChanges({advanced,visualChanged});
   if(screenManager.isOptions&&Math.abs(scrollVelocity)>.015){
@@ -748,7 +691,7 @@ const platform=createPlatformManager({
   invalidate('resize');
  },
  onVisibility:hidden=>{
-  if(hidden&&game.status==='playing')perform('pause');
+  if(hidden&&game.status==='playing')actions.perform('pause');
   lastTime=performance.now();
   perf.resetPacing();
   if(!hidden)invalidate();
