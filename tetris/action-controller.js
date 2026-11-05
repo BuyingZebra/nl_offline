@@ -15,7 +15,7 @@ export function createActionController({
  game,scores,storage,settings,screens,
  getLineClearActive,clearLineClear,markLayers,invalidate,tone,
  getInitialsInput,onCopyDebug,onResetSettingsUI,
- now=()=>Date.now()
+ canInteract=()=>true,now=()=>Date.now()
 }){
  if(!game||!scores||!settings||!screens||
     typeof getLineClearActive!=='function'||
@@ -37,6 +37,9 @@ export function createActionController({
  }
 
  function perform(type){
+  // During GPU interruption permit only the transition from playing to paused.
+  // Do not allow invisible controls to restart or resume the game.
+  if(!canInteract()&&!(type==='pause'&&game.status==='playing'))return false;
   // Preserve line-clear input lock: PAUSE is still permitted during the flash.
   if(getLineClearActive()&&game.status==='playing'&&
      BLOCKED_DURING_LINE_CLEAR.has(type))return false;
@@ -67,6 +70,7 @@ export function createActionController({
  }
 
  function restart(){
+  if(!canInteract())return;
   clearLineClear();
   game.reset();game.start();
   markLayers('board','sidebar','controls','base');
@@ -75,6 +79,7 @@ export function createActionController({
  }
 
  function saveScore(){
+  if(!canInteract())return;
   const input=getInitialsInput(),tag=scores.initials(input.value);
   highs=scores.save(storage,scores.add(highs,{
    name:tag,score:game.score,lines:game.lines,level:game.level,at:now()
@@ -84,12 +89,14 @@ export function createActionController({
  }
 
  function setSetting(key,value){
+  if(!canInteract())return;
   settings.setSetting(key,value);
   if(key==='pieceGhost')markLayers('board');
   invalidate();
  }
 
  function dispatch(action){
+  if(!canInteract())return;
   if(action==='block'||action==='scroll'||action==='board')return;
   if(action==='close'){screens.close();return;}
   if(action==='copyDebug'){onCopyDebug();return;}
