@@ -83,7 +83,10 @@ with sync_playwright() as p:
     page.wait_for_timeout(200)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
-    page.screenshot(path=str(out / f"{browser_name}-integrated-pause.png"))
+    paused_image = page.screenshot(path=str(out / f"{browser_name}-integrated-pause.png"))
+    assert paused_image != playing_image, (
+        "A suspended game did not visibly transition to its paused interface"
+    )
 
     page.set_viewport_size({"width": 844, "height": 390})
     page.wait_for_function(
