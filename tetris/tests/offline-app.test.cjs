@@ -159,7 +159,7 @@ test('offline HTML and cache-busted scripts load with no unbounded cache growth'
 });
 test('published updates bypass the old pinned shell but cannot mutate it',async()=>{
  const h=workerHarness();await h.emit('install');h.setVersion('new');
- h.setShellBuild('098');
+ h.setShellBuild('097');
  const published=await h.emit('fetch',{
   request:new Request(new URL('./three-v027.html?update-check=10',scope))
  });

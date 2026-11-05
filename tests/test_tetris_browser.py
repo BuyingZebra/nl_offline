@@ -83,10 +83,20 @@ with sync_playwright() as p:
     # synthetic down/up within one JS task never excites a physical raster.
     page.mouse.move(265, 792)
     page.mouse.down()
-    page.wait_for_timeout(180)
-    hot = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
+    # Software-rasterized WebKit can return an older framebuffer at first.
+    # Take several frames while actually holding the button, use the
+    # strongest measured excitation, then wait for the visible tail to fade.
+    crop = (200, 770, 332, 817)
+    frames = []
+    for _ in range(6):
+        page.wait_for_timeout(220)
+        frame = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
+        section = frame.crop(crop)
+        mean = sum(section.getdata()) / (section.width*section.height)
+        frames.append((mean,frame))
+    best_hot,hot = max(frames, key=lambda pair:pair[0])
     page.mouse.up()
-    page.wait_for_timeout(680)
+    page.wait_for_timeout(1200)
     cold = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
     hot.save(out / f"{browser_name}-glow-hot.png")
     cold.save(out / f"{browser_name}-glow-cold.png")
@@ -147,12 +157,12 @@ with sync_playwright() as p:
         )
         cache_count = page.evaluate("""async () => {
           const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v097');
+          const name = names.find(n => n === 'nomad-tetris-offline-v098');
           if (!name) return 0;
           const cache = await caches.open(name);
           return (await cache.keys()).length;
         }""")
-        assert cache_count >= 38, f"Incomplete V097 offline cache: {cache_count} entries"
+        assert cache_count >= 38, f"Incomplete V098 offline cache: {cache_count} entries"
 
         page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
         page.context.set_offline(True)
