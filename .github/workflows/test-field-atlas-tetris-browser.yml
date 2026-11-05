@@ -2,7 +2,7 @@ name: NOMAD Tetris — technical quality gate
 
 on:
   push:
-    branches: [main, nomad-v094-visual-cohesion]
+    branches: [main]
     paths:
       - 'tetris/**'
       - 'tests/test_tetris_browser.py'
