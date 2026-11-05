@@ -249,7 +249,7 @@ const actions=createActionController({
  getInitialsInput:()=>initialsInput,
  onCopyDebug:()=>copyDebugReport(),
  onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
- canInteract:()=>graphicsHealth.status==='ready'
+ canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 function onInitialsInput(){
  initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
@@ -599,7 +599,8 @@ inputController=createInputController({
  setSetting:actions.setSetting,settingValue,
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
- openModal:()=>screenManager.close(),invalidate,clamp
+ openModal:()=>screenManager.close(),invalidate,clamp,
+ canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 // Browser and installed-app lifecycle, viewport and update polling are delegated
 // to Platform Manager. The renderer retains only its drawing responsibilities.
