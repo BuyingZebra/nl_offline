@@ -13,7 +13,7 @@ const scope='https://buyingzebra.github.io/nl_offline/tetris/';
 
 function workerHarness(){
  const events=new Map(),storage=new Map(),deleted=[],claims=[];
- let online=true,failPath=null,version='old',shellBuild='093';
+ let online=true,failPath=null,version='old',shellBuild='094';
  const asURL=item=>typeof item==='string'?new URL(item,scope).href:
   item instanceof URL?item.href:item.url;
  async function fetchMock(item){
