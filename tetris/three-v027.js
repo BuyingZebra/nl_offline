@@ -7,8 +7,8 @@ import {createCompositor} from './compositor.js?v083';
 import {drawTileFace} from './tile-face.js?v084';
 import {createCanvasUI} from './canvas-ui.js?v079';
 import {getBuildVersion} from './build-version.js?v066';
-import {createPlatformManager} from './platform-manager.js?v091';
-import {createAppLifecycle,createGraphicsCleanup} from './app-lifecycle.js?v091';
+import {createPlatformManager} from './platform-manager.js?v093';
+import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
 import {createInputController} from './input-controller.js?v091';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
@@ -559,8 +559,12 @@ function copyDebugReport(){
  // Clipboard access must start inside the original touch-up user gesture.
  const report=createDebugReport();
  debugClipboard.copyText(report).then(success=>{
+  if(appLifecycle?.status==='disposed')return;
   modalUI.debugCopyState=success?'copied':'failed';invalidate();
- },()=>{modalUI.debugCopyState='failed';invalidate();});
+ },()=>{
+  if(appLifecycle?.status==='disposed')return;
+  modalUI.debugCopyState='failed';invalidate();
+ });
 }
 function paintModalOverlay(){
  // Repaint exactly one active dialog. Always clear the entire backing image
@@ -723,8 +727,12 @@ const graphicsCleanup=createGraphicsCleanup({
 });
 appLifecycle=createAppLifecycle({
  onSuspend:()=>{
-  // Never advance gameplay invisibly or resume automatically on return.
-  if(game.status==='playing')actions.perform('pause');
+  // The lifecycle is already suspended: guarded UI actions are blocked.
+  // Pause the rules directly and repaint the paused HUD on foreground return.
+  if(game.status==='playing'){
+   game.pause();
+   layers.mark('base','board','controls');
+  }
   inputController?.cancel();scrollVelocity=0;
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
@@ -737,22 +745,25 @@ appLifecycle=createAppLifecycle({
   platform.resize(true);
   invalidate('resume');
  },
- onDispose:()=>{
-  cancelPendingFrame();
-  unsubscribeGameEvents();
-  inputController?.dispose();
-  initialsInput.removeEventListener('input',onInitialsInput);
-  initialsInput.removeEventListener('keydown',onInitialsKeydown);
-  graphicsHealth.detach();
-  platform.stop();
-  graphicsCleanup.dispose();
- }
+ onDispose:()=>runCleanupTasks([
+  ['animation',cancelPendingFrame],
+  ['game-observer',unsubscribeGameEvents],
+  ['input',()=>inputController?.dispose()],
+  ['initials-input',()=>initialsInput.removeEventListener('input',onInitialsInput)],
+  ['initials-keydown',()=>initialsInput.removeEventListener('keydown',onInitialsKeydown)],
+  ['graphics-health',()=>graphicsHealth.detach()],
+  ['platform',()=>platform.stop()],
+  ['graphics',()=>graphicsCleanup.dispose()]
+ ])
 });
 const platform=createPlatformManager({
  window,document,display,safeProbe,baseModuleURL:import.meta.url,
  buildVersion:THREE_BUILD_VERSION,
  getGameStatus:()=>game.status,
  isScreenOpen:()=>screenManager.hasModal,
+ // A pinned worker owns a complete release: reloading cannot activate a
+ // waiting upgrade until old clients have closed.
+ canReloadNewBuild:()=>!navigator.serviceWorker?.controller,
  onViewport:({width,height,dpr})=>{
   const unchanged=width===W&&height===H&&dpr===DPR;
   cachedLayout=null;
