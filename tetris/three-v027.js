@@ -1,6 +1,6 @@
-/* FIELD ATLAS / TETRIS — V027 screen rebuilt in Canvas2D + THREE.JS.
- * Source remains grayscale; whole-screen GPU processes gameplay, panels and menus.
- * Engine and scores are the unchanged V027 modules, shared with live Tetris.
+/* NOMAD TETRIS — Canvas2D source, Three.js CRT compositor.
+ * Gameplay belongs to core.js; rendering observes immutable game events.
+ * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v083';
