@@ -180,8 +180,10 @@ const graphicsHealth=createGraphicsHealth({
  },
  onRestored:()=>{
   try{
-   // Three.js recreates its internal WebGL context. Re-upload all current
-   // CanvasTextures, including hidden UI planes, on the first recovered frame.
+   // Three.js reinitializes its internal WebGL context. Reapply the
+   // established viewport and mark all CanvasTextures dirty. Visible planes
+   // reupload immediately; hidden planes upload on their next appearance.
+   renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
    compositor.resize(W,H,DPR);
    for(const source of [texture,boardTexture,sidebarTexture,controlsTexture,
     modalTexture,boardPopupTexture])source.needsUpdate=true;
