@@ -60,7 +60,11 @@ function setup(){
   fmt:(n,k=6)=>String(n).padStart(k,'0'),C,UI_SPACE,BUTTON_ICON_FONT_SIZE:18,
   getFX:()=>FX,activeScanlinePreset:id=>({id}),
   settingValue:k=>catalog.effectSettingValue(k,FX,{ghost:true,sound:false}),
-  persist:()=>{changes++;},invalidate:()=>note('invalidate'),
+  chooseScanlineSetting:id=>{
+   FX.scanlines=id!=='off';
+   if(id!=='off')FX.scanlinePreset=id;
+   changes++;
+  },invalidate:()=>note('invalidate'),
   setScrollVelocity:v=>{scrollVelocity=v;},
   getHighs:()=>[{name:'AAA',score:9999,lines:12,level:2}],
   getGame:()=>({score:822}),
@@ -160,9 +164,9 @@ test('copy-debug status glyph and key remain in dedicated modal module',()=>{
 test('V064 module extraction leaves WebGL and game core separate',()=>{
  const main=read('three-v027.js');
  const modal=read('modal-ui.js');
- assert.ok(main.includes("from './modal-ui.js?v079'"));
+ assert.match(main,/from '\.\/modal-ui\.js\?v[0-9]+';/);
  assert.ok(main.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
- assert.ok(main.includes("const q=modalUI.modalBounds(modal);"));
+ assert.ok(main.includes("const q=modalUI.modalBounds(screenManager.active);"));
  assert.ok(main.includes('try{modalUI.paintModal(q);}'));
  assert.ok(!main.includes('function drawOptions(q)'));
  assert.ok(!main.includes('function drawScores(q)'));
