@@ -1,244 +1,49 @@
-# Tetris System architecture (V083)
+# NOMAD Tetris — current architecture (V088)
 
-## Runtime
-- `build-version.js`: pure build-version parser and safe update decision. The **only authoritative release number** is the `tetris-build` HTML metadata in `three-v027.html`; the renderer derives the footer, document title, aria label and debug build number from it.
-- `core.js`: deterministic Tetris state, gravity, collisions, scoring and locking. No WebGL dependency.
-- `scores.js`: high-score persistence.
-- `layout.js`: responsive geometry in CSS pixels; source and GPU use a capped render DPR of 2.
-- `input-controller.js`: touch/keyboard events and auto-repeat. Calls actions; does not paint or submit WebGL.
-- `three-v027.js`: application composition, scene resources, lifecycle and render scheduling.
-- `render-invalidation.js`: the single owner of layer dirty flags, pending composites and redraw reasons. Call `mark(layer...)` for changed source data; `reason(kind)` for attribution/input; call `consume(layer)` once when a layer is actually painted. Never directly upload textures on every animation callback.
-- `hud-drawing.js`: reusable rendering for the sidebar and controls, supplied live state and Canvas primitives by the app; preserves established key order and touch geometry.
-- `display-settings-catalog.js`: display-effect defaults, slider definitions, preset choices and value conversions, separate from UI painting.
-- `modal-ui.js`: owns settings thumbnail generation, settings rows and sliders, modal bounds, in-board Top Five leaderboard, Restart, initials entry, and all menu-specific scroll/picker/debug-label state. It receives Canvas primitives and live state through injected callbacks. It performs no WebGL rendering and does not own game state.
-- `three-v027.js` retains modal canvas allocation/texture upload, the WebGL scrim and visibility ordering, debug-report generation, and application-level action routing. `input-controller.js` reads menu hitboxes and scroll state from the modal module.
-- `ui-controls.js`: pure shared geometry contract for buttons and sliders, including complete hitboxes, clipping-aware reverse-order hit-testing and slider input values. No DOM, Canvas, WebGL or game dependencies.
-- `canvas-ui.js`: draws button descriptors from `makeButtonControl` and registers their exact model hitboxes; its generic `region()` delegates to `makeRegion`.
-- `modal-ui.js`: draws each slider from `makeSliderControl` and registers the same model's track/hit-region geometry.
-- `input-controller.js`: consumes `findRegionAt` and `sliderValueAt`; no independent slider-track or hit-test geometry calculations.
-- `cropped-ui-layers.js`: device-pixel-aligned crop and orthographic-plane positioning.
-- `game-visual-state.js`: compares visually observable game state to avoid unnecessary redraws.
-- `compositor.js`: existing full-screen ordered Three.js CRT pipeline. Independent of gameplay rules.
-- `perf-monitor.js`, `debug-report.js`, `compositor-pass-profiler.js`, `texture-upload-profiler.js`: opt-in diagnostics available via the existing debug-copy action. CPU submission times are not GPU shader execution times.
+This describes the current implementation rather than retaining a diary of every iteration. The authoritative build number is the `tetris-build` HTML meta tag.
 
-## Rendering contracts
-1. Game logic runs independently from drawing.
-2. The **base** CanvasTexture covers the complete screen. It should update on layout or relevant status/UI changes, not for each falling block.
-3. The **board** CanvasTexture is cropped and updates when visible pieces change or lines flash.
-4. The **sidebar** texture updates when queue/hold/piece stats change.
-5. The **controls** texture updates for scores and button feedback.
-6. Popup and modal textures retain their established ordering and interaction priority. The `modal-ui.js` painter registers the same hit regions; the app's `paintModalOverlay` keeps the original clear/compose/upload sequence.
-   - `modalUI.reset()` on opening/changing a modal resets menu scroll, expanded picker, view and debug-copy status.
-   - `modalUI.resetSettings()` when restoring defaults clears scroll and scanline expansion without affecting other app state.
-   - During options momentum scrolling, only the modal canvas must be repainted and uploaded.
-7. The scene layers are composed **before** bloom, phosphor, vignette, scanlines and output. Effects still process the combined full screen.
-8. `mark('board')` must not implicitly mark `base`. Keep redraw causes in one place.
-9. Every button shares one geometry record for painting and hit registration; sliders use their track and hitbox from one model. Reverse draw order still determines touch priority, and settings controls remain clipped to their scroll view.
-10. Preserve exact grayscale appearance, approved spacing, text, icon sizes and the user-defined effect settings.
+## System ownership
 
-## Performance baseline
-V062 iPhone 393×852, render DPR2:
-- No base uploads across seven ordinary-play 2-second samples.
-- Draw calls can be ~21 per submitted frame with current enabled FX.
-- Small uploads and skipped unchanged compositor frames are more important than raw requestAnimationFrame callback count.
-- `renderer.initTexture` elapsed time includes CPU/driver waits, and is **not** direct GPU execution time.
+| Module | Responsibility |
+| --- | --- |
+| `core.js` | Game rules, gravity, collision, scoring and gameplay status |
+| `scores.js` | Top-five ranking, migration and persistence |
+| `action-controller.js` | Gameplay commands, saved-score events and menu action routing |
+| `screen-manager.js` | Screen/navigation state and pause-before-menu rules |
+| `settings-manager.js` | Preferences, original storage keys and resets |
+| `display-settings-catalog.js` | CRT defaults, effect choices and slider conversion |
+| `platform-manager.js` | Viewport, DPR limit, safe areas, background/resume, update checks |
+| `input-controller.js`, `ui-controls.js` | Pointer/keyboard input and shared hitbox geometry |
+| `layout.js` | Responsive layout in CSS pixels |
+| `modal-ui.js`, `hud-drawing.js`, `canvas-ui.js`, `tile-face.js` | Menu and HUD drawing; shared block artwork |
+| `render-invalidation.js` | Repaint requests and dirty-layer tracking |
+| `compositor.js` | GPU CRT effects and processing order |
+| `three-v027.js` | Scene/canvas allocation, renderer, game-frame scheduling and diagnostics |
 
-## Development and verification
-- Keep the permanent URL: https://buyingzebra.github.io/nl_offline/tetris/
-- **Release versioning:** edit only `<meta name="tetris-build" content="NNN">` in `three-v027.html` to advance the displayed build. `three-v027.js` derives `THREE_BUILD_VERSION` from that meta marker, so do not add a second hard-coded version. `document.title`, accessible title and debug report update automatically. The game at `/tetris/` remains the same stable link.
-- Run tests using `node --test tetris/*.test.cjs`. V064 checks settings, scores and restart. V065 checks unified touch geometry. V066 adds `build-version-v066.test.cjs` (meta parsing, update gate, offline/malformed responses, foreground safety) and `module-contract-v066.test.cjs` (ESM imports and bootstrap).
-- The running app checks the published `three-v027.html` with `cache:'no-store'` on reactivation and while idle; it **must not reload** during gameplay, pause, completed games, or any open modal. A failure/offline response must not interrupt a working game.
-- New functional tests should exercise the public APIs with representative values, not inspect incidental source formatting or require a hard-coded release number. Treat GPU frame timings as on-device checks.
-- Keep tests for menu drawing in `modal-ui-v064.test.cjs`; do not reintroduce menu-painter assertions against `three-v027.js`. Avoid brittle source-string checks where a behavioral test is possible.
-- Verify touch controls, pressed/released feedback, hold/next, READY/PAUSED/OVER popups, menu scrolling, and both device orientations.
-- Confirm current rendering costs on an actual iPhone via the copied debug report; automated checks alone cannot establish visual equivalence.
-- Work in small reviewable changes; preserve the V062 behavior/appearance benchmark.
+## Non-negotiable behaviour
 
-## Deliberately deferred
-- Extracting the remaining application-owned menu actions and debug-report gathering (drawing and menu-local state are separated in V064).
-- Refine declarative toggle/row component definitions as future screens need them (buttons, sliders, regions and hit-testing already share a model in V065).
-- Continue migrating old source-inspection assertions toward behavioral tests as features are touched. Version metadata is centralized as of V066.
-These are sensible follow-up cleanups, not prerequisites for adding gameplay features.
+- Preserve the approved game rules, grayscale source artwork, square-corner interface, font roles and beveled block faces.
+- Preserve saved settings and high-score keys; do not discard user preferences on releases.
+- Keep the CRT effect ordering and the 2x render-DPR cap; upload only changed source textures.
+- Preserve Safari `100dvh` and the `ios-standalone` `100vh` exception; safe-area insets come from CSS.
+- Menu close and app foreground events must not silently resume gameplay.
+- Build checks fetch uncached HTML and must never reload active/paused/completed games or open menus.
 
-## V067 score display
-- Top Five is a compact five-row table inside the portrait gameplay board, with rank, name, score, level and lines, plus PLAY AGAIN and BACK actions.
-- Unusually narrow landscape board geometry uses a wider centered fallback for readable records and touch controls.
-- Device-local high-score persistence, qualification, initials entry, game rules and CRT effects remain unchanged.
-- The dark scrim is removed only for the Top Five display, preserving the surrounding live HUD.
+## Terminal and legacy service workers
 
-## V068: pause-style score backdrop and UI borders
-- Top Five artwork is painted into the sharp board-popup CanvasTexture, after the same horizontal and vertical Gaussian board blur/fade used for READY, PAUSED and GAME OVER. The background remains visible through transparent score rows.
-- The pause/game-over popup is not drawn underneath scores. A single secondary RETURN button closes to the prior game status; score view has no restart action.
-- Entering and leaving the score view explicitly dirties the base/popup once; ordinary gravity still doesn't upload the fullscreen base.
-- Standard outlines brighten 12% (#6a6a6a -> #777777), while the subtle Top Five outlines lift #292929 -> #2e2e2e; gameplay grid and controls retain previous fill luminance.
-- Narrow-landscape fallback extends Gaussian board blur bounds to the expanded score panel.
+The terminal is developed separately at `dev/nomad-terminal`, with its V083 original reference at `archive/nomad-tetris-v083-terminal`. It is not present or loaded on main. The `tetris/sw.js` file is deliberately kept as an **unregistration tombstone** for older PixiJS installations; it is not offline caching for the current game.
 
-## V069 Top Five chart
-- The ranking numbers remain, but their # column label is removed. The remaining four headers and all corresponding values use identical column center positions.
-- A single transparent table frame rounds only the four outside corners; four hard straight internal rules give every row a complete outline. All standard grayscale and blur settings remain.
-- RETURN is now a solid-filled button using the existing shared button drawing and action.
+## Technical tests
 
-## V070 typography trial
-- Teko Bold (700) is the display face, falling back to the previous monospace if it is unavailable. Screen geometry, 14/16/18px control labels/icons, settings, CRT effects, and score persistence are unchanged.
-- Icon-only labels use the prior monospace font. Font selection happens inside the existing Canvas2D `text()` primitive, so measuring and drawing use the same font.
-- The Google Fonts stylesheet loads before the main entrypoint; a successful `document.fonts.load()` triggers one paint of the screen layers, without blocking first render. This first trial uses remote Teko, not a locally hosted font.
+The GitHub Actions workflow `.github/workflows/test-field-atlas-tetris-browser.yml` runs a curated Node test suite on relevant pushes. It covers hard-to-reproduce game rules, storage corruption, screen/action/platform races, layout and hitbox boundaries, shader-pass configuration, diagnostics and module references.
 
-## V071 — Fallout 4 font roles
-- Replace Teko with Roboto Condensed Bold (700) for headings, gameplay UI labels, menus and buttons.
-- Share Tech Mono Regular (400) is used for numeric statistics, top-five entries, settings values, score entry readout and Program/Version metadata. Column centers and sizing remain unchanged.
-- Icons still use the original system monospace font. The role switch is handled by the Canvas2D text function before wrapping and measuring.
-- Google Fonts supplies the two faces with the system monospace as an offline fallback; font readiness triggers redraw without blocking gameplay. Fonts are stylistically accurate substitutes, not copied game assets.
+Browser smoke tests (Chromium and WebKit) run only when manually triggered from GitHub Actions. They check actual startup, JS errors, non-blank output and viewport resize. Neither test suite replaces real-device visual, gameplay-feel or GPU performance testing.
 
-## V072 vertical typographic centering
-- The shared Canvas text routine uses `actualBoundingBoxAscent` and `actualBoundingBoxDescent` to center the painted glyph bounds on the preexisting text anchors. The role-based font families, alignment, button dimensions and touch hitboxes remain unchanged.
-- Older Canvas implementations exposing only width fall back to the previous `middle` baseline. Three focused tests cover fonts, buttons and compatibility.
+Current focused tests live in `tetris/tests/`. Selected legacy technical tests remain at `tetris/*.test.cjs` until their behaviour-oriented coverage can be consolidated. Obsolete tests tied to earlier source locations or to the archived terminal were removed rather than retained on main.
 
+## Remaining engineering
 
-## V073: user-approved CRT defaults
-- The October 26 Display System screenshot is the new baseline: phosphor ON (green default theme); CRT scanlines ON, APERTURE pattern at 49%; screen vignette ON at 57%; phosphor bloom ON at 22%.
-- Signal ghosting OFF, retained X 2px / Y 0px / intensity 22%; edge softness OFF, retained strength 64% / radius 3.0px.
-- Defaults apply to first-time visitors and the existing Restore Defaults action. Previously saved user adjustments remain intact until manually restored. Ghost-piece and sound defaults are unchanged; no screen layout or compositor changes.
-
-## V074: boot-to-CRT transition
-- The `boot-sequence.js` classic script runs before engine imports and types a longer fictional ROM/diagnostic transcript over an opaque DOM overlay, so unfinished WebGL canvases and font reloads remain unseen.
-- The terminal briefly collapses to a bright horizontal trace, then powers off to black; there is **no rolling of the terminal text**.
-- Only a successful `compositor.render()` after a complete source-layer paint signals initial readiness. After boot text finishes, a callback starts an already-offset vertical CRT roll in the finished GPU image; the black cover is removed only after the **first rolled GPU frame** is submitted.
-- `boot.rollTurns(t)` integrates constant initial speed followed by smooth deceleration through exactly two whole signal revolutions, returning to a zero-offset static image. The optional `compositor.setStartupRoll()` GPU pass is inserted after the approved CRT mask and before Output and is disabled outside the handoff.
-- No saved effects, score/game logic, layout, normal CRT settings, or gameplay textures are changed. A slow init leaves the boot terminal visible, rather than revealing uninitialized content. Boot animation is one-shot per navigation, not per modal/game session.
-- Run `boot-sequence.test.cjs`, `compositor.test.cjs` and existing regressions. Confirm signal appearance/timing on a real phone; CPU tests cannot certify GPU rendering.
-
-
-## V075: approved first-concept NOMAD terminal
-- The original full-screen diagnostic concept (not the later two-column framed UI) is now an actual generated Canvas2D surface: a large NOMAD // TETRIS SYSTEM masthead, eight-plus diagnostic checks, deterministic hex/ASCII dump, small board illustration, modules/memory/signal readouts, READY prompt and square cursor.
-- `terminal-screen.js` produces **only grayscale pixels**. The scene uses that same source canvas as the loading cover and, after Three.js initializes, as the fullscreen scene texture. The native game compositor applies saved green/amber phosphor tint, bloom, CRT mask, vignette and optional effects. The before-WebGL fallback uses CSS approximation only until a real GPU terminal frame appears.
-- `FieldAtlasTerminal.tileFace` is the exact eight-layer shared drawing function for game cells, small-piece previews and terminal artwork; preserve its per-kind luminance, inset cap and top/bottom bevel.
-- `boot-sequence.js` coordinates startup typing/progressive reveal, the completed GPU terminal frame, terminal snap-off, and the rolling game pop-on. Existing gameplay uses the normal source canvas again once rolling starts, and its input is disabled until the game is revealed.
-- The saved V073 CRT controls, UI fonts, display settings, game layout, scores and physics are not changed. The terminal is transitory, rendered only during a cold navigation.
-- `boot-sequence.test.cjs` and `terminal-screen.test.cjs` verify readiness, luminance, shared blocks and terminal hierarchy; browser/phone visual validation remains necessary.
-
-
-## V076: extended terminal hold, black pause and faster roll
-- The original first-concept terminal is allowed to finish its type-on/reveal (~2.8s), then its **complete content remains on screen another four seconds**. GPU readiness is still mandatory before transition.
-- The 145ms terminal snap-off is followed by precisely **1000ms of opaque black**; only then does the fully rendered game snap on already rolling.
-- Startup roll now completes **four full revolutions in 1350ms** (was two in 1550ms), with constant initial velocity for 28% of the animation and a smooth continuous deceleration to zero offset.
-- Grayscale artwork, shared bevelled block renderer, existing compositor settings, fonts and saved gameplay states remain untouched.
-
-
-## V077: CRT-limited phosphor colour and touch-gated terminal
-- The terminal remains on screen indefinitely after its ~2.8s diagnostics reveal; there is **no automatic transition**. Once the GPU has rendered the terminal and content is fully populated, its prompt changes to TOUCH SCREEN TO CONTINUE. A captured touchscreen pointer event triggers the handoff; it is consumed so the same tap cannot act on game controls. Touches before readiness do nothing.
-- The immediate pre-WebGL canvas fallback remains grayscale (0% phosphor); the former CSS sepia/saturation/hue filters are removed. Once the real CRT composer renders the terminal, the phosphor mix ramps from 0% to **at most 100% of the chosen fixed green/amber tint** in 160ms. No colour tint may exceed full strength.
-- A 40ms, single-episode 16% voltage flicker briefly increases luminance around 75–115ms after the GPU terminal appears, independently of colour tint. All stronger brightness is clamped to 1.2 in the shader; saved FX settings and theme colour remain unchanged.
-- Power-off collapses the **actual live GPU phosphor display** in 145ms instead of re-showing an alternate CSS-coloured fallback image. After collapse, an opaque black cover holds for the previous 1000ms, then the game snaps on into the previous rapid four-turn roll.
-- Both terminal and game footer, as well as accessible title labels, spell the build prefix as `version: 077`, not abbreviated `v077` or `V077`.
-- No change to gameplay, board geometry, tiles, saved settings, score persistence or the established 1.35s rolling deceleration.
-
-
-## V078: reference-led CRT startup choreography
-- The October 28 user-uploaded vintage terminal reference establishes an explicit **visual timeline**: signal power-on as a horizontal beam, typed masthead, progressively checked diagnostics, character-by-character hexadecimal memory dump, staggered tetromino drawing, peripheral telemetry readout, final command status, then a user-tap hold. The first-concept panel geometry, Roboto Condensed / Share Tech Mono roles and grayscale brightness hierarchy are unchanged.
-- The timed startup begins only after the **first completed GPU terminal frame**, not while remote Three.js resources are loading. `FieldAtlasTerminal.durationMs=6100` controls when the completed terminal becomes tappable. No automatic transition is ever scheduled.
-- Deterministic, brief voltage pulses (28–40 ms) raise **only luminance** by at most 17%, while the chosen green/amber phosphor blending remains clamped to 0–100%. Sync disturbances animate horizontal tearing for <120 ms at specific points in the boot sequence, passed to the **existing GPU boot-roll ShaderPass**, which remains disabled during normal gameplay.
-- No alternate hue or CSS saturation is used. The HTML loading cover is near-black `#080808` until a real CRT-composed frame exists. The one-second post-power-off blackout also uses `#080808`, not `#000000`.
-- Touching once the final instructions are visible snaps the CRT off with the existing 145 ms collapse, holds near-black for 1000 ms, and snaps on the gameplay screen already rolling four revolutions to a still image. Touch input remains consumed during startup.
-- The authoritative HTML build marker updates to `078`; the terminal/game displays use `version: 078`. No saved scores, core gameplay, settings, or tile-face calculations change.
-
-
-## V079: no startup beam; source-only shutdown; square UI corners
-- The V078 startup beam is deliberately removed. The grayscale source now begins completely off (0 luminance), smoothly fades toward the established near-black `#080808` over approximately 620ms, and the terminal's staged lettering begins after 720ms. The uploaded reference still guides typewriter/diagnostic/glitch rhythm.
-- The user meant **beveled/rounded CORNERS of containers and buttons**, not the Tetris block shading. The exact original eight-layer tetromino tile-face (top-left highlight, inset face and dark lower-right edges) was restored from the prior release and remains shared by the game and terminal. Common `panel()` uses a corner radius of **zero** for all game containers/buttons. Modal effect thumbnails clip squarely; colour/luminance, fills, outlines and hitbox positions remain unchanged.
-- Power-off transforms the **terminal's grayscale Canvas2D content before the GPU renderer**. On tap, it contracts vertically toward the middle of a stable `#080808` source over 145ms and then remains near-black for 1000ms. Crucially, `compositor.js` was restored byte-for-byte to the V078 implementation. Phosphor colour, bloom, scanline mask sampling, ghosting and vignette are unchanged and remain fixed as the source collapses. No CSS screen scaling/animation, no DOM blackout cover, and no new compositor passes or uniforms.
-- The first rolled game frame re-marks all underlying HUD/board textures dirty, preventing old hidden-planes from remaining invisible when the display changes source. Manual tap-to-continue remains in effect.
-- Build is `079` and the terminal/game footer display `version: 079`.
-
-
-## V080: preserve glitches for later; remove two startup flicker risks
-- V078 timed sync-fault schedules and the existing shader remain intact. The explicit `SIGNAL_GLITCH_ENABLED=false` flag suppresses all horizontal tearing during boot. The short voltage/luminance flicker pulses are independent and remain active. No saved theme/CRT settings are changed.
-- For startup stability, the opaque loading cover matches the initial unlit source at `#000000` while the compositor warms up. The terminal is uncovered **only after two completed GPU-rendered terminal frames** (the second is requested explicitly), then the original source fades toward `#080808` before the first diagnostic letters. The one-second power-off intermission remains `#080808` and the screen compositor/scanline mask remains stationary.
-- The `/tetris/` entry page previously contained both a zero-second HTML meta refresh and a JavaScript `location.replace`. The redundant meta refresh is removed to prevent two competing navigations. The permanent bookmarked URL remains unchanged and the redirect continues to work.
-- These changes address plausible startup flashing sources, but do not establish that caching/memory was the root cause. Browser/WebGL first presentation and obsolete service-worker state remain device-specific possibilities. No automatic clearing of site data or scores is performed.
-- A later *game-reveal* animation could stage existing UI and board source layers after tap, while preserving their positions, the original cell bevels, and the current CRT effects. It is not introduced in V080 without visual approval.
-
-
-## V081: simplify handoff to matching content fades
-- The V080 full terminal remains the same including tap-to-continue, saved phosphor themes, luminance-only voltage flickers and disabled archived sync glitches. Tap now triggers a **450ms smooth grayscale source fade to near-black `#080808`**; the source no longer collapses vertically, and **no CSS screen transform or compositor shader changes** occur.
-- The terminal then holds at `#080808` for **1000ms** with the same CRT pipeline/scanline sampling as always.
-- Instead of rolling or staged section-by-section assembly, the real finished gameplay screen now appears under a **single fullscreen, smooth 850ms grayscale/alpha mask fade**. It covers header, board, pieces, controls, and footer together. The mask is a scene layer *upstream* of the same phosphor/CRT effects; scanlines and optics remain static while luminance is revealed.
-- The prior V074/V076 vertical-roll shader, curve and V081 staged regional reveal remain recoverable from Git history. The roll pass is explicitly reset to zero on handoff and no section mask is scheduled.
-- Input is unavailable until the **entire game-screen fade completes**. All square-corner containers, shared beveled tetromino faces, saved settings and gameplay remain unchanged.
-
-
-## V082: single global post-composite luminance transition
-- The V081 fade issue originated from a **transparent source-scene mask** blending independently over separately rendered gameplay surfaces, with bloom following that layer. It could visually reveal UI elements at different rates. The mask canvas, texture, scene plane and uploads are completely removed.
-- The already existing optical/vignette GPU shader now has `uContentLuminance` in `[0,1]`. After scene meshes, overlays, ghosting, bloom, phosphor and edge softness have been resolved, **one identical multiplier** blends all completed pixels toward the fixed `#080808` screen baseline. This pass sits directly before the original stationary CRT mask. It is temporarily enabled even if vignette is OFF and automatically returns to its previous disabled state at luminance 100%. Its original vignette treatment is unchanged whenever enabled.
-- The terminal `Canvas2D` no longer paints its own fading overlay. A tap runs a 450ms easing curve on the **same compositor luminance uniform** from 1 to 0, followed by a 1000ms hold at 0. Only then is the terminal source swapped for all existing game planes (base, board, sidebar, controls, popup), while luminance still equals **exactly 0**.
-- On the **first genuinely rendered game frame**, the 850ms ease-in clock is anchored so that its luminance value is exactly 0 (no early partial reveal). Every element appears together as one already-assembled, fully postprocessed image. Input stays disabled until the fade reaches 1.
-- The chosen phosphor hue, bloom, five CRT patterns, original tile bevels, square container/button corners, user settings, Tetris rules and saved scores are preserved. Vertical roll remains installed but dormant; horizontal glitch schedule remains saved behind `SIGNAL_GLITCH_ENABLED=false`.
-- There are no extra pass allocations or render-target uploads during normal gameplay. The existing vignette shader doubles as the fade gate only while the transition is active. Full verified visual behavior still requires observation on a real phone.
-
-
-## V083: truly independent near-black display base
-- User screen recording captured the intended blackout as **grey, approximately RGB 38/38/38**, not near-black. Root cause: the previous V082 shader introduced `vec3(8.0/255.0)` as though it were already a linear-light working-space value. The Three.js OutputPass then converted it to sRGB, visibly raising the screen base; the intermediate neutral mix also overwhelmed the phosphor colour during game reveal.
-- Retain `#080808` as its own independent, colour-managed output base using `new THREE.Color(0x080808)`, which Three.js converts correctly to linear working-space values. In the existing dormant signal/roll shader, **after bloom, vignette, phosphor and the stationary scanline mask, but before OutputPass**, use `base + (finishedImage - base) * contentLuminance`. This ensures `contentLuminance=0` yields the exact near-black base throughout the 1s hold, independent of source texture, CRT pattern and any overlay. At `contentLuminance=1` the image is unchanged.
-- The optical/vignette pass returns to its original, completely independent state; it no longer owns fading or activates when disabled. No new GPU pass is added; the existing signal pass activates during fade, and remains dormant in normal gameplay.
-- Terminal 450ms 100→0, 1000ms hold, first game frame at 0, game 850ms 0→100; tap gate, disabled old glitch and roll effects, square UI corners and beveled Tetris tiles remain intact.
-- At normal content brightness, existing base canvases and scene styling are unchanged. The independently defined output base takes over the screen specifically during luminance transitions, and is never incorrectly gamma-converted as an sRGB byte value.
-
-## V084: terminal archived and removed from main startup
-- The complete original V083 source remains preserved on `archive/nomad-tetris-v083-terminal` with an independent development branch `dev/nomad-terminal`.
-- The main game no longer imports the terminal or boot sequence, and opens directly to its original READY screen. No gameplay mechanics, menus, CRT settings or styles were redesigned.
-- To avoid removing the original shared gameplay tile renderer, the tile-face implementation was extracted without geometry/luminance changes into `tile-face.js`.
-- Reintegrate the terminal only through an explicit optional lifecycle boundary once its independent preview is stable.
-
-## V085: settings manager extraction
-- `settings-manager.js` owns live preferences, persistence, defaults, ghost-piece and sound flags, theme selection, and preferred high-score initials. The existing storage keys are **unchanged**.
-- `display-settings-catalog.js` continues to own effect definitions, values and UI conversion; `compositor.js` remains independent of storage.
-- `three-v027.js` reads settings through the manager instead of owning mutable FX flags and `localStorage` calls. `modal-ui.js` delegates scanline changes to the manager instead of editing FX directly.
-- Restore Defaults continues to reset effects, ghost piece and sound, **not the green/amber theme**. Previously saved compatible values load as before.
-- Initial defaults, screen layout, menu drawing, touch actions, gameplay rules, normal CRT output and audio synthesis are intentionally unchanged.
-- Run `node --test tetris/tests/settings-manager.test.mjs` with Node 22+ for focused persistence regression coverage. Keep existing `tetris/*.test.cjs` regression suites.
-- Device verification is still needed for Safari and the installed iOS Home Screen app; static and unit checks do not prove pixel-equivalent output.
-
-## Proposed next architecture iteration
-- Separate screen/navigation state and application lifecycle from the central renderer, with explicit state transitions and input routing.
-- Start with a transition map and behavioral tests; preserve the approved layouts and pause/score behaviour while extracting responsibilities.
-
-## V086: Screen Manager — state and navigation separated from rendering
-- `screen-manager.js` is the sole owner of the currently active menu screen (`null`, `options`, `scores`, `restart`, or `entry`), with `game` as the derived view when no menu is open. The game engine still owns `ready/playing/paused/over` and is not duplicated in the Screen Manager.
-- The manager handles user-facing navigation rules: opening Display System or High Scores requests a pause **before** opening the screen if gameplay is active; restart confirmation is allowed only while paused; high-score entry can open after game over; closing a screen never automatically resumes gameplay.
-- All valid screen openings (even re-opening the same screen) notify the renderer via an `onChange(previous,next)` adapter so it performs the exact existing menu scroll reset, pointer cancellation, board-popup invalidation for scores, base hitbox restoration on close, and re-render scheduling.
-- `three-v027.js` still owns graphics, audio, gameplay actions, input wiring, lifecycle events, and high-score submission. It reads `screenManager.active` and derived flags; it no longer keeps its own mutable `modal` variable or implements a second copy of menu pause/restart rules.
-- The existing `modal-ui.js`, `input-controller.js`, `core.js`, `layout.js`, `hud-drawing.js` and `compositor.js` rendering and rules are unchanged. `input-controller.js` receives the same callback shape for Escape; it is not coupled directly to the Screen Manager.
-- `tetris/tests/screen-manager.test.mjs` verifies initial gameplay view, pause-before-open, score-board placement flag, restart gating, high-score entry, close-without-resume, and repeat openings. The old `modal-ui-v064.test.cjs` fixture is updated to use the V085 settings callback and to avoid hard-coding old module versions.
-- Run the focused tests with Node 22+: `node --test tetris/tests/screen-manager.test.mjs tetris/tests/settings-manager.test.mjs`. Also run the existing `tetris/*.test.cjs` regression suite.
-- Visual and interaction checks on actual iOS Safari and standalone Home Screen remain required to establish that the change is imperceptible to players.
-
-## Next possible architecture extraction
-- Separate platform lifecycle (viewport and foreground/background update checks) from rendering while preserving exactly the approved Safari versus standalone behaviour. Plan device tests before modifying CSS safe-area handling.
-
-## V087: Platform Manager — browser/device lifecycle extracted
-- Before changing application lifecycle code, the complete V086 main-branch state was protected as `archive/nomad-tetris-v086`.
-- `platform-manager.js` owns viewport measurement, the 2× device-pixel-ratio limit, computed safe-area insets, ResizeObserver, orientation events, background/foreground notifications, page-show/focus checks, and 60-second polling for newer published builds.
-- `three-v027.js` remains responsible for assigning the viewport to renderer canvases and post-processing targets, updating its cached layout, pausing active gameplay in its `onVisibility` adapter, and redrawing the scene. It no longer registers browser/device lifecycle listeners or polls update URLs itself.
-- The platform invokes explicit callbacks `onViewport({width,height,dpr},forceLayout)` and `onVisibility(hidden)`. Only the renderer changes WebGL/Canvas resources; the platform layer does not own them.
-- The current iOS standalone detection and CSS sizing distinction (`100vh` for Home Screen, `100dvh` for Safari), safe-area probe, layout math, controls, CRT rendering, terminal archive and stored settings are untouched.
-- Device orientation still forces layout recalculation even when measured dimensions match; unchanged non-forced ResizeObserver events do not reallocate textures.
-- New build checks use `cache:'no-store'` against `three-v027.html`, a 15-second throttle, and do not update while hidden, in any modal, or when gameplay is not READY. Eligibility is re-evaluated after the asynchronous fetch, preventing late reloads if gameplay begins. Network failure leaves the game running.
-- `start()` attaches the existing lifecycle listeners and interval; `stop()` disconnects everything and prevents an in-flight update check from reloading a disposed runtime. No new visible settings or screens are introduced.
-- `tetris/tests/platform-manager.test.mjs` provides viewport, inset, lifecycle and update safety coverage (10 tests); the previous V066 module-contract/build-version tests have been updated to follow the moved ownership without changing their assertions about safe behaviour.
-- On-device verification is still required. Compare actual iPhone Safari and Home Screen sizing, orientation changes, background/resume, game progression while returning, and build update behaviour before considering this device-ready.
-
-## Next architecture work
-- Audit `three-v027.js` for remaining coupled app coordination (high scores, sound cues, action dispatch, render scheduling). Extract only responsibilities with a narrow testable boundary; avoid moving the CRT pass graph or changing layout/pixels during architecture-only iterations.
-
-## V088: Action Controller — gameplay commands and app event routing
-- Preserve V087 as an immutable reference at `archive/nomad-tetris-v087`. This is an architectural-only extraction; no visible UI, layout, CRT, input geometry, game rule or score format changes are intended.
-- `action-controller.js` owns the user-facing application action dispatcher (`dispatch(action)`), gameplay command dispatch (`perform(type)`), score qualification/once-only game-over prompt (`onGameOver()`), manual restart, initials/score submission, settings mutation callbacks, and user-visible reaction routing (sounds and render invalidations).
-- `three-v027.js` remains responsible for drawing frames, WebGL/CRT scene and materials, renderer texture invalidation, audio oscillator synthesis, browser input wiring, and the game engine's tick/line-clear capture. Rather than containing another action map or mutable high scores, it injects minimal callbacks for layer marks, invalidation, sound, active line-clear status and score input.
-- The `Core.Game` instance still owns readiness/playing/paused/game-over, gravity, rule enforcement and scoring. `scores.js` continues to implement score persistence and qualification. The action controller owns the **live high-score list** returned by `Scores.read`; the existing HUD and high-score painter read it via `actions.highs`.
-- The V086 Screen Manager still owns which screen is open and pause-before-menu policy; it receives `actions.perform('pause')` as its callback. Input Controller keeps its existing action callback contract; the app passes `actions.dispatch`, `actions.perform`, and `actions.setSetting`. Direct keyboard and pointer input maps are unchanged.
-- A high-score entry is offered once after a qualifying game over; entering or saving initials, saving `{name,score,lines,level,at}`, resetting on restart, clearing the line-flash input lock, pausing during a flash, theme toggles, Restore Defaults, score menu opening and rendering/sound notifications retain their previous event order.
-- Action Controller has no Canvas, Three.js, WebGL or browser event listeners; input field focus/blur, clipboard, settings-menu state, audio and drawing are invoked only through injected adapters.
-- Run `node --test tetris/tests/action-controller.test.mjs` (13 tests) and existing `tetris/tests/{settings-manager,screen-manager,platform-manager}.test.mjs` suites, plus the legacy `tetris/*.test.cjs` suite.
-- Verify on a real device: start, left/right/rotate/drop/hold, pause/resume, restart confirmation, line clearing, game over/high score, settings and restore defaults, theme toggle, background pause, and browser/installed mode. Isolated logic tests do not establish pixel-equivalent output.
-
-## Next planned architecture audit
-- Audit remaining rendering lifecycle, score feedback, performance diagnostics and failure recovery; prefer narrow independent modules over another bulk rewrite. Keep visual refinements deferred as requested.
+- Replace the renderer's direct `game.lockPiece` override with an explicit game event interface.
+- Investigate WebGL context loss/recovery, cleanup and long-session memory behaviour.
+- Plan future install/offline packaging (manifest, icons and dependable local assets).
+- Update this description when boundaries change; use Git history for older revisions.
