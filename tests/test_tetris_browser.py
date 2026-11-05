@@ -13,7 +13,10 @@ out.mkdir(parents=True, exist_ok=True)
 with sync_playwright() as p:
     flags = (["--no-sandbox", "--use-gl=angle", "--use-angle=swiftshader",
               "--enable-unsafe-swiftshader"] if browser_name == "chromium" else [])
-    browser = getattr(p, browser_name).launch(headless=True, args=flags)
+    launch_args = {"headless": True, "args": flags}
+    if browser_name == "chromium" and os.environ.get("FIELD_ATLAS_USE_CHROME") == "1":
+        launch_args["channel"] = "chrome"
+    browser = getattr(p, browser_name).launch(**launch_args)
     page = browser.new_page(viewport={"width": 393, "height": 852},
                             device_scale_factor=2, is_mobile=True, has_touch=True)
     errors = []
