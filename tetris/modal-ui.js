@@ -8,7 +8,7 @@ export function createModalUI({
  document,SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
  getViewport,layout,insets,clearRegions,getContext,
  panel,text,rect,region,key,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
- getFX,activeScanlinePreset,settingValue,persist,invalidate,setScrollVelocity,
+ getFX,activeScanlinePreset,settingValue,chooseScanlineSetting,invalidate,setScrollVelocity,
  getHighs,getGame,getInitialsInput,getModal
 }){
  const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
@@ -162,10 +162,8 @@ function toggleScanlineMenu(){
 }
 function chooseScanline(id){
  if(!SCANLINE_CHOICES.some(choice=>choice.id===id))return;
- const FX=getFX();
- FX.scanlines=id!=='off';
- if(id!=='off')FX.scanlinePreset=id;
- scanlineMenuOpen=false;persist();setScrollVelocity(0);invalidate();
+ chooseScanlineSetting(id);
+ scanlineMenuOpen=false;setScrollVelocity(0);invalidate();
 }
 function settingSquare(x,y,size,active){
  const g=getContext();
