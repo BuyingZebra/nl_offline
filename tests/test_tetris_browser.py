@@ -47,6 +47,47 @@ with sync_playwright() as p:
     assert not errors, errors
     page.screenshot(path=str(out / f"{browser_name}-landscape.png"))
 
+    # Real offline launch test. A successful service-worker install must cache
+    # the entire local app before the page is taken offline. On Chromium this
+    # is a required gate; WebKit uses the same best-effort path if supported.
+    if browser_name == "chromium":
+        page.wait_for_function(
+            "() => Boolean(navigator.serviceWorker?.controller)",
+            timeout=45000,
+        )
+        cache_count = page.evaluate("""async () => {
+          const names = await caches.keys();
+          const name = names.find(n => n === 'nomad-tetris-offline-v092');
+          if (!name) return 0;
+          const cache = await caches.open(name);
+          return (await cache.keys()).length;
+        }""")
+        assert cache_count >= 38, f"Incomplete V092 offline cache: {cache_count} entries"
+
+        page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
+        page.context.set_offline(True)
+        try:
+            page.reload(wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_function(
+                "() => {const c=document.querySelector('#screen');"
+                "return c && c.width >= 700 && c.height >= 300;}",
+                timeout=30000,
+            )
+            page.wait_for_timeout(600)
+            assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
+            assert page.evaluate("() => localStorage.getItem('nomad-smoke-marker')") == "persist"
+            assert not errors, errors
+            offline = out / f"{browser_name}-offline.png"
+            page.screenshot(path=str(offline))
+            pixels = Image.open(offline).convert("RGB").getdata()
+            assert sum(1 for rgb in pixels if max(rgb) > 85) > 1000, (
+                "Offline NOMAD compositor is blank"
+            )
+        finally:
+            page.context.set_offline(False)
+            page.evaluate("() => localStorage.removeItem('nomad-smoke-marker')")
+        print(f"{browser_name}: complete offline bundle and reload smoke passed")
+
     # Optional browser-level stress: ask the real WebGL context to disappear,
     # then return. No reliance on renderer internals or debug-only globals.
     supported = page.evaluate("""() => {
