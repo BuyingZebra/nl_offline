@@ -1,7 +1,7 @@
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,graphics,samples=[],current}={}){
+export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,graphics,lifecycle,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -93,6 +93,20 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   const recent=(graphics.history||[]).slice(-8);
   rows.push('Recent graphics events: '+(recent.length?recent.map(event=>
    value(event.at)+' '+value(event.type)).join(' | '):'none'));
+ }
+ if(lifecycle){
+  rows.push('', 'APPLICATION LIFECYCLE');
+  rows.push('Page: '+value(lifecycle.status)+
+   ' / suspensions '+value(lifecycle.suspends)+
+   ' / resumes '+value(lifecycle.resumes)+
+   ' / disposals '+value(lifecycle.disposals));
+  rows.push('Last transition: '+value(lifecycle.lastReason));
+  if(lifecycle.lastError)rows.push('Last lifecycle error: '+
+   String(lifecycle.lastError).replace(/\s+/g,' ').slice(0,240));
+  const recent=(lifecycle.events||[]).slice(-8);
+  rows.push('Recent page events: '+(recent.length?recent.map(event=>
+   value(event.type)+'('+value(event.reason)+')').join(' | '):'none'));
+  rows.push('Temporary background and bfcache suspensions preserve WebGL resources.');
  }
  rows.push('Current settings: '+value(display?.settings));
  return rows.join('\n');
