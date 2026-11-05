@@ -213,3 +213,18 @@ These are sensible follow-up cleanups, not prerequisites for adding gameplay fea
 
 ## Next possible architecture extraction
 - Separate platform lifecycle (viewport and foreground/background update checks) from rendering while preserving exactly the approved Safari versus standalone behaviour. Plan device tests before modifying CSS safe-area handling.
+
+## V087: Platform Manager — browser/device lifecycle extracted
+- Before changing application lifecycle code, the complete V086 main-branch state was protected as `archive/nomad-tetris-v086`.
+- `platform-manager.js` owns viewport measurement, the 2× device-pixel-ratio limit, computed safe-area insets, ResizeObserver, orientation events, background/foreground notifications, page-show/focus checks, and 60-second polling for newer published builds.
+- `three-v027.js` remains responsible for assigning the viewport to renderer canvases and post-processing targets, updating its cached layout, pausing active gameplay in its `onVisibility` adapter, and redrawing the scene. It no longer registers browser/device lifecycle listeners or polls update URLs itself.
+- The platform invokes explicit callbacks `onViewport({width,height,dpr},forceLayout)` and `onVisibility(hidden)`. Only the renderer changes WebGL/Canvas resources; the platform layer does not own them.
+- The current iOS standalone detection and CSS sizing distinction (`100vh` for Home Screen, `100dvh` for Safari), safe-area probe, layout math, controls, CRT rendering, terminal archive and stored settings are untouched.
+- Device orientation still forces layout recalculation even when measured dimensions match; unchanged non-forced ResizeObserver events do not reallocate textures.
+- New build checks use `cache:'no-store'` against `three-v027.html`, a 15-second throttle, and do not update while hidden, in any modal, or when gameplay is not READY. Eligibility is re-evaluated after the asynchronous fetch, preventing late reloads if gameplay begins. Network failure leaves the game running.
+- `start()` attaches the existing lifecycle listeners and interval; `stop()` disconnects everything and prevents an in-flight update check from reloading a disposed runtime. No new visible settings or screens are introduced.
+- `tetris/tests/platform-manager.test.mjs` provides viewport, inset, lifecycle and update safety coverage (10 tests); the previous V066 module-contract/build-version tests have been updated to follow the moved ownership without changing their assertions about safe behaviour.
+- On-device verification is still required. Compare actual iPhone Safari and Home Screen sizing, orientation changes, background/resume, game progression while returning, and build update behaviour before considering this device-ready.
+
+## Next architecture work
+- Audit `three-v027.js` for remaining coupled app coordination (high scores, sound cues, action dispatch, render scheduling). Extract only responsibilities with a narrow testable boundary; avoid moving the CRT pass graph or changing layout/pixels during architecture-only iterations.
