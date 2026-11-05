@@ -57,6 +57,34 @@ with sync_playwright() as p:
               if max(rgb) > 85)
     assert lit > 1000, f"Game compositor appears blank ({lit} bright pixels)"
 
+    # Exercise real canvas input and menu integration, not only rendering.
+    # Coordinates are derived from the current deterministic portrait layout
+    # (header Options at x=330..376, board center/start near x=147,y=390).
+    # Keep these smoke interactions separate from screenshot artwork tests.
+    page.mouse.click(353, 40)
+    page.wait_for_timeout(150)
+    settings_screen = page.screenshot()
+    assert settings_screen != ready.read_bytes(), "Options did not change the screen"
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(150)
+    assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
+    page.mouse.click(147, 390)  # START GAME
+    page.wait_for_timeout(300)
+    playing_image = page.screenshot()
+    assert playing_image != ready.read_bytes(), "Start did not change the game board"
+    page.keyboard.press("Space")  # Hard drop / gameplay sound
+    page.wait_for_timeout(150)
+    # A temporary bfcache round-trip must pause gameplay but keep its WebGL
+    # resources, canvas pixels and input handlers alive.
+    page.evaluate("""() => {
+      window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));
+      window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    }""")
+    page.wait_for_timeout(200)
+    assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
+    assert not errors, errors
+    page.screenshot(path=str(out / f"{browser_name}-integrated-pause.png"))
+
     page.set_viewport_size({"width": 844, "height": 390})
     page.wait_for_function(
         "() => { const c=document.querySelector('#screen');"
@@ -78,7 +106,7 @@ with sync_playwright() as p:
         )
         cache_count = page.evaluate("""async () => {
           const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v092');
+          const name = names.find(n => n === 'nomad-tetris-offline-v093');
           if (!name) return 0;
           const cache = await caches.open(name);
           return (await cache.keys()).length;
