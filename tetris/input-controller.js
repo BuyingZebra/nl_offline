@@ -37,7 +37,7 @@ const optionPoint=p=>getModal()==='options'&&getModalView()&&
  p.x>=getModalView().x&&p.x<=getModalView().x+getModalView().w&&
  p.y>=getModalView().y&&p.y<=getModalView().y+getModalView().h;
 const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
-const isVisualButton=r=>r?.kind==='button'||r?.act==='patternSelect'||r?.act==='scanlineChoice';
+const isVisualButton=r=>r?.kind==='button'||['toggle','patternSelect','scanlineChoice'].includes(r?.act);
 listen(screen,'pointerdown',e=>{
  if(disposed||!canInteract())return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
