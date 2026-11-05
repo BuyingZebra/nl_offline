@@ -158,3 +158,16 @@ test('lifecycle report tolerates missing activity and sanitizes errors',()=>{
  assert.ok(report.includes('Last lifecycle error: failure next line'));
  assert.ok(report.includes('Recent page events: none'));
 });
+
+test('offline debug report distinguishes controlled online and offline clients',()=>{
+ const connected=format({offline:{network:'online',supported:true,controlled:true}});
+ assert.ok(connected.includes('OFFLINE PACKAGE'));
+ assert.ok(connected.includes('Network: online / service worker: supported / controlling page: yes'));
+ const fallback=format({offline:{network:'offline',supported:true,controlled:false}});
+ assert.ok(fallback.includes('Network: offline / service worker: supported / controlling page: no'));
+ assert.ok(fallback.includes('browser cache may be cleared or evicted'));
+});
+test('offline debug section is omitted for older captures',()=>{
+ const report=format({version:'091'});
+ assert.equal(report.includes('OFFLINE PACKAGE'),false);
+});
