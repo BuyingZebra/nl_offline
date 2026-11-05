@@ -95,3 +95,16 @@ export function createGraphicsCleanup({
   get errors(){return errors.map(e=>({...e}));}
  });
 }
+
+/* Final-page cleanup must continue even if a single adapter throws.
+ * Report the first failure to AppLifecycle while preserving the other disposals.
+ * Each task is a [name, fn] pair to attribute failures without exposing internals.
+ */
+export function runCleanupTasks(tasks){
+ const errors=[];
+ for(const [name,fn] of tasks){
+  try{fn();}catch(error){errors.push(name+': '+String(error?.message||error));}
+ }
+ if(errors.length)throw new Error(errors.join(' | ').slice(0,240));
+ return tasks.length;
+}
