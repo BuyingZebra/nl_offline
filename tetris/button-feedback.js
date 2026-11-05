@@ -41,10 +41,9 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
  });
 }
 
-// Rendered as an additive grayscale source BEFORE the existing CRT passes:
-// it gains exactly the active phosphor tint, bloom and vignette of the game.
-// The pixel-space rounded-rectangle approximation deliberately retains
-// NOMAD's square corners and keeps afterimages on the original button bounds.
+// A shader pass is placed AFTER board-popup compositing and BEFORE glow,
+// tint and other CRT effects, so ALL button types (including board popups)
+// receive the same pulse without extra CanvasTexture uploads.
 export const BUTTON_FEEDBACK_VERTEX=String.raw`
 varying vec2 vUv;
 void main(){
@@ -54,6 +53,7 @@ void main(){
 
 export const BUTTON_FEEDBACK_FRAGMENT=String.raw`
 precision highp float;
+uniform sampler2D tDiffuse;
 uniform vec2 uViewport;
 uniform vec4 uRects[${MAX_BUTTON_FLASHES}];
 uniform float uPower[${MAX_BUTTON_FLASHES}];
@@ -77,5 +77,9 @@ void main(){
   float halo=exp(-distance*distance/(2.0*11.0*11.0));
   energy+=power*(face*.42+rim*.36+halo*.22);
  }
- gl_FragColor=vec4(vec3(clamp(energy,0.0,1.0)),1.0);
+ // Raise original luminance on button press; retain panel and text detail.
+ // The full result stays grayscale until the ordinary phosphor tint stage.
+ vec3 original=texture2D(tDiffuse,vUv).rgb;
+ float flash=clamp(energy*0.82,0.0,1.0);
+ gl_FragColor=vec4(original+(vec3(1.0)-original)*flash,1.0);
 }`;
