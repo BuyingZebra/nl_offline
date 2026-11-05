@@ -51,7 +51,11 @@ jobs:
       - name: Install browser
         run: |
           python -m pip install 'playwright==1.55.0' 'Pillow>=10,<12'
-          python -m playwright install ${{ matrix.browser }} --with-deps
+          if [ "${{ matrix.browser }}" = "chromium" ]; then
+            google-chrome --version
+          else
+            python -m playwright install ${{ matrix.browser }} --with-deps
+          fi
       - name: Start app server
         run: |
           python -m http.server 8765 --bind 127.0.0.1 >/tmp/nomad-tetris-http.log 2>&1 &
@@ -63,6 +67,7 @@ jobs:
       - name: Check boot, WebGL output and viewport changes
         env:
           FIELD_ATLAS_BROWSER: ${{ matrix.browser }}
+          FIELD_ATLAS_USE_CHROME: ${{ matrix.browser == 'chromium' && '1' || '0' }}
         run: python tests/test_tetris_browser.py
       - name: Upload optional browser screenshots
         if: always()
