@@ -7,7 +7,7 @@
  * once those clients close. Never skipWaiting or mix cache generations.
  */
 'use strict';
-const CACHE_VERSION='v093';
+const CACHE_VERSION='v094';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -20,6 +20,7 @@ const CORE_ASSETS=Object.freeze([
  './','./index.html','./three-v027.html','./manifest.webmanifest',
  './icon.svg','./icon-192.png','./icon-512.png',
  './core.js','./scores.js','./layout.js','./three-v027.js',
+ './button-feedback.js',
  './compositor.js','./tile-face.js','./canvas-ui.js','./build-version.js',
  './platform-manager.js','./app-lifecycle.js','./input-controller.js',
  './perf-monitor.js','./texture-upload-profiler.js',
