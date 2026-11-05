@@ -8,7 +8,7 @@ import {createPlatformManager,measureDisplayViewport} from '../platform-manager.
 function createHarness(){
  let bounds={width:393,height:852};
  const events={window:new Map(),document:new Map()};
- const metrics={observed:0,disconnected:0,intervals:[],cleared:[],fetches:[],reloads:0,viewports:[],visibility:[]};
+ const metrics={observed:0,disconnected:0,intervals:[],cleared:[],fetches:[],reloads:0,viewports:[],visibility:[],pageEvents:[]};
  let observer;
  let currentTime=20000,gameStatus='ready',screenOpen=false;
  let response={ok:true,text:async()=>'<meta name="tetris-build" content="086">'};
@@ -39,10 +39,12 @@ function createHarness(){
   buildVersion:'086',getGameStatus:()=>gameStatus,isScreenOpen:()=>screenOpen,
   onViewport:(metrics,forced)=>{h.metrics.viewports.push({metrics,forced});},
   onVisibility:hidden=>h.metrics.visibility.push(hidden),
+  onPageHide:persisted=>h.metrics.pageEvents.push(['hide',persisted]),
+  onPageShow:persisted=>h.metrics.pageEvents.push(['show',persisted]),
   now:()=>currentTime
  });
  const h={platform,window,document,display,safeProbe,metrics,
-  emit:(where,name)=>events[where].get(name)?.(),
+  emit:(where,name,event={})=>events[where].get(name)?.({type:name,...event}),
   get events(){return events;},
   get observer(){return observer;},
   setBounds:b=>{bounds=b;},
@@ -193,4 +195,25 @@ test('stop unregisters listeners, disconnects observer and prevents late reloads
  finish({ok:true,text:async()=>'<meta name="tetris-build" content="087">'});
  assert.equal(await pending,false);
  assert.equal(h.metrics.reloads,0);
+});
+
+test('pagehide and pageshow report bfcache state distinctly from visibility',()=>{
+ const h=createHarness();h.platform.start();
+ h.emit('window','pagehide',{persisted:true});
+ h.emit('window','pageshow',{persisted:true});
+ h.emit('window','pagehide',{persisted:false});
+ h.emit('window','pageshow',{persisted:false});
+ h.emit('window','focus');
+ assert.deepEqual(h.metrics.pageEvents,[
+  ['hide',true],['show',true],['hide',false],['show',false]
+ ]);
+ assert.deepEqual(h.metrics.visibility,[]);
+});
+test('stop unregisters pagehide callbacks as well as other listeners',()=>{
+ const h=createHarness();h.platform.start();
+ assert.equal(h.events.window.has('pagehide'),true);
+ assert.equal(h.platform.stop(),true);
+ assert.equal(h.events.window.has('pagehide'),false);
+ h.emit('window','pagehide',{persisted:false});
+ assert.deepEqual(h.metrics.pageEvents,[]);
 });
