@@ -185,7 +185,7 @@ function settingsPreviewSize(width){
 }
 function settingsContentHeight(effect,gap){
  const controls=effect.id==='ghost'||effect.id==='softness'?2:
-  effect.sliders?.length||effect.profile?1:0;
+  effect.profile&&effect.refresh?2:(effect.sliders?.length||effect.profile?1:0);
  return SETTINGS_TITLE_H+controls*(SETTINGS_CONTROL_H+gap)+
   (effect.pattern?(SETTINGS_SELECT_H+gap):0);
 }
@@ -318,12 +318,20 @@ function drawOptions(q){
   if(effect.profile){
    const selectY=firstY-SETTINGS_CONTROL_H/2;
    panel(ctrlX,selectY,ctrlW,SETTINGS_CONTROL_H,5,C.button,C.border);
-   const names={p39:'P39 / LONG GREEN',p31:'P31 / SHORT GREEN',
-    p1:'P1 / MEDIUM GREEN',p4:'P4 / SHORT WHITE*'};
-   text(names[settingValue('persistenceProfile')]||'P39 / LONG GREEN',
+   const names={balanced:'CUSTOM / SHORT-MEDIUM',p39:'P39 / LONG',
+    p31:'P31 / SHORT',p1:'P1 / MEDIUM',p4:'P4 / SHORT'};
+   text(names[settingValue('persistenceProfile')]||'CUSTOM / SHORT-MEDIUM',
     ctrlX+gap,selectY+SETTINGS_CONTROL_H/2,10,C.ink,'left',ctrlW-2*gap);
    region(ctrlX,selectY,ctrlW,SETTINGS_CONTROL_H,'phosphorProfile',
     {modalControl:true});
+   if(effect.refresh){
+    const ry=selectY+SETTINGS_CONTROL_H+gap;
+    panel(ctrlX,ry,ctrlW,SETTINGS_CONTROL_H,5,C.button,C.border);
+    text('RASTER '+settingValue('scanRefreshHz')+' Hz',
+     ctrlX+gap,ry+SETTINGS_CONTROL_H/2,10,C.ink,'left',ctrlW-2*gap);
+    region(ctrlX,ry,ctrlW,SETTINGS_CONTROL_H,'scanRefresh',
+     {modalControl:true});
+   }
   }
   if(effect.pattern){
    // Pattern picker belongs to Scanlines; no new category or separate row.

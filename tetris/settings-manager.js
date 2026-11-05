@@ -3,9 +3,10 @@
  * dependencies. Historical storage keys and reset behaviour are preserved.
  */
 import {DEFAULT_EFFECTS,effectSettingValue,effectSettingToStored}
- from './display-settings-catalog.js?v097';
-import {phosphorProfile,nextPhosphorProfile,PHOSPHOR_PROFILES}
- from './phosphor-model.js?v097';
+ from './display-settings-catalog.js?v098';
+import {phosphorProfile,nextPhosphorProfile,PHOSPHOR_PROFILES,
+ normalizeCRTRefresh,nextCRTRefresh}
+ from './phosphor-model.js?v098';
 
 export const STORAGE_KEYS=Object.freeze({
  effects:'fieldAtlasThreeV027FX01',
@@ -35,6 +36,7 @@ export function createSettingsManager(storage){
  // Match the existing V084 migration of out-of-range historical bloom values.
  effects.bloomStrength=clamp(Number(effects.bloomStrength)||0,0,1);
  effects.persistenceProfile=phosphorProfile(effects.persistenceProfile).id;
+ effects.scanRefreshHz=normalizeCRTRefresh(effects.scanRefreshHz);
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
  let theme=read(STORAGE_KEYS.theme,'green')==='amber'?'amber':'green';
@@ -57,6 +59,7 @@ export function createSettingsManager(storage){
    return;
   }
   if(key==='persistenceProfile'&&!PHOSPHOR_PROFILES.some(p=>p.id===value))return;
+  if(key==='scanRefreshHz')value=normalizeCRTRefresh(value);
   if(Object.prototype.hasOwnProperty.call(DEFAULT_EFFECTS,key)){
    effects[key]=effectSettingToStored(key,value,clamp);
    persistEffects();
@@ -66,6 +69,11 @@ export function createSettingsManager(storage){
   effects.persistenceProfile=nextPhosphorProfile(effects.persistenceProfile);
   persistEffects();
   return effects.persistenceProfile;
+ }
+ function cycleCRTRefresh(){
+  effects.scanRefreshHz=nextCRTRefresh(effects.scanRefreshHz);
+  persistEffects();
+  return effects.scanRefreshHz;
  }
  function chooseScanline(id){
   effects.scanlines=id!=='off';
@@ -90,7 +98,8 @@ export function createSettingsManager(storage){
   get pieceGhost(){return pieceGhost;},
   get soundOn(){return soundOn;},
   get theme(){return theme;},
-  settingValue,setSetting,chooseScanline,cyclePhosphorProfile,toggleTheme,restoreDefaults,
+  settingValue,setSetting,chooseScanline,cyclePhosphorProfile,cycleCRTRefresh,
+  toggleTheme,restoreDefaults,
   readInitials:()=>read(STORAGE_KEYS.initials,'AAA'),
   saveInitials:value=>write(STORAGE_KEYS.initials,value)
  });

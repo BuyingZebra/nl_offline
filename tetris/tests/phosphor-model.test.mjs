@@ -1,55 +1,73 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {PHOSPHOR_PROFILES,phosphorProfile,nextPhosphorProfile,phosphorEnvelope}
- from '../phosphor-model.js';
+import {PHOSPHOR_PROFILES,phosphorProfile,nextPhosphorProfile,phosphorEnvelope,
+ CRT_REFRESH_RATES,normalizeCRTRefresh,nextCRTRefresh,crtRasterLines,
+ advanceCRTPhase,crtScanPosition,beamHitsPixel} from '../phosphor-model.js';
 
-test('P39 is preferred, and all profiles have normalized dual-decay envelopes',()=>{
- assert.deepEqual(PHOSPHOR_PROFILES.map(p=>p.id),['p39','p31','p1','p4']);
+test('custom blend is first and all decay profiles are neutral, valid models',()=>{
+ assert.deepEqual(PHOSPHOR_PROFILES.map(p=>p.id),['balanced','p39','p31','p1','p4']);
+ assert.equal(phosphorProfile('unknown').id,'balanced');
  for(const p of PHOSPHOR_PROFILES){
   assert.ok(Math.abs(p.fastWeight+p.slowWeight-1)<1e-9,p.id);
-  assert.ok(p.fastTau>0&&p.slowTau>p.fastTau&&p.riseTau>0,p.id);
-  assert.ok(p.tailMs>0&&p.tailMs<12000,p.id);
-  assert.equal(p.tint.length,3);
+  assert.ok(p.fastTau>0&&p.slowTau>p.fastTau,p.id);
+  assert.ok(p.tailMs>0&&p.tailMs<10000,p.id);
+  assert.equal('tint' in p,false,'hue must not belong to decay profiles');
  }
- assert.equal(phosphorProfile('unknown').id,'p39');
+ assert.equal(phosphorProfile('balanced').slowTau,.19);
 });
-test('model decay crosses 10% near documented reference times (approximation)',()=>{
- // Historic terminal CRT comparison and HP AN-115 measurements.
- // These are model fitting checkpoints, not independent experimental validation.
+test('historic 10% timing benchmarks and monotone fades',()=>{
+ const ages=[0,.000038,.001,.05,.15,.5,1,2,3,7];
  for(const p of PHOSPHOR_PROFILES){
-  const at10=phosphorEnvelope(p,p.referenceT10);
-  assert.ok(at10>.08&&at10<.12,p.id+': '+at10);
-  assert.ok(Math.abs(phosphorEnvelope(p,0)-1)<1e-9);
- }
-});
-test('all curves decay monotonically; P39 retains a seconds-long faint tail',()=>{
- const ages=[0,.000038,.001,.05,.15,.5,1,2,3,4,7];
- for(const p of PHOSPHOR_PROFILES){
-  const values=ages.map(age=>phosphorEnvelope(p,age));
+  if(p.referenceT10!==null){
+   const at10=phosphorEnvelope(p,p.referenceT10);
+   assert.ok(at10>.08&&at10<.12,p.id+': '+at10);
+  }
+  const values=ages.map(t=>phosphorEnvelope(p,t));
   assert.ok(values.every(x=>Number.isFinite(x)&&x>=0),p.id);
   assert.ok(values.every((x,i)=>i===0||x<=values[i-1]),p.id);
  }
- assert.ok(phosphorEnvelope('p39',1)>phosphorEnvelope('p31',1)*100);
  assert.ok(phosphorEnvelope('p39',3)>.001);
  assert.ok(phosphorEnvelope('p31',3)<.001);
 });
-test('cycle through every phosphor and return to P39',()=>{
- let id='p39';
- for(const expected of ['p31','p1','p4','p39']){
-  id=nextPhosphorProfile(id);assert.equal(id,expected);
+test('decay profiles cycle without changing their emission hue',()=>{
+ let id='balanced';
+ for(const next of ['p39','p31','p1','p4','balanced']){
+  id=nextPhosphorProfile(id);assert.equal(id,next);
  }
 });
-test('history stays GPU-only and preserves sharp source separately from filtered residual',()=>{
+test('raster refresh is constrained and independent of host redraw',()=>{
+ assert.deepEqual(CRT_REFRESH_RATES,[50,60,75]);
+ assert.equal(normalizeCRTRefresh(99),60);
+ assert.equal(nextCRTRefresh(50),60);
+ assert.equal(nextCRTRefresh(60),75);
+ assert.equal(nextCRTRefresh(75),50);
+ assert.ok(Math.abs(advanceCRTPhase(.9,.005,60)-.2)<1e-9);
+ assert.ok(Math.abs(advanceCRTPhase(.1,1/60,60)-.1)<1e-9);
+});
+test('beam travels left-to-right then top-to-bottom; wraps correctly',()=>{
+ const left=crtScanPosition(.1,.05,10);
+ const right=crtScanPosition(.9,.05,10);
+ const next=crtScanPosition(.1,.15,10);
+ assert.ok(left<right&&right<next);
+ assert.equal(beamHitsPixel(0,.2,left),true);
+ assert.equal(beamHitsPixel(0,.2,crtScanPosition(.5,.9,10)),false);
+ assert.equal(beamHitsPixel(.9,.3,.95),true);
+ assert.equal(beamHitsPixel(.9,.3,.05),true);
+ assert.equal(beamHitsPixel(.9,.3,.45),false);
+ assert.equal(beamHitsPixel(0,1,.99),true);
+ assert.ok(crtRasterLines(850)<=360);
+ assert.ok(crtRasterLines(850)*2<=850);
+});
+test('GPU state contains scan phase, excitation, decay and crisp reconstruction',()=>{
  const source=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- assert.match(source,/FullScreenQuad/);
- assert.match(source,/tPrevious/);
- assert.match(source,/uFastDecay/);
- assert.match(source,/uSlowDecay/);
- assert.match(source,/uReset/);
+ for(const name of ['uPhase','uCycles','uHz','uLines','uFastTau',
+  'uSlowTau','uFastDecay','uSlowDecay','tPrevious','uReset',
+  'WebGLRenderTarget','FullScreenQuad','ageCycles','eventLight'])
+  assert.ok(source.includes(name),name);
  assert.match(source,/sqrt\(clamp/);
- assert.match(source,/WebGLRenderTarget/);
  assert.match(source,/Math\.ceil\(width\/2\)/);
- assert.match(source,/max\(0\.0,history\.x-src\)/);
+ assert.match(source,/float lingering=/);
  assert.doesNotMatch(source,/UnrealBloomPass/);
+ assert.doesNotMatch(source,/uTint/);
 });

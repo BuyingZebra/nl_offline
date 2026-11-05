@@ -106,28 +106,38 @@ test('settings work if local persistence throws',()=>{
 });
 
 
-test('V097 long persistence defaults to P39 and profiles cycle without affecting older controls',()=>{
- const storage=memoryStorage(),s=createSettingsManager(storage);
- assert.equal(s.effects.persistence,true);
- assert.equal(s.effects.persistenceProfile,'p39');
- assert.equal(s.cyclePhosphorProfile(),'p31');
- assert.equal(s.cyclePhosphorProfile(),'p1');
- assert.equal(s.cyclePhosphorProfile(),'p4');
- assert.equal(s.cyclePhosphorProfile(),'p39');
- s.setSetting('persistence',false);
- assert.equal(s.effects.persistence,false);
- assert.equal(s.effects.bloomStrength,.22);
- const reopened=createSettingsManager(storage);
+test('V098 defaults to independent intermediate decay, and refresh/profile cycle',()=>{
+ const store=memoryStorage(),settings=createSettingsManager(store);
+ assert.equal(settings.effects.persistence,true);
+ assert.equal(settings.effects.persistenceProfile,'balanced');
+ assert.equal(settings.effects.scanRefreshHz,60);
+ for(const p of ['p39','p31','p1','p4','balanced'])
+  assert.equal(settings.cyclePhosphorProfile(),p);
+ assert.equal(settings.cycleCRTRefresh(),75);
+ assert.equal(settings.cycleCRTRefresh(),50);
+ assert.equal(settings.cycleCRTRefresh(),60);
+ settings.setSetting('scanRefreshHz',500);
+ assert.equal(settings.effects.scanRefreshHz,60);
+ settings.setSetting('scanRefreshHz',50);
+ settings.setSetting('persistenceProfile','p39');
+ settings.setSetting('persistence',false);
+ const reopened=createSettingsManager(store);
  assert.equal(reopened.effects.persistenceProfile,'p39');
+ assert.equal(reopened.effects.scanRefreshHz,50);
  assert.equal(reopened.effects.persistence,false);
  reopened.restoreDefaults();
- assert.equal(reopened.effects.persistence,true);
- assert.equal(reopened.effects.persistenceProfile,'p39');
+ assert.equal(reopened.effects.persistenceProfile,'balanced');
+ assert.equal(reopened.effects.scanRefreshHz,60);
+ assert.equal(reopened.theme,'green');
 });
-test('unknown phosphor profile strings cannot enter stored settings',()=>{
- const storage=memoryStorage(),s=createSettingsManager(storage);
- s.setSetting('persistenceProfile','made-up');
- assert.equal(s.effects.persistenceProfile,'p39');
- s.setSetting('persistenceProfile','p31');
- assert.equal(s.effects.persistenceProfile,'p31');
+test('invalid decay profiles are rejected and legacy saved profiles still load',()=>{
+ const store=memoryStorage(),settings=createSettingsManager(store);
+ settings.setSetting('persistenceProfile','unphysical');
+ assert.equal(settings.effects.persistenceProfile,'balanced');
+ settings.setSetting('persistenceProfile','p31');
+ assert.equal(settings.effects.persistenceProfile,'p31');
+ const old=memoryStorage({
+  [STORAGE_KEYS.effects]:JSON.stringify({persistenceProfile:'p39',persistence:true})
+ });
+ assert.equal(createSettingsManager(old).effects.persistenceProfile,'p39');
 });

@@ -38,7 +38,7 @@ function setup(){
  class OutputPass{constructor(){this.label='OUTPUT';}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
  function createPhosphorPersistencePass(){return {
   label:'HISTORY',enabled:false,needsSwap:true,resetCount:0,
-  configure(id){this.profile=id;},reset(){this.resetCount++;},
+  configure(id,hz){this.profile=id;this.hz=hz;},reset(){this.resetCount++;},
   setSize(w,h){this.size=[w,h];},
   dispose(){this.disposeCount=(this.disposeCount||0)+1;}
  };}
@@ -74,7 +74,7 @@ const states={
  phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
  softness:true,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.39,
  scanlines:true,scanlineOpacity:20,scanlinePreset:'original',
- persistence:true,persistenceProfile:'p39'
+ persistence:true,persistenceProfile:'p39',scanRefreshHz:60
 };
 const update=(pipeline,override={})=>pipeline.syncFX({
  fx:{...states,...override},theme:'green',width:393,height:852,dpr:3,
@@ -101,8 +101,15 @@ test('display effect settings target their own passes',()=>{
  assert.equal(p[7].uniforms.uEnabled.value,1);
  assert.equal(p[8].enabled,true);
  assert.equal(p[9].enabled,true);
- assert.equal(p[10].enabled,true);
+ assert.equal(p[10].enabled,false,'physical beam replaces decorative scanline mask');
  assert.equal(p[10].uniforms.uScreenHeight.value,2556);
+ assert.equal(p[4].hz,60);
+ const green=p[7].uniforms.uTint.value;
+ assert.equal(green.x,.22);
+ assert.equal(green.z,.34);
+ update(pipeline,{persistence:true,persistenceProfile:'p1',scanRefreshHz:75});
+ assert.equal(p[4].hz,75);
+ assert.equal(p[7].uniforms.uTint.value.x,.22,'hue must not change with phosphor');
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false,persistence:false});
  for(const i of [4,5,6,8,9,10])assert.equal(p[i].enabled,false);
  assert.equal(p[7].uniforms.uEnabled.value,0);
@@ -110,6 +117,22 @@ test('display effect settings target their own passes',()=>{
  update(pipeline,{persistence:true,persistenceProfile:'p31'});
  assert.equal(p[4].profile,'p31');
  assert.ok(p[4].resetCount>before);
+});
+test('raster and tint are independent; legacy scanline mask returns when CRT is off',()=>{
+ const {pipeline,composer}=setup();
+ update(pipeline,{persistence:true,persistenceProfile:'p39',scanRefreshHz:50});
+ const p=composer.passes;
+ assert.equal(p[4].hz,50);
+ assert.equal(p[10].enabled,false);
+ update(pipeline,{persistence:true,persistenceProfile:'p4',scanRefreshHz:75});
+ assert.equal(p[4].hz,75);
+ assert.equal(p[7].uniforms.uTint.value.x,.22);
+ update(pipeline,{persistence:true,persistenceProfile:'p4',scanRefreshHz:75});
+ assert.equal(p[10].enabled,false);
+ update(pipeline,{persistence:false});
+ assert.equal(p[10].enabled,true,'legacy static scanline mask is restored');
+ assert.equal(p[7].uniforms.uTint.value.x,.2,'legacy hue preserved');
+ pipeline.dispose();
 });
 test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
  const {pipeline,composer}=setup();
