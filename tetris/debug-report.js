@@ -1,7 +1,7 @@
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,samples=[],current}={}){
+export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,graphics,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -64,6 +64,36 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
  rows.push('', 'GPU RESOURCES (Three.js counters; not GPU utilization)');
  rows.push('Textures: '+value(gfx?.textures)+' / geometries: '+value(gfx?.geometries)+' / programs: '+value(gfx?.programs));
  rows.push('Active passes: '+value(gfx?.activePasses)+' / total passes: '+value(gfx?.totalPasses));
+ // Three.js counters are not byte counts. Sample trends can reveal persistent
+ // growth, but cannot by themselves prove a GPU memory leak.
+ const gpuHistory=[...samples.slice(-8),...(current?.frameTicks>0?[current]:[])]
+  .map(sample=>sample?.gpu).filter(Boolean);
+ rows.push('', 'GPU RESOURCE TREND (recent samples; counts, not VRAM bytes)');
+ let hasTrend=false;
+ for(const [field,label] of [['textures','Textures'],['geometries','Geometries'],['programs','Programs']]){
+  const values=gpuHistory.map(sample=>sample[field]).filter(Number.isFinite);
+  if(!values.length)continue;
+  hasTrend=true;
+  const delta=values.at(-1)-values[0];
+  rows.push(label+': first '+values[0]+' / latest '+values.at(-1)+
+   ' / peak '+Math.max(...values)+' / change '+(delta>0?'+':'')+delta+
+   ' (samples '+values.length+')');
+ }
+ if(!hasTrend)rows.push('No resource trend samples yet.');
+ rows.push('These are Three.js resource counters, not measured GPU memory usage or proof of a leak.');
+ if(graphics){
+  rows.push('', 'WEBGL LIFECYCLE');
+  rows.push('Context: '+value(graphics.status)+
+   ' / losses '+value(graphics.losses)+
+   ' / restore events '+value(graphics.restores)+
+   ' / frame errors '+value(graphics.renderFailures));
+  if(graphics.lossDurationMs!==null&&graphics.lossDurationMs!==undefined)
+   rows.push('Context unavailable for '+value(Math.round(graphics.lossDurationMs),'ms'));
+  if(graphics.lastError)rows.push('Last render error: '+String(graphics.lastError).replace(/\\s+/g,' ').slice(0,240));
+  const recent=(graphics.history||[]).slice(-8);
+  rows.push('Recent graphics events: '+(recent.length?recent.map(event=>
+   value(event.at)+' '+value(event.type)).join(' | '):'none'));
+ }
  rows.push('Current settings: '+value(display?.settings));
  return rows.join('\n');
 }
