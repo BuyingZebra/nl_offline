@@ -29,7 +29,7 @@ function setup(){
    this.uniforms=shader.uniforms;
    const u=this.uniforms;
    this.label='uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
-    'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
+    'uPower' in u?'BUTTON RESPONSE':'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
     'uRadius' in u?'SOFTNESS':'uStart' in u?'VIGNETTE':
     'uPattern' in u?'CRT':'uOffset' in u?'ROLL':'UNKNOWN';
   }
@@ -71,7 +71,7 @@ const update=(pipeline,override={})=>pipeline.syncFX({
 test('pass order remains exactly the approved version',()=>{
  const {composer}=setup();
  assert.deepEqual(composer.passes.map(p=>p.label),[
-  'RENDER','BOARD BLUR','BOARD POPUP','GHOST','BLOOM','PHOSPHOR',
+  'RENDER','BOARD BLUR','BOARD POPUP','BUTTON RESPONSE','GHOST','BLOOM','PHOSPHOR',
   'SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
  ]);
 });
@@ -79,17 +79,17 @@ test('display effect settings target their own passes',()=>{
  const {pipeline,composer}=setup();
  update(pipeline);
  const p=composer.passes;
- assert.equal(p[3].enabled,true);
- assert.equal(p[3].uniforms.uStrength.value,.22);
  assert.equal(p[4].enabled,true);
- assert.equal(p[4].strength,.3);
- assert.equal(p[5].uniforms.uEnabled.value,1);
- assert.equal(p[6].enabled,true);
+ assert.equal(p[4].uniforms.uStrength.value,.22);
+ assert.equal(p[5].enabled,true);
+ assert.equal(p[5].strength,.3);
+ assert.equal(p[6].uniforms.uEnabled.value,1);
  assert.equal(p[7].enabled,true);
  assert.equal(p[8].enabled,true);
- assert.equal(p[8].uniforms.uScreenHeight.value,2556);
+ assert.equal(p[9].enabled,true);
+ assert.equal(p[9].uniforms.uScreenHeight.value,2556);
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false});
- for(const i of [3,4,6,7,8])assert.equal(p[i].enabled,false);
+ for(const i of [4,5,7,8,9])assert.equal(p[i].enabled,false);
  assert.equal(p[5].uniforms.uEnabled.value,0);
 });
 test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
@@ -128,7 +128,7 @@ test('resize updates GPU sampling sizes and disposal releases owned textures',()
  pipeline.resize(844,390,3);
  assert.deepEqual(composer.size,[844,390]);
  assert.equal(composer.dpr,3);
- for(const i of [1,2,3,6]){
+ for(const i of [1,2,4,7]){
   assert.equal(composer.passes[i].uniforms.uSize.value.x,844);
   assert.equal(composer.passes[i].uniforms.uSize.value.y,390);
  }
@@ -154,4 +154,23 @@ test('a failing compositor pass cannot prevent other effects or composer cleanup
  assert.equal(composer.passes.at(-1).disposeCount,1);
  assert.ok(textures.every(texture=>texture.disposed));
  assert.equal(pipeline.dispose(),false);
+});
+
+test('every button uses same composited luminance pulse before unchanged CRT passes',()=>{
+ const {pipeline,composer}=setup();
+ const p=composer.passes[3];
+ assert.equal(p.label,'BUTTON RESPONSE');
+ assert.equal(p.enabled,false);
+ pipeline.syncButtonFeedback([{x:20,y:40,w:60,h:44,power:1}],393,852);
+ assert.equal(p.enabled,true);
+ assert.equal(p.uniforms.uViewport.value.x,393);
+ assert.equal(p.uniforms.uViewport.value.y,852);
+ assert.equal(p.uniforms.uRects.value[0].x,20);
+ assert.equal(p.uniforms.uRects.value[0].y,40);
+ assert.equal(p.uniforms.uPower.value[0],1);
+ pipeline.syncButtonFeedback([{x:20,y:40,w:60,h:44,power:.13}],393,852);
+ assert.equal(p.uniforms.uPower.value[0],.13);
+ pipeline.syncButtonFeedback([],393,852);
+ assert.equal(p.enabled,false);
+ pipeline.dispose();
 });
