@@ -1,10 +1,20 @@
-/* NOMAD V106 — button-press luminance, preserving unfilled button geometry. */
+/* NOMAD V107 — source-owned button excitation.
+ * Every illuminated button stroke, label, icon or solid face starts at 206
+ * and reaches 255 during a press. The Canvas2D source itself animates:
+ * no geometric full-screen postprocess, pressed rectangle, or extra glow.
+ * Dark reversed text on filled keys remains legible and responds subtly.
+ * The shared GPU phosphor decay (when enabled) supplies the afterglow.
+ */
 export const MAX_BUTTON_FLASHES=8;
+export const BUTTON_BASE_LEVEL=206;
+export const BUTTON_PEAK_LEVEL=255;
 export const BUTTON_FLASH_PEAK_MS=90;
-// A quick touch must reach at least one raster/compositor frame.
 export const MIN_PRESS_FRAME_MS=34;
 export const BUTTON_AFTERGLOW_MS=410;
 export const BUTTON_FLASH_TOTAL_MS=BUTTON_FLASH_PEAK_MS+BUTTON_AFTERGLOW_MS;
+export const buttonLevel=power=>Math.round(BUTTON_BASE_LEVEL+
+ (BUTTON_PEAK_LEVEL-BUTTON_BASE_LEVEL)*Math.max(0,Math.min(1,Number(power)||0)));
+export const buttonInkLevel=power=>Math.round(6+24*Math.max(0,Math.min(1,Number(power)||0)));
 export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
  const hits=[],limit=Math.max(1,Math.min(MAX_BUTTON_FLASHES,Math.floor(capacity)||1));
  const same=(a,b)=>a.x===b.x&&a.y===b.y&&a.w===b.w&&a.h===b.h;
@@ -14,8 +24,7 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
   if(![x,y,w,h].every(Number.isFinite)||w<=0||h<=0)return false;
   const existing=hits.findIndex(a=>same(a,r));
   if(existing>=0)hits.splice(existing,1);
-  hits.push({x,y,w,h,mode:r.kind!=='button'?2:r.light?0:1,
-   pressedAt:now,releasedAt:held?null:now+BUTTON_FLASH_PEAK_MS});
+  hits.push({x,y,w,h,pressedAt:now,releasedAt:held?null:now+BUTTON_FLASH_PEAK_MS});
   if(hits.length>limit)hits.shift();
   return true;
  }
@@ -30,58 +39,17 @@ export function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
   for(let i=hits.length-1;i>=0;i--){
    const a=hits[i];
    if(a.releasedAt!==null&&physicalPersistence&&
-     now>=Math.max(a.releasedAt,a.pressedAt+MIN_PRESS_FRAME_MS)){
-     hits.splice(i,1);continue;
-    }
+    now>=Math.max(a.releasedAt,a.pressedAt+MIN_PRESS_FRAME_MS)){
+    hits.splice(i,1);continue;
+   }
    if(a.releasedAt!==null&&now-a.releasedAt>=BUTTON_AFTERGLOW_MS)hits.splice(i,1);
   }
   return hits.map(a=>{
    const age=a.releasedAt===null?0:Math.max(0,now-a.releasedAt);
    const fade=physicalPersistence?1:Math.max(0,1-age/BUTTON_AFTERGLOW_MS);
-   return Object.freeze({x:a.x,y:a.y,w:a.w,h:a.h,mode:a.mode,power:fade*fade});
+   return Object.freeze({x:a.x,y:a.y,w:a.w,h:a.h,power:fade*fade});
   });
  }
  function clear(){const had=hits.length>0;hits.length=0;return had;}
  return Object.freeze({press,release,sample,clear,get count(){return hits.length;}});
 }
-export const BUTTON_FEEDBACK_VERTEX=String.raw`
-varying vec2 vUv;
-void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}
-`;
-export const BUTTON_FEEDBACK_FRAGMENT=String.raw`
-precision highp float;
-uniform sampler2D tDiffuse;
-uniform vec2 uViewport;
-uniform vec4 uRects[${MAX_BUTTON_FLASHES}];
-uniform float uPower[${MAX_BUTTON_FLASHES}];
-uniform float uMode[${MAX_BUTTON_FLASHES}];
-varying vec2 vUv;
-void main(){
- vec2 p=vec2(vUv.x*uViewport.x,(1.0-vUv.y)*uViewport.y);
- float flash=0.0;
- float mode=0.0;
- for(int i=0;i<${MAX_BUTTON_FLASHES};i++){
-  float power=uPower[i];
-  if(power<=0.0001)continue;
-  vec2 lo=uRects[i].xy,hi=lo+uRects[i].zw;
-  float inside=step(lo.x,p.x)*step(p.x,hi.x)*step(lo.y,p.y)*step(p.y,hi.y);
-  float candidate=power*inside;
-  if(candidate>flash){flash=candidate;mode=uMode[i];}
- }
- vec3 original=texture2D(tDiffuse,vUv).rgb;
- if(flash<=0.0001){gl_FragColor=vec4(original,1.0);return;}
- float lum=dot(original,vec3(.2126,.7152,.0722));
- vec3 pressedColor;
- if(mode<0.5){
-  // Solid face brightens; existing dark lettering and symbols stay dark.
-  float face=smoothstep(.045,.17,lum);
-  pressedColor=mix(original,vec3(1.0),face);
- }else{
-  // Outlined buttons and toggles: ONLY excite their existing border,
-  // lettering and icon pixels. Their near-black faces stay transparent
-  // to the feedback effect: no inversion or solid rectangle is created.
-  float ink=smoothstep(.02,.14,lum);
-  pressedColor=mix(original,vec3(1.0),ink);
- }
- gl_FragColor=vec4(mix(original,pressedColor,clamp(flash,0.0,1.0)),1.0);
-}`;

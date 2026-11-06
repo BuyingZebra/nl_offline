@@ -29,7 +29,7 @@ function setup(){
    this.uniforms=shader.uniforms;
    const u=this.uniforms;
    this.label='uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
-    'uPower' in u?'BUTTON RESPONSE':'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
+    'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
     'uRadius' in u?'SOFTNESS':'uStart' in u?'VIGNETTE':
     'uPattern' in u?'CRT':'uOffset' in u?'ROLL':'UNKNOWN';
   }
@@ -55,16 +55,12 @@ function setup(){
  const instrumentCompositorPasses=new Function(
   profilerSource.replace('export function ','function ')+
   '\nreturn instrumentCompositorPasses;')();
- const feedbackSource=fs.readFileSync(path.join(__dirname,'button-feedback.js'),'utf8');
- const feedback=new Function(feedbackSource.replace(/\bexport\s+/g,'')+
-  '\nreturn {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT};')();
  const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
  assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
  const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document','instrumentCompositorPasses',
-  'MAX_BUTTON_FLASHES','BUTTON_FEEDBACK_VERTEX','BUTTON_FEEDBACK_FRAGMENT','createPhosphorPersistencePass',
+  'createPhosphorPersistencePass',
   standalone+'\nreturn createCompositor;')
   (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses,
-   feedback.MAX_BUTTON_FLASHES,feedback.BUTTON_FEEDBACK_VERTEX,feedback.BUTTON_FEEDBACK_FRAGMENT,
    createPhosphorPersistencePass);
  const externalPopup={external:true};
  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
@@ -84,7 +80,7 @@ const update=(pipeline,override={})=>pipeline.syncFX({
 test('pass order remains exactly the approved version',()=>{
  const {composer}=setup();
  assert.deepEqual(composer.passes.map(p=>p.label),[
-  'RENDER','BOARD BLUR','BOARD POPUP','BUTTON RESPONSE','HISTORY','GHOST','BLOOM',
+  'RENDER','BOARD BLUR','BOARD POPUP','HISTORY','GHOST','BLOOM',
   'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
  ]);
 });
@@ -92,66 +88,66 @@ test('display effect settings target their own passes',()=>{
  const {pipeline,composer}=setup();
  update(pipeline);
  const p=composer.passes;
- assert.equal(p[4].enabled,true,'history active');
- assert.equal(p[4].ms,120);
+ assert.equal(p[3].enabled,true,'history active');
+ assert.equal(p[3].ms,120);
+ assert.equal(p[4].enabled,true);
+ assert.equal(p[4].uniforms.uStrength.value,.22);
  assert.equal(p[5].enabled,true);
- assert.equal(p[5].uniforms.uStrength.value,.22);
- assert.equal(p[6].enabled,true);
- assert.equal(p[6].strength,.3);
- assert.equal(p[7].uniforms.uEnabled.value,1);
+ assert.equal(p[5].strength,.3);
+ assert.equal(p[6].uniforms.uEnabled.value,1);
+ assert.equal(p[7].enabled,true);
  assert.equal(p[8].enabled,true);
- assert.equal(p[9].enabled,true);
- assert.equal(p[10].enabled,true,'scanline mask must work with persistence');
- assert.equal(p[10].uniforms.uScreenHeight.value,2556);
- const green=p[7].uniforms.uTint.value;
+ assert.equal(p[9].enabled,true,'scanline mask must work with persistence');
+ assert.equal(p[9].uniforms.uScreenHeight.value,2556);
+ const green=p[6].uniforms.uTint.value;
  assert.equal(green.x,.2);
  assert.equal(green.z,.2);
  update(pipeline,{persistence:true,persistenceMs:80});
- assert.equal(p[4].ms,80);
- assert.equal(p[7].uniforms.uTint.value.x,.2,'hue must be independent of persistence');
+ assert.equal(p[3].ms,80);
+ assert.equal(p[6].uniforms.uTint.value.x,.2,'hue must be independent of persistence');
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false,persistence:false});
- for(const i of [4,5,6,8,9,10])assert.equal(p[i].enabled,false);
- assert.equal(p[7].uniforms.uEnabled.value,0);
- const before=p[4].resetCount;
+ for(const i of [3,4,5,7,8,9])assert.equal(p[i].enabled,false);
+ assert.equal(p[6].uniforms.uEnabled.value,0);
+ const before=p[3].resetCount;
  update(pipeline,{persistence:true,persistenceMs:110});
- assert.equal(p[4].ms,110);
- assert.ok(p[4].resetCount>before);
+ assert.equal(p[3].ms,110);
+ assert.ok(p[3].resetCount>before);
 });
 test('whole-screen decay and tint stay independent; optional legacy mask is separate',()=>{
  const {pipeline,composer}=setup();
  update(pipeline,{persistence:true,persistenceMs:120});
  const p=composer.passes;
- assert.equal(p[10].enabled,true);
+ assert.equal(p[9].enabled,true);
  update(pipeline,{persistence:true,persistenceMs:90});
- assert.equal(p[4].ms,90);
- assert.equal(p[7].uniforms.uTint.value.x,.2);
+ assert.equal(p[3].ms,90);
+ assert.equal(p[6].uniforms.uTint.value.x,.2);
  update(pipeline,{persistence:true,persistenceMs:100});
- assert.equal(p[10].enabled,true);
- assert.equal(p[4].ms,100);
+ assert.equal(p[9].enabled,true);
+ assert.equal(p[3].ms,100);
  update(pipeline,{persistence:false});
- assert.equal(p[10].enabled,true,'legacy static scanline mask is restored');
- assert.equal(p[7].uniforms.uTint.value.x,.2,'legacy hue preserved');
+ assert.equal(p[9].enabled,true,'legacy static scanline mask is restored');
+ assert.equal(p[6].uniforms.uTint.value.x,.2,'legacy hue preserved');
  pipeline.dispose();
 });
 test('scanlines and bloom are separately controllable with phosphor persistence',()=>{
  const {pipeline,composer}=setup();
  const p=composer.passes;
  update(pipeline,{persistence:true,scanlines:true,scanlineOpacity:49,bloom:false});
- assert.equal(p[4].enabled,true,'phosphor history remains enabled');
- assert.equal(p[6].enabled,false,'Bloom alone governs external glow');
- assert.equal(p[10].enabled,true,'static scanlines survive persistence');
- assert.equal(p[10].uniforms.uOpacity.value,.49);
+ assert.equal(p[3].enabled,true,'phosphor history remains enabled');
+ assert.equal(p[5].enabled,false,'Bloom alone governs external glow');
+ assert.equal(p[9].enabled,true,'static scanlines survive persistence');
+ assert.equal(p[9].uniforms.uOpacity.value,.49);
  update(pipeline,{scanlines:false,bloom:true,persistence:true});
- assert.equal(p[10].enabled,false);
- assert.equal(p[6].enabled,true);
+ assert.equal(p[9].enabled,false);
+ assert.equal(p[5].enabled,true);
  update(pipeline,{scanlines:true,bloom:false,persistence:false});
- assert.equal(p[10].enabled,true,'scanlines do not depend on persistence');
- assert.equal(p[4].enabled,false);
+ assert.equal(p[9].enabled,true,'scanlines do not depend on persistence');
+ assert.equal(p[3].enabled,false);
  pipeline.dispose();
 });
 test('original NOMAD green and amber are unchanged by persistence or decay',()=>{
  const {pipeline,composer}=setup();
- const tint=composer.passes[7];
+ const tint=composer.passes[6];
  const expected={green:[.2,1,.2],amber:[185/255,79/255,9/255]};
  const rgba=()=>[tint.uniforms.uTint.value.x,tint.uniforms.uTint.value.y,tint.uniforms.uTint.value.z];
  for(const theme of ['green','amber']){
@@ -204,7 +200,7 @@ test('resize updates GPU sampling sizes and disposal releases owned textures',()
  pipeline.resize(844,390,3);
  assert.deepEqual(composer.size,[844,390]);
  assert.equal(composer.dpr,3);
- for(const i of [1,2,5,8]){
+ for(const i of [1,2,4,7]){
   assert.equal(composer.passes[i].uniforms.uSize.value.x,844);
   assert.equal(composer.passes[i].uniforms.uSize.value.y,390);
  }
@@ -232,21 +228,12 @@ test('a failing compositor pass cannot prevent other effects or composer cleanup
  assert.equal(pipeline.dispose(),false);
 });
 
-test('every button uses same composited luminance pulse before unchanged CRT passes',()=>{
+test('button presses are source owned; no compositor brightening overlay exists',()=>{
  const {pipeline,composer}=setup();
- const p=composer.passes[3];
- assert.equal(p.label,'BUTTON RESPONSE');
- assert.equal(p.enabled,false);
- pipeline.syncButtonFeedback([{x:20,y:40,w:60,h:44,power:1}],393,852);
- assert.equal(p.enabled,true);
- assert.equal(p.uniforms.uViewport.value.x,393);
- assert.equal(p.uniforms.uViewport.value.y,852);
- assert.equal(p.uniforms.uRects.value[0].x,20);
- assert.equal(p.uniforms.uRects.value[0].y,40);
- assert.equal(p.uniforms.uPower.value[0],1);
- pipeline.syncButtonFeedback([{x:20,y:40,w:60,h:44,power:.13}],393,852);
- assert.equal(p.uniforms.uPower.value[0],.13);
- pipeline.syncButtonFeedback([],393,852);
- assert.equal(p.enabled,false);
+ assert.ok(composer.passes.every(p=>p.label!=='BUTTON RESPONSE'));
+ assert.equal(typeof pipeline.syncButtonFeedback,'undefined');
+ assert.equal(composer.passes[3].label,'HISTORY');
+ const source=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
+ assert.doesNotMatch(source,/BUTTON_FEEDBACK|buttonPulsePass|uRects\[/);
  pipeline.dispose();
 });

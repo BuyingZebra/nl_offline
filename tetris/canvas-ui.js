@@ -1,3 +1,4 @@
+import {buttonLevel,buttonInkLevel} from './button-feedback.js?v107';
 import {makeRegion,makeButtonControl} from './ui-controls.js?v065';
 /* Tetris System V052 — Canvas2D drawing primitives.
  * Drawing targets and hitboxes are caller-owned and resolve on each draw,
@@ -5,7 +6,8 @@ import {makeRegion,makeButtonControl} from './ui-controls.js?v065';
  */
 export function createCanvasUI({getContext,getRegions,C,FONT,
  LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
- MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
+ MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,
+ getButtonPower=()=>0,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
 function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  const g=getContext();
  if(w<=0||h<=0)return;
@@ -70,20 +72,31 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='u
 }
 function rect(x,y,w,h,color){const g=getContext();g.fillStyle=color;g.fillRect(x,y,w,h);}
 function region(x,y,w,h,act,opts={}){const model=makeRegion(x,y,w,h,act,opts);getRegions().push(model);return model;}
+// All visible button emission is set at the source, not by a later rectangle.
+ const grayLevel=n=>{const v=Math.max(0,Math.min(255,Math.round(n)));return 'rgb('+v+','+v+','+v+')';};
+ const buttonLight=(x,y,w,h)=>{
+  const power=getButtonPower({x,y,w,h});
+  return buttonLevel(power);
+ };
 function key(label,x,y,w,h,act,opts={}){
  const model=makeButtonControl(label,x,y,w,h,act,opts);
+ const power=Math.max(0,Math.min(1,Number(getButtonPower(model.hitbox))||0));
+ const lit=grayLevel(buttonLevel(power));
+ // Negative-space text in solid buttons follows the press (6→30) without
+ // disappearing into the bright solid face (206→255).
+ const inverseInk=grayLevel(buttonInkLevel(power));
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- // No Canvas2D pressed-state fill: the GPU is the single source of feedback.
+ // Excite the existing source geometry: no additional filled overlay.
  panel(model.x,model.y,model.w,model.h,8,
-  model.light?C.bright:C.button,model.light?C.bright:C.border);
+  model.light?lit:C.button,lit);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
-  model.light?C.dark:C.ink,'center',Math.max(10,model.w-14));
+  model.light?inverseInk:lit,'center',Math.max(10,model.w-14));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
-  BUTTON_ICON_FONT_SIZE,model.light?C.dark:C.ink,'center');
+  BUTTON_ICON_FONT_SIZE,model.light?inverseInk:lit,'center');
  getRegions().push(model.hitbox);
  return model;
 }
 
- return Object.freeze({panel,wrapText,text,rect,region,key});
+ return Object.freeze({panel,wrapText,text,rect,region,key,buttonLight});
 }

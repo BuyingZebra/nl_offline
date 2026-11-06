@@ -7,7 +7,7 @@ import {makeSliderControl} from './ui-controls.js?v065';
 export function createModalUI({
  document,SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
  getViewport,layout,insets,clearRegions,getContext,
- panel,text,rect,region,key,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
+ panel,text,rect,region,key,buttonLight,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
  getFX,activeScanlinePreset,settingValue,chooseScanlineSetting,invalidate,setScrollVelocity,
  getHighs,getGame,getInitialsInput,getModal
 }){
@@ -165,11 +165,11 @@ function chooseScanline(id){
  chooseScanlineSetting(id);
  scanlineMenuOpen=false;setScrollVelocity(0);invalidate();
 }
-function settingSquare(x,y,size,active){
+function settingSquare(x,y,size,active,color=C.bright){
  const g=getContext();
  g.lineWidth=1;
- if(active){g.fillStyle=C.bright;g.fillRect(x,y,size,size);}
- else{g.strokeStyle=C.bright;g.strokeRect(x+.5,y+.5,size-1,size-1);}
+ if(active){g.fillStyle=color;g.fillRect(x,y,size,size);}
+ else{g.strokeStyle=color;g.strokeRect(x+.5,y+.5,size-1,size-1);}
 }
 function settingsExpandArrow(x,y,expanded,color){
  const g=getContext();
@@ -223,10 +223,10 @@ function drawSettingsSlider(x,y,w,setting){
  });
 }
 // Monochrome 16px bug glyph, so no multicolour system emoji enters our CRT.
-function drawDebugBug(cx,cy){
+function drawDebugBug(cx,cy,color=C.ink){
  const g=getContext();
  g.save();
- g.strokeStyle=C.ink;g.lineWidth=1.5;g.lineCap='round';g.lineJoin='round';
+ g.strokeStyle=color;g.lineWidth=1.5;g.lineCap='round';g.lineJoin='round';
  g.beginPath();
  g.ellipse(cx,cy+1.5,4.5,6,0,0,Math.PI*2);
  g.moveTo(cx-3,cy-5);g.lineTo(cx-5,cy-8);
@@ -263,10 +263,11 @@ function drawOptions(q){
   Math.max(10,debugX-pageX-UI_SPACE.headTitleInset-gap));
  const headerButtonY=headerY+(headH-q.buttonH)/2;
  key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug');
+ const debugLum=gray(buttonLight(debugX,headerButtonY,q.buttonH,q.buttonH));
  if(debugCopyState==='copied'||debugCopyState==='failed')
   text(debugCopyState==='copied'?'✓':'!',debugX+q.buttonH/2,
-   headerButtonY+q.buttonH/2,BUTTON_ICON_FONT_SIZE,C.ink,'center');
- else drawDebugBug(debugX+q.buttonH/2,headerButtonY+q.buttonH/2);
+   headerButtonY+q.buttonH/2,BUTTON_ICON_FONT_SIZE,debugLum,'center');
+ else drawDebugBug(debugX+q.buttonH/2,headerButtonY+q.buttonH/2,debugLum);
  key('X',closeX,headerButtonY,q.buttonH,q.buttonH,'close');
  const restoreW=Math.min(pageW-2*pad,
   r.boardW*UI_SPACE.overlayButtonWidthScale);
@@ -294,9 +295,10 @@ function drawOptions(q){
   const ctrlW=contentX+contentW-gap-ctrlX;
   const blockTop=y+(row.rowHeight-row.contentHeight)/2;
   const titleY=blockTop+SETTINGS_TITLE_H/2;
+  const toggleLum=gray(buttonLight(ctrlX,titleY-17,ctrlW,34));
   settingSquare(ctrlX,titleY-SETTINGS_SQUARE_SIZE/2,
-   SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)));
-  text(effect.title,ctrlX+SETTINGS_SQUARE_SIZE+gap,titleY,12,C.bright,
+   SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)),toggleLum);
+  text(effect.title,ctrlX+SETTINGS_SQUARE_SIZE+gap,titleY,12,toggleLum,
    'left',Math.max(10,ctrlW-SETTINGS_SQUARE_SIZE-gap));
   region(ctrlX,titleY-17,ctrlW,34,'toggle',
    {field:effect.toggle,modalControl:true});
@@ -319,24 +321,27 @@ function drawOptions(q){
    // Pattern picker belongs to Scanlines; no new category or separate row.
    const selectY=blockTop+SETTINGS_TITLE_H+gap+
     SETTINGS_CONTROL_H+gap,selectH=SETTINGS_SELECT_H;
-   panel(ctrlX,selectY,ctrlW,selectH,5,C.button,C.border);
+   const pickerLum=gray(buttonLight(ctrlX,selectY,ctrlW,selectH));
+   panel(ctrlX,selectY,ctrlW,selectH,5,C.button,pickerLum);
    const current=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
    const shortNames={horizontal:'HORIZONTAL',aperture:'APERTURE',
     slot:'SLOT MASK',dot:'DOT MASK'};
    text(shortNames[current?.id]||current?.name||'ORIGINAL',
-    ctrlX+gap,selectY+selectH/2,10,C.ink,'left',
+    ctrlX+gap,selectY+selectH/2,10,pickerLum,'left',
     Math.max(10,ctrlW-3*gap-BUTTON_ICON_FONT_SIZE));
    settingsExpandArrow(ctrlX+ctrlW-gap-BUTTON_ICON_FONT_SIZE/2,
-    selectY+selectH/2,scanlineMenuOpen,C.ink);
+    selectY+selectH/2,scanlineMenuOpen,pickerLum);
    region(ctrlX,selectY,ctrlW,selectH,'patternSelect',{modalControl:true});
    if(scanlineMenuOpen)SCANLINE_CHOICES.forEach((option,i)=>{
     const cy=y+row.rowHeight+i*(row.choiceHeight+gap);
     const chosen=option.id===selectedScanlineChoice();
+    const choiceLum=gray(buttonLight(contentX+2*gap,cy,
+     contentW-4*gap,row.choiceHeight));
     settingSquare(contentX+3*gap,
      cy+(row.choiceHeight-SETTINGS_SQUARE_SIZE)/2,
-     SETTINGS_SQUARE_SIZE,chosen);
+     SETTINGS_SQUARE_SIZE,chosen,choiceLum);
     text(option.name,contentX+5*gap+SETTINGS_SQUARE_SIZE,
-     cy+row.choiceHeight/2,11,chosen?C.bright:C.ink,
+     cy+row.choiceHeight/2,11,choiceLum,
      'left',contentW-8*gap-SETTINGS_SQUARE_SIZE);
     region(contentX+2*gap,cy,contentW-4*gap,row.choiceHeight,
      'scanlineChoice',{field:option.id,modalControl:true});

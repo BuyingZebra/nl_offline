@@ -3,10 +3,10 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v104';
+import {createCompositor} from './compositor.js?v107';
 import {drawTileFace} from './tile-face.js?v106';
-import {createButtonFeedback} from './button-feedback.js?v106';
-import {createCanvasUI} from './canvas-ui.js?v096';
+import {createButtonFeedback} from './button-feedback.js?v107';
+import {createCanvasUI} from './canvas-ui.js?v107';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
@@ -17,7 +17,7 @@ import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layer
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
-import {createModalUI} from './modal-ui.js?v085';
+import {createModalUI} from './modal-ui.js?v107';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v071';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
@@ -166,10 +166,10 @@ const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
 modalPlane.visible=false;scene.add(modalPlane);
 
-// Held buttons are bright until release, then return smoothly to their source.
-// Existing CRT bloom handles glow; no UI texture uploads are required.
+// Source-owned button brightness; no fullscreen press overlay or extra glow.
 const buttonFeedback=createButtonFeedback();
-let buttonGlowWasActive=false;
+let buttonSparks=[];
+let priorButtonSignature='';
 let lastHistoryRender=0;
 
 // Upload changed canvases before submitting the composer so that the first
@@ -185,7 +185,7 @@ const graphicsHealth=createGraphicsHealth({
   // An interrupted GPU must never advance unseen gameplay or repeat inputs.
   if(game.status==='playing')actions.perform('pause');
   inputController?.cancel();scrollVelocity=0;
-  buttonFeedback.clear();buttonGlowWasActive=false;
+  buttonFeedback.clear();buttonSparks=[];
   compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
  },
@@ -277,8 +277,10 @@ function onInitialsKeydown(e){
 }
 initialsInput.addEventListener('input',onInitialsInput);
 initialsInput.addEventListener('keydown',onInitialsKeydown);
-const {panel,wrapText,text,rect,region,key}=createCanvasUI({
+const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
+ getButtonPower:r=>buttonSparks.find(s=>s.x===r.x&&s.y===r.y&&
+  s.w===r.w&&s.h===r.h)?.power??0,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
 });
@@ -546,7 +548,7 @@ const modalUI=createModalUI({
  document,SHAPES:Core.SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
  getViewport:()=>({W,H,DPR}),layout,insets,
  clearRegions:()=>{regions=[];},getContext:()=>g,
- panel,text,rect,region,key,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
+ panel,text,rect,region,key,buttonLight,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
  getFX:()=>settings.effects,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
  settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
  invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
@@ -714,27 +716,31 @@ function frame(now){
    if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
    else{layers.reason('scroll');}
   }else scrollVelocity=0;
-  // Only GPU parameters animate. A final clean frame removes the
-  // released-button fade; don't re-upload the menu CanvasTexture.
+  // Pressed buttons animate their original grayscale Canvas2D artwork.
   const phosphorOn=settings.effects.persistence===true;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
    layers.reason('phosphor-history');
-  // Button response ends on release, but its phosphor trail continues.
-   const buttonSparks=buttonFeedback.sample(now,phosphorOn);
-  if(buttonSparks.length||buttonGlowWasActive)layers.reason('button-afterglow');
-  buttonGlowWasActive=buttonSparks.length>0;
+  // Only repaint when the actual source luminance changes (206..255),
+  // including the final return to baseline. Phosphor history owns the fade.
+  buttonSparks=buttonFeedback.sample(now,phosphorOn);
+  const buttonSignature=buttonSparks.map(s=>[s.x,s.y,s.w,s.h,
+   Math.round(s.power*49)].join(':')).join('|');
+  if(buttonSignature!==priorButtonSignature){
+   priorButtonSignature=buttonSignature;
+   layers.mark('base','controls');
+   layers.reason('button-luminance');
+  }
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
    const canvasDirty=['base','board','sidebar','controls'].some(layer=>layers.needs(layer));
-   if(canvasDirty||why.some(reason=>reason!=='button-afterglow'&&reason!=='phosphor-history'))paintGame();
+   if(canvasDirty||why.some(reason=>reason!=='phosphor-history'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
    surface.material.map=texture;
    const syncStarted=performance.now();
    syncFX();
-   compositor.syncButtonFeedback(buttonSparks,W,H);
    perf.recordDuration('sync',performance.now()-syncStarted);
    if(surface.visible)textureUploads.upload(texture,'base');
    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
@@ -761,7 +767,7 @@ function frame(now){
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
   if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||
-   buttonGlowWasActive||phosphorOn)requestFrame();
+   buttonSparks.length>0||phosphorOn)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
   // A WebGL loss can interrupt a frame in progress. Its restoration event
@@ -791,7 +797,7 @@ appLifecycle=createAppLifecycle({
    layers.mark('base','board','controls');
   }
   inputController?.cancel();scrollVelocity=0;
-  buttonFeedback.clear();buttonGlowWasActive=false;
+  buttonFeedback.clear();buttonSparks=[];
   compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
@@ -829,7 +835,7 @@ const platform=createPlatformManager({
   cachedLayout=null;
   if(!unchanged){
    W=width;H=height;DPR=dpr;
-   buttonFeedback.clear();buttonGlowWasActive=false;
+   buttonFeedback.clear();buttonSparks=[];
   compositor.resetPersistence();
    input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
    boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;

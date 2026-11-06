@@ -9,7 +9,6 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
-import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v106';
 import {createPhosphorPersistencePass} from './phosphor-persistence.js?v104';
 
 // Fixed V049 optical constants; unchanged by modularization.
@@ -88,21 +87,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  composer.addPass(boardBlurHorizontal);
  composer.addPass(boardPopupPass);
 
- // Button-only luminance boost runs after the opaque popup and before CRT bloom.
- // No local halo or extra glow is introduced by this pass.
- const buttonPulsePass=new ShaderPass({
-  uniforms:{
-   tDiffuse:{value:null},
-   uViewport:{value:new THREE.Vector2(1,1)},
-   uRects:{value:Array.from({length:MAX_BUTTON_FLASHES},()=>new THREE.Vector4())},
-   uPower:{value:Array(MAX_BUTTON_FLASHES).fill(0)},
-    uMode:{value:Array(MAX_BUTTON_FLASHES).fill(0)}
-  },
-  vertexShader:BUTTON_FEEDBACK_VERTEX,
-  fragmentShader:BUTTON_FEEDBACK_FRAGMENT
- });
- buttonPulsePass.enabled=false;
- composer.addPass(buttonPulsePass);
+ // Buttons are drawn into source textures at their current brightness.
+ // No postprocessing pass manipulates their geometric bounds.
  // Experimental phosphor time history: grayscale, before optical glow/tint.
  // Disabled when users toggle PHOSPHOR HISTORY off (V096 baseline).
  const persistencePass=createPhosphorPersistencePass();
@@ -312,7 +298,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Keep the exact pass order, source textures and FX behavior. Measure the
  // CPU time spent issuing each pass only; no extra GL renders or readbacks.
  const passProfiler=instrumentCompositorPasses(composer.passes,[
-  'Scene + uploads','Board blur H','Board popup','Button response','Phosphor history','Ghost','Bloom',
+  'Scene + uploads','Board blur H','Board popup','Phosphor history','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
  // Canonical NOMAD artist-approved tint ratios, unchanged from V096.
@@ -323,20 +309,6 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncButtonFeedback(flashes,width,height){
-  buttonPulsePass.enabled=flashes.length>0;
-  if(!buttonPulsePass.enabled)return;
-  buttonPulsePass.uniforms.uViewport.value.set(width,height);
-  const rects=buttonPulsePass.uniforms.uRects.value;
-  const powers=buttonPulsePass.uniforms.uPower.value;
-   const modes=buttonPulsePass.uniforms.uMode.value;
-  for(let i=0;i<MAX_BUTTON_FLASHES;i++){
-   const flash=flashes[i];
-   if(flash)rects[i].set(flash.x,flash.y,flash.w,flash.h);
-   powers[i]=flash?flash.power:0;
-    modes[i]=flash?flash.mode:0;
-  }
-}
 function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
@@ -437,7 +409,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   for(const pass of composer.passes)if(pass.enabled!==false)activePasses++;
   return {activePasses,totalPasses:composer.passes.length};
  }
- return Object.freeze({syncFX,syncButtonFeedback,resize,setStartupRoll,
+ return Object.freeze({syncFX,resize,setStartupRoll,
   resetPersistence:()=>persistencePass.reset(),
   render:(dt)=>composer.render(dt),dispose,passStats,
   activeScanlinePreset,SCANLINE_PRESETS});

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,
- BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT}
+ BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,
+ buttonLevel,buttonInkLevel}
  from '../button-feedback.js';
 
 const solid={x:20,y:40,w:83,h:44,kind:'button',light:true};
@@ -9,7 +10,7 @@ const outline={x:150,y:40,w:83,h:44,kind:'button',light:false};
 test('held buttons stay at full luminance until release, then fade',()=>{
  const f=createButtonFeedback();
  assert.equal(f.press(solid,1000),true);
- assert.deepEqual(f.sample(1000),[{x:20,y:40,w:83,h:44,mode:0,power:1}]);
+ assert.deepEqual(f.sample(1000),[{x:20,y:40,w:83,h:44,power:1}]);
  assert.equal(f.sample(9000)[0].power,1);
  assert.equal(f.release(solid,9000),true);
  assert.equal(f.sample(9000)[0].power,1);
@@ -17,11 +18,12 @@ test('held buttons stay at full luminance until release, then fade',()=>{
  assert.deepEqual(f.sample(9000+BUTTON_AFTERGLOW_MS),[]);
  assert.equal(f.count,0);
 });
-test('outlined and settings controls keep stroke-only feedback modes',()=>{
+test('filled, outlined and icon controls all share the same source peak',()=>{
  const f=createButtonFeedback();
+ f.press(solid,0);
  f.press(outline,0);
- f.press({x:0,y:0,w:15,h:15,kind:'toggle'},10);
- assert.deepEqual(f.sample(10).map(h=>h.mode),[1,2]);
+ f.press({x:0,y:0,w:15,h:15,kind:'toggle'},0);
+ assert.deepEqual(f.sample(20).map(hit=>buttonLevel(hit.power)),[255,255,255]);
 });
 test('keyboard taps remain bounded without keyup',()=>{
  const f=createButtonFeedback();
@@ -53,34 +55,18 @@ test('feedback remains bounded, validates geometry, and clears on navigation',()
  assert.deepEqual(f.sample(100),[]);
  assert.equal(f.clear(),false);
 });
-test('shader brightens solid faces and only existing outline strokes',()=>{
- assert.match(BUTTON_FEEDBACK_VERTEX,/gl_Position/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec2 uViewport/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec4 uRects\[8\]/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform float uPower\[8\]/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform float uMode\[8\]/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/float inside=step\(lo\.x,p\.x\)/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=mix\(original,vec3\(1\.0\),face\)/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/float ink=smoothstep\(\.02,\.14,lum\)/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=mix\(original,vec3\(1\.0\),ink\)/);
- assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=vec3\(mix\(1\.0/);
- assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/float halo|float rim|float distance|exp\(/);
+test('all active button geometry is 206 at rest and reaches 255 on press',()=>{
+ assert.equal(BUTTON_BASE_LEVEL,206);
+ assert.equal(BUTTON_PEAK_LEVEL,255);
+ assert.equal(buttonLevel(0),206);
+ assert.equal(buttonLevel(.5),231);
+ assert.equal(buttonLevel(1),255);
+ assert.equal(buttonLevel(-5),206);
+ assert.equal(buttonLevel(9),255);
+ assert.equal(buttonInkLevel(0),6);
+ assert.equal(buttonInkLevel(1),30);
+ assert.ok(buttonInkLevel(1)<buttonLevel(1),'solid dark text stays legible');
  assert.ok(BUTTON_FLASH_TOTAL_MS<700);
-});
-test('outline press leaves unlit background unchanged while exciting border and glyphs',()=>{
- const fragment=BUTTON_FEEDBACK_FRAGMENT;
- assert.match(fragment,/if\(mode<0\.5\)/);
- assert.match(fragment,/else\s*\{\s*\/\/ Outlined buttons and toggles/);
- // Mirror shader ink selection on black button face, existing border and text.
- const smoothstep=(edge0,edge1,v)=>{
-  const t=Math.max(0,Math.min(1,(v-edge0)/(edge1-edge0)));
-  return t*t*(3-2*t);
- };
- const pressed=lum=>lum+(1-lum)*smoothstep(.02,.14,lum);
- const background=.0025,border=.185,text=.76;
- assert.equal(pressed(background),background,'no solid fill');
- assert.ok(pressed(border)>border,'border increases brightness');
- assert.ok(pressed(text)>text,'text/icon increases brightness');
 });
 test('physical phosphor mode stops excitation on release instead of double-fading',()=>{
  const f=createButtonFeedback();
