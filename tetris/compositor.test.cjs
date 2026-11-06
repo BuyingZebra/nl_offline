@@ -140,7 +140,7 @@ test('original NOMAD green and amber are unchanged by persistence or decay',()=>
  const rgba=()=>[tint.uniforms.uTint.value.x,tint.uniforms.uTint.value.y,tint.uniforms.uTint.value.z];
  for(const theme of ['green','amber']){
   for(const enabled of [true,false]){
-   for(const ms of [10,70,120]{
+   for(const ms of [10,70,120]){
     pipeline.syncFX({fx:{...states,persistence:enabled,persistenceMs:ms},
      theme,width:393,height:852,dpr:3,boardStatus:'playing',
      popupStatus:'ready',modalOpen:false,
