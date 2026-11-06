@@ -3,7 +3,7 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v102';
+import {createCompositor} from './compositor.js?v103';
 import {drawTileFace} from './tile-face.js?v094';
 import {createButtonFeedback} from './button-feedback.js?v096';
 import {createCanvasUI} from './canvas-ui.js?v096';
@@ -20,8 +20,8 @@ import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v085';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing} from './hud-drawing.js?v071';
-import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v073';
-import {createSettingsManager} from './settings-manager.js?v085';
+import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
+import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v086';
 import {createActionController} from './action-controller.js?v089';
 import {createGraphicsHealth} from './graphics-health.js?v089';

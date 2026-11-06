@@ -1,3 +1,43 @@
+# V103 — full-emission PSF and 120 ms decay ceiling
+
+The previous V102 implementation transmitted 84% of light unchanged and sent
+16% through a separate Gaussian. V103 replaces this with **one normalized
+spatial point-spread function applied to 100% of the emitted luminance**.
+
+The new provisional 13-sample *radial* PSF is a generalized Lorentzian/Moffat
+power-law shape: K(r) proportional to `[1+(r/0.62)^2]^-1.85`,
+renormalized so all 13 discrete samples sum to 1. Sample positions are
+0, 1, sqrt(2), and 2 kernel radii, with approximately 1.7 physical display
+pixels between the samples. The narrow central maximum retains apparent
+sharpness without bypassing the PSF; distant samples get progressively less
+energy. The spatial coefficients are not physically fitted measurements.
+
+Brightness changes the intensity of every sample, *not* an arbitrary scatter
+radius: `output(x,y) = sum K(i,j) * emitted(x-i,y-j)`. For a source emitting
+0.1 instead of 1.0, the outer contribution is one tenth as bright and falls
+below a fixed visibility threshold sooner. This is a grounded linear-optics
+approximation; measured CRT electron-spot size can also vary with beam current,
+but that effect is not claimed here.
+
+The full-resolution emitted grayscale image (including per-pixel temporal
+afterglow) is reconstructed first, then filtered at full resolution by the
+single 13-tap PSF. This removes V102's quarter-resolution halo buffers and
+protects small UI lettering. The two-stage pass uses one extra full-screen
+temporary render target; actual mobile GPU cost still needs practical review.
+The separately adjustable **Phosphor Bloom** remains an additional artistic
+effect downstream and can be switched off for assessing PSF alone.
+
+**Persistence: 10–120 ms** in 10 ms increments (default 120 ms). Previously
+saved values above 120 ms, including the former 190 ms default, clamp to 120.
+The original green and amber tints, independent of the decay/optics, remain
+unchanged. No simulated scanning or refresh-rate control returns.
+
+Research discussed below (Knudson, Infante, Pelli, Compton) motivates spatial
+spot functions and independent decay, but does not calibrate these model
+coefficients for an actual physical monitor.
+
+---
+
 # V102 — spatial point-spread plus phosphor persistence
 
 The V101 phosphor response was already a whole-screen temporal field, but its

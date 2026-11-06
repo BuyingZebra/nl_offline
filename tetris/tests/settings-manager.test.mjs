@@ -106,43 +106,52 @@ test('settings work if local persistence throws',()=>{
 });
 
 
-test('V100 keeps one adjustable decay and no scan refresh control',()=>{
+test('V103 persists and caps decay at 120ms with no scan refresh control',()=>{
  const store=memoryStorage(),settings=createSettingsManager(store);
  assert.equal(settings.effects.persistence,true);
- assert.equal(settings.effects.persistenceMs,190);
+ assert.equal(settings.effects.persistenceMs,120);
  assert.equal('scanRefreshHz' in settings.effects,false);
- settings.setSetting('persistenceMs',560);
- assert.equal(settings.effects.persistenceMs,560);
+ settings.setSetting('persistenceMs',80);
+ assert.equal(settings.effects.persistenceMs,80);
  settings.setSetting('persistence',false);
  const reopened=createSettingsManager(store);
- assert.equal(reopened.effects.persistenceMs,560);
+ assert.equal(reopened.effects.persistenceMs,80);
  assert.equal(reopened.effects.persistence,false);
  reopened.restoreDefaults();
- assert.equal(reopened.effects.persistenceMs,190);
+ assert.equal(reopened.effects.persistenceMs,120);
  assert.equal('scanRefreshHz' in reopened.effects,false);
  assert.equal(reopened.theme,'green');
 });
 test('decay setting clamps; removed scanning options are ignored',()=>{
  const store=memoryStorage(),settings=createSettingsManager(store);
  settings.setSetting('persistenceMs',90000);
- assert.equal(settings.effects.persistenceMs,2000);
+ assert.equal(settings.effects.persistenceMs,120);
  settings.setSetting('persistenceMs',0);
  assert.equal(settings.effects.persistenceMs,10);
  settings.setSetting('persistenceMs',193);
- assert.equal(settings.effects.persistenceMs,190);
+ assert.equal(settings.effects.persistenceMs,120);
  settings.setSetting('scanRefreshHz',120);
  settings.setSetting('persistenceProfile','p39');
  assert.equal('scanRefreshHz' in settings.effects,false);
  assert.equal('persistenceProfile' in settings.effects,false);
 });
-test('stored V099 rate/profile settings do not alter the V100 phosphor',()=>{
+test('stored V102 settings above 120 ms migrate to the new ceiling',()=>{
  const old=memoryStorage({
   [STORAGE_KEYS.effects]:JSON.stringify({
    persistenceProfile:'p39',scanRefreshHz:75,persistence:true,persistenceMs:460
   })
  });
  const settings=createSettingsManager(old);
- assert.equal(settings.effects.persistenceMs,460);
+ assert.equal(settings.effects.persistenceMs,120);
  assert.equal('scanRefreshHz' in settings.effects,false);
  assert.equal(settings.effects.persistence,true);
+});
+test('a prior saved decay at 190ms is automatically clamped to 120ms',()=>{
+ const stored=memoryStorage({
+  [STORAGE_KEYS.effects]:JSON.stringify({persistence:true,persistenceMs:190})
+ });
+ const settings=createSettingsManager(stored);
+ assert.equal(settings.effects.persistenceMs,120);
+ settings.setSetting('persistenceMs',120);
+ assert.equal(createSettingsManager(stored).effects.persistenceMs,120);
 });

@@ -3,9 +3,9 @@
  * dependencies. Historical storage keys and reset behaviour are preserved.
  */
 import {DEFAULT_EFFECTS,effectSettingValue,effectSettingToStored}
- from './display-settings-catalog.js?v100';
+ from './display-settings-catalog.js?v103';
 import {normalizePersistenceMs}
- from './phosphor-model.js?v100';
+ from './phosphor-model.js?v103';
 
 export const STORAGE_KEYS=Object.freeze({
  effects:'fieldAtlasThreeV027FX01',

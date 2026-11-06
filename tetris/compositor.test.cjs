@@ -74,7 +74,7 @@ const states={
  phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
  softness:true,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.39,
  scanlines:true,scanlineOpacity:20,scanlinePreset:'original',
- persistence:true,persistenceMs:190
+ persistence:true,persistenceMs:120
 };
 const update=(pipeline,override={})=>pipeline.syncFX({
  fx:{...states,...override},theme:'green',width:393,height:852,dpr:3,
@@ -93,7 +93,7 @@ test('display effect settings target their own passes',()=>{
  update(pipeline);
  const p=composer.passes;
  assert.equal(p[4].enabled,true,'history active');
- assert.equal(p[4].ms,190);
+ assert.equal(p[4].ms,120);
  assert.equal(p[5].enabled,true);
  assert.equal(p[5].uniforms.uStrength.value,.22);
  assert.equal(p[6].enabled,true);
@@ -106,28 +106,28 @@ test('display effect settings target their own passes',()=>{
  const green=p[7].uniforms.uTint.value;
  assert.equal(green.x,.2);
  assert.equal(green.z,.2);
- update(pipeline,{persistence:true,persistenceMs:350});
- assert.equal(p[4].ms,350);
+ update(pipeline,{persistence:true,persistenceMs:80});
+ assert.equal(p[4].ms,80);
  assert.equal(p[7].uniforms.uTint.value.x,.2,'hue must be independent of persistence');
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false,persistence:false});
  for(const i of [4,5,6,8,9,10])assert.equal(p[i].enabled,false);
  assert.equal(p[7].uniforms.uEnabled.value,0);
  const before=p[4].resetCount;
- update(pipeline,{persistence:true,persistenceMs:220});
- assert.equal(p[4].ms,220);
+ update(pipeline,{persistence:true,persistenceMs:110});
+ assert.equal(p[4].ms,110);
  assert.ok(p[4].resetCount>before);
 });
 test('whole-screen decay and tint stay independent; optional legacy mask is separate',()=>{
  const {pipeline,composer}=setup();
- update(pipeline,{persistence:true,persistenceMs:1200});
+ update(pipeline,{persistence:true,persistenceMs:120});
  const p=composer.passes;
  assert.equal(p[10].enabled,false);
- update(pipeline,{persistence:true,persistenceMs:250});
- assert.equal(p[4].ms,250);
+ update(pipeline,{persistence:true,persistenceMs:90});
+ assert.equal(p[4].ms,90);
  assert.equal(p[7].uniforms.uTint.value.x,.2);
- update(pipeline,{persistence:true,persistenceMs:900});
+ update(pipeline,{persistence:true,persistenceMs:100});
  assert.equal(p[10].enabled,false);
- assert.equal(p[4].ms,900);
+ assert.equal(p[4].ms,100);
  update(pipeline,{persistence:false});
  assert.equal(p[10].enabled,true,'legacy static scanline mask is restored');
  assert.equal(p[7].uniforms.uTint.value.x,.2,'legacy hue preserved');
@@ -140,7 +140,7 @@ test('original NOMAD green and amber are unchanged by persistence or decay',()=>
  const rgba=()=>[tint.uniforms.uTint.value.x,tint.uniforms.uTint.value.y,tint.uniforms.uTint.value.z];
  for(const theme of ['green','amber']){
   for(const enabled of [true,false]){
-   for(const ms of [10,190,2000]){
+   for(const ms of [10,70,120]{
     pipeline.syncFX({fx:{...states,persistence:enabled,persistenceMs:ms},
      theme,width:393,height:852,dpr:3,boardStatus:'playing',
      popupStatus:'ready',modalOpen:false,

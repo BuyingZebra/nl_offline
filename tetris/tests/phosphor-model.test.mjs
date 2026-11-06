@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,
- PHOSPHOR_OPTICS,gaussianKernel1D}
+ PHOSPHOR_OPTICS,radialPSFWeights}
  from '../phosphor-model.js';
 import {makeSliderControl,sliderValueAt} from '../ui-controls.js';
 import {DISPLAY_EFFECTS} from '../display-settings-catalog.js';
@@ -14,23 +14,23 @@ test('phosphor decay is continuous and the sole display-light slider',()=>{
  assert.equal(effect.sliders.length,1);
  const slider=effect.sliders[0];
  assert.equal(slider[1],'persistenceMs');
- assert.deepEqual(slider.slice(2),[10,2000,10,'ms']);
+ assert.deepEqual(slider.slice(2),[10,120,10,'ms']);
  const ui=makeSliderControl(90,35,180,slider,190);
  assert.equal(sliderValueAt(ui.hitbox,ui.trackX),10);
- assert.equal(sliderValueAt(ui.hitbox,ui.trackX+ui.trackW),2000);
+ assert.equal(sliderValueAt(ui.hitbox,ui.trackX+ui.trackW),120);
  assert.equal(DISPLAY_EFFECTS.some(e=>e.id==='scanRefreshHz'),false);
  assert.equal(PHOSPHOR_BOUNDS.riseMs,12);
 });
 test('persistence range clamps and quantizes to 10 ms increments',()=>{
  assert.equal(normalizePersistenceMs(0),10);
- assert.equal(normalizePersistenceMs(193),190);
- assert.equal(normalizePersistenceMs(350),350);
- assert.equal(normalizePersistenceMs(90000),2000);
- assert.equal(normalizePersistenceMs(NaN),190);
+ assert.equal(normalizePersistenceMs(193),120);
+ assert.equal(normalizePersistenceMs(80),80);
+ assert.equal(normalizePersistenceMs(90000),120);
+ assert.equal(normalizePersistenceMs(NaN),120);
 });
 test('fast excitation and exponential decay respond to drive on every pixel',()=>{
- const tau=.19,t=.19;
- const decay=integratePhosphorResponse(1,0,t,190);
+ const tau=.12,t=.12;
+ const decay=integratePhosphorResponse(1,0,t,120);
  assert.ok(Math.abs(decay-Math.exp(-t/tau))<1e-9);
  assert.ok(integratePhosphorResponse(0,1,.034,190)>.93);
  assert.ok(integratePhosphorResponse(1,.4,.034,190)>.4);
@@ -69,39 +69,48 @@ test('postcomposition luminance response has no scanning logic',()=>{
  assert.match(pipeline,/persistencePass\.configure\(fx\.persistenceMs\)/);
 });
 
-test('normalized Gaussian PSF diffuses an isolated bright point symmetrically',()=>{
- const k=gaussianKernel1D();
- assert.equal(k.length,5);
- const total=k.reduce((a,b)=>a+b,0);
- assert.ok(Math.abs(total-1)<1e-12);
- assert.ok(k[2]>k[1]&&k[1]>k[0]);
- assert.ok(Math.abs(k[0]-k[4])<1e-12);
- assert.ok(Math.abs(k[1]-k[3])<1e-12);
- const fraction=PHOSPHOR_OPTICS.spreadFraction;
- assert.ok(fraction>0&&fraction<.25);
- // A bright impulse deposits (1-f) at its original location plus a
- // normalized 2D falloff. Its total integrated light remains one.
- let sum=0;
- for(let y=0;y<5;y++)for(let x=0;x<5;x++){
-  const core=x===2&&y===2?1-fraction:0;
-  sum+=core+fraction*k[y]*k[x];
+test('100% of the emitted light passes through normalized peaked spatial PSF',()=>{
+ const w=radialPSFWeights();
+ const sum=w.center+4*(w.axis+w.diagonal+w.outer);
+ assert.ok(Math.abs(sum-1)<1e-12,`kernel sum=${sum}`);
+ assert.ok(w.center>w.axis&&w.axis>w.diagonal&&w.diagonal>w.outer);
+ assert.ok(PHOSPHOR_OPTICS.pixelPitch>0);
+ // Shader coefficients must be exactly the model-defined kernel.
+ const shader=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
+ for(const [name,value] of Object.entries({
+  W_CENTER:w.center,W_AXIS:w.axis,W_DIAGONAL:w.diagonal,W_OUTER:w.outer
+ })){
+  const found=shader.match(new RegExp('const float '+name+'=([0-9.]+);'));
+  assert.ok(found,name+' missing in shader');
+  assert.ok(Math.abs(Number(found[1])-value)<1e-9,name+' deviates from model');
  }
- assert.ok(Math.abs(sum-1)<1e-12,`PSF energy=${sum}`);
- assert.ok(k[2]*k[2]>k[2]*k[1]);
- assert.ok(k[2]*k[1]>k[0]*k[0]);
+ // For a spatial impulse of unit brightness, the sum over the 13
+ // mapped destinations is one: no arbitrary fraction bypasses the PSF.
+ const impulse=[w.center,...Array(4).fill(w.axis),
+  ...Array(4).fill(w.diagonal),...Array(4).fill(w.outer)];
+ assert.ok(Math.abs(impulse.reduce((a,b)=>a+b,0)-1)<1e-12);
+ // A dim source creates exactly the same falloff SHAPE but less amplitude.
+ // Thus its distant light falls below a fixed visibility threshold sooner.
+ const farBright=w.outer*1;
+ const farDim=w.outer*.1;
+ const threshold=(farBright+farDim)*.5;
+ assert.ok(farBright>threshold);
+ assert.ok(farDim<threshold);
 });
-test('spatial halo is a separable post-emission PSF with same persistence',()=>{
+test('100% normalized spatial filtering follows temporal phosphor reconstruction',()=>{
  const pass=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- for(const expected of ['spreadFragment','tSpread','blurHorizontal','blurVertical',
-  'PHOSPHOR_OPTICS.spreadFraction','mix(core,scattered,uSpreadFraction)',
-  'optX.tInput.value=write.texture','optY.tInput.value=blurX.texture',
+ for(const expected of ['opticalFragment','tEmission','quad.material=optical',
+  'quad.material=native','W_CENTER','W_AXIS','W_DIAGONAL','W_OUTER',
+  'uPixelStep','PHOSPHOR_OPTICS.pixelPitch',
   'uDecayTau','uRiseTau','uReset','exp(-uDelta/max'])
-   assert.ok(pass.includes(expected),expected);
- assert.ok(pass.includes('Math.ceil(width/4)'));
+  assert.ok(pass.includes(expected),expected);
  assert.ok(pass.indexOf('quad.material=update')<
-   pass.indexOf('quad.material=blurHorizontal'));
- assert.ok(pass.indexOf('quad.material=blurVertical')<
-   pass.indexOf('quad.material=output'));
+  pass.indexOf('quad.material=native'));
+ assert.ok(pass.indexOf('quad.material=native')<
+  pass.indexOf('quad.material=optical'));
+ assert.ok(pass.includes('emission=make(width,height)'), 'native resolution PSF source');
+ assert.ok(!pass.includes('uSpreadFraction'));
+ assert.ok(!pass.includes('mix(core,scattered'));
  assert.ok(!/uPhase|uCycles|uHz|uLines|CRT_REFRESH|ageCycles/.test(pass));
  assert.ok(!pass.includes('uTint'));
 });
