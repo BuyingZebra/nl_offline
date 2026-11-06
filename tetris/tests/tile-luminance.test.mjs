@@ -2,17 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PIECE_LUMINANCE,drawTileFace} from '../tile-face.js';
 
-test('pieces have their familiar colour-equivalent grayscale luminance',()=>{
+test('pieces use distinct balanced grayscale values rather than colour equivalents',()=>{
  assert.deepEqual(PIECE_LUMINANCE,{
-  I:229,J:76,L:177,O:247,S:220,T:107,Z:127
+  I:213,J:148,L:187,O:226,S:200,T:161,Z:174
  });
  assert.deepEqual(Object.keys(PIECE_LUMINANCE),['I','J','L','O','S','T','Z']);
  assert.equal(Object.isFrozen(PIECE_LUMINANCE),true);
 });
-test('yellow is brightest, blue darkest, with hue-free grayscale values',()=>{
+test('former piece brightness order preserved, within a controlled readable range',()=>{
  const x=PIECE_LUMINANCE;
  assert.ok(x.O>x.I&&x.I>x.S&&x.S>x.L&&x.L>x.Z&&x.Z>x.T&&x.T>x.J);
- assert.ok(Object.values(x).every(v=>Number.isInteger(v)&&v>=0&&v<=255));
+ const levels=Object.values(x);
+ assert.ok(levels.every(v=>Number.isInteger(v)&&v>=148&&v<=226));
+ assert.equal(Math.min(...levels),148);
+ assert.equal(Math.max(...levels),226);
+ const sorted=[...levels].sort((a,b)=>a-b);
+ assert.deepEqual(sorted.slice(1).map((v,i)=>v-sorted[i]),Array(6).fill(13));
 });
 test('all gameplay and preview tiles use identical monochrome bevel geometry',()=>{
  for(const kind of Object.keys(PIECE_LUMINANCE)){
@@ -34,11 +39,23 @@ test('all gameplay and preview tiles use identical monochrome bevel geometry',()
   assert.ok(calls[0].x>12&&calls[0].y>18);
  }
 });
-test('each piece has a distinct face brightness, not arbitrary rank levels',()=>{
+test('each piece retains distinct face brightness and bevel headroom',()=>{
  const levels=Object.keys(PIECE_LUMINANCE).map(k=>{
   const colors=[];
   drawTileFace({set fillStyle(v){colors.push(v);},fillRect(){}},0,0,20,20,k);
   return colors[0];
  });
  assert.equal(new Set(levels).size,7);
+});
+test('all eight tile-face levels preserve the intended detail range',()=>{
+ for(const kind of Object.keys(PIECE_LUMINANCE)){
+  const colours=[];
+  drawTileFace({set fillStyle(v){colours.push(Number(v.match(/rgb\((\d+)/)[1]));},fillRect(){}},
+   0,0,25,25,kind);
+  assert.equal(colours.length,8);
+  assert.ok(colours.every(value=>value>=110&&value<=246),
+   kind+' bevel is clipped or too dark');
+  assert.equal(Math.max(...colours)-Math.min(...colours),58,
+   kind+' bevel contrast changed');
+ }
 });

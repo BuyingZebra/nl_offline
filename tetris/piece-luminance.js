@@ -1,31 +1,19 @@
-/* NOMAD V094 — perceived monochrome brightness for traditional Tetris colors.
- * Convert standard sRGB tetromino colors to relative Rec.709 luminance in
- * linear light, then encode a neutral sRGB grayscale value for Canvas2D.
- * NO colored piece pixels enter the phosphor/CRT compositor.
+/* NOMAD V105 — balanced monochrome tile brightness.
+ * Seven hand-tuned 8-bit grayscale levels, evenly separated by 13 units.
+ * The full range is 148–226 instead of the former colour-derived 76–247.
+ * Pieces retain their former brightest-to-darkest ordering, while dark
+ * pieces become readable and bright pieces retain headroom for bevels.
+ * No colour components, sRGB hue conversion or game rules are involved.
  */
-export const TETROMINO_RGB=Object.freeze({
- I:'#00ffff', // cyan
- J:'#0000ff', // blue
- L:'#ff9900', // orange
- O:'#ffff00', // yellow
- S:'#00ff00', // green
- T:'#a020f0', // purple
- Z:'#ff0000'  // red
+export const PIECE_LUMINANCE=Object.freeze({
+ I:213, // long bar
+ J:148, // darkest, now readable
+ L:187,
+ O:226, // brightest, reserves highlight headroom
+ S:200,
+ T:161,
+ Z:174
 });
-const srgbToLinear=c=>{
- const x=c/255;
- return x<=.04045?x/12.92:((x+.055)/1.055)**2.4;
-};
-const linearToSrgb=x=>x<=.0031308?x*12.92:1.055*x**(1/2.4)-.055;
-export function srgbLuminance(hex){
- if(!/^#[0-9a-f]{6}$/i.test(hex))throw new TypeError('Expected #rrggbb');
- const components=[1,3,5].map(offset=>srgbToLinear(parseInt(hex.slice(offset,offset+2),16)));
- const linear=.2126*components[0]+.7152*components[1]+.0722*components[2];
- return Math.round(Math.min(1,Math.max(0,linearToSrgb(linear)))*255);
+export function pieceLuminance(kind){
+ return PIECE_LUMINANCE[kind]??PIECE_LUMINANCE.T;
 }
-export const PIECE_LUMINANCE=Object.freeze(
- Object.fromEntries(Object.entries(TETROMINO_RGB).map(([kind,color])=>[
-  kind,srgbLuminance(color)
- ]))
-);
-export function pieceLuminance(kind){return PIECE_LUMINANCE[kind]??PIECE_LUMINANCE.T;}

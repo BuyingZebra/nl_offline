@@ -1,13 +1,12 @@
 /* Shared NOMAD grayscale tile renderer.
- * Tetromino identity follows the luminance of familiar Tetris colours,
- * not the colours themselves. Bevel geometry is unchanged.
+ * Tetromino identity uses seven distinct hand-tuned grayscale values.
+ * The original bevel geometry and contrast offsets are unchanged.
  */
-import {PIECE_LUMINANCE} from './piece-luminance.js?v094';
+import {PIECE_LUMINANCE} from './piece-luminance.js?v105';
 export {PIECE_LUMINANCE};
  const clamp=v=>Math.max(0,Math.min(255,Math.round(v)));
  const gray=n=>{const c=clamp(n);return 'rgb('+c+','+c+','+c+')'};
- // The bevel geometry is unchanged; its numeric levels derive from sRGB.
- // Relative brightness is physically derived from each traditional RGB colour.
+ // Identical bevel offsets provide consistent shape detail for all levels.
  export const drawTileFace=(g,x,y,w,h,kind)=>{
   const side=Math.min(w,h),gap=Math.max(.6,Math.min(1.3,side*.055));
   const level=PIECE_LUMINANCE[kind]??160;
