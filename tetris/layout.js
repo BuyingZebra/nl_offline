@@ -59,22 +59,27 @@ function computeLayout(W,H,safe,ui){
   const bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   const bh=bw*2;
   const bx=sx+Math.max(0,(sw-bw-sideGap-sideWidth)/2);
-  const by=sy+Math.max(0,(boardRegionH-bh)/2);
+  // Centre the full board/sidebar composition in the gap between
+  // header and controls. Preserve V108 board width/height exactly.
+  const by=sy+Math.max(0,(sh-bh)/2);
   const sxSide=bx+bw+sideGap;
   const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
-  // Original-inspired hierarchy: NEXT above stacked SCORE/LEVEL/LINES,
-  // and the optional HOLD feature quietly at the bottom. Reuse the existing
-  // column bounds, board ratio and device-dependent response.
-  const nextTarget=Math.min(short?115:145,Math.max(44,bh*.28));
-  const statsTarget=Math.min(short?170:205,Math.max(75,bh*.42));
-  const holdTarget=Math.min(short?83:110,Math.max(44,bh*.23));
-  const available=Math.max(0,bh-2*ui.unit);
-  const total=nextTarget+statsTarget+holdTarget;
-  const fit=total>0?Math.min(1,available/total):0;
-  const nextH=nextTarget*fit,statsH=statsTarget*fit,holdH=holdTarget*fit;
-  const nextPanel={x:sxSide,y:by,w:swSide,h:nextH};
-  const statsPanel={x:sxSide,y:by+nextH+ui.unit,w:swSide,h:statsH};
-  const holdPanel={x:sxSide,y:by+bh-holdH,w:swSide,h:holdH};
+  // NEXT and HOLD share identical outer and square-inner geometry. Keep
+  // sufficient space for the left-aligned label, square frame and bottom inset.
+  const previewInset=Math.max(3,Math.min(6,swSide*.06));
+  const previewTarget=Math.max(0,swSide-previewInset+25);
+  // Compact three-row statistics, without expanding to fill spare board height.
+  const statsTarget=132;
+  const panelGap=ui.unit;
+  const available=Math.max(0,bh-2*panelGap);
+  const targetTotal=2*previewTarget+statsTarget;
+  const fit=targetTotal>0?Math.min(1,available/targetTotal):0;
+  const previewH=previewTarget*fit,statsH=statsTarget*fit;
+  const groupH=2*previewH+statsH+2*panelGap;
+  const groupY=by+Math.max(0,(bh-groupH)/2);
+  const nextPanel={x:sxSide,y:groupY,w:swSide,h:previewH};
+  const statsPanel={x:sxSide,y:groupY+previewH+panelGap,w:swSide,h:statsH};
+  const holdPanel={x:sxSide,y:statsPanel.y+statsH+panelGap,w:swSide,h:previewH};
   const compactControls=landscape&&(dw-2*deckPad)<250;
   return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,

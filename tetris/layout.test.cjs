@@ -60,18 +60,39 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
  assert.equal(r.compactControls,false);
  assert.equal(r.boardW,234.5,'V108 portrait board width');
  assert.equal(r.boardH,469,'V108 portrait board height');
- assert.equal(r.boardY,145,'V108 portrait board top');
+ assert.equal(r.boardY,170.5,'unchanged board height, centred vertically');
+ const topGap=r.boardY-(r.hy+r.hh),bottomGap=r.dy-(r.boardY+r.boardH);
+ assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
  assert.equal(r.dy+r.deckPad,677,'old first button y');
  assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
- assert.equal(r.nextPanel.y,r.boardY);
- assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH);
+ assert.ok(r.nextPanel.y>=r.boardY,'sidebar group stays within board');
+ assert.ok(r.holdPanel.y+r.holdPanel.h<=r.boardY+r.boardH,'sidebar within board');
+ assert.ok(Math.abs((r.nextPanel.y-r.boardY)-
+  (r.boardY+r.boardH-r.holdPanel.y-r.holdPanel.h))<.01,
+  'side panel group centered alongside board');
  assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
 });
 test('tall portrait also retains its V108 playfield dimensions',()=>{
  const r=computeLayout(430,932,{top:62,bottom:34},ui);
  assert.equal(r.boardW,273);
  assert.equal(r.boardH,546);
+ assert.equal(r.boardY,173.5,'tall board is centered in playable gap');
  assert.equal(r.dy+r.deckPad,757,'V109 button position stays unchanged');
+});
+test('portrait board and entire sidebar are vertically centered between header and controls',()=>{
+ for(const [name,w,h,safe] of phones.filter(x=>x[1]<x[2])){
+  const r=computeLayout(w,h,safe,ui);
+  const above=r.boardY-(r.hy+r.hh),below=r.dy-(r.boardY+r.boardH);
+  assert.ok(Math.abs(above-below)<.01,name+' symmetric header-to-controls whitespace');
+  assert.ok(r.nextPanel.y>=r.boardY-.01);
+  assert.ok(r.holdPanel.y+r.holdPanel.h<=r.boardY+r.boardH+.01);
+  const groupTop=r.nextPanel.y-r.boardY;
+  const groupBottom=r.boardY+r.boardH-(r.holdPanel.y+r.holdPanel.h);
+  assert.ok(Math.abs(groupTop-groupBottom)<.01,name+' sidebar centered with board');
+  assert.ok(Math.abs(r.nextPanel.h-r.holdPanel.h)<.01,name+' matching preview heights');
+  assert.ok(Math.abs(r.statsPanel.y-r.nextPanel.y-r.nextPanel.h-ui.unit)<.01,name+' first gap');
+  assert.ok(Math.abs(r.holdPanel.y-r.statsPanel.y-r.statsPanel.h-ui.unit)<.01,name+' second gap');
+ }
 });
 test('narrow landscape reflows buttons, without changing portrait',()=>{
  assert.equal(computeLayout(667,375,{left:44,right:44},ui).compactControls,true);
@@ -80,8 +101,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v110-r1'));
- assert.ok(html.indexOf('layout.js?three=v110-r1')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v111-r1'));
+ assert.ok(html.indexOf('layout.js?three=v111-r1')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });

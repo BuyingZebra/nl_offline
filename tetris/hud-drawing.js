@@ -60,7 +60,7 @@ function drawSidebar(r){
   text(value,stats.x+inset+1,valueY,Math.max(11,Math.min(15,stats.w*.15)),
    C.ink,'left',Math.max(8,stats.w-2*inset),'terminal');
   if(i<2)rect(stats.x+inset,stats.y+6+(i+1)*slot,
-   Math.max(0,stats.w-2*inset),1,C.subtleBorder);
+   Math.max(0,stats.w-2*inset),1,C.border);
  });
  nested(hold,game.hold,'hold');
 }

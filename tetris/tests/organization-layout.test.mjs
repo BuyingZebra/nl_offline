@@ -1,4 +1,4 @@
-/* V110: square nested previews, fixed original board and unchanged controls. */
+/* V111: centered game composition, matching previews, tighter score rows. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -50,7 +50,24 @@ test('right column is NEXT / SCORE LEVEL LINES / HOLD, without BEST or PIECES',(
  for(const piece of painted.pieces){
   assert.ok(Math.abs(piece[3]-piece[4])<.00001,'preview area is square');
  }
- assert.equal(painted.rects.length,2,'quiet separators between three data rows');
+ assert.equal(painted.panels[0][3],painted.panels[3][3],
+  'NEXT and HOLD parent heights match exactly');
+ assert.equal(painted.panels[1][2],painted.panels[4][2],
+  'NEXT and HOLD inner square widths match exactly');
+ assert.equal(painted.panels[1][3],painted.panels[4][3],
+  'NEXT and HOLD inner square heights match exactly');
+ assert.ok(Math.abs(painted.panels[1][1]-painted.panels[0][1]
+  -(painted.panels[4][1]-painted.panels[3][1]))<.001,
+  'same top padding inside preview parents');
+ assert.ok(Math.abs(painted.panels[0][1]+painted.panels[0][3]
+  -(painted.panels[1][1]+painted.panels[1][3])
+  -(painted.panels[3][1]+painted.panels[3][3]
+  -(painted.panels[4][1]+painted.panels[4][3])))<.001,
+  'same bottom padding inside preview parents');
+ assert.ok(r.statsPanel.h<=132.01,'no oversized score container');
+ assert.equal(painted.rects.length,2,'separators between three compact data rows');
+ assert.ok(painted.rects.every(line=>line[4]==='#777'),
+  'score dividers use the exact border brightness');
 });
 test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
  const shapes=[
