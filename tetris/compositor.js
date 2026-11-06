@@ -10,7 +10,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
 import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v096';
-import {createPhosphorPersistencePass} from './phosphor-persistence.js?v099';
+import {createPhosphorPersistencePass} from './phosphor-persistence.js?v100';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -342,7 +342,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
  persistencePass.enabled=historyEnabled;
- persistencePass.configure(fx.scanRefreshHz,fx.persistenceMs);
+ persistencePass.configure(fx.persistenceMs);
  ghostPass.enabled=fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
@@ -386,7 +386,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  edgeVignette.enabled=fx.vignette;
  edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
- // The raster beam creates its own physical line gaps; no duplicate mask.
+ // Optional decorative scanline mask remains independent of phosphor light.
  scanlineOverlay.enabled=!historyEnabled&&fx.scanlines&&fx.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];

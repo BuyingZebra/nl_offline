@@ -1,95 +1,69 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {
- CRT_BOUNDS,normalizeCRTRefresh,normalizePersistenceMs,crtRasterLines,
- crtScanPosition,advanceCRTPhase,rasterVisits,integratePhosphor
-} from '../phosphor-model.js';
+import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse}
+ from '../phosphor-model.js';
 import {makeSliderControl,sliderValueAt} from '../ui-controls.js';
 import {DISPLAY_EFFECTS} from '../display-settings-catalog.js';
 
-test('refresh and decay are continuous bounded parameters, not phosphor presets',()=>{
- assert.equal(normalizeCRTRefresh(30),30);
- assert.equal(normalizeCRTRefresh(72.8),73);
- assert.equal(normalizeCRTRefresh(200),120);
- assert.equal(normalizeCRTRefresh(-4),30);
- assert.equal(normalizeCRTRefresh(NaN),60);
- assert.equal(normalizePersistenceMs(10),10);
- assert.equal(normalizePersistenceMs(190),190);
- assert.equal(normalizePersistenceMs(587),590);
- assert.equal(normalizePersistenceMs(9000),2000);
+test('phosphor decay is continuous and the sole display-light slider',()=>{
+ const effect=DISPLAY_EFFECTS.find(e=>e.id==='persistence');
+ assert.ok(effect);
+ assert.equal(effect.title,'PHOSPHOR RESPONSE');
+ assert.equal(effect.sliders.length,1);
+ const slider=effect.sliders[0];
+ assert.equal(slider[1],'persistenceMs');
+ assert.deepEqual(slider.slice(2),[10,2000,10,'ms']);
+ const ui=makeSliderControl(90,35,180,slider,190);
+ assert.equal(sliderValueAt(ui.hitbox,ui.trackX),10);
+ assert.equal(sliderValueAt(ui.hitbox,ui.trackX+ui.trackW),2000);
+ assert.equal(DISPLAY_EFFECTS.some(e=>e.id==='scanRefreshHz'),false);
+ assert.equal(PHOSPHOR_BOUNDS.riseMs,12);
+});
+test('persistence range clamps and quantizes to 10 ms increments',()=>{
+ assert.equal(normalizePersistenceMs(0),10);
+ assert.equal(normalizePersistenceMs(193),190);
+ assert.equal(normalizePersistenceMs(350),350);
+ assert.equal(normalizePersistenceMs(90000),2000);
  assert.equal(normalizePersistenceMs(NaN),190);
- assert.equal(CRT_BOUNDS.defaultHz,60);
- assert.equal(CRT_BOUNDS.defaultPersistenceMs,190);
 });
-test('both CRT controls are true pointer sliders with visible units and endpoints',()=>{
- const crt=DISPLAY_EFFECTS.find(x=>x.id==='persistence');
- assert.ok(crt);
- assert.equal(crt.sliders.length,2);
- assert.deepEqual(crt.sliders.map(s=>s[1]),['scanRefreshHz','persistenceMs']);
- for(const setting of crt.sliders){
-  const ctrl=makeSliderControl(80,40,180,setting,
-   setting[1]==='scanRefreshHz'?60:190);
-  assert.equal(sliderValueAt(ctrl.hitbox,ctrl.trackX),setting[2]);
-  assert.equal(sliderValueAt(ctrl.hitbox,ctrl.trackX+ctrl.trackW),setting[3]);
-  assert.equal(ctrl.unit,setting[5]);
- }
- assert.ok(!('profile' in crt));
- assert.ok(!('refresh' in crt));
+test('fast excitation and exponential decay respond to drive on every pixel',()=>{
+ const tau=.19,t=.19;
+ const decay=integratePhosphorResponse(1,0,t,190);
+ assert.ok(Math.abs(decay-Math.exp(-t/tau))<1e-9);
+ assert.ok(integratePhosphorResponse(0,1,.034,190)>.93);
+ assert.ok(integratePhosphorResponse(1,.4,.034,190)>.4);
+ assert.ok(integratePhosphorResponse(.4,.4,.034,190)===.4);
 });
-test('virtual beam scans left-right and top-bottom, independent of host fps',()=>{
- assert.ok(crtScanPosition(.2,.1,300)<crtScanPosition(.8,.1,300));
- assert.ok(crtScanPosition(.8,.1,300)<crtScanPosition(.2,.2,300));
- assert.ok(crtRasterLines(1000)<=360);
- assert.ok(Math.abs(advanceCRTPhase(.9,.005,60)-.2)<1e-9);
- const first=rasterVisits(.9,.005,60,.95);
- const wrap=rasterVisits(.9,.005,60,.05);
- const missed=rasterVisits(.9,.005,60,.45);
- assert.equal(first.count,1);
- assert.equal(wrap.count,1);
- assert.equal(missed.count,0);
+test('no game pause or menu action resets GPU persistence history',()=>{
+ const source=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const menu=source.slice(source.indexOf('onChange:(previous,next)=>{'),
+  source.indexOf('// All game commands'));
+ assert.ok(!menu.includes('resetPersistence'), 'menu changes must not clear CRT glow');
+ const callbacks=source.slice(source.indexOf('handleAction:act=>{'),
+  source.indexOf('setSetting:actions.setSetting'));
+ assert.ok(!callbacks.includes('resetPersistence'), 'pause/play action must not clear CRT glow');
+ const status=source.slice(source.indexOf('if(game.status!==prior.status){'),
+  source.indexOf("layers.reason('gravity')"));
+ assert.ok(!status.includes('resetPersistence'), 'game status changes must preserve glow');
 });
-test('steady frame-average excitation equals drive across refresh and persistence',()=>{
- for(const hz of [30,60,90,120]){
-  for(const ms of [10,80,190,600,2000]){
-   let state=0,phase=0,avg=0;
-   const dt=1/60;
-   for(let i=0;i<700;i++){
-    const r=integratePhosphor({prior:state,drive:.6,seconds:dt,
-     refreshHz:hz,persistenceMs:ms,phase,position:.37});
-    state=r.end;avg=r.average;
-    phase=advanceCRTPhase(phase,dt,hz);
-   }
-   // At frame rate not synchronized to the simulated scan some single
-   // intervals differ; average across a later set of output frames.
-   let sum=0;
-   for(let i=0;i<120;i++){
-    const r=integratePhosphor({prior:state,drive:.6,seconds:dt,
-     refreshHz:hz,persistenceMs:ms,phase,position:.37});
-    state=r.end;sum+=r.average;
-    phase=advanceCRTPhase(phase,dt,hz);
-   }
-   assert.ok(Math.abs(sum/120-.6)<.035,`hz=${hz},tau=${ms},mean=${sum/120}`);
-  }
- }
-});
-test('emission after drive stops decays monotonically instead of disappearing',()=>{
- for(const ms of [20,190,1500]){
-  const tau=ms/1000;
-  const dt=.02;
-  const a=integratePhosphor({prior:.8,drive:0,seconds:dt,
-   refreshHz:60,persistenceMs:ms});
-  assert.ok(Math.abs(a.end-.8*Math.exp(-dt/tau))<1e-8);
-  assert.ok(a.average>.0&&a.average<=.8);
- }
-});
-test('GPU shader integrates beam impulses into frame-average luminance',()=>{
- const s=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- for(const part of ['uPhase','uCycles','uHz','uLines','uTau','visits',
-  'float integrated=','float average=','prior*atten+excitation*aged*ratio',
-  'sqrt(clamp','STORE_SCALE','WebGLRenderTarget','FullScreenQuad'])
-  assert.ok(s.includes(part),part);
- assert.ok(!s.includes('profileHues'));
- assert.ok(!s.includes('uTint'));
- assert.ok(!s.includes('max(prior*'));
+test('postcomposition luminance response has no scanning logic',()=>{
+ const pass=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
+ const pipeline=fs.readFileSync(new URL('../compositor.js',import.meta.url),'utf8');
+ assert.match(pass,/tSource/);
+ assert.match(pass,/tPrevious/);
+ assert.match(pass,/uDecayTau/);
+ assert.match(pass,/uRiseTau/);
+ assert.match(pass,/exp\(-uDelta\/max/);
+ assert.match(pass,/sqrt\(clamp\(emitted/);
+ assert.match(pass,/WebGLRenderTarget/);
+ assert.match(pass,/float afterglow=/);
+ assert.doesNotMatch(pass,/uPhase|uCycles|uHz|uLines|CRT_REFRESH|ageCycles/);
+ assert.doesNotMatch(pass,/uTint/);
+ const layout=pipeline.indexOf('composer.addPass(new RenderPass');
+ const history=pipeline.indexOf('composer.addPass(persistencePass)');
+ const glow=pipeline.indexOf('composer.addPass(glow)');
+ assert.ok(layout>=0&&layout<history&&history<glow,
+  'phosphor is a whole-display effect between composed scene and bloom/tint');
+ assert.match(pipeline,/persistencePass\.configure\(fx\.persistenceMs\)/);
 });

@@ -3,7 +3,7 @@
  * Preserve the approved grayscale source, display pipeline and controls.
  */
 import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v099';
+import {createCompositor} from './compositor.js?v100';
 import {drawTileFace} from './tile-face.js?v094';
 import {createButtonFeedback} from './button-feedback.js?v096';
 import {createCanvasUI} from './canvas-ui.js?v096';
@@ -247,8 +247,8 @@ const screenManager=createScreenManager({
  onChange:(previous,next)=>{
   // Preserve menu-local reset, touch capture and score popup invalidation.
   modalUI.reset();scrollVelocity=0;inputController?.cancel();
-  // Never illuminate newly opened/closed menu pixels using stale feedback.
-  buttonFeedback.clear();compositor.resetPersistence();
+  // Buttons release on navigation, but the full-screen afterglow survives.
+  buttonFeedback.clear();
   if(previous==='scores'||next==='scores')layers.mark('base');
   if(next===null)regions=baseRegions;
   invalidate();
@@ -622,13 +622,13 @@ inputController=createInputController({
  handleAction:act=>{
   const previous=game.status;
   const result=actions.dispatch(act);
-  if(game.status!==previous){buttonFeedback.clear();compositor.resetPersistence();}
+  if(game.status!==previous)buttonFeedback.clear();
   return result;
  },
  perform:act=>{
   const previous=game.status;
   const result=actions.perform(act);
-  if(game.status!==previous){buttonFeedback.clear();compositor.resetPersistence();}
+  if(game.status!==previous)buttonFeedback.clear();
   return result;
  },
  setSetting:actions.setSetting,settingValue,
@@ -698,8 +698,8 @@ function frame(now){
     game.current!==prior.piece)layers.mark('sidebar');
    if(game.status!==prior.status){
     layers.mark('base');
-    // Start/stop/paused transitions remove the previous screen's press.
-    buttonFeedback.clear();compositor.resetPersistence();
+    // Stop the input flash, without clearing photons already on the screen.
+    buttonFeedback.clear();
    }
    layers.reason('gravity');
    if(game.lines>prior.lines)tone(590,.1);
@@ -717,12 +717,11 @@ function frame(now){
   // Only GPU parameters animate. A final clean frame removes the
   // released-button fade; don't re-upload the menu CanvasTexture.
   const phosphorOn=settings.effects.persistence===true;
-  // The electron beam never stops rastering while the CRT is powered.
-  // Keep a ~30 FPS display integration even with stationary game content.
+  // Decay continues over the *whole display* while gameplay is paused.
+  // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
    layers.reason('phosphor-history');
-  // When the physical phosphor model is active, excitation ceases at
-   // release. Its GPU history owns decay, not V096's cosmetic fade.
+  // Button response ends on release, but its phosphor trail continues.
    const buttonSparks=buttonFeedback.sample(now,phosphorOn);
   if(buttonSparks.length||buttonGlowWasActive)layers.reason('button-afterglow');
   buttonGlowWasActive=buttonSparks.length>0;
@@ -747,8 +746,7 @@ function frame(now){
    renderer.info.reset();
    const renderStarted=perf.startRender();
    // Use time between actual GPU frames, not every gameplay RAF tick.
-   // Idle phosphor frames render at ~30 Hz; this keeps physical decay
-   // independent of render cadence.
+   // Display-wide phosphor light integrates at ~30 FPS; no raster scan.
    const elapsedRenderMs=lastHistoryRender>0?now-lastHistoryRender:dt;
    compositor.render(Math.max(1,Math.min(100,elapsedRenderMs))/1000);
    lastHistoryRender=now;

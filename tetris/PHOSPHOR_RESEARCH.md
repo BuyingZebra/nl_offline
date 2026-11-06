@@ -1,36 +1,37 @@
-# NOMAD V099 — continuously adjustable CRT simulator
+# NOMAD V100 — screen-wide phosphor persistence, no virtual scan
 
-**Status:** research-informed first-order raster/phosphor simulation. This is not calibrated against a physical tube.
+**Experimental luminance-envelope simulation, not a calibrated physical CRT.**
 
-## Independent controls
+The previous V099 raster simulation has been removed. Its moving beam, 30–120 Hz scan control, scan phase, line footprint and frame-averaged beam integration no longer participate in rendering.
 
-DISPLAY SYSTEM → CRT SIMULATION contains two touch sliders:
-- **RATE: 30–120 Hz**, 1 Hz increments (default 60). This is the simulated electron-beam refresh rate, **not** the phone's display refresh.
-- **PERSIST: 10–2,000 ms**, 10 ms increments (default 190). This is the phosphor's exponential decay time constant, `tau`, not a named phosphor material or measured P31/P39 curve.
+## Model
 
-Colour remains a separate artistic green/amber tint applied only after grayscale light has been calculated. There are **no phosphor presets** in the user interface. Historic P31, P39, P1, P4 names are no longer used as decay selection.
+A single grayscale post-processing pass receives the **entire composed scene** after the game's original opaque board, HUD, controls, text, modal/scores/pause overlays and button response. This is a display effect, not a tile or board effect.
 
-## First-order mathematical model
+Per location, incoming grayscale video luminance is `drive` and existing phosphor output is `light`.
 
-The grayscale video source drives a beam scanning **left to right, top to bottom**. Between visits a simulated phosphor pixel decays as `L(t)=L0*exp(-t/tau)`. The amount deposited by a visit is proportional to source drive and beam footprint.
+`lightNext = drive + (lightPrevious - drive) * exp(-dt / tau)`
 
-To avoid V098's dark, alias-prone snapshots, the shader now accumulates all beam visits within the elapsed display interval. For scan period `T=1/refreshHz`, deposited amount `Q=videoDrive*spot*T/tau` normalizes *steady-state frame-averaged brightness* across refresh and persistence settings.
+The time constant `tau` uses:
+- **Rise:** 12 ms fixed, modeling prompt excitation for newly illuminated regions.
+- **Decay:** user-adjustable **10–2000 ms**, default **190 ms**, for regions where the drive falls.
 
-For `N` visits in the interval and `age` since the latest visit, with `R=(1-exp(-N*T/tau))/(1-exp(-T/tau))`, the state and time-integrated light are:
+The history pass stores sqrt-encoded state and the downsampled current drive in half-resolution RGBA8 ping-pong textures. A second shader combines residual glow with the sharp full-resolution content. The emitted monochrome image is passed to existing bloom and the separately selected artistic green/amber tint.
 
-- `stateEnd=stateStart*exp(-dt/tau)+Q*exp(-age/tau)*R`
-- `emissionMean=[stateStart*tau*(1-exp(-dt/tau))+Q*tau*(N-exp(-age/tau)*R)]/dt`
+This is a simple piecewise first-order light-response envelope; real phosphors exhibit intensity-dependent multi-component decay, spectral differences, and tube spot/optical effects. None is claimed to be measured here.
 
-These exact integrations apply to the **idealized single-exponential model** with piecewise-constant video drive over a GPU frame, not to a calibrated multi-component physical phosphor. The GPU stores end-state, interval-average emission and sampled video drive in a half-resolution sqrt-encoded RGBA8 texture, and reconstructs sharp glyph edges using the full-resolution source.
+## The pause/menu defect
 
-The simulated beam's spatial footprint generates subtle line spacing. NOMAD's existing optical bloom/vignette run afterward, followed by the green/amber tint. The old CRT effect remains available when CRT SIMULATION is off.
+V099 explicitly called `compositor.resetPersistence()` when pausing, changing game status, and opening/closing menus. These calls discarded the old luminescence, making trails appear limited to gameplay. V100 removes those transition resets. The history keeps evolving through pause, board popups, scores, menus and controls. A genuine GPU context loss, viewport resize, background suspension or toggling the effect can still legitimately reset the buffer.
 
-## Important limitations
+## User controls
 
-Real phosphors have multi-component intensity-dependent decay, non-instant excitation, measured spectra and optical scattering. This idealized single-parameter model does **not** claim those properties or realistic absolute nits. Tube retrace/blanking, detailed transfer response and calibrated optics are also not yet modeled.
+DISPLAY SYSTEM → **PHOSPHOR RESPONSE**:
+- Toggle.
+- **DECAY** slider 10–2000 ms (10 ms steps).
 
-References for future calibration: Hewlett-Packard *Application Note 115*, Compton (1989), and Di Lollo et al. (1997). To validate physical accuracy, compare against measured photodiode curves and a real device. Automated Chromium/WebKit tests verify software behaviour, not absolute physical fidelity.
+There is no simulated scan/refresh control. Green/amber tint remains independent. The old separately selectable decorative CRT scanline artwork remains part of the legacy optical effects, and is disabled while the new phosphor response is active; it is not a beam simulation.
 
-## Release validation
+## Verification
 
-Unit tests cover refresh/decay ranges, slider hit geometry, raster order and wrap, steady-state brightness across 30–120Hz and 10–2000ms, decay after signal removal, settings migration and legacy fallback. Browser smoke tests cover startup, WebGL output, controls, viewport changes and offline launch.
+Unit tests ensure the exponential envelope, slider bounds, pass order and all-scene ordering, and that pause/game transitions and menus do not reset the phosphor history. Chromium and WebKit browser smoke tests verify startup, controls, WebGL image output and offline launch. This is software verification, not CRT photometric calibration.

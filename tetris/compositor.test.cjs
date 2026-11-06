@@ -38,7 +38,7 @@ function setup(){
  class OutputPass{constructor(){this.label='OUTPUT';}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
  function createPhosphorPersistencePass(){return {
   label:'HISTORY',enabled:false,needsSwap:true,resetCount:0,
-  configure(hz,ms){this.hz=hz;this.ms=ms;},reset(){this.resetCount++;},
+  configure(ms){this.ms=ms;},reset(){this.resetCount++;},
   setSize(w,h){this.size=[w,h];},
   dispose(){this.disposeCount=(this.disposeCount||0)+1;}
  };}
@@ -74,7 +74,7 @@ const states={
  phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
  softness:true,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.39,
  scanlines:true,scanlineOpacity:20,scanlinePreset:'original',
- persistence:true,persistenceMs:190,scanRefreshHz:60
+ persistence:true,persistenceMs:190
 };
 const update=(pipeline,override={})=>pipeline.syncFX({
  fx:{...states,...override},theme:'green',width:393,height:852,dpr:3,
@@ -101,14 +101,12 @@ test('display effect settings target their own passes',()=>{
  assert.equal(p[7].uniforms.uEnabled.value,1);
  assert.equal(p[8].enabled,true);
  assert.equal(p[9].enabled,true);
- assert.equal(p[10].enabled,false,'physical beam replaces decorative scanline mask');
+ assert.equal(p[10].enabled,false,'optional legacy mask is separate from phosphor');
  assert.equal(p[10].uniforms.uScreenHeight.value,2556);
- assert.equal(p[4].hz,60);
  const green=p[7].uniforms.uTint.value;
  assert.equal(green.x,.22);
  assert.equal(green.z,.34);
- update(pipeline,{persistence:true,persistenceMs:350,scanRefreshHz:75});
- assert.equal(p[4].hz,75);
+ update(pipeline,{persistence:true,persistenceMs:350});
  assert.equal(p[4].ms,350);
  assert.equal(p[7].uniforms.uTint.value.x,.22,'hue must be independent of persistence');
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false,persistence:false});
@@ -119,17 +117,16 @@ test('display effect settings target their own passes',()=>{
  assert.equal(p[4].ms,220);
  assert.ok(p[4].resetCount>before);
 });
-test('raster and tint are independent; legacy scanline mask returns when CRT is off',()=>{
+test('whole-screen decay and tint stay independent; optional legacy mask is separate',()=>{
  const {pipeline,composer}=setup();
- update(pipeline,{persistence:true,persistenceMs:1200,scanRefreshHz:50});
+ update(pipeline,{persistence:true,persistenceMs:1200});
  const p=composer.passes;
- assert.equal(p[4].hz,50);
  assert.equal(p[10].enabled,false);
- update(pipeline,{persistence:true,persistenceMs:250,scanRefreshHz:75});
+ update(pipeline,{persistence:true,persistenceMs:250});
  assert.equal(p[4].hz,75);
  assert.equal(p[4].ms,250);
  assert.equal(p[7].uniforms.uTint.value.x,.22);
- update(pipeline,{persistence:true,persistenceMs:900,scanRefreshHz:75});
+ update(pipeline,{persistence:true,persistenceMs:900});
  assert.equal(p[10].enabled,false);
  assert.equal(p[4].ms,900);
  update(pipeline,{persistence:false});

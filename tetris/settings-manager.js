@@ -3,9 +3,9 @@
  * dependencies. Historical storage keys and reset behaviour are preserved.
  */
 import {DEFAULT_EFFECTS,effectSettingValue,effectSettingToStored}
- from './display-settings-catalog.js?v099';
-import {normalizeCRTRefresh,normalizePersistenceMs}
- from './phosphor-model.js?v099';
+ from './display-settings-catalog.js?v100';
+import {normalizePersistenceMs}
+ from './phosphor-model.js?v100';
 
 export const STORAGE_KEYS=Object.freeze({
  effects:'fieldAtlasThreeV027FX01',
@@ -34,7 +34,6 @@ export function createSettingsManager(storage){
  }catch(e){}
  // Match the existing V084 migration of out-of-range historical bloom values.
  effects.bloomStrength=clamp(Number(effects.bloomStrength)||0,0,1);
- effects.scanRefreshHz=normalizeCRTRefresh(effects.scanRefreshHz);
  effects.persistenceMs=normalizePersistenceMs(effects.persistenceMs);
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
@@ -57,7 +56,6 @@ export function createSettingsManager(storage){
    write(STORAGE_KEYS.sound,soundOn?'yes':'no');
    return;
   }
-  if(key==='scanRefreshHz')value=normalizeCRTRefresh(value);
   if(key==='persistenceMs')value=normalizePersistenceMs(value);
   if(Object.prototype.hasOwnProperty.call(DEFAULT_EFFECTS,key)){
    effects[key]=effectSettingToStored(key,value,clamp);

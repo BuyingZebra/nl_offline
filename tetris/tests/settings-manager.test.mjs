@@ -106,49 +106,43 @@ test('settings work if local persistence throws',()=>{
 });
 
 
-test('V099 uses two bounded continuous sliders and persists both settings',()=>{
+test('V100 keeps one adjustable decay and no scan refresh control',()=>{
  const store=memoryStorage(),settings=createSettingsManager(store);
  assert.equal(settings.effects.persistence,true);
- assert.equal(settings.effects.scanRefreshHz,60);
  assert.equal(settings.effects.persistenceMs,190);
- settings.setSetting('scanRefreshHz',87);
+ assert.equal('scanRefreshHz' in settings.effects,false);
  settings.setSetting('persistenceMs',560);
- assert.equal(settings.effects.scanRefreshHz,87);
  assert.equal(settings.effects.persistenceMs,560);
  settings.setSetting('persistence',false);
  const reopened=createSettingsManager(store);
- assert.equal(reopened.effects.scanRefreshHz,87);
  assert.equal(reopened.effects.persistenceMs,560);
  assert.equal(reopened.effects.persistence,false);
  reopened.restoreDefaults();
- assert.equal(reopened.effects.scanRefreshHz,60);
  assert.equal(reopened.effects.persistenceMs,190);
+ assert.equal('scanRefreshHz' in reopened.effects,false);
  assert.equal(reopened.theme,'green');
 });
-test('range extremes clamp and older profile strings cannot enter settings',()=>{
+test('decay setting clamps; removed scanning options are ignored',()=>{
  const store=memoryStorage(),settings=createSettingsManager(store);
- settings.setSetting('scanRefreshHz',999);
- assert.equal(settings.effects.scanRefreshHz,120);
- settings.setSetting('scanRefreshHz',-40);
- assert.equal(settings.effects.scanRefreshHz,30);
  settings.setSetting('persistenceMs',90000);
  assert.equal(settings.effects.persistenceMs,2000);
  settings.setSetting('persistenceMs',0);
  assert.equal(settings.effects.persistenceMs,10);
  settings.setSetting('persistenceMs',193);
  assert.equal(settings.effects.persistenceMs,190);
+ settings.setSetting('scanRefreshHz',120);
  settings.setSetting('persistenceProfile','p39');
+ assert.equal('scanRefreshHz' in settings.effects,false);
  assert.equal('persistenceProfile' in settings.effects,false);
 });
-test('legacy P39 profile selection migrates harmlessly to custom decay',()=>{
- const store=memoryStorage({
+test('stored V099 rate/profile settings do not alter the V100 phosphor',()=>{
+ const old=memoryStorage({
   [STORAGE_KEYS.effects]:JSON.stringify({
-   persistenceProfile:'p39',scanRefreshHz:75,persistence:true
+   persistenceProfile:'p39',scanRefreshHz:75,persistence:true,persistenceMs:460
   })
  });
- const effects=createSettingsManager(store).effects;
- assert.equal(effects.persistenceMs,190);
- assert.equal(effects.scanRefreshHz,75);
- assert.equal(effects.persistence,true);
- assert.equal('persistenceProfile' in effects,false);
+ const settings=createSettingsManager(old);
+ assert.equal(settings.effects.persistenceMs,460);
+ assert.equal('scanRefreshHz' in settings.effects,false);
+ assert.equal(settings.effects.persistence,true);
 });
