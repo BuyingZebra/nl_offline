@@ -27,7 +27,10 @@ function computeLayout(W,H,safe,ui){
   const overlaySecondaryH=compact?39:short?40:ui.extrasHeight;
   const headerH=compact?50:short?58:ui.headHeight;
   let hy=edges.top+(compact?4:short?9:0),hh=headerH;
-  const dhDefault=2*deckPad+ui.scoreHeight+2*deckGap+buttonH+extraH;
+  // V109: statistics move beside the board. Remove their 45px deck row
+  // without moving any existing portrait button hitboxes.
+  const legacyStatsOffset=ui.scoreHeight+deckGap;
+  const dhDefault=2*deckPad+deckGap+buttonH+extraH;
   const bottomMargin=H>=550?ui.deckBottom:Math.max(ui.unit,Math.min(ui.deckBottom,usableH*.055));
   let dh=dhDefault,dy=H-edges.bottom-bottomMargin-dh;
   let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
@@ -41,7 +44,8 @@ function computeLayout(W,H,safe,ui){
       right=Math.max(150,right-shortage*.6);
     }
     hy=edges.top+8;hh=Math.min(64,Math.max(42,usableH-16));
-    dy=edges.top+8;dh=Math.max(0,usableH-16);
+    dy=edges.top+8+legacyStatsOffset;
+    dh=Math.max(0,usableH-16-legacyStatsOffset);
     sy=edges.top+8;sh=Math.max(0,usableH-16);
     hx=off+8;hw=Math.max(0,left);
     sx=off+left+14;sw=Math.max(0,width-left-right-36);
@@ -55,16 +59,19 @@ function computeLayout(W,H,safe,ui){
   const by=sy+Math.max(0,(sh-bh)/2);
   const sxSide=bx+bw+sideGap;
   const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
-  const holdTarget=Math.min(short?70:ui.holdHeight,Math.max(40,bh*.33));
-  const statsTarget=Math.min(short?73:ui.statsHeight,Math.max(52,bh*.36));
-  const panelSpace=Math.max(0,bh-2*ui.unit);
-  const minQueue=Math.min(28,panelSpace*.25);
-  const fit=Math.min(1,Math.max(0,(panelSpace-minQueue)/(holdTarget+statsTarget)));
-  const holdH=holdTarget*fit,statsH=statsTarget*fit;
-  const queueH=Math.max(0,Math.min(short?136:ui.nextHeight,panelSpace-holdH-statsH));
-  const holdPanel={x:sxSide,y:by,w:swSide,h:holdH};
-  const nextPanel={x:sxSide,y:by+holdH+ui.unit,w:swSide,h:queueH};
-  const statsPanel={x:sxSide,y:by+bh-statsH,w:swSide,h:statsH};
+  // Original-inspired hierarchy: NEXT above stacked SCORE/LEVEL/LINES,
+  // and the optional HOLD feature quietly at the bottom. Reuse the existing
+  // column bounds, board ratio and device-dependent response.
+  const nextTarget=Math.min(short?115:145,Math.max(44,bh*.28));
+  const statsTarget=Math.min(short?170:205,Math.max(75,bh*.42));
+  const holdTarget=Math.min(short?83:110,Math.max(44,bh*.23));
+  const available=Math.max(0,bh-2*ui.unit);
+  const total=nextTarget+statsTarget+holdTarget;
+  const fit=total>0?Math.min(1,available/total):0;
+  const nextH=nextTarget*fit,statsH=statsTarget*fit,holdH=holdTarget*fit;
+  const nextPanel={x:sxSide,y:by,w:swSide,h:nextH};
+  const statsPanel={x:sxSide,y:by+nextH+ui.unit,w:swSide,h:statsH};
+  const holdPanel={x:sxSide,y:by+bh-holdH,w:swSide,h:holdH};
   const compactControls=landscape&&(dw-2*deckPad)<250;
   return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,

@@ -44,23 +44,27 @@ for(const [name,w,h,safe] of phones){
   checkPanel(r.statsPanel,edges,'stats');
   checkPanel({x:r.hx,y:r.hy,w:r.hw,h:r.hh},edges,'header');
   checkPanel({x:r.dx,y:r.dy,w:r.dw,h:r.dh},edges,'controls');
-  assert.ok(r.holdPanel.y+r.holdPanel.h<=r.nextPanel.y+.01,'hold/next overlap');
   assert.ok(r.nextPanel.y+r.nextPanel.h<=r.statsPanel.y+.01,'next/stats overlap');
+  assert.ok(r.statsPanel.y+r.statsPanel.h<=r.holdPanel.y+.01,'stats/hold overlap');
   if(r.compactControls){
    const target=(r.dw-2*r.deckPad-2*ui.padGap)/3;
    assert.ok(target>0,'landscape button target width');
-   const rowsBottom=r.dy+r.deckPad+ui.scoreHeight+r.deckGap+
-    2*r.buttonH+2*ui.padGap+r.extraH;
+   const rowsBottom=r.dy+r.deckPad+2*r.buttonH+2*ui.padGap+r.extraH;
    assert.ok(rowsBottom<=r.dy+r.dh+.01,'stacked controls fit deck');
   }
  });
 }
-test('portrait keeps original current-device positioning',()=>{
+test('portrait moves statistics to sidebar without moving the control buttons',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.landscape,false);
  assert.equal(r.compactControls,false);
- assert.equal(r.boardW,234.5);
- assert.equal(r.boardH,469);
+ assert.equal(r.boardW,260);
+ assert.equal(r.boardH,520);
+ assert.equal(r.dy+r.deckPad,677,'old first button y');
+ assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
+ assert.equal(r.nextPanel.y,r.boardY);
+ assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH);
+ assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
 });
 test('narrow landscape reflows buttons, without changing portrait',()=>{
  assert.equal(computeLayout(667,375,{left:44,right:44},ui).compactControls,true);
@@ -69,8 +73,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v050-r1'));
- assert.ok(html.indexOf('layout.js?three=v050-r1')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v109-r1'));
+ assert.ok(html.indexOf('layout.js?three=v109-r1')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });

@@ -5,39 +5,43 @@
 export function createHudDrawing({panel,text,rect,key,smallPiece,getGame,getHighs,
  C,UI_SPACE,fmt}){
 function drawSidebar(r){
- const game=getGame(),highs=getHighs();
- const short=r.short;
- const {holdPanel:hold,nextPanel:next,statsPanel:stats}=r;
- const sx=hold.x,sw=hold.w;
- panel(hold.x,hold.y,hold.w,hold.h,9,C.panel);
- text('HOLD',sx+sw/2,hold.y+13,9,C.weak,'center');
- smallPiece(game.hold,sx+(sw-80)/2,hold.y+23,80,Math.min(short?43:60,Math.max(12,hold.h-26)),'hold');
- panel(next.x,next.y,next.w,next.h,9,C.panel);
- text('NEXT',sx+sw/2,next.y+13,9,C.weak,'center');
- const previewH=Math.min(short?36:44,Math.max(9,(next.h-32)/3));
- for(let i=0;i<3;i++){
-  smallPiece(game.queue[i],sx+(sw-80)/2,next.y+26+i*(previewH+1),80,previewH,'next');
- }
- panel(stats.x,stats.y,stats.w,stats.h,9,C.panel);
- text('BEST',sx+sw/2,stats.y+12,9,C.weak,'center');
- text(Math.max(highs[0]?.score||0,game.score),sx+sw/2,stats.y+30,13,C.ink,'center',Infinity,'terminal');
- text('PIECES',sx+sw/2,stats.y+52,9,C.weak,'center');
- text(game.pieces,sx+sw/2,stats.y+Math.min(70,stats.h-13),13,C.ink,'center',Infinity,'terminal');
+ const game=getGame();
+ const {nextPanel:next,statsPanel:stats,holdPanel:hold}=r;
+ const inset=Math.max(3,Math.min(6,next.w*.06));
+ const label=(word,x,y)=>text(word,x+inset+1,y+15,9,C.weak,'left',Math.max(8,next.w-2*inset-2));
+ const nested=(box,kind,role)=>{
+  panel(box.x,box.y,box.w,box.h,0,C.panel);
+  label(role==='next'?'NEXT':'HOLD',box.x,box.y);
+  const ix=box.x+inset,iy=box.y+25;
+  const iw=Math.max(1,box.w-2*inset),ih=Math.max(1,box.h-25-inset);
+  if(iw<=1||ih<=1)return;
+  panel(ix,iy,iw,ih,0,C.bg,C.border);
+  // One visible upcoming piece, as in the original Tetris display.
+  const pw=Math.max(1,iw-6),ph=Math.max(1,Math.min(role==='next'?68:72,ih-6));
+  smallPiece(kind,ix+(iw-pw)/2,iy+(ih-ph)/2,pw,ph,role);
+ };
+ nested(next,game.queue[0],'next');
+ panel(stats.x,stats.y,stats.w,stats.h,0,C.panel);
+ const rows=[['SCORE',fmt(game.score)],['LEVEL',fmt(game.level,2)],['LINES',fmt(game.lines,2)]];
+ const slot=Math.max(1,(stats.h-8)/3);
+ rows.forEach(([title,value],i)=>{
+  const labelY=stats.y+6+i*slot+11;
+  const valueY=labelY+Math.max(12,Math.min(20,slot*.38));
+  text(title,stats.x+inset+1,labelY,9,C.weak,'left',Math.max(8,stats.w-2*inset));
+  text(value,stats.x+inset+1,valueY,Math.max(11,Math.min(15,stats.w*.15)),
+   C.ink,'left',Math.max(8,stats.w-2*inset),'terminal');
+  if(i<2)rect(stats.x+inset,stats.y+6+(i+1)*slot,
+   Math.max(0,stats.w-2*inset),1,C.subtleBorder);
+ });
+ nested(hold,game.hold,'hold');
 }
 function drawControls(r){
- const game=getGame();
- panel(r.dx,r.dy,r.dw,r.dh,12,C.panel);
- const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad,ly=r.dy+r.deckPad+7;
- const s=Math.max(13,Math.min(17,pw*.046));
- text('LEVEL',px+2,ly,9,C.weak,'left');
- text('SCORE',px+pw/2,ly,9,C.weak,'center');
- text('LINES',px+pw-2,ly,9,C.weak,'right');
- text(fmt(game.level,2),px+2,ly+23,s,C.ink,'left',Infinity,'terminal');
- text(fmt(game.score),px+pw/2,ly+23,s,C.ink,'center',Infinity,'terminal');
- text(fmt(game.lines,2),px+pw-2,ly+23,s,C.ink,'right',Infinity,'terminal');
- rect(px,r.dy+r.deckPad+UI_SPACE.scoreHeight-1,pw,1,C.border);
+ panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad;
+ // The score strip is now in the right-hand column; leave the approved
+ // positions and dimensions of every game control unchanged.
+ const cy=r.dy+r.deckPad,ch=r.buttonH;
  const gap=UI_SPACE.padGap;
- const cy=r.dy+r.deckPad+UI_SPACE.scoreHeight+r.deckGap,ch=r.buttonH;
  let ey;
  if(r.compactControls){
   // Narrow landscape: maintain usable touch targets by reflowing controls.

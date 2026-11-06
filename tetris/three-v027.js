@@ -19,7 +19,7 @@ import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v107';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
-import {createHudDrawing} from './hud-drawing.js?v071';
+import {createHudDrawing} from './hud-drawing.js?v109';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v086';
@@ -284,6 +284,35 @@ const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
 });
+// The official logo is a standalone, resolution-independent SVG asset.
+// This exact-path Canvas fallback keeps the logo visible on first paint and
+// offline or while SVG image decoding completes.
+const nomadMark=new Image();
+let nomadMarkReady=false;
+nomadMark.onload=()=>{
+ nomadMarkReady=true;
+ if(appLifecycle?.status!=='disposed'){
+  layers.mark('base');
+  invalidate('nomad-mark-ready');
+ }
+};
+nomadMark.onerror=()=>{nomadMarkReady=false;};
+nomadMark.src='./nomad-mark.svg';
+function paintNomadMark(x,y,w,h){
+ if(nomadMarkReady){g.drawImage(nomadMark,x,y,w,h);return;}
+ g.save();
+ g.translate(x,y);g.scale(w/160,h/64);
+ g.strokeStyle=C.bright;g.lineWidth=3.8;
+ g.lineCap='round';g.lineJoin='round';
+ g.beginPath();
+ for(const [xa,ya,xb] of [
+  [8,18,56],[104,18,152],[8,32,51],
+  [109,32,152],[8,46,56],[104,46,152]
+ ]){g.moveTo(xa,ya);g.lineTo(xb,ya);}
+ g.stroke();
+ g.beginPath();g.arc(80,32,24,0,Math.PI*2);g.stroke();
+ g.restore();
+}
 // Do not block first paint on web fonts; redraw once either face loads.
 if(document.fonts?.load){
  const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"'];
@@ -476,21 +505,42 @@ function paintBaseGame(){
  }
  g=baseContext;
  rect(0,0,W,H,C.bg);
- panel(r.hx,r.hy,r.hw,r.hh,12,C.panel);
- const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
- text('TETRIS SYSTEM',r.hx+UI_SPACE.headTitleInset,
-  r.hy+r.hh/2,titleSize,
-  C.ink,'left',Math.max(10,r.hw-116));
+ panel(r.hx,r.hy,r.hw,r.hh,0,C.panel);
+ // The logo, wordmark, and subtitle use the EXISTING font and luminance
+ // palette. Only the title organization changes; header buttons stay put.
  const th=r.headerButtonH;
  const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
  const ty=r.hy+(r.hh-th)/2;
+ const markX=r.hx+Math.max(6,UI_SPACE.headTitleInset*.48);
+ const available=Math.max(20,tx-markX-5);
+ const markW=Math.min(74,Math.max(30,available*.34));
+ const markH=markW*.4;
+ const markY=r.hy+(r.hh-markH)/2;
+ paintNomadMark(markX,markY,markW,markH);
+ const titleX=markX+markW+Math.max(6,Math.min(11,available*.05));
+ const titleWidth=Math.max(12,tx-titleX-5);
+ rect(titleX-5,r.hy+r.hh*.27,1,r.hh*.46,C.subtleBorder);
+ text('NOMAD',titleX,r.hy+r.hh/2-9,
+  r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
+  C.ink,'left',titleWidth);
+ text('Tetris System',titleX,r.hy+r.hh/2+11,
+  r.landscape?9:11,C.weak,'left',titleWidth);
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false,true);
  drawSidebar(r);
  drawControls(r);
- text('Program: Three.JS',r.off+11,r.footerY,9,C.weak,'left',r.inner*.63,'terminal');
- text('version: '+THREE_BUILD_VERSION,r.off+r.width-11,r.footerY,9,C.weak,'right',r.inner*.34,'terminal');
+ const footerLeft='Program: Three.JS',footerRight='version: '+THREE_BUILD_VERSION;
+ const footerX=r.off+11,footerEnd=r.off+r.width-11;
+ text(footerLeft,footerX,r.footerY,9,C.weak,'left',r.inner*.63,'terminal');
+ text(footerRight,footerEnd,r.footerY,9,C.weak,'right',r.inner*.34,'terminal');
+ // One minimalist rule between the two existing footer labels.
+ g.save();g.font='400 9px '+TERMINAL_FONT;
+ const leftWidth=g.measureText(footerLeft).width+footerLeft.length*9*LETTER_SPACING_EM;
+ const rightWidth=g.measureText(footerRight).width+footerRight.length*9*LETTER_SPACING_EM;
+ g.restore();
+ const ruleStart=footerX+leftWidth+12,ruleEnd=footerEnd-rightWidth-12;
+ if(ruleEnd-ruleStart>10)rect(ruleStart,r.footerY-.5,ruleEnd-ruleStart,1,C.border);
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);

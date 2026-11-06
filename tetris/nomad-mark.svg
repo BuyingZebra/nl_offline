@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="192" viewBox="0 0 160 64" role="img" aria-labelledby="title desc">
+  <title id="title">NOMAD</title>
+  <desc id="desc">Monochrome circular NOMAD mark, with three horizontal, rounded-end signal trails interrupted by a central ring.</desc>
+  <g fill="none" stroke="#cecece" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 18 H56 M104 18 H152 M8 32 H51 M109 32 H152 M8 46 H56 M104 46 H152"/>
+    <circle cx="80" cy="32" r="24"/>
+  </g>
+</svg>
