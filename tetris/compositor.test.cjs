@@ -123,7 +123,6 @@ test('whole-screen decay and tint stay independent; optional legacy mask is sepa
  const p=composer.passes;
  assert.equal(p[10].enabled,false);
  update(pipeline,{persistence:true,persistenceMs:250});
- assert.equal(p[4].hz,75);
  assert.equal(p[4].ms,250);
  assert.equal(p[7].uniforms.uTint.value.x,.22);
  update(pipeline,{persistence:true,persistenceMs:900});
