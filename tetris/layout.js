@@ -27,8 +27,8 @@ function computeLayout(W,H,safe,ui){
   const overlaySecondaryH=compact?39:short?40:ui.extrasHeight;
   const headerH=compact?50:short?58:ui.headHeight;
   let hy=edges.top+(compact?4:short?9:0),hh=headerH;
-  // V109: statistics move beside the board. Remove their 45px deck row
-  // without moving any existing portrait button hitboxes.
+  // V109 moved statistics to the sidebar, keeping portrait button hitboxes.
+  // The recovered score-row space is reserved, not added to the game board.
   const legacyStatsOffset=ui.scoreHeight+deckGap;
   const dhDefault=2*deckPad+deckGap+buttonH+extraH;
   const bottomMargin=H>=550?ui.deckBottom:Math.max(ui.unit,Math.min(ui.deckBottom,usableH*.055));
@@ -53,10 +53,13 @@ function computeLayout(W,H,safe,ui){
   }
   const sideGap=Math.min(ui.sideGap,Math.max(0,sw*.025));
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
-  const bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,sh/2));
+  // Preserve V108 playfield size and placement; statistics stay in sidebar.
+  // The landscape playfield never used the old portrait score row.
+  const boardRegionH=landscape?sh:Math.max(0,sh-legacyStatsOffset);
+  const bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   const bh=bw*2;
   const bx=sx+Math.max(0,(sw-bw-sideGap-sideWidth)/2);
-  const by=sy+Math.max(0,(sh-bh)/2);
+  const by=sy+Math.max(0,(boardRegionH-bh)/2);
   const sxSide=bx+bw+sideGap;
   const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
   // Original-inspired hierarchy: NEXT above stacked SCORE/LEVEL/LINES,

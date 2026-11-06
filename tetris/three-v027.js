@@ -19,7 +19,7 @@ import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v107';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
-import {createHudDrawing} from './hud-drawing.js?v109';
+import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v110';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v086';
@@ -297,7 +297,7 @@ nomadMark.onload=()=>{
  }
 };
 nomadMark.onerror=()=>{nomadMarkReady=false;};
-nomadMark.src='./nomad-mark.svg';
+nomadMark.src='./nomad-mark.svg?v110';
 function paintNomadMark(x,y,w,h){
  if(nomadMarkReady){g.drawImage(nomadMark,x,y,w,h);return;}
  g.save();
@@ -306,8 +306,8 @@ function paintNomadMark(x,y,w,h){
  g.lineCap='round';g.lineJoin='round';
  g.beginPath();
  for(const [xa,ya,xb] of [
-  [8,18,56],[104,18,152],[8,32,51],
-  [109,32,152],[8,46,56],[104,46,152]
+  [18,18,56],[104,18,142],[8,32,51],
+  [109,32,152],[18,46,56],[104,46,142]
  ]){g.moveTo(xa,ya);g.lineTo(xb,ya);}
  g.stroke();
  g.beginPath();g.arc(80,32,24,0,Math.PI*2);g.stroke();
@@ -323,9 +323,8 @@ if(document.fonts?.load){
   invalidate('font-ready');
  }).catch(()=>{});
 }
-// V027 drew miniatures on 120x90 (hold) and 120x75 (queue) canvases,
-// displayed as 80x60 and 80x44 CSS pixels. Match their real visual sizes,
-// instead of drawing 20px cells directly in CSS pixels.
+// Retain V027-inspired preview tile sizing but use a single uniform scale.
+// Tetrominoes are centred and contained in their square preview frames.
 // Fresh grayscale tile styling for both the board and miniature previews:
 // thin bevel rim, darker inset cap, luminous upper edge and lower shadow.
 function tileFace(x,y,w,h,kind){
@@ -333,20 +332,8 @@ function tileFace(x,y,w,h,kind){
 }
 function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
- const m=Core.SHAPES[kind],pts=[];
- for(let row=0;row<m.length;row++)for(let col=0;col<m[row].length;col++)
-  if(m[row][col])pts.push([col,row]);
- if(!pts.length)return;
- const loX=Math.min(...pts.map(p=>p[0])),hiX=Math.max(...pts.map(p=>p[0]));
- const loY=Math.min(...pts.map(p=>p[1])),hiY=Math.max(...pts.map(p=>p[1]));
- const cols=hiX-loX+1,rows=hiY-loY+1;
- const sourceH=role==='hold'?90:75;
- const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
- const stepX=sourceCell*w/120,stepY=sourceCell*h/sourceH;
- const sx=x+(w-stepX*cols)/2,sy=y+(h-stepY*rows)/2;
- for(const [col,row] of pts){
-  const xx=sx+(col-loX)*stepX,yy=sy+(row-loY)*stepY;
-  tileFace(xx,yy,stepX,stepY,kind);
+ for(const tile of fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role)){
+  tileFace(tile.x,tile.y,tile.size,tile.size,kind);
  }
 }
 function cell(x,y,col,row,size,kind,isGhost=false){

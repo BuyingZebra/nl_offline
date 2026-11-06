@@ -2,6 +2,31 @@
  * Caller supplies drawing primitives, live game state and existing button
  * registrar; the same UI can draw on the cached base or cropped canvases.
  */
+// Square tetromino cells at every preview aspect ratio, including narrow phones.
+export function fitPreviewCells(shape,x,y,w,h,role='next'){
+ if(!Array.isArray(shape)||!(w>0)||!(h>0))return [];
+ const points=[];
+ for(let row=0;row<shape.length;row++){
+  const values=shape[row];
+  if(!Array.isArray(values))continue;
+  for(let col=0;col<values.length;col++)if(values[col])points.push([col,row]);
+ }
+ if(!points.length)return [];
+ const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
+ const minX=Math.min(...xs),minY=Math.min(...ys);
+ const cols=Math.max(...xs)-minX+1,rows=Math.max(...ys)-minY+1;
+ const sourceH=role==='hold'?90:75;
+ const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
+ // Scale both axes equally; independent X/Y scaling distorted the tiles.
+ const scale=Math.min(w/120,h/sourceH);
+ const size=Math.min(sourceCell*scale,Math.max(0,w-4)/cols,Math.max(0,h-4)/rows);
+ if(!(size>0))return [];
+ const startX=x+(w-size*cols)/2,startY=y+(h-size*rows)/2;
+ return points.map(([col,row])=>({
+  x:startX+(col-minX)*size,y:startY+(row-minY)*size,size
+ }));
+}
+
 export function createHudDrawing({panel,text,rect,key,smallPiece,getGame,getHighs,
  C,UI_SPACE,fmt}){
 function drawSidebar(r){
@@ -12,13 +37,17 @@ function drawSidebar(r){
  const nested=(box,kind,role)=>{
   panel(box.x,box.y,box.w,box.h,0,C.panel);
   label(role==='next'?'NEXT':'HOLD',box.x,box.y);
-  const ix=box.x+inset,iy=box.y+25;
-  const iw=Math.max(1,box.w-2*inset),ih=Math.max(1,box.h-25-inset);
-  if(iw<=1||ih<=1)return;
-  panel(ix,iy,iw,ih,0,C.bg,C.border);
-  // One visible upcoming piece, as in the original Tetris display.
-  const pw=Math.max(1,iw-6),ph=Math.max(1,Math.min(role==='next'?68:72,ih-6));
-  smallPiece(kind,ix+(iw-pw)/2,iy+(ih-ph)/2,pw,ph,role);
+  // The outer panel can be rectangular for its left-aligned label.
+  // The nested piece frame is a true square with equal visual padding.
+  const labelSpace=25;
+  const availableH=Math.max(0,box.h-labelSpace-inset);
+  const side=Math.min(Math.max(0,box.w-2*inset),availableH);
+  if(side<=1)return;
+  const ix=box.x+(box.w-side)/2;
+  const iy=box.y+labelSpace+(availableH-side)/2;
+  panel(ix,iy,side,side,0,C.bg,C.border);
+  const preview=Math.max(1,side-6);
+  smallPiece(kind,ix+(side-preview)/2,iy+(side-preview)/2,preview,preview,role);
  };
  nested(next,game.queue[0],'next');
  panel(stats.x,stats.y,stats.w,stats.h,0,C.panel);

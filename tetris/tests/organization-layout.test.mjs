@@ -1,9 +1,9 @@
-/* V109: reference concept #1 organization, with existing game buttons intact. */
+/* V110: square nested previews, fixed original board and unchanged controls. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
-import {createHudDrawing} from '../hud-drawing.js';
+import {createHudDrawing,fitPreviewCells} from '../hud-drawing.js';
 const require=createRequire(import.meta.url);
 const {computeLayout}=require('../layout.js');
 
@@ -39,7 +39,42 @@ test('right column is NEXT / SCORE LEVEL LINES / HOLD, without BEST or PIECES',(
  assert.deepEqual(painted.panels.map(x=>x[4]),[0,0,0,0,0],'no beveled corners');
  assert.equal(painted.panels[1][5], '#080808','NEXT interior stays near-black');
  assert.equal(painted.panels[4][5], '#080808','HOLD interior stays near-black');
+ for(const [outerIdx,innerIdx] of [[0,1],[3,4]]){
+  const [ox,oy,ow,oh]=painted.panels[outerIdx];
+  const [ix,iy,iw,ih]=painted.panels[innerIdx];
+  assert.ok(Math.abs(iw-ih)<.00001,'nested preview frame is square');
+  assert.ok(Math.abs(ow-oh)>.01,'outer labeled panel remains rectangular');
+  assert.ok(ix>=ox&&ix+iw<=ox+ow+.001,'frame fits parent width');
+  assert.ok(iy>=oy&&iy+ih<=oy+oh+.001,'frame fits parent height');
+ }
+ for(const piece of painted.pieces){
+  assert.ok(Math.abs(piece[3]-piece[4])<.00001,'preview area is square');
+ }
  assert.equal(painted.rects.length,2,'quiet separators between three data rows');
+});
+test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
+ const shapes=[
+  [[1,1,1,1]],[[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],[[1,0],[1,0],[1,1]],
+  [[0,1],[0,1],[1,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]
+ ];
+ for(const role of ['next','hold']){
+  for(const frame of [
+   {x:10,y:20,w:80,h:80},{x:3,y:8,w:36,h:36},
+   {x:20,y:30,w:120,h:48},{x:10,y:0,w:38,h:95}
+  ]){
+   for(const shape of shapes){
+    const cells=fitPreviewCells(shape,frame.x,frame.y,frame.w,frame.h,role);
+    assert.equal(cells.length,4,'each tetromino has four square cells');
+    for(const tile of cells){
+     assert.ok(tile.size>0);
+     assert.ok(tile.x>=frame.x-.001&&tile.y>=frame.y-.001);
+     assert.ok(tile.x+tile.size<=frame.x+frame.w+.001);
+     assert.ok(tile.y+tile.size<=frame.y+frame.h+.001);
+    }
+   }
+  }
+ }
 });
 test('approved 6 game controls retain button arrangement and positions',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
@@ -69,6 +104,8 @@ test('official logo is an editable, rounded-cap SVG bundled locally',()=>{
  assert.match(svg,/stroke-linecap="round"/);
  assert.match(svg,/<circle cx="80" cy="32" r="24"/);
  assert.equal((svg.match(/ M\d+/g)||[]).length,5);
+ assert.match(svg,/M18 18 H56 M104 18 H142 M8 32 H51 M109 32 H152 M18 46 H56 M104 46 H142/);
+ assert.ok(56-18<51-8&&142-104<152-109,'middle strokes are longest');
  assert.match(sw,/\.\/nomad-mark\.svg/);
  assert.match(html,/family=Roboto\+Condensed/);
 });

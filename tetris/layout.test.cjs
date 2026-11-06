@@ -58,13 +58,20 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.landscape,false);
  assert.equal(r.compactControls,false);
- assert.equal(r.boardW,260);
- assert.equal(r.boardH,520);
+ assert.equal(r.boardW,234.5,'V108 portrait board width');
+ assert.equal(r.boardH,469,'V108 portrait board height');
+ assert.equal(r.boardY,145,'V108 portrait board top');
  assert.equal(r.dy+r.deckPad,677,'old first button y');
  assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
  assert.equal(r.nextPanel.y,r.boardY);
  assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH);
  assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
+});
+test('tall portrait also retains its V108 playfield dimensions',()=>{
+ const r=computeLayout(430,932,{top:62,bottom:34},ui);
+ assert.equal(r.boardW,273);
+ assert.equal(r.boardH,546);
+ assert.equal(r.dy+r.deckPad,757,'V109 button position stays unchanged');
 });
 test('narrow landscape reflows buttons, without changing portrait',()=>{
  assert.equal(computeLayout(667,375,{left:44,right:44},ui).compactControls,true);
@@ -73,8 +80,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v109-r1'));
- assert.ok(html.indexOf('layout.js?three=v109-r1')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v110-r1'));
+ assert.ok(html.indexOf('layout.js?three=v110-r1')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
