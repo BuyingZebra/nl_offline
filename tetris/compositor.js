@@ -10,7 +10,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
 import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v096';
-import {createPhosphorPersistencePass} from './phosphor-persistence.js?v103';
+import {createPhosphorPersistencePass} from './phosphor-persistence.js?v104';
 
 // Fixed V049 optical constants; unchanged by modularization.
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -384,8 +384,9 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  edgeVignette.enabled=fx.vignette;
  edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
- // Optional decorative scanline mask remains independent of phosphor light.
- scanlineOverlay.enabled=!historyEnabled&&fx.scanlines&&fx.scanlineOpacity>0;
+ // Static CRT scanline artwork is independent of phosphor persistence.
+ // A user-enabled mask must remain visible whether history is on or off.
+ scanlineOverlay.enabled=fx.scanlines&&fx.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];
  scanlineOverlay.uniforms.uPatternSize.value.set(scanlinePreset.rows[0].length,scanlinePreset.rows.length);

@@ -101,7 +101,7 @@ test('display effect settings target their own passes',()=>{
  assert.equal(p[7].uniforms.uEnabled.value,1);
  assert.equal(p[8].enabled,true);
  assert.equal(p[9].enabled,true);
- assert.equal(p[10].enabled,false,'optional legacy mask is separate from phosphor');
+ assert.equal(p[10].enabled,true,'scanline mask must work with persistence');
  assert.equal(p[10].uniforms.uScreenHeight.value,2556);
  const green=p[7].uniforms.uTint.value;
  assert.equal(green.x,.2);
@@ -121,16 +121,32 @@ test('whole-screen decay and tint stay independent; optional legacy mask is sepa
  const {pipeline,composer}=setup();
  update(pipeline,{persistence:true,persistenceMs:120});
  const p=composer.passes;
- assert.equal(p[10].enabled,false);
+ assert.equal(p[10].enabled,true);
  update(pipeline,{persistence:true,persistenceMs:90});
  assert.equal(p[4].ms,90);
  assert.equal(p[7].uniforms.uTint.value.x,.2);
  update(pipeline,{persistence:true,persistenceMs:100});
- assert.equal(p[10].enabled,false);
+ assert.equal(p[10].enabled,true);
  assert.equal(p[4].ms,100);
  update(pipeline,{persistence:false});
  assert.equal(p[10].enabled,true,'legacy static scanline mask is restored');
  assert.equal(p[7].uniforms.uTint.value.x,.2,'legacy hue preserved');
+ pipeline.dispose();
+});
+test('scanlines and bloom are separately controllable with phosphor persistence',()=>{
+ const {pipeline,composer}=setup();
+ const p=composer.passes;
+ update(pipeline,{persistence:true,scanlines:true,scanlineOpacity:49,bloom:false});
+ assert.equal(p[4].enabled,true,'phosphor history remains enabled');
+ assert.equal(p[6].enabled,false,'Bloom alone governs external glow');
+ assert.equal(p[10].enabled,true,'static scanlines survive persistence');
+ assert.equal(p[10].uniforms.uOpacity.value,.49);
+ update(pipeline,{scanlines:false,bloom:true,persistence:true});
+ assert.equal(p[10].enabled,false);
+ assert.equal(p[6].enabled,true);
+ update(pipeline,{scanlines:true,bloom:false,persistence:false});
+ assert.equal(p[10].enabled,true,'scanlines do not depend on persistence');
+ assert.equal(p[4].enabled,false);
  pipeline.dispose();
 });
 test('original NOMAD green and amber are unchanged by persistence or decay',()=>{

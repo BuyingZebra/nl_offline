@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,
- PHOSPHOR_OPTICS,radialPSFWeights}
+import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse}
  from '../phosphor-model.js';
 import {makeSliderControl,sliderValueAt} from '../ui-controls.js';
 import {DISPLAY_EFFECTS} from '../display-settings-catalog.js';
@@ -58,7 +57,7 @@ test('postcomposition luminance response has no scanning logic',()=>{
  assert.match(pass,/exp\(-uDelta\/max/);
  assert.match(pass,/sqrt\(clamp\(emitted/);
  assert.match(pass,/WebGLRenderTarget/);
- assert.match(pass,/float afterglow=/);
+ assert.match(pass,/float emitted=drive\+\(previous-drive\)\*exp/);
  assert.doesNotMatch(pass,/uPhase|uCycles|uHz|uLines|CRT_REFRESH|ageCycles/);
  assert.doesNotMatch(pass,/uTint/);
  const layout=pipeline.indexOf('composer.addPass(new RenderPass');
@@ -69,48 +68,26 @@ test('postcomposition luminance response has no scanning logic',()=>{
  assert.match(pipeline,/persistencePass\.configure\(fx\.persistenceMs\)/);
 });
 
-test('100% of the emitted light passes through normalized peaked spatial PSF',()=>{
- const w=radialPSFWeights();
- const sum=w.center+4*(w.axis+w.diagonal+w.outer);
- assert.ok(Math.abs(sum-1)<1e-12,`kernel sum=${sum}`);
- assert.ok(w.center>w.axis&&w.axis>w.diagonal&&w.diagonal>w.outer);
- assert.ok(PHOSPHOR_OPTICS.pixelPitch>0);
- // Shader coefficients must be exactly the model-defined kernel.
- const shader=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- for(const [name,value] of Object.entries({
-  W_CENTER:w.center,W_AXIS:w.axis,W_DIAGONAL:w.diagonal,W_OUTER:w.outer
- })){
-  const found=shader.match(new RegExp('const float '+name+'=([0-9.]+);'));
-  assert.ok(found,name+' missing in shader');
-  assert.ok(Math.abs(Number(found[1])-value)<1e-9,name+' deviates from model');
- }
- // For a spatial impulse of unit brightness, the sum over the 13
- // mapped destinations is one: no arbitrary fraction bypasses the PSF.
- const impulse=[w.center,...Array(4).fill(w.axis),
-  ...Array(4).fill(w.diagonal),...Array(4).fill(w.outer)];
- assert.ok(Math.abs(impulse.reduce((a,b)=>a+b,0)-1)<1e-12);
- // A dim source creates exactly the same falloff SHAPE but less amplitude.
- // Thus its distant light falls below a fixed visibility threshold sooner.
- const farBright=w.outer*1;
- const farDim=w.outer*.1;
- const threshold=(farBright+farDim)*.5;
- assert.ok(farBright>threshold);
- assert.ok(farDim<threshold);
-});
-test('100% normalized spatial filtering follows temporal phosphor reconstruction',()=>{
+test('temporal phosphor does not spread or add light between neighbouring pixels',()=>{
  const pass=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- for(const expected of ['opticalFragment','tEmission','quad.material=optical',
-  'quad.material=native','W_CENTER','W_AXIS','W_DIAGONAL','W_OUTER',
-  'uPixelStep','PHOSPHOR_OPTICS.pixelPitch',
-  'uDecayTau','uRiseTau','uReset','exp(-uDelta/max'])
-  assert.ok(pass.includes(expected),expected);
- assert.ok(pass.indexOf('quad.material=update')<
-  pass.indexOf('quad.material=native'));
- assert.ok(pass.indexOf('quad.material=native')<
-  pass.indexOf('quad.material=optical'));
- assert.ok(pass.includes('emission=make(width,height)'), 'native resolution PSF source');
- assert.ok(!pass.includes('uSpreadFraction'));
- assert.ok(!pass.includes('mix(core,scattered'));
- assert.ok(!/uPhase|uCycles|uHz|uLines|CRT_REFRESH|ageCycles/.test(pass));
- assert.ok(!pass.includes('uTint'));
+ // No spatial filter, synthetic broadening, channel interpolation,
+ // optical render targets or user-independent glow from persistence.
+ for(const removed of ['W_CENTER','W_AXIS','W_OUTER','W_DIAGONAL',
+  'opticalFragment','reconstructedFragment','tEmission','uPixelStep',
+  'PHOSPHOR_OPTICS','uSpreadFraction','tSpread','quad.material=optical'])
+  assert.ok(!pass.includes(removed),`unwanted spatial effect: ${removed}`);
+ assert.match(pass,/new THREE.WebGLRenderTarget\(width,height,options\)/);
+ assert.match(pass,/minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter/);
+ assert.match(pass,/float emitted=drive\+\(previous-drive\)\*exp/);
+ assert.match(pass,/float encoded=texture2D\(tHistory,vUv\)\.r/);
+ assert.match(pass,/float emitted=encoded\*encoded/);
+ assert.match(pass,/quad.material=update/);
+ assert.match(pass,/quad.material=output/);
+ assert.ok(pass.indexOf('quad.material=update')<pass.indexOf('quad.material=output'));
+});
+test('independent pixel persistence leaves all neighbouring dark pixels dark',()=>{
+ const bright=integratePhosphorResponse(1,0,.03,120);
+ const neighbors=Array(8).fill(0).map(()=>integratePhosphorResponse(0,0,.03,120));
+ assert.ok(bright>0&&bright<1);
+ assert.ok(neighbors.every(x=>x===0));
 });

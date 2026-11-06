@@ -1,3 +1,16 @@
+# V104 — independent persistence, Bloom, and CRT scanline mask
+
+The user's display controls must be independent:
+- **Phosphor Response:** the V103 time-domain equation is preserved (12 ms rise, user-configurable 10–120 ms decay, default 120 ms), but it operates independently at each native-resolution pixel. Persistence does **not** blur neighbouring pixels.
+- **Phosphor Bloom:** the existing adjustable UnrealBloomPass is the sole source of spatial glow when the user enables it. Disabling Bloom eliminates the added light halo while preserving phosphor afterimages.
+- **CRT Scanlines:** the original, optional static CRT pattern mask now renders whenever its own toggle is enabled, including when phosphor persistence is active. This is *not* the removed animated electron-beam scanning model.
+
+The native-resolution temporal history uses nearest-neighbour texture sampling and sqrt-encoded RGBA8. It has no PSF convolution, spatial taps, or intermediate optical buffer. The former V102/103 research-oriented point-spread functions are retained below as historical experiments only.
+
+This is a software CRT-inspired model, not a claim that real phosphors produce no spatial scattering. The separation is intentional so that the user can independently tune the presentation.
+
+---
+
 # V103 — full-emission PSF and 120 ms decay ceiling
 
 The previous V102 implementation transmitted 84% of light unchanged and sent
