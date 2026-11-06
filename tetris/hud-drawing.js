@@ -65,7 +65,8 @@ function drawSidebar(r){
  nested(hold,game.hold,'hold');
 }
 function drawControls(r){
- panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ // V113: the controls float directly on the background. Only suppress the
+ // enclosing visual panel; all button geometry and hitboxes stay unchanged.
  const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad;
  // The score strip is now in the right-hand column; leave the approved
  // positions and dimensions of every game control unchanged.

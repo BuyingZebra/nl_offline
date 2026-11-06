@@ -1,4 +1,4 @@
-/* V112: NEXT top aligned, HOLD bottom aligned, statistics centered. */
+/* V113: floating control buttons; all existing layout geometry unchanged. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -103,6 +103,7 @@ test('approved 6 game controls retain button arrangement and positions',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  const {hud,painted}=makeHUD();
  hud.drawControls(r);
+ assert.deepEqual(painted.panels,[],'no enclosing control panel is painted');
  assert.deepEqual(painted.keys.map(k=>k[0]),['◀','DROP','▶','↻','HOLD','PAUSE']);
  assert.deepEqual(painted.keys.map(k=>k[5]),['left','hard','right','cw','hold','pause']);
  assert.deepEqual(painted.keys.map(k=>k[2]),[677,677,677,677,736,736]);

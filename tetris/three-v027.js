@@ -19,7 +19,7 @@ import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v107';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
-import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v111';
+import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v113';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v086';

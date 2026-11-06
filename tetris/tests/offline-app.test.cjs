@@ -1,4 +1,4 @@
-/* NOMAD V112 — release-coherent offline cache and installability tests. */
+/* NOMAD V113 — release-coherent offline cache and installability tests. */
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -13,7 +13,7 @@ const scope='https://buyingzebra.github.io/nl_offline/tetris/';
 
 function workerHarness(){
  const events=new Map(),storage=new Map(),deleted=[],claims=[];
- let online=true,failPath=null,version='old',shellBuild='112';
+ let online=true,failPath=null,version='old',shellBuild='113';
  const asURL=item=>typeof item==='string'?new URL(item,scope).href:
   item instanceof URL?item.href:item.url;
  async function fetchMock(item){
@@ -66,7 +66,7 @@ function workerHarness(){
  return {emit,assets,storage,caches,claims,deleted,
   setOnline:x=>online=x,setVersion:x=>version=x,setFailPath:x=>failPath=x,
   setShellBuild:x=>shellBuild=x,
-  get cache(){return storage.get('nomad-tetris-offline-v112');}
+  get cache(){return storage.get('nomad-tetris-offline-v113');}
  };
 }
 
@@ -241,7 +241,7 @@ test('the worker never unregisters itself or force-activates during a game',()=>
 test('release marker, pinned cache name, and no-mixing policy stay in lockstep',()=>{
  const current=html.match(/name="tetris-build" content="([0-9]{3})"/)?.[1];
  const worker=swCode.match(/const CACHE_VERSION='v([0-9]{3})'/)?.[1];
- assert.equal(current,'112');
+ assert.equal(current,'113');
  assert.equal(worker,current);
  assert.ok(swCode.includes('fromPinnedCache(url)'));
  assert.ok(!swCode.includes('networkFirst('));
