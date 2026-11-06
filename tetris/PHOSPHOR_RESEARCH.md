@@ -1,3 +1,61 @@
+# V102 — spatial point-spread plus phosphor persistence
+
+The V101 phosphor response was already a whole-screen temporal field, but its
+spread depended entirely on optional artistic bloom. V102 models spatial
+spread directly, using a normalized Gaussian point-spread kernel applied to
+the *emitted neutral phosphor field* before artistic bloom and tint. Bright
+pixels contribute luminance to their neighbours; the field retains the same
+decay after the source disappears. Spatial spread is **not** described as
+excitation passing from one phosphor particle to its neighbour.
+
+### Published basis
+
+- Knudson (1968), *Experimental evaluation of the resolution capabilities of
+  image-transmission systems*, Information Display.
+  DOI: 10.1002/j.2637-496X.1968.tb05066.x.
+  CRT line-spread measurements approximated by Gaussian profiles.
+- Pelli (1997), *Pixel independence: measuring spatial interactions on a CRT
+  display*, Spatial Vision. DOI: 10.1163/156856897x00375.
+  Image model uses a gamma/drive nonlinearity plus beam-spot PSF.
+- Infante (1993), *The use of Lorentzian functions in the analysis of
+  non-Gaussian CRT spots*, Journal of the SID.
+  DOI: 10.1889/1.1984864. Higher-current spots can have wider tails.
+- Compton (1989), *Selecting phosphors for displays*, Information Display.
+  DOI: 10.1002/j.2637-496X.1989.tb05327.x.
+  Persistence time describes decay after excitation.
+
+### Mathematical structure
+
+`Lout(x,y,t) = (1-a) L(x,y,t) + a [ G_sigma * L(.,.,t) ](x,y)`
+
+where `G_sigma` is a normalized Gaussian (integral 1), `*` denotes
+convolution, `a=0.16` is an explicitly artistic light-scatter fraction,
+and `L` is the time-evolving emitted phosphor luminance from V100.
+
+For `tau` from the decay slider, the first-order temporal model remains:
+
+`Lnew = drive + (Lold-drive)*exp(-dt/tau)`
+
+with the existing fixed fast excitation time for rising brightness.
+
+For mobile performance the Gaussian is implemented with two separable
+5-sample passes on a **quarter-resolution** buffer, while the temporal
+history stays at half resolution and crisp source geometry remains at
+native size. The kernel's sigma is 1.4 quarter-resolution pixels
+(radius two). The 1D samples are normalized; their separable 2D product
+is also normalized. This is a tractable approximation and is **not**
+fitted to a real display's optical PSF.
+
+Legacy artistic bloom remains a separate optional effect downstream.
+Both the independent green / amber tint ratios from V096 and the
+10–2000ms persistence slider remain unchanged. Pausing/menus do not
+reset light history. No scanning or refresh-rate simulation returns.
+
+The new postcomposition spread is disabled when phosphor simulation is
+off, so the established older look remains a fallback.
+
+---
+
 # NOMAD V101 — unified canonical phosphor colour
 
 **Experimental luminance-envelope simulation, not a calibrated physical CRT.**

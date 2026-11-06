@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse}
+import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,
+ PHOSPHOR_OPTICS,gaussianKernel1D}
  from '../phosphor-model.js';
 import {makeSliderControl,sliderValueAt} from '../ui-controls.js';
 import {DISPLAY_EFFECTS} from '../display-settings-catalog.js';
@@ -66,4 +67,41 @@ test('postcomposition luminance response has no scanning logic',()=>{
  assert.ok(layout>=0&&layout<history&&history<glow,
   'phosphor is a whole-display effect between composed scene and bloom/tint');
  assert.match(pipeline,/persistencePass\.configure\(fx\.persistenceMs\)/);
+});
+
+test('normalized Gaussian PSF diffuses an isolated bright point symmetrically',()=>{
+ const k=gaussianKernel1D();
+ assert.equal(k.length,5);
+ const total=k.reduce((a,b)=>a+b,0);
+ assert.ok(Math.abs(total-1)<1e-12);
+ assert.ok(k[2]>k[1]&&k[1]>k[0]);
+ assert.ok(Math.abs(k[0]-k[4])<1e-12);
+ assert.ok(Math.abs(k[1]-k[3])<1e-12);
+ const fraction=PHOSPHOR_OPTICS.spreadFraction;
+ assert.ok(fraction>0&&fraction<.25);
+ // A bright impulse deposits (1-f) at its original location plus a
+ // normalized 2D falloff. Its total integrated light remains one.
+ let sum=0;
+ for(let y=0;y<5;y++)for(let x=0;x<5;x++){
+  const core=x===2&&y===2?1-fraction:0;
+  sum+=core+fraction*k[y]*k[x];
+ }
+ assert.ok(Math.abs(sum-1)<1e-12,`PSF energy=${sum}`);
+ assert.ok(k[2]*k[2]>k[2]*k[1]);
+ assert.ok(k[2]*k[1]>k[0]*k[0]);
+});
+test('spatial halo is a separable post-emission PSF with same persistence',()=>{
+ const pass=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
+ for(const expected of ['spreadFragment','tSpread','blurHorizontal','blurVertical',
+  'PHOSPHOR_OPTICS.spreadFraction','mix(core,scattered,uSpreadFraction)',
+  'optX.tInput.value=write.texture','optY.tInput.value=blurX.texture',
+  'uDecayTau','uRiseTau','uReset','exp(-uDelta/max'])
+   assert.ok(pass.includes(expected),expected);
+ assert.ok(pass.includes('Math.ceil(width/4)'));
+ assert.ok(pass.indexOf('quad.material=update')<
+   pass.indexOf('quad.material=blurHorizontal'));
+ assert.ok(pass.indexOf('quad.material=blurVertical')<
+   pass.indexOf('quad.material=output'));
+ assert.ok(!/uPhase|uCycles|uHz|uLines|CRT_REFRESH|ageCycles/.test(pass));
+ assert.ok(!pass.includes('uTint'));
 });

@@ -1,4 +1,4 @@
-/* NOMAD V100 — whole-display phosphor envelope.
+/* NOMAD V102 — whole-display phosphor envelope.
  * No raster beam or refresh coupling. Rise is fast; falling light follows a
  * continuously adjustable exponential time constant. GPU uses the same model.
  * This is a neutral luminance approximation, not calibrated tube physics.
@@ -27,4 +27,26 @@ export function integratePhosphorResponse(
  const duration=Math.max(0,Number(seconds)||0);
  const tau=(target>previous?Math.max(.001,riseMs):normalizePersistenceMs(persistenceMs))/1000;
  return target+(previous-target)*Math.exp(-duration/tau);
+}
+
+/* Low-cost separable approximation of a Gaussian CRT point-spread function.
+ * Published measurements support Gaussian spots at modest beam current
+ * (Knudson 1968); real high-current spots can have broader tails
+ * (Infante 1993). No unmeasured physical length scale is claimed here.
+ */
+export const PHOSPHOR_OPTICS=Object.freeze({
+ spreadFraction:0.16,
+ gaussianSigmaQuarterPixels:1.4,
+ gaussianRadiusQuarterPixels:2
+});
+export function gaussianKernel1D(sigma=PHOSPHOR_OPTICS.gaussianSigmaQuarterPixels,
+ radius=PHOSPHOR_OPTICS.gaussianRadiusQuarterPixels){
+ const width=Math.max(1,Math.round(radius));
+ const n=Math.max(.05,Number(sigma)||1.4);
+ const values=Array.from({length:width*2+1},(_,i)=>{
+  const x=i-width;
+  return Math.exp(-.5*(x/n)**2);
+ });
+ const total=values.reduce((sum,value)=>sum+value,0);
+ return values.map(value=>value/total);
 }
