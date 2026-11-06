@@ -58,3 +58,14 @@ test('other screen buttons use the same source brightness helper',()=>{
  assert.match(game,/layers.mark\('base','controls'\)/);
  assert.doesNotMatch(game,/syncButtonFeedback/);
 });
+
+test('PAUSE keeps its pressed luminance through immediate gameplay status changes',()=>{
+ const game=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const actions=game.slice(game.indexOf('handleAction:act=>'),
+  game.indexOf('setSetting:actions.setSetting'));
+ // Both pointer controls and keyboard controls must preserve PAUSE even
+ // though action dispatch changes game status within the pointerdown turn.
+ assert.equal((actions.match(/if\(game\.status!==previous&&act!=='pause'\)buttonFeedback\.clear\(\)/g)||[]).length,2);
+ assert.ok(game.includes('buttonSparks=buttonFeedback.sample(now,phosphorOn)'));
+ assert.ok(game.includes("layers.mark('base','controls')"));
+});

@@ -120,6 +120,31 @@ with sync_playwright() as p:
     page.wait_for_timeout(300)
     playing_image = page.screenshot()
     assert playing_image != ready.read_bytes(), "Start did not change the game board"
+
+    # PAUSE transitions playing→paused during pointerdown. The pressed PAUSE
+    # button must visibly brighten even though game status changes immediately.
+    pause_box = (205, 770, 332, 817)
+    frame = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
+    cold_pause = frame.crop(pause_box)
+    cold_mean = sum(cold_pause.getdata()) / (cold_pause.width*cold_pause.height)
+    page.mouse.move(265, 792)
+    page.mouse.down()
+    pause_means = []
+    for _ in range(3):
+        page.wait_for_timeout(160)
+        frame = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
+        roi = frame.crop(pause_box)
+        pause_means.append(sum(roi.getdata()) / (roi.width*roi.height))
+    page.mouse.up()
+    delta_pause = max(pause_means) - cold_mean
+    print("ACTIVE PAUSE LUMINANCE:", {"cold": cold_mean, "hot": max(pause_means),
+                                    "delta": delta_pause})
+    assert delta_pause > 1.0, (
+        f"PAUSE lost its pressed luminance on status change: {delta_pause:.2f}"
+    )
+    page.keyboard.press("p")  # Resume before gameplay/bfcache checks
+    page.wait_for_timeout(150)
+
     page.keyboard.press("Space")  # Hard drop / gameplay sound
     page.wait_for_timeout(150)
     # A temporary bfcache round-trip must pause gameplay but keep its WebGL
@@ -157,12 +182,12 @@ with sync_playwright() as p:
         )
         cache_count = page.evaluate("""async () => {
           const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v107');
+          const name = names.find(n => n === 'nomad-tetris-offline-v108');
           if (!name) return 0;
           const cache = await caches.open(name);
           return (await cache.keys()).length;
         }""")
-        assert cache_count >= 38, f"Incomplete V107 offline cache: {cache_count} entries"
+        assert cache_count >= 38, f"Incomplete V108 offline cache: {cache_count} entries"
 
         page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
         page.context.set_offline(True)

@@ -624,13 +624,17 @@ inputController=createInputController({
  handleAction:act=>{
   const previous=game.status;
   const result=actions.dispatch(act);
-  if(game.status!==previous)buttonFeedback.clear();
+  // PAUSE must retain its active button until release, even though
+  // the game status changes immediately. Other transitions can clear it.
+  if(game.status!==previous&&act!=='pause')buttonFeedback.clear();
   return result;
  },
  perform:act=>{
   const previous=game.status;
   const result=actions.perform(act);
-  if(game.status!==previous)buttonFeedback.clear();
+  // PAUSE must retain its active button until release, even though
+  // the game status changes immediately. Other transitions can clear it.
+  if(game.status!==previous&&act!=='pause')buttonFeedback.clear();
   return result;
  },
  setSetting:actions.setSetting,settingValue,
