@@ -1,4 +1,4 @@
-/* NOMAD V096 — input-owned button luminance; CRT bloom provides all glow. */
+/* NOMAD V106 — button-press luminance, preserving unfilled button geometry. */
 export const MAX_BUTTON_FLASHES=8;
 export const BUTTON_FLASH_PEAK_MS=90;
 // A quick touch must reach at least one raster/compositor frame.
@@ -76,13 +76,11 @@ void main(){
   // Solid face brightens; existing dark lettering and symbols stay dark.
   float face=smoothstep(.045,.17,lum);
   pressedColor=mix(original,vec3(1.0),face);
- }else if(mode<1.5){
-  // Outlined face fills bright while existing ink becomes dark.
-  float ink=smoothstep(.035,.14,lum);
-  pressedColor=vec3(mix(1.0,.018,ink));
  }else{
-  // Non-button toggles brighten existing strokes, never the entire row.
-  float ink=smoothstep(.045,.17,lum);
+  // Outlined buttons and toggles: ONLY excite their existing border,
+  // lettering and icon pixels. Their near-black faces stay transparent
+  // to the feedback effect: no inversion or solid rectangle is created.
+  float ink=smoothstep(.02,.14,lum);
   pressedColor=mix(original,vec3(1.0),ink);
  }
  gl_FragColor=vec4(mix(original,pressedColor,clamp(flash,0.0,1.0)),1.0);

@@ -17,7 +17,7 @@ test('held buttons stay at full luminance until release, then fade',()=>{
  assert.deepEqual(f.sample(9000+BUTTON_AFTERGLOW_MS),[]);
  assert.equal(f.count,0);
 });
-test('outlined and settings controls have distinct presentation modes',()=>{
+test('outlined and settings controls keep stroke-only feedback modes',()=>{
  const f=createButtonFeedback();
  f.press(outline,0);
  f.press({x:0,y:0,w:15,h:15,kind:'toggle'},10);
@@ -53,7 +53,7 @@ test('feedback remains bounded, validates geometry, and clears on navigation',()
  assert.deepEqual(f.sample(100),[]);
  assert.equal(f.clear(),false);
 });
-test('shader brightens source face, protects dark glyphs, and creates no local halo',()=>{
+test('shader brightens solid faces and only existing outline strokes',()=>{
  assert.match(BUTTON_FEEDBACK_VERTEX,/gl_Position/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec2 uViewport/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform vec4 uRects\[8\]/);
@@ -61,11 +61,27 @@ test('shader brightens source face, protects dark glyphs, and creates no local h
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/uniform float uMode\[8\]/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/float inside=step\(lo\.x,p\.x\)/);
  assert.match(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=mix\(original,vec3\(1\.0\),face\)/);
- assert.match(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=vec3\(mix\(1\.0,\.018,ink\)\)/);
+ assert.match(BUTTON_FEEDBACK_FRAGMENT,/float ink=smoothstep\(\.02,\.14,lum\)/);
+ assert.match(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=mix\(original,vec3\(1\.0\),ink\)/);
+ assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/pressedColor=vec3\(mix\(1\.0/);
  assert.doesNotMatch(BUTTON_FEEDBACK_FRAGMENT,/float halo|float rim|float distance|exp\(/);
  assert.ok(BUTTON_FLASH_TOTAL_MS<700);
 });
-
+test('outline press leaves unlit background unchanged while exciting border and glyphs',()=>{
+ const fragment=BUTTON_FEEDBACK_FRAGMENT;
+ assert.match(fragment,/if\(mode<0\.5\)/);
+ assert.match(fragment,/else\s*\{\s*\/\/ Outlined buttons and toggles/);
+ // Mirror shader ink selection on black button face, existing border and text.
+ const smoothstep=(edge0,edge1,v)=>{
+  const t=Math.max(0,Math.min(1,(v-edge0)/(edge1-edge0)));
+  return t*t*(3-2*t);
+ };
+ const pressed=lum=>lum+(1-lum)*smoothstep(.02,.14,lum);
+ const background=.0025,border=.185,text=.76;
+ assert.equal(pressed(background),background,'no solid fill');
+ assert.ok(pressed(border)>border,'border increases brightness');
+ assert.ok(pressed(text)>text,'text/icon increases brightness');
+});
 test('physical phosphor mode stops excitation on release instead of double-fading',()=>{
  const f=createButtonFeedback();
  const hit={x:12,y:22,w:40,h:40,kind:'button',light:true};

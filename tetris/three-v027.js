@@ -4,8 +4,8 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v104';
-import {drawTileFace} from './tile-face.js?v105';
-import {createButtonFeedback} from './button-feedback.js?v096';
+import {drawTileFace} from './tile-face.js?v106';
+import {createButtonFeedback} from './button-feedback.js?v106';
 import {createCanvasUI} from './canvas-ui.js?v096';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';

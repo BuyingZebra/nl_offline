@@ -9,7 +9,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {instrumentCompositorPasses} from './compositor-pass-profiler.js?v059';
-import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v096';
+import {MAX_BUTTON_FLASHES,BUTTON_FEEDBACK_VERTEX,BUTTON_FEEDBACK_FRAGMENT} from './button-feedback.js?v106';
 import {createPhosphorPersistencePass} from './phosphor-persistence.js?v104';
 
 // Fixed V049 optical constants; unchanged by modularization.

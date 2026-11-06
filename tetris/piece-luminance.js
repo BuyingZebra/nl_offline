@@ -1,18 +1,15 @@
-/* NOMAD V105 — balanced monochrome tile brightness.
- * Seven hand-tuned 8-bit grayscale levels, evenly separated by 13 units.
- * The full range is 148–226 instead of the former colour-derived 76–247.
- * Pieces retain their former brightest-to-darkest ordering, while dark
- * pieces become readable and bright pieces retain headroom for bevels.
- * No colour components, sRGB hue conversion or game rules are involved.
+/* NOMAD V106 — balanced monochrome tetromino brightness.
+ * Hand-tuned 8-bit grayscale, equal 18-unit steps between 129 and 237.
+ * Preserves the existing brightness order and independent green/amber tint.
  */
 export const PIECE_LUMINANCE=Object.freeze({
- I:213, // long bar
- J:148, // darkest, now readable
- L:187,
- O:226, // brightest, reserves highlight headroom
- S:200,
- T:161,
- Z:174
+ I:219,
+ J:129,
+ L:183,
+ O:237,
+ S:201,
+ T:147,
+ Z:165
 });
 export function pieceLuminance(kind){
  return PIECE_LUMINANCE[kind]??PIECE_LUMINANCE.T;

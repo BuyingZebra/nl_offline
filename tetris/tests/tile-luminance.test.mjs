@@ -4,7 +4,7 @@ import {PIECE_LUMINANCE,drawTileFace} from '../tile-face.js';
 
 test('pieces use distinct balanced grayscale values rather than colour equivalents',()=>{
  assert.deepEqual(PIECE_LUMINANCE,{
-  I:213,J:148,L:187,O:226,S:200,T:161,Z:174
+  I:219,J:129,L:183,O:237,S:201,T:147,Z:165
  });
  assert.deepEqual(Object.keys(PIECE_LUMINANCE),['I','J','L','O','S','T','Z']);
  assert.equal(Object.isFrozen(PIECE_LUMINANCE),true);
@@ -13,11 +13,11 @@ test('former piece brightness order preserved, within a controlled readable rang
  const x=PIECE_LUMINANCE;
  assert.ok(x.O>x.I&&x.I>x.S&&x.S>x.L&&x.L>x.Z&&x.Z>x.T&&x.T>x.J);
  const levels=Object.values(x);
- assert.ok(levels.every(v=>Number.isInteger(v)&&v>=148&&v<=226));
- assert.equal(Math.min(...levels),148);
- assert.equal(Math.max(...levels),226);
+ assert.ok(levels.every(v=>Number.isInteger(v)&&v>=129&&v<=237));
+ assert.equal(Math.min(...levels),129);
+ assert.equal(Math.max(...levels),237);
  const sorted=[...levels].sort((a,b)=>a-b);
- assert.deepEqual(sorted.slice(1).map((v,i)=>v-sorted[i]),Array(6).fill(13));
+ assert.deepEqual(sorted.slice(1).map((v,i)=>v-sorted[i]),Array(6).fill(18));
 });
 test('all gameplay and preview tiles use identical monochrome bevel geometry',()=>{
  for(const kind of Object.keys(PIECE_LUMINANCE)){
@@ -53,9 +53,12 @@ test('all eight tile-face levels preserve the intended detail range',()=>{
   drawTileFace({set fillStyle(v){colours.push(Number(v.match(/rgb\((\d+)/)[1]));},fillRect(){}},
    0,0,25,25,kind);
   assert.equal(colours.length,8);
-  assert.ok(colours.every(value=>value>=110&&value<=246),
+  assert.ok(colours.every(value=>value>=91&&value<=255),
    kind+' bevel is clipped or too dark');
-  assert.equal(Math.max(...colours)-Math.min(...colours),58,
-   kind+' bevel contrast changed');
+  assert.ok(Math.max(...colours)-Math.min(...colours)>=56,
+   kind+' bevel contrast collapsed');
+  assert.ok(colours[6]>colours[1],
+   kind+' two distinct upper highlights must survive clipping');
+  if(kind==='O')assert.deepEqual([colours[1],colours[6]],[253,255]);
  }
 });
