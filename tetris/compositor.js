@@ -315,10 +315,10 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   'Scene + uploads','Board blur H','Board popup','Button response','Phosphor history','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
- const hues={green:new THREE.Vector3(.2,1,.2),amber:new THREE.Vector3(185/255,79/255,9/255)};
- // Approximate colours, not measured spectral power distributions.
- // Creative tint is not encoded in decay constants or material presets.
- const preferredGreen=new THREE.Vector3(.22,1,.34);
+ // Canonical NOMAD artist-approved tint ratios, unchanged from V096.
+ // These do not describe physical phosphor spectra; they affect hue only.
+ const hues={green:new THREE.Vector3(.2,1,.2),
+  amber:new THREE.Vector3(185/255,79/255,9/255)};
  let persistenceWasEnabled=false;
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
@@ -351,10 +351,8 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  tint.uniforms.uEnabled.value=fx.phosphor?clamp(phosphorStrength,0,1):0;
  // The instant startup voltage spike changes luminance only, never hue.
  tint.uniforms.uVoltage.value=clamp(voltage,1,1.2);
- // Active profiles have their own approximate emission hue; the original
- // theme selection remains authoritative with PHOSPHOR HISTORY disabled.
- tint.uniforms.uTint.value.copy(historyEnabled?
-  (theme==='amber'?hues.amber:preferredGreen):hues[theme]);
+ // Identical artistic hue whether history is on or off; decay is neutral.
+ tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
  const faded=clamp(Number(contentLuminance),0,1);

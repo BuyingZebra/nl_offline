@@ -104,11 +104,11 @@ test('display effect settings target their own passes',()=>{
  assert.equal(p[10].enabled,false,'optional legacy mask is separate from phosphor');
  assert.equal(p[10].uniforms.uScreenHeight.value,2556);
  const green=p[7].uniforms.uTint.value;
- assert.equal(green.x,.22);
- assert.equal(green.z,.34);
+ assert.equal(green.x,.2);
+ assert.equal(green.z,.2);
  update(pipeline,{persistence:true,persistenceMs:350});
  assert.equal(p[4].ms,350);
- assert.equal(p[7].uniforms.uTint.value.x,.22,'hue must be independent of persistence');
+ assert.equal(p[7].uniforms.uTint.value.x,.2,'hue must be independent of persistence');
  update(pipeline,{ghost:false,bloom:false,phosphor:false,softness:false,vignette:false,scanlines:false,persistence:false});
  for(const i of [4,5,6,8,9,10])assert.equal(p[i].enabled,false);
  assert.equal(p[7].uniforms.uEnabled.value,0);
@@ -124,13 +124,32 @@ test('whole-screen decay and tint stay independent; optional legacy mask is sepa
  assert.equal(p[10].enabled,false);
  update(pipeline,{persistence:true,persistenceMs:250});
  assert.equal(p[4].ms,250);
- assert.equal(p[7].uniforms.uTint.value.x,.22);
+ assert.equal(p[7].uniforms.uTint.value.x,.2);
  update(pipeline,{persistence:true,persistenceMs:900});
  assert.equal(p[10].enabled,false);
  assert.equal(p[4].ms,900);
  update(pipeline,{persistence:false});
  assert.equal(p[10].enabled,true,'legacy static scanline mask is restored');
  assert.equal(p[7].uniforms.uTint.value.x,.2,'legacy hue preserved');
+ pipeline.dispose();
+});
+test('original NOMAD green and amber are unchanged by persistence or decay',()=>{
+ const {pipeline,composer}=setup();
+ const tint=composer.passes[7];
+ const expected={green:[.2,1,.2],amber:[185/255,79/255,9/255]};
+ const rgba=()=>[tint.uniforms.uTint.value.x,tint.uniforms.uTint.value.y,tint.uniforms.uTint.value.z];
+ for(const theme of ['green','amber']){
+  for(const enabled of [true,false]){
+   for(const ms of [10,190,2000]){
+    pipeline.syncFX({fx:{...states,persistence:enabled,persistenceMs:ms},
+     theme,width:393,height:852,dpr:3,boardStatus:'playing',
+     popupStatus:'ready',modalOpen:false,
+     layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}});
+    assert.deepEqual(rgba(),expected[theme],
+     `${theme} tint changed with phosphor history ${enabled}/${ms}`);
+   }
+  }
+ }
  pipeline.dispose();
 });
 test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
