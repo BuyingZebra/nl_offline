@@ -1,4 +1,4 @@
-/* V111: centered game composition, matching previews, tighter score rows. */
+/* V112: NEXT top aligned, HOLD bottom aligned, statistics centered. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -64,6 +64,12 @@ test('right column is NEXT / SCORE LEVEL LINES / HOLD, without BEST or PIECES',(
   -(painted.panels[3][1]+painted.panels[3][3]
   -(painted.panels[4][1]+painted.panels[4][3])))<.001,
   'same bottom padding inside preview parents');
+ assert.ok(Math.abs(r.nextPanel.y-r.boardY)<.01,
+  'NEXT outer panel top matches game board');
+ assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
+  'HOLD outer panel bottom matches game board');
+ assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
+  'statistics centered between anchors');
  assert.ok(r.statsPanel.h<=132.01,'no oversized score container');
  assert.equal(painted.rects.length,2,'separators between three compact data rows');
  assert.ok(painted.rects.every(line=>line[4]==='#777'),

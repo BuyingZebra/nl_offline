@@ -75,11 +75,12 @@ function computeLayout(W,H,safe,ui){
   const targetTotal=2*previewTarget+statsTarget;
   const fit=targetTotal>0?Math.min(1,available/targetTotal):0;
   const previewH=previewTarget*fit,statsH=statsTarget*fit;
-  const groupH=2*previewH+statsH+2*panelGap;
-  const groupY=by+Math.max(0,(bh-groupH)/2);
-  const nextPanel={x:sxSide,y:groupY,w:swSide,h:previewH};
-  const statsPanel={x:sxSide,y:groupY+previewH+panelGap,w:swSide,h:statsH};
-  const holdPanel={x:sxSide,y:statsPanel.y+statsH+panelGap,w:swSide,h:previewH};
+  // Anchor the outer preview panels to the board edges while centering
+  // the compact statistics between them. The existing fit guarantees at
+  // least one panelGap between each pair, even on short viewports.
+  const nextPanel={x:sxSide,y:by,w:swSide,h:previewH};
+  const statsPanel={x:sxSide,y:by+(bh-statsH)/2,w:swSide,h:statsH};
+  const holdPanel={x:sxSide,y:by+bh-previewH,w:swSide,h:previewH};
   const compactControls=landscape&&(dw-2*deckPad)<250;
   return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,

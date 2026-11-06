@@ -65,11 +65,11 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
  assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
  assert.equal(r.dy+r.deckPad,677,'old first button y');
  assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
- assert.ok(r.nextPanel.y>=r.boardY,'sidebar group stays within board');
- assert.ok(r.holdPanel.y+r.holdPanel.h<=r.boardY+r.boardH,'sidebar within board');
- assert.ok(Math.abs((r.nextPanel.y-r.boardY)-
-  (r.boardY+r.boardH-r.holdPanel.y-r.holdPanel.h))<.01,
-  'side panel group centered alongside board');
+ assert.equal(r.nextPanel.y,r.boardY,'NEXT top aligned with board');
+ assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH,
+  'HOLD bottom aligned with board');
+ assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
+  'statistics centered between previews');
  assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
 });
 test('tall portrait also retains its V108 playfield dimensions',()=>{
@@ -84,14 +84,34 @@ test('portrait board and entire sidebar are vertically centered between header a
   const r=computeLayout(w,h,safe,ui);
   const above=r.boardY-(r.hy+r.hh),below=r.dy-(r.boardY+r.boardH);
   assert.ok(Math.abs(above-below)<.01,name+' symmetric header-to-controls whitespace');
-  assert.ok(r.nextPanel.y>=r.boardY-.01);
-  assert.ok(r.holdPanel.y+r.holdPanel.h<=r.boardY+r.boardH+.01);
-  const groupTop=r.nextPanel.y-r.boardY;
-  const groupBottom=r.boardY+r.boardH-(r.holdPanel.y+r.holdPanel.h);
-  assert.ok(Math.abs(groupTop-groupBottom)<.01,name+' sidebar centered with board');
-  assert.ok(Math.abs(r.nextPanel.h-r.holdPanel.h)<.01,name+' matching preview heights');
-  assert.ok(Math.abs(r.statsPanel.y-r.nextPanel.y-r.nextPanel.h-ui.unit)<.01,name+' first gap');
-  assert.ok(Math.abs(r.holdPanel.y-r.statsPanel.y-r.statsPanel.h-ui.unit)<.01,name+' second gap');
+  assert.ok(Math.abs(r.nextPanel.y-r.boardY)<.01,
+   name+' NEXT top aligns with board');
+  assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
+   name+' HOLD bottom aligns with board');
+  assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
+   name+' stats remain centered vertically');
+  assert.ok(Math.abs(r.nextPanel.h-r.holdPanel.h)<.01,
+   name+' matching preview heights');
+  const upperGap=r.statsPanel.y-(r.nextPanel.y+r.nextPanel.h);
+  const lowerGap=r.holdPanel.y-(r.statsPanel.y+r.statsPanel.h);
+  assert.ok(upperGap>=ui.unit-.01&&lowerGap>=ui.unit-.01,
+   name+' adequate gaps between panels');
+  assert.ok(Math.abs(upperGap-lowerGap)<.01,
+   name+' symmetric score-to-preview spacing');
+ }
+});
+test('landscape anchors sidebar previews to board edges without collisions',()=>{
+ for(const [name,w,h,safe] of phones.filter(x=>x[1]>x[2])){
+  const r=computeLayout(w,h,safe,ui);
+  assert.ok(Math.abs(r.nextPanel.y-r.boardY)<.01,name+' NEXT aligned');
+  assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
+   name+' HOLD aligned');
+  assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
+   name+' statistics centered');
+  assert.ok(r.statsPanel.y>=r.nextPanel.y+r.nextPanel.h+ui.unit-.01,
+   name+' NEXT/statistics separation');
+  assert.ok(r.holdPanel.y>=r.statsPanel.y+r.statsPanel.h+ui.unit-.01,
+   name+' statistics/HOLD separation');
  }
 });
 test('narrow landscape reflows buttons, without changing portrait',()=>{
@@ -101,8 +121,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v111-r1'));
- assert.ok(html.indexOf('layout.js?three=v111-r1')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v112-r1'));
+ assert.ok(html.indexOf('layout.js?three=v112-r1')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
