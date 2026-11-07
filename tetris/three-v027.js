@@ -433,7 +433,7 @@ function paintBoardPopup(r){
   // A compact 12px gap (twice the standard 6px panel gap) between title
   // and button. The start-screen tagline retains two such compact gaps.
   if(type==='ready'){
-   const subSize=Math.min(10,w*.034);
+   const subSize=14;
    const subY=by-headingGap-subSize/2;
    const titleY=subY-subSize/2-headingGap-headingSize/2;
    text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
@@ -534,7 +534,7 @@ function paintBaseGame(){
   r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
   C.ink,'left',titleWidth);
  text('Tetris System',titleX,r.hy+r.hh/2+11,
-  r.landscape?9:11,C.weak,'left',titleWidth);
+  14,C.weak,'left',titleWidth);
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false,true);
