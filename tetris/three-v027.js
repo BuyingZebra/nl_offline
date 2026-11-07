@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {drawTileFace,drawIFragment,drawPieceTiles} from './tile-face.js?v119';
+import {createVectorTileRenderer} from './vector-tile-renderer.js?v120';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
@@ -324,18 +324,29 @@ if(document.fonts?.load){
   invalidate('font-ready');
  }).catch(()=>{});
 }
+// V120: authoritative smooth SVG sprites, raster-cached at display DPR.
+// Approved pixel motifs remain a fallback during SVG loading/errors.
+const vectorTiles=createVectorTileRenderer({
+ pixelRatio:()=>DPR,
+ onReady:()=>{
+  if(appLifecycle?.status==='disposed')return;
+  layers.mark('board','sidebar');
+  invalidate('vector-tile-ready');
+ }
+});
+vectorTiles.preload();
 // Retain V027-inspired preview tile sizing but use a single uniform scale.
 // Tetrominoes are centred and contained in their square preview frames.
 // Fresh grayscale tile styling for both the board and miniature previews:
 // thin bevel rim, darker inset cap, luminous upper edge and lower shadow.
 function tileFace(x,y,w,h,kind){
- drawTileFace(g,x,y,w,h,kind);
+ vectorTiles.drawTile(g,x,y,w,h,kind);
 }
 function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
  // Preview I is a single gravel-textured strip; other pieces repeat the
  // exact approved 12-pixel motif once per occupied square.
- drawPieceTiles(g,fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role),kind);
+ vectorTiles.drawPiece(g,fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role),kind);
 }
 function cell(x,y,col,row,size,kind,isGhost=false){
  if(!kind||col<0||row<0||col>=10||row>=20)return;
@@ -378,7 +389,7 @@ function stage(r,drawPieces=true,recordRegion=true){
  });
  for(const run of iRuns){
   const vertical=(run.rotation&1)===1;
-  drawIFragment(g,offX+run.x*tile,offY+run.y*tile,
+  vectorTiles.drawIFragment(g,offX+run.x*tile,offY+run.y*tile,
    (vertical?1:run.length)*tile,(vertical?run.length:1)*tile,
    {sourceOffset:run.sourceOffset,length:run.length,rotation:run.rotation});
  }
@@ -396,7 +407,7 @@ function stage(r,drawPieces=true,recordRegion=true){
    });
    else cell(offX,offY,p.x+rx,p.y+ry,tile,kind);
   }));
-  if(p.kind==='I')drawPieceTiles(g,activeTiles,'I',{rotation:p.rotation});
+  if(p.kind==='I')vectorTiles.drawPiece(g,activeTiles,'I',{rotation:p.rotation});
  }
  }
  g.restore();
@@ -880,6 +891,7 @@ appLifecycle=createAppLifecycle({
   ['input',()=>inputController?.dispose()],
   ['initials-input',()=>initialsInput.removeEventListener('input',onInitialsInput)],
   ['initials-keydown',()=>initialsInput.removeEventListener('keydown',onInitialsKeydown)],
+  ['vector-tiles',()=>vectorTiles.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
   ['platform',()=>platform.stop()],
   ['graphics',()=>graphicsCleanup.dispose()]

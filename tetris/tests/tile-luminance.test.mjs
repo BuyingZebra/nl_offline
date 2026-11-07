@@ -67,9 +67,9 @@ test('the four-block I is a single uninterrupted gravel bar, not four framed til
 });
 test('gameboard, falling piece and NEXT/HOLD use the same approved renderer',()=>{
  const code=readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
- assert.match(code,/drawPieceTiles\(g,fitPreviewCells\(/);
- assert.match(code,/if\(p.kind==='I'\)drawPieceTiles\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
- assert.match(code,/drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
+ assert.match(code,/vectorTiles\.drawPiece\(g,fitPreviewCells\(/);
+ assert.match(code,/if\(p.kind==='I'\)vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
+ assert.match(code,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
  assert.match(code,/tileFace\(px,py,size,size,kind\)/);
  assert.match(code,/g.globalAlpha=\.5356;g.strokeStyle=C.grid/);
 });

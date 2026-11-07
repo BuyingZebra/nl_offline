@@ -119,7 +119,7 @@ test('I fragment interiors preserve absolute gravel phase instead of repacking',
 test('rendering selects piece-instance fragments, not same-type adjacency',()=>{
  const js=readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  assert.match(js,/collectIFragments\(displayBoard,displayMeta,/);
- assert.match(js,/drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
+ assert.match(js,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
  assert.match(js,/lineClearFX=\{board:event\.board,boardMeta:event\.boardMeta/);
  assert.doesNotMatch(js,/while\(visibleI\(/);
 });

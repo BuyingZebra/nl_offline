@@ -106,18 +106,27 @@ function chunkParts(sourceOffset,length){
  return [...layers,...dots];
 }
 export function renderIFragmentSVG({
- sourceOffset=0,length=4,orientation='horizontal'
+ sourceOffset=0,length=4,orientation='horizontal',rotation=null
 }={}){
  validateFragment(sourceOffset,length);
  if(!['horizontal','vertical'].includes(orientation))
   throw new RangeError('Unknown orientation');
- const width=12*length,vertical=orientation==='vertical';
- const body=vertical?
-  ['<g transform="translate(12 0) rotate(90)">',...chunkParts(sourceOffset,length),'</g>']:
+ const turn=rotation===null?(orientation==='vertical'?1:0):rotation;
+ if(!Number.isInteger(turn)||turn<0||turn>3)
+  throw new RangeError('Invalid I strip rotation');
+ const width=12*length,vertical=Boolean(turn%2);
+ const transform=[
+  null,'translate(12 0) rotate(90)',
+  'translate('+width+' 12) rotate(180)',
+  'translate(0 '+width+') rotate(270)'
+ ][turn];
+ const body=transform?
+  ['<g transform="'+transform+'">',...chunkParts(sourceOffset,length),'</g>']:
   chunkParts(sourceOffset,length);
  return shell('I',vertical?12:width,vertical?width:12,body,
   ' data-source-offset="'+sourceOffset+'" data-source-length="'+length+
-  '" data-orientation="'+orientation+'"');
+  '" data-orientation="'+(vertical?'vertical':'horizontal')+'"'+
+  (rotation===null?'':' data-rotation="'+turn+'"'));
 }
 export function IFragmentRuns(mask){
  if(!Number.isInteger(mask)||mask<0||mask>15)
