@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {drawTileFace} from './tile-face.js?v117';
+import {drawTileFace,drawIBar,drawPieceTiles} from './tile-face.js?v118';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
 import {getBuildVersion} from './build-version.js?v066';
@@ -332,9 +332,9 @@ function tileFace(x,y,w,h,kind){
 }
 function smallPiece(kind,x,y,w,h,role='next'){
  if(!kind)return;
- for(const tile of fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role)){
-  tileFace(tile.x,tile.y,tile.size,tile.size,kind);
- }
+ // Preview I is a single gravel-textured strip; other pieces repeat the
+ // exact approved 12-pixel motif once per occupied square.
+ drawPieceTiles(g,fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role),kind);
 }
 function cell(x,y,col,row,size,kind,isGhost=false){
  if(!kind||col<0||row<0||col>=10||row>=20)return;
@@ -361,13 +361,33 @@ function stage(r,drawPieces=true,recordRegion=true){
  if(drawPieces){
  const displayBoard=lineClearFX?.board||game.board;
  const clearIsEmpty=lineClearFX&&Math.floor(lineClearFX.elapsed/LINE_FLASH_TOGGLE_MS)%2===1;
+ // Joined I cells are one continuous pixel-gravel bar, including when
+ // vertical or partly surviving a line clear. No per-cell seams.
+ const paintedI=new Set();
+ const visibleI=(cx,cy)=>cx>=0&&cx<10&&cy>=0&&cy<20&&
+  displayBoard[cy][cx]==='I'&&!(clearIsEmpty&&lineClearFX.rows.has(cy))&&
+  !paintedI.has(cy*10+cx);
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
    const px=offX+rx*tile,py=offY+ry*tile;
    g.save();g.strokeStyle=C.border;g.globalAlpha=.42;g.lineWidth=.7;
    g.strokeRect(px+2,py+2,tile-4,tile-4);g.restore();
-  }else cell(offX,offY,rx,ry,tile,kind);
+   return;
+  }
+  if(kind!=='I'){cell(offX,offY,rx,ry,tile,kind);return;}
+  if(paintedI.has(ry*10+rx))return;
+  let length=1,vertical=false;
+  while(visibleI(rx+length,ry))length++;
+  if(length===1){
+   while(visibleI(rx,ry+length))length++;
+   vertical=length>1;
+  }
+  for(let i=0;i<length;i++)
+   paintedI.add((ry+(vertical?i:0))*10+rx+(vertical?0:i));
+  if(length===1)cell(offX,offY,rx,ry,tile,kind);
+  else drawIBar(g,offX+rx*tile,offY+ry*tile,
+   (vertical?1:length)*tile,(vertical?length:1)*tile);
  }));
  if(!lineClearFX&&game.current&&game.status!=='over'){
   const p=game.current;
@@ -375,7 +395,15 @@ function stage(r,drawPieces=true,recordRegion=true){
    const target=game.ghostY();
    p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{if(kind)cell(offX,offY,p.x+rx,target+ry,tile,kind,true);}));
   }
-  p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{if(kind)cell(offX,offY,p.x+rx,p.y+ry,tile,kind);}));
+  const activeTiles=[];
+  p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
+   if(!kind)return;
+   if(p.kind==='I')activeTiles.push({
+    x:offX+(p.x+rx)*tile,y:offY+(p.y+ry)*tile,size:tile
+   });
+   else cell(offX,offY,p.x+rx,p.y+ry,tile,kind);
+  }));
+  if(p.kind==='I')drawPieceTiles(g,activeTiles,'I');
  }
  }
  g.restore();

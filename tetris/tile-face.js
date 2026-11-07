@@ -1,97 +1,140 @@
-/* NOMAD V117 — seven Game Boy-era engraved phosphor tile faces.
- * Monochrome source only: the existing CRT compositor owns green/amber tint,
- * persistence and bloom. Board, NEXT and HOLD use this same renderer.
- * All tile artwork stays inside the caller's exact tile rectangle.
+/* NOMAD V118 — approved 1989 Game Boy tile motifs.
+ * Exactly the seven approved lower-row designs (I/O/T/S/Z/J/L).
+ * Pixel-art source is grayscale; the existing phosphor compositor provides
+ * green/amber tint, CRT bloom and scanlines. No layout or rules changes.
  */
 import {PIECE_LUMINANCE} from './piece-luminance.js?v106';
 export {PIECE_LUMINANCE};
 
+export const PIECE_PATTERNS=Object.freeze({
+ I:'continuous-gravel',
+ J:'dotted-field',
+ L:'recessed-square',
+ O:'corner-highlight',
+ S:'small-center',
+ T:'solid-fill',
+ Z:'centered-square'
+});
+const SIZE=12;
 const clamp=v=>Math.max(0,Math.min(255,Math.round(v)));
 const gray=v=>{const n=clamp(v);return 'rgb('+n+','+n+','+n+')';};
-const PATTERNS=Object.freeze({
- I:'grain', J:'hollow', L:'diagonal', O:'nested',
- S:'dotted', T:'raised', Z:'reverse'
-});
-export {PATTERNS as PIECE_PATTERNS};
-
-export function drawTileFace(g,x,y,w,h,kind){
- if(!(w>0&&h>0))return;
- const s=Math.min(w,h),level=PIECE_LUMINANCE[kind]??PIECE_LUMINANCE.T;
- // Keep existing geometry and block-to-block spacing exactly as before.
- const gap=Math.max(.6,Math.min(1.3,s*.055));
- const xx=x+gap,yy=y+gap,ww=Math.max(0,w-2*gap),hh=Math.max(0,h-2*gap);
- if(!(ww>0&&hh>0))return;
- const rect=(a,b,c,d,v)=>{
-  if(!(c>0&&d>0))return;
-  g.fillStyle=gray(v);g.fillRect(a,b,c,d);
- };
- // Normalized coordinates keep every motif in the same square, regardless
- // of the mobile playfield / preview scale. No blur or extra render passes.
- const tile=(u,v,uw,vh,lum)=>rect(xx+u*ww,yy+v*hh,uw*ww,vh*hh,lum);
- const core=(u,v,uw,vh,lum)=>tile(u,v,uw,vh,lum);
- const rim=Math.min(1.35,Math.max(.65,s*.075));
- rect(xx,yy,ww,hh,level-48);
- rect(xx,yy,ww,rim,level+18);
- rect(xx,yy,rim,hh,level+11);
- rect(xx,yy+hh-rim,ww,rim,level-68);
- rect(xx+ww-rim,yy,rim,hh,level-53);
- const small=s<12;
- const pattern=PATTERNS[kind]||'raised';
- if(pattern==='nested'){
-  // Bright inner square in a recessed double frame (approved O preview).
-  core(.12,.12,.76,.76,level-15);
-  core(.23,.23,.54,.54,level+8);
-  core(.31,.31,.38,.38,level-78);
-  core(.37,.37,.26,.26,level-25);
-  if(!small)core(.39,.39,.22,.08,level+18);
- }else if(pattern==='hollow'){
-  // Deep square hole with a crisp illuminated frame.
-  core(.13,.13,.74,.74,level-18);
-  core(.19,.19,.62,.08,level+13);
-  core(.19,.19,.08,.62,level+6);
-  core(.19,.73,.62,.08,level-46);
-  core(.73,.19,.08,.62,level-38);
-  core(.28,.28,.44,.44,level-88);
-  if(!small)core(.36,.36,.28,.28,level-61);
- }else if(pattern==='diagonal'||pattern==='reverse'){
-  // Paired angular facets, like the bevelled Game Boy diagonal glyphs.
-  core(.12,.12,.76,.76,level-21);
-  const flip=pattern==='reverse';
-  const facets=small?3:4;
-  for(let i=0;i<facets;i++){
-   const u=.17+i*(.59/facets);
-   const v=flip?.67-i*(.59/facets):.17+i*(.59/facets);
-   core(u,v,.59/facets+.03,.16,level+14);
-   core(u,flip?v-.085:v+.085,.59/facets+.03,.095,level-72);
-  }
-  core(flip?.13:.66,.13,.21,.13,level+23);
-  core(flip?.66:.13,.73,.21,.12,level-56);
- }else if(pattern==='raised'){
-  // Broad central relief, highlighted along its top and left edges.
-  core(.10,.10,.80,.80,level-19);
-  core(.18,.18,.64,.64,level+2);
-  core(.18,.18,.64,.105,level+19);
-  core(.18,.18,.105,.64,level+10);
-  core(.18,.715,.64,.105,level-64);
-  core(.715,.18,.105,.64,level-49);
-  if(!small)core(.35,.35,.32,.32,level-12);
- }else{
-  // Deterministic pixel-grain, differentiated by density for I versus S.
-  core(.12,.12,.76,.76,level+5);
-  const dense=pattern==='grain';
-  const count=small?3:dense?5:4;
-  const pitch=.68/count;
-  for(let row=0;row<count;row++)for(let col=0;col<count;col++){
-   const code=(row*11+col*7+(dense?3:1))%7;
-   if(!dense&&code===1)continue;
-   const u=.16+col*pitch+(code%3)*pitch*.1;
-   const v=.16+row*pitch+(code%2)*pitch*.1;
-   const dot=(dense?.36:.26)*pitch;
-   core(u,v,dot,dot,level-(code%3===0?83:64));
-  }
-  if(dense){
-   core(.13,.13,.69,.06,level+20);
-   core(.13,.13,.06,.69,level+12);
+const matrix=(w,h)=>Array.from({length:h},()=>Array(w).fill(-1));
+function box(m,x,y,w,h,c){
+ for(let yy=Math.max(0,y);yy<Math.min(m.length,y+h);yy++)
+  for(let xx=Math.max(0,x);xx<Math.min(m[0].length,x+w);xx++)m[yy][xx]=clamp(c);
+}
+function outline(m,cTop,cLeft,cBottom,cRight){
+ const w=m[0].length,h=m.length;
+ box(m,1,1,w-2,1,cTop);box(m,1,1,1,h-2,cLeft);
+ box(m,1,h-2,w-2,1,cBottom);box(m,w-2,1,1,h-2,cRight);
+}
+function tilePixels(kind){
+ const m=matrix(SIZE,SIZE),L=PIECE_LUMINANCE[kind]??PIECE_LUMINANCE.T;
+ const bright=clamp(L+25);
+ switch(kind){
+ case 'O': // luminous top-left corner within a recessed medium-gray face
+  box(m,1,1,10,10,L-95);
+  outline(m,bright,bright,L-45,L-48);
+  box(m,3,3,5,1,bright);box(m,3,3,1,5,bright);
+  box(m,4,4,3,1,L+5);box(m,4,4,1,3,L+5);
+  box(m,2,9,8,1,L-125);
+  break;
+ case 'T': // intentionally plain, without an invented frame or texture
+  box(m,1,1,10,10,L-5);
+  break;
+ case 'S': // bright flat square with one small black central recess
+  box(m,1,1,10,10,L+12);
+  box(m,1,1,10,1,L+25);box(m,1,1,1,10,L+25);
+  box(m,5,5,2,2,8);
+  break;
+ case 'Z': // black field, bright nested square, dark centered pixel
+  box(m,1,1,10,10,10);
+  outline(m,bright,bright,L+5,L+5);
+  box(m,4,4,4,4,L+48);
+  box(m,5,5,2,2,8);
+  break;
+ case 'J': // scattered isolated dark dots, never checkerboard
+  box(m,1,1,10,10,L+17);
+  outline(m,L+45,L+45,L+35,L+35);
+  for(const [x,y] of [[3,3],[7,3],[9,4],[5,5],[3,7],[8,7],[5,9],[9,9]])box(m,x,y,1,1,12);
+  break;
+ case 'L': // medium face with a square beveled recess
+  box(m,1,1,10,10,L-26);
+  outline(m,L+24,L+18,L-12,L-12);
+  box(m,3,3,7,7,L-54);
+  box(m,3,3,7,1,L-3);box(m,3,3,1,7,L-3);
+  box(m,4,4,5,5,L-46);
+  box(m,9,3,1,7,L-108);box(m,3,9,7,1,L-108);
+  break;
+ default:
+  return barPixels(1,false);
+ }
+ return m;
+}
+function barPixels(length,vertical){
+ const count=Math.max(1,Math.min(20,Math.round(length)));
+ const w=SIZE*count,h=SIZE;
+ const L=PIECE_LUMINANCE.I;
+ const m=matrix(w,h);
+ // One uninterrupted strip; no outlines at internal 12-pixel boundaries.
+ box(m,1,1,w-2,h-2,L-55);
+ outline(m,L+16,L+16,L+8,L+8);
+ // Small irregular pixel-gravel dots run across the WHOLE bar.
+ for(let y=3;y<h-2;y+=3){
+  for(let x=3+(y%3);x<w-2;x+=4){
+   if((x*7+y*11)%9===0)continue;
+   box(m,x,y,1,1,L-167);
   }
  }
+ if(!vertical)return m;
+ return Array.from({length:w},(_,y)=>Array.from({length:h},(_,x)=>m[h-1-x][y]));
+}
+const tileCache=new Map();
+function sprite(kind){
+ if(!tileCache.has(kind))tileCache.set(kind,tilePixels(kind));
+ return tileCache.get(kind);
+}
+const barCache=new Map();
+function barSprite(length,vertical){
+ const key=length+':'+vertical;
+ if(!barCache.has(key))barCache.set(key,barPixels(length,vertical));
+ return barCache.get(key);
+}
+function raster(g,pixels,x,y,w,h){
+ if(!(w>0&&h>0)||!pixels.length)return;
+ const rows=pixels.length,cols=pixels[0].length;
+ const dx=w/cols,dy=h/rows;
+ for(let yy=0;yy<rows;yy++){
+  const line=pixels[yy];
+  for(let xx=0;xx<cols;){
+   const color=line[xx],start=xx++;
+   while(xx<cols&&line[xx]===color)xx++;
+   if(color<0)continue;
+   g.fillStyle=gray(color);
+   // Fractional cell sizes are allowed; tiny overlap avoids raster cracks.
+   g.fillRect(x+start*dx,y+yy*dy,(xx-start)*dx+.001,dy+.001);
+  }
+ }
+}
+export function drawIBar(g,x,y,w,h){
+ if(!(w>0&&h>0))return;
+ const vertical=h>w;
+ const length=Math.max(1,Math.round((vertical?h:w)/(vertical?w:h)));
+ raster(g,barSprite(length,vertical),x,y,w,h);
+}
+export function drawTileFace(g,x,y,w,h,kind){
+ if(kind==='I'){drawIBar(g,x,y,w,h);return;}
+ raster(g,sprite(kind),x,y,w,h);
+}
+// The four I cells share ONE continuous rectangle in NEXT/HOLD and in flight.
+export function drawPieceTiles(g,tiles,kind){
+ if(!Array.isArray(tiles)||!tiles.length)return;
+ if(kind==='I'){
+  const minX=Math.min(...tiles.map(t=>t.x)),minY=Math.min(...tiles.map(t=>t.y));
+  const maxX=Math.max(...tiles.map(t=>t.x+t.size));
+  const maxY=Math.max(...tiles.map(t=>t.y+t.size));
+  drawIBar(g,minX,minY,maxX-minX,maxY-minY);
+  return;
+ }
+ for(const t of tiles)drawTileFace(g,t.x,t.y,t.size,t.size,kind);
 }
