@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {createVectorTileRenderer} from './vector-tile-renderer.js?v120';
+import {createVectorTileRenderer} from './vector-tile-renderer.js?v121';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
@@ -324,7 +324,7 @@ if(document.fonts?.load){
   invalidate('font-ready');
  }).catch(()=>{});
 }
-// V120: authoritative smooth SVG sprites, raster-cached at display DPR.
+// V121: higher-contrast smooth SVG sprites, raster-cached at display DPR.
 // Approved pixel motifs remain a fallback during SVG loading/errors.
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,

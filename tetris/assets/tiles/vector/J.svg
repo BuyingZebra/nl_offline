@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-v119" data-kind="J" data-style="vector" data-signature="ad78ec51">
 <title>NOMAD J — layered smooth geometry from approved V119 artwork</title>
 <rect x="1" y="1" width="10" height="10" fill="rgb(146,146,146)"/>
-<rect x="1" y="1" width="10" height="1" fill="rgb(174,174,174)"/>
-<rect x="1" y="1" width="1" height="10" fill="rgb(174,174,174)"/>
-<rect x="1" y="10" width="10" height="1" fill="rgb(164,164,164)"/>
-<rect x="10" y="1" width="1" height="10" fill="rgb(164,164,164)"/>
+<rect x="1" y="1" width="10" height="1" fill="rgb(191,191,191)"/>
+<rect x="1" y="1" width="1" height="10" fill="rgb(191,191,191)"/>
+<rect x="1" y="10" width="10" height="1" fill="rgb(120,120,120)"/>
+<rect x="10" y="1" width="1" height="10" fill="rgb(116,116,116)"/>
 <circle cx="3.419" cy="3.581" r="0.36" fill="rgb(12,12,12)"/>
 <circle cx="8.797" cy="2.338" r="0.385" fill="rgb(12,12,12)"/>
 <circle cx="5.554" cy="5.716" r="0.41" fill="rgb(12,12,12)"/>

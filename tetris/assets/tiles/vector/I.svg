@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 12" width="48" height="12" shape-rendering="geometricPrecision" data-design="nomad-v119" data-kind="I" data-style="vector" data-signature="1a176e7d" data-source-offset="0" data-source-length="4" data-orientation="horizontal">
 <title>NOMAD I — layered smooth geometry from approved V119 artwork</title>
 <rect x="1" y="1" width="46" height="10" fill="rgb(164,164,164)"/>
-<rect x="1" y="1" width="46" height="1" fill="rgb(235,235,235)"/>
-<rect x="1" y="1" width="1" height="10" fill="rgb(235,235,235)"/>
-<rect x="1" y="10" width="46" height="1" fill="rgb(227,227,227)"/>
-<rect x="46" y="1" width="1" height="10" fill="rgb(227,227,227)"/>
+<rect x="1" y="1" width="46" height="1" fill="rgb(244,244,244)"/>
+<rect x="1" y="1" width="1" height="10" fill="rgb(244,244,244)"/>
+<rect x="1" y="10" width="46" height="1" fill="rgb(152,152,152)"/>
+<rect x="46" y="1" width="1" height="10" fill="rgb(149,149,149)"/>
 <circle cx="3.419" cy="3.581" r="0.36" fill="rgb(52,52,52)"/>
 <circle cx="6.797" cy="6.338" r="0.385" fill="rgb(52,52,52)"/>
 <circle cx="9.554" cy="3.716" r="0.41" fill="rgb(52,52,52)"/>

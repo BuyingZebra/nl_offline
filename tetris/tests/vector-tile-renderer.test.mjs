@@ -34,7 +34,7 @@ test('all seven authored SVG assets preload before gameplay without per-frame pa
  assert.equal(m.renderer.imageCount,7);
  const sources=m.images.map(img=>img.src);
  for(const kind of VECTOR_PIECE_KINDS)
-  assert.ok(sources.some(src=>src==='./assets/tiles/vector/'+kind+'.svg?v120'),kind);
+  assert.ok(sources.some(src=>src==='./assets/tiles/vector/'+kind+'.svg?v121'),kind);
  assert.equal(m.renderer.rasterCount,0);
  m.images.forEach(img=>img.onload());
  assert.equal(m.redraws,7);
@@ -45,7 +45,7 @@ test('smooth SVG is drawn after loading and cached at physical display resolutio
  assert.equal(m.renderer.drawTile(m.g,12,20,20,20,'O'),false);
  assert.equal(m.painted.length,0,'pixel fallback until SVG loads');
  assert.equal(m.images.length,1);
- assert.equal(m.images[0].src,'./assets/tiles/vector/O.svg?v120');
+ assert.equal(m.images[0].src,'./assets/tiles/vector/O.svg?v121');
  m.images[0].onload();
  assert.equal(m.renderer.drawTile(m.g,12,20,20,20,'O'),true);
  assert.equal(m.canvases.length,1);
@@ -131,10 +131,10 @@ test('the live app uses vector art everywhere and owns its offline fallback',()=
  assert.match(js,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
  assert.match(js,/vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
  assert.match(js,/vectorTiles\.dispose\(\)/);
- assert.match(sw,/CACHE_VERSION='v120'/);
+ assert.match(sw,/CACHE_VERSION='v121'/);
  for(const kind of VECTOR_PIECE_KINDS)
   assert.ok(sw.includes("'./assets/tiles/vector/"+kind+".svg'"));
  assert.match(sw,/'.\/assets\/tiles\/smooth-geometry\.mjs'/);
  assert.match(sw,/'.\/assets\/tiles\/gravel-layout\.mjs'/);
- assert.match(html,/name="tetris-build" content="120"/);
+ assert.match(html,/name="tetris-build" content="121"/);
 });

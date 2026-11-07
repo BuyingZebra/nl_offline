@@ -3,8 +3,8 @@
 <rect x="1" y="1" width="10" height="10" fill="rgb(142,142,142)"/>
 <rect x="1" y="1" width="10" height="1" fill="rgb(255,255,255)"/>
 <rect x="1" y="1" width="1" height="10" fill="rgb(255,255,255)"/>
-<rect x="1" y="10" width="10" height="1" fill="rgb(202,202,202)"/>
-<rect x="10" y="1" width="1" height="10" fill="rgb(198,198,198)"/>
-<rect x="2" y="9" width="8" height="1" fill="rgb(112,112,112)"/>
+<rect x="1" y="10" width="10" height="1" fill="rgb(169,169,169)"/>
+<rect x="10" y="1" width="1" height="10" fill="rgb(165,165,165)"/>
+<rect x="2" y="9" width="8" height="1" fill="rgb(92,92,92)"/>
 <polygon points="3,3 8,3 3,8" fill="rgb(242,242,242)"/>
 </svg>

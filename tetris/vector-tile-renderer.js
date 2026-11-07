@@ -1,11 +1,11 @@
-/* NOMAD V120 — cached SVG sprite rendering for grayscale CRT source.
+/* NOMAD V121 — cached SVG sprite rendering for grayscale CRT source.
  * Uses the authored /assets/tiles/vector/*.svg files, not approximated
  * Canvas paths. SVGs are decoded once per shape; responsive sizes are then
  * rasterized at display DPR and cached. I-fragment variants are generated
  * from the same authored SVG geometry with original source coordinates.
  * Pixel renderer is a resilient fallback while SVG images finish loading.
  */
-import {renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v120';
+import {renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v121';
 import {drawTileFace,drawIFragment as drawPixelIFragment} from './tile-face.js?v120';
 
 const KINDS=Object.freeze(['I','J','L','O','S','T','Z']);
@@ -34,7 +34,7 @@ export function createVectorTileRenderer({
  const MAX_RASTERS=128;
  const sendReady=()=>{if(!disposed)onReady();};
  function spriteSource(key){
-  if(key.length===1||key==='I:0:4:0')return assetPrefix+key[0]+'.svg?v120';
+  if(key.length===1||key==='I:0:4:0')return assetPrefix+key[0]+'.svg?v121';
   const [,offset,length,rotation]=key.split(':').map((n,i)=>i?Number(n):n);
   const svg=renderIFragmentSVG({sourceOffset:offset,length,rotation});
   return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);

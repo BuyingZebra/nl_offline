@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-v119" data-kind="S" data-style="vector" data-signature="8e460bc0">
 <title>NOMAD S — layered smooth geometry from approved V119 artwork</title>
 <rect x="1" y="1" width="10" height="10" fill="rgb(210,210,210)"/>
-<rect x="1" y="1" width="10" height="1" fill="rgb(244,244,244)"/>
-<rect x="1" y="1" width="1" height="10" fill="rgb(244,244,244)"/>
-<rect x="1" y="10" width="10" height="1" fill="rgb(149,149,149)"/>
-<rect x="10" y="1" width="1" height="10" fill="rgb(149,149,149)"/>
+<rect x="1" y="1" width="10" height="1" fill="rgb(255,255,255)"/>
+<rect x="1" y="1" width="1" height="10" fill="rgb(255,255,255)"/>
+<rect x="1" y="10" width="10" height="1" fill="rgb(132,132,132)"/>
+<rect x="10" y="1" width="1" height="10" fill="rgb(132,132,132)"/>
 <rect x="5" y="5" width="2" height="2" fill="rgb(8,8,8)"/>
 </svg>

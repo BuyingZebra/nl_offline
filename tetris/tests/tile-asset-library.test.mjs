@@ -54,7 +54,7 @@ test('seven pixel masters and seven smooth SVGs exist independently',()=>{
   O:'corner-highlight',S:'small-center',T:'solid-fill',Z:'centered-square'
  });
  assert.equal(manifest.vectorGenerator,'smooth-geometry.mjs');
- assert.equal(manifest.version,'2.1');
+ assert.equal(manifest.version,'2.2');
  for(const kind of manifest.order)for(const style of ['pixel','vector']){
   const f=path.join(root,manifest.pieces[kind][style]);
   assert.ok(fs.existsSync(f),kind+' '+style);
@@ -134,7 +134,7 @@ test('all sixteen I deletion masks are supported in either orientation',()=>{
 });
 test('the comparison page contains a functional original-cell masking control',()=>{
  const html=fs.readFileSync(path.join(root,'compare.html'),'utf8');
- assert.match(html,/import \{renderIStateSVG,IFragmentRuns\} from '\.\/smooth-geometry\.mjs\?v119'/);
+ assert.match(html,/import \{renderIStateSVG,IFragmentRuns\} from '\.\/smooth-geometry\.mjs\?v121'/);
  assert.match(html,/checks\.reduce\(\(n,ch,i\)=>n\|\(ch\.checked\?1<<i:0\),0\)/);
  assert.match(html,/const xml=renderIStateSVG\(mask,o\)/);
  assert.doesNotMatch(html,/core\.js|three-v027\.js|localStorage|serviceWorker/);

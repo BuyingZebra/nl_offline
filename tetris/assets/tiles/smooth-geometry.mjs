@@ -29,13 +29,13 @@ const shell=(kind,w,h,shapes,extra='')=>
  signature(kind)+extra+'>\n<title>NOMAD '+kind+
  ' — layered smooth geometry from approved V119 artwork</title>\n'+
  shapes.join('\n')+'\n</svg>\n';
-function frame(w,h,L,fill){
+function frame(w,h,L,fill,{top=25,bottom=-35,right=-39}={}){
  // One outer face; attached straight-edged rectangular highlight layers.
  // No separately rounded pixel paths and therefore no dark pinholes.
  return [
   rect(1,1,w-2,h-2,fill),
-  rect(1,1,w-2,1,L+25),rect(1,1,1,h-2,L+25),
-  rect(1,h-2,w-2,1,L-35),rect(w-2,1,1,h-2,L-39)
+  rect(1,1,w-2,1,L+top),rect(1,1,1,h-2,L+top),
+  rect(1,h-2,w-2,1,L+bottom),rect(w-2,1,1,h-2,L+right)
  ];
 }
 // Pixel and smooth variants share one authored scatter; smooth adds only
@@ -50,8 +50,8 @@ export function renderSmoothTileSVG(kind){
  switch(kind){
  case 'O':
   layers=[
-   ...frame(12,12,L,L-95),
-   rect(2,9,8,1,L-125),
+   ...frame(12,12,L,L-95,{bottom:-68,right:-72}),
+   rect(2,9,8,1,L-145),
    // This is one true triangle; its hypotenuse is no longer a
    // staircase of little squares.
    poly([[3,3],[8,3],[3,8]],L+5)
@@ -60,26 +60,26 @@ export function renderSmoothTileSVG(kind){
  case 'T':
   layers=[rect(1,1,10,10,L-5)];break;
  case 'S':
-  layers=[rect(1,1,10,10,L+9),rect(1,1,10,1,L+43),
-   rect(1,1,1,10,L+43),rect(1,10,10,1,L-52),
-   rect(10,1,1,10,L-52),rect(5,5,2,2,8)];break;
+  layers=[rect(1,1,10,10,L+9),rect(1,1,10,1,L+59),
+   rect(1,1,1,10,L+59),rect(1,10,10,1,L-69),
+   rect(10,1,1,10,L-69),rect(5,5,2,2,8)];break;
  case 'Z':
-  layers=[rect(1,1,10,10,10),rect(1,1,10,1,L+65),
-   rect(1,1,1,10,L+65),rect(1,10,10,1,L-25),
-   rect(10,1,1,10,L-25),rect(4,4,4,4,L+65),
+  layers=[rect(1,1,10,10,10),rect(1,1,10,1,L+77),
+   rect(1,1,1,10,L+77),rect(1,10,10,1,L-48),
+   rect(10,1,1,10,L-48),rect(4,4,4,4,L+78),
    rect(5,5,2,2,8)];break;
  case 'J':
   layers=[rect(1,1,10,10,L+17),
-   rect(1,1,10,1,L+45),rect(1,1,1,10,L+45),
-   rect(1,10,10,1,L+35),rect(10,1,1,10,L+35),
+   rect(1,1,10,1,L+62),rect(1,1,1,10,L+62),
+   rect(1,10,10,1,L-9),rect(10,1,1,10,L-13),
    ...originalJDotCenters().map(p=>circ(p.x,p.y,p.radius,12))];
   break;
  case 'L':
-  layers=[...frame(12,12,L,L-26),
-   rect(3,3,7,7,L-54),
-   rect(3,3,7,1,L-3),rect(3,3,1,7,L-3),
+  layers=[...frame(12,12,L,L-26,{top:37,bottom:-64,right:-69}),
+   rect(3,3,7,7,L-68),
+   rect(3,3,7,1,L+9),rect(3,3,1,7,L+9),
    rect(4,4,5,5,L-46),
-   rect(9,3,1,7,L-108),rect(3,9,7,1,L-108)];
+   rect(9,3,1,7,L-128),rect(3,9,7,1,L-128)];
   break;
  }
  return shell(kind,12,12,layers);
@@ -95,8 +95,8 @@ function chunkParts(sourceOffset,length){
  const layers=[
   // One uninterrupted strip at every length: never four framed squares.
   rect(1,1,width-2,10,L-55),
-  rect(1,1,width-2,1,L+16),rect(1,1,1,10,L+16),
-  rect(1,10,width-2,1,L+8),rect(width-2,1,1,10,L+8)
+  rect(1,1,width-2,1,L+25),rect(1,1,1,10,L+25),
+  rect(1,10,width-2,1,L-67),rect(width-2,1,1,10,L-70)
  ];
  const start=sourceOffset*12;
  // Clip fragments at newly exposed edges without relocating any dots.
