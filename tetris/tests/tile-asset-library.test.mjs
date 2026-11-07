@@ -109,7 +109,7 @@ test('I original coordinates survive any contiguous fragment at any original off
    p.x>=offset*12+1.45&&p.x<=offset*12+length*12-1.45);
   const out=renderIFragmentSVG({sourceOffset:offset,length});
   const centers=[...out.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="0.39"/g)]
-   .map(m=>({x:Number(m[1])+offset*12,y:Number(m[2])}));
+   .map(m=>({x:Number((Number(m[1])+offset*12).toFixed(3)),y:Number(m[2])}));
   const roundedExpected=expected.map(p=>({x:Number(p.x.toFixed(3)),y:Number(p.y.toFixed(3))}));
   assert.deepEqual(centers,roundedExpected,'phase moved at '+offset+'+'+length);
   assert.match(out,new RegExp('viewBox="0 0 '+(12*length)+' 12"'));
