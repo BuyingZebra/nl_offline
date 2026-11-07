@@ -181,17 +181,17 @@ test('completed rows include the exact pre-clear landed board and row indices',(
 test('level changes are ordered after the lock and clear, with the old and new levels',()=>{
  const g=fresh(),events=[];
  g.onEvent(event=>events.push(event));
- g.start();g.lines=9;g.level=1;
+ g.start();g.lines=9;g.level=0;
  g.board=Array.from({length:20},()=>Array(10).fill(0));
  for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
  g.current=g.piece('O');g.current.y=18;
  lockNow(g);
  assert.deepEqual(events.map(x=>x.type),['piece-locked','lines-cleared','level-changed']);
  assert.deepEqual([events[1].count,...events[1].rows],[1,19]);
- assert.equal(events[2].from,1);
- assert.equal(events[2].to,2);
+ assert.equal(events[2].from,0);
+ assert.equal(events[2].to,1);
  assert.equal(events[2].lines,10);
- assert.equal(g.level,2);
+ assert.equal(g.level,1);
 });
 test('blocked spawn during hold emits game-over without a lock event',()=>{
  const g=fresh(),events=[];
@@ -221,7 +221,7 @@ test('reset emits a clean ready-state event and does not keep stale gameplay sta
  assert.deepEqual(events.map(x=>x.type),['reset']);
  assert.equal(events[0].status,'ready');
  assert.equal(events[0].score,0);
- assert.equal(events[0].level,1);
+ assert.equal(events[0].level,0);
  assert.equal(g.pieces,0);
 });
 
@@ -232,7 +232,7 @@ test('classic 1989 scoring has no placement bonus, only soft drop and line point
  lockNow(g);
  assert.equal(g.score,1,'ordinary placement awards no points');
 });
-test('1989 four-line clear awards 1200 at displayed level 01',()=>{
+test('1989 four-line clear awards 1200 at displayed level 00',()=>{
  const g=fresh();g.start();g.board=Array.from({length:20},()=>Array(10).fill(0));
  for(let y=16;y<20;y++)for(let x=0;x<10;x++)if(x!==4)g.board[y][x]='J';
  const p=g.piece('I');p.matrix=Core.turn(p.matrix,1);p.rotation=1;p.x=2;g.current=p;
@@ -241,12 +241,27 @@ test('1989 four-line clear awards 1200 at displayed level 01',()=>{
 });
 test('level cap is 20, and crossing a threshold uses the 1989 score multiplier',()=>{
  const g=fresh();g.start();assert.equal(Core.MAX_LEVEL,20);
- g.lines=9;g.level=1;
+ g.lines=9;g.level=0;
  g.board=Array.from({length:20},()=>Array(10).fill(0));
  for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
  g.current=g.piece('O');g.current.y=18;lockNow(g);
- assert.equal(g.level,2);assert.equal(g.score,80);
+ assert.equal(g.level,1);assert.equal(g.score,80);
  g.lines=400;g.level=20;
  g.current=g.piece('O');g.current.y=18;lockNow(g);
  assert.equal(g.level,20);
+});
+
+test('NOMAD retains Game Boy level numbering 00 through 20',()=>{
+ const g=fresh();
+ assert.equal(g.level,0);
+ assert.equal(g.dropMs,850,'first level preserves approved starting gravity');
+ g.start();
+ g.lines=199;g.level=19;
+ g.board=Array.from({length:20},()=>Array(10).fill(0));
+ for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
+ g.current=g.piece('O');g.current.y=18;lockNow(g);
+ assert.equal(g.lines,200);
+ assert.equal(g.level,20);
+ assert.equal(g.score,840,'level 20 scoring uses a 21x multiplier');
+ assert.equal(g.status,'playing','reaching level 20 does not end the game');
 });

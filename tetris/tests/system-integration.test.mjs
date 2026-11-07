@@ -120,13 +120,13 @@ test('real game, screen manager and settings preserve pause-before-options and a
 
 test('line clear event drives input lock and score/level updates without engine overrides',()=>{
  const s=session();s.actions.perform('start');
- s.game.lines=9;s.game.level=1;
+ s.game.lines=9;s.game.level=0;
  s.game.board=Array.from({length:20},()=>Array(10).fill(0));
  for(let x=0;x<10;x++)s.game.board[19][x]=(x===4||x===5)?0:'Z';
  s.game.current=s.game.piece('O');s.game.current.y=18;
  s.game.current.y=s.game.ghostY();s.game.lockPiece();
  assert.equal(s.game.lines,10);
- assert.equal(s.game.level,2);
+ assert.equal(s.game.level,1);
  const last=s.events.filter(e=>['piece-locked','lines-cleared','level-changed'].includes(e.type));
  assert.deepEqual(last.map(e=>e.type),['piece-locked','lines-cleared','level-changed']);
  assert.deepEqual(last[1].rows,[19]);

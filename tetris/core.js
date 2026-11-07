@@ -91,7 +91,7 @@
       this.canHold=true;
       this.score=0;
       this.lines=0;
-      this.level=1;
+      this.level=0;
       this.pieces=0;
       this.lastClear=0;
       this.lastEvent='READY';
@@ -240,10 +240,10 @@
       this.lastClear=cleared;
       const priorLevel=this.level;
       this.lines+=cleared;
-      // NES 1989 awards line-clears at the resulting level on a level-up.
-      // Present the original level-00 score tier as NOMAD level 01.
-      this.level=Math.min(MAX_LEVEL,1+Math.floor(this.lines/10));
-      this.score+=CLEAR_POINTS[cleared]*this.level;
+      // Match the classic level numbering: 00 through 20, advancing every
+      // ten cleared lines. Preserve Nintendo's 1989 level-up scoring order.
+      this.level=Math.min(MAX_LEVEL,Math.floor(this.lines/10));
+      this.score+=CLEAR_POINTS[cleared]*(this.level+1);
       this.pieces++;
       this.canHold=true;
       this.lastEvent=cleared===4?'TETRIS!':cleared?cleared+' LINE'+(cleared!==1?'S':''):'LOCK';
@@ -269,7 +269,7 @@
       });
     }
     get dropMs() {
-      return Math.max(65,Math.round(850*Math.pow(.78,this.level-1)));
+      return Math.max(65,Math.round(850*Math.pow(.78,this.level)));
     }
     tick(dt) {
       if(this.status!=='playing'||!this.current)return false;
