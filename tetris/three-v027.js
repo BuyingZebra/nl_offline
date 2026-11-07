@@ -26,7 +26,7 @@ import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v123';
 import {createActionController} from './action-controller.js?v123';
 import {createGraphicsHealth} from './graphics-health.js?v089';
-import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v128';
+import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v129';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea');
@@ -361,9 +361,6 @@ function stage(r,drawPieces=true,recordRegion=true){
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
- // The cell-sized brick rail lives BEHIND the game pieces; the first and
- // last occupied board columns therefore stay fully readable.
- brickFrame.draw(g,r,'inside');
  // Blink freshly completed rows between the detailed tiles and empty
  // outlined cubes before revealing the core's already-cleared board.
  if(drawPieces){
@@ -550,9 +547,9 @@ function paintBaseGame(){
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false,true);
- // The exposed portions of the bricks stay on the stationary base layer;
- // their inner edges are drawn by the cropped playfield layer.
- brickFrame.draw(g,r,'outside');
+ // One complete square-tile brick rail per side, entirely outside the grid.
+ // Paint once on the stationary base, not inside the clipped board texture.
+ brickFrame.draw(g,r);
  drawSidebar(r);
  drawControls(r);
  const footerLeft='Program: Three.JS',footerRight='version: '+THREE_BUILD_VERSION;

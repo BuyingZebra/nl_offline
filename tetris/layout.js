@@ -62,7 +62,15 @@ function computeLayout(W,H,safe,ui){
   // Centre the full board/sidebar composition in the gap between
   // header and controls. Preserve V108 board width/height exactly.
   const by=sy+Math.max(0,(sh-bh)/2);
-  const sxSide=bx+bw+sideGap;
+  // V129: the right-side rail must sit OUTSIDE the ten-column playfield.
+  // Borrow only unused right-side padding for the sidebar, never game width.
+  // The board and all six touch controls remain at their original positions.
+  const originalSideX=bx+bw+sideGap;
+  const railWidth=bw>4?(bw-4)/10:0;
+  const railGap=railWidth+1; // 0.5px gutter at board and sidebar
+  const spareRight=Math.max(0,sx+sw-originalSideX-sideWidth);
+  const sideShift=Math.max(0,Math.min(railGap-sideGap,spareRight));
+  const sxSide=originalSideX+sideShift;
   const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
   // NEXT and HOLD share identical outer and square-inner geometry. Keep
   // sufficient space for the left-aligned label, square frame and bottom inset.
