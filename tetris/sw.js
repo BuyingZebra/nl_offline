@@ -1,4 +1,4 @@
-/* NOMAD Tetris V118 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V119 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * once those clients close. Never skipWaiting or mix cache generations.
  */
 'use strict';
-const CACHE_VERSION='v118';
+const CACHE_VERSION='v119';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -20,10 +20,10 @@ const CORE_ASSETS=Object.freeze([
  './','./index.html','./three-v027.html','./manifest.webmanifest',
  './icon.svg','./icon-192.png','./icon-512.png',
  './nomad-mark.svg',
- './core.js','./scores.js','./layout.js','./three-v027.js',
+ './core.js','./scores.js','./layout.js','./three-v027.js','./i-piece-fragments.js',
  './piece-luminance.js',
  './button-feedback.js','./phosphor-model.js','./phosphor-persistence.js',
- './compositor.js','./tile-face.js','./canvas-ui.js','./build-version.js',
+ './compositor.js','./tile-face.js','./assets/tiles/gravel-layout.mjs','./canvas-ui.js','./build-version.js',
  './platform-manager.js','./app-lifecycle.js','./input-controller.js',
  './perf-monitor.js','./texture-upload-profiler.js',
  './cropped-ui-layers.js','./game-visual-state.js',

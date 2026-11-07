@@ -5,10 +5,11 @@
  * source 4-cell I-piece coordinate system, even after fragmentation.
  */
 import {PIECE_LUMINANCE} from '../../piece-luminance.js';
+import {I_GRAVEL_BITS,J_GRAVEL_BITS,smoothGravelCenters} from './gravel-layout.mjs';
 
 const SIGNATURES=Object.freeze({
- I:'e36b726d',O:'07a1e19f',T:'99c7a755',S:'8e460bc0',
- Z:'daa7d6f1',J:'efca11ff',L:'6134c0ae'
+ I:'1a176e7d',O:'07a1e19f',T:'99c7a755',S:'8e460bc0',
+ Z:'daa7d6f1',J:'ad78ec51',L:'6134c0ae'
 });
 export const I_SOURCE_CELLS=4;
 const cl=v=>Math.max(0,Math.min(255,Math.round(v)));
@@ -20,13 +21,13 @@ const poly=(points,v)=>'<polygon points="'+points.map(p=>p.map(fmt).join(',')).j
  '" fill="'+color(v)+'"/>';
 const circ=(x,y,r,v)=>'<circle cx="'+fmt(x)+'" cy="'+fmt(y)+
  '" r="'+fmt(r)+'" fill="'+color(v)+'"/>';
-const signature=k=>'data-design="nomad-v118" data-kind="'+k+
+const signature=k=>'data-design="nomad-v119" data-kind="'+k+
  '" data-style="vector" data-signature="'+SIGNATURES[k]+'"';
 const shell=(kind,w,h,shapes,extra='')=>
  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+w+' '+h+
  '" width="'+w+'" height="'+h+'" shape-rendering="geometricPrecision" '+
  signature(kind)+extra+'>\n<title>NOMAD '+kind+
- ' — layered smooth geometry from approved V118 artwork</title>\n'+
+ ' — layered smooth geometry from approved V119 artwork</title>\n'+
  shapes.join('\n')+'\n</svg>\n';
 function frame(w,h,L,fill){
  // One outer face; attached straight-edged rectangular highlight layers.
@@ -37,31 +38,10 @@ function frame(w,h,L,fill){
   rect(1,h-2,w-2,1,L-35),rect(w-2,1,1,h-2,L-39)
  ];
 }
-const J_DOTS=[[3,3],[7,3],[9,4],[5,5],[3,7],[8,7],[5,9],[9,9]];
-function jitter(i,axis){
- // Stable subpixel scatter, not randomness during repaint.
- const n=(i*37+axis*19+13)%17;
- return (n-8)*0.026;
-}
-export function originalJDotCenters(){
- return J_DOTS.map(([x,y],i)=>Object.freeze({
-  x:x+.5+jitter(i,0),y:y+.5+jitter(i,1)
- }));
-}
-// Absolute coordinates of the original 4-cell I tile. Used in every fragment.
-export function originalIDotCenters(){
- const a=[];
- for(let y=3;y<10;y+=3)
-  for(let x=3+(y%3);x<46;x+=4){
-   if((x*7+y*11)%9===0)continue;
-   const i=a.length;
-   a.push(Object.freeze({
-    x:x+.5+jitter(i,0),
-    y:y+.5+jitter(i,1)
-   }));
-  }
- return a;
-}
+// Pixel and smooth variants share one authored scatter; smooth adds only
+// deterministic subpixel variation (never randomness during repaint).
+export function originalJDotCenters(){return smoothGravelCenters(J_GRAVEL_BITS);}
+export function originalIDotCenters(){return smoothGravelCenters(I_GRAVEL_BITS);}
 export function renderSmoothTileSVG(kind){
  if(!Object.hasOwn(SIGNATURES,kind))throw new RangeError('Unknown piece: '+kind);
  if(kind==='I')return renderIFragmentSVG({sourceOffset:0,length:4});
@@ -80,18 +60,19 @@ export function renderSmoothTileSVG(kind){
  case 'T':
   layers=[rect(1,1,10,10,L-5)];break;
  case 'S':
-  layers=[rect(1,1,10,10,L+12),rect(1,1,10,1,L+25),
-   rect(1,1,1,10,L+25),rect(5,5,2,2,8)];break;
+  layers=[rect(1,1,10,10,L+9),rect(1,1,10,1,L+43),
+   rect(1,1,1,10,L+43),rect(1,10,10,1,L-52),
+   rect(10,1,1,10,L-52),rect(5,5,2,2,8)];break;
  case 'Z':
-  layers=[rect(1,1,10,10,10),rect(1,1,10,1,L+25),
-   rect(1,1,1,10,L+25),rect(1,10,10,1,L+5),
-   rect(10,1,1,10,L+5),rect(4,4,4,4,L+48),
+  layers=[rect(1,1,10,10,10),rect(1,1,10,1,L+65),
+   rect(1,1,1,10,L+65),rect(1,10,10,1,L-25),
+   rect(10,1,1,10,L-25),rect(4,4,4,4,L+65),
    rect(5,5,2,2,8)];break;
  case 'J':
   layers=[rect(1,1,10,10,L+17),
    rect(1,1,10,1,L+45),rect(1,1,1,10,L+45),
    rect(1,10,10,1,L+35),rect(10,1,1,10,L+35),
-   ...originalJDotCenters().map(p=>circ(p.x,p.y,.39,12))];
+   ...originalJDotCenters().map(p=>circ(p.x,p.y,p.radius,12))];
   break;
  case 'L':
   layers=[...frame(12,12,L,L-26),
@@ -120,8 +101,8 @@ function chunkParts(sourceOffset,length){
  const start=sourceOffset*12;
  // Clip fragments at newly exposed edges without relocating any dots.
  const dots=originalIDotCenters().filter(d=>
-  d.x>=start+1.45&&d.x<=start+width-1.45
- ).map(d=>circ(d.x-start,d.y,.39,L-167));
+  d.x-d.radius>=start+1.35&&d.x+d.radius<=start+width-1.35
+ ).map(d=>circ(d.x-start,d.y,d.radius,L-167));
  return [...layers,...dots];
 }
 export function renderIFragmentSVG({

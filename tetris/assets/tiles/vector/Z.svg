@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-v118" data-kind="Z" data-style="vector" data-signature="daa7d6f1">
-<title>NOMAD Z — layered smooth geometry from approved V118 artwork</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-v119" data-kind="Z" data-style="vector" data-signature="daa7d6f1">
+<title>NOMAD Z — layered smooth geometry from approved V119 artwork</title>
 <rect x="1" y="1" width="10" height="10" fill="rgb(10,10,10)"/>
-<rect x="1" y="1" width="10" height="1" fill="rgb(190,190,190)"/>
-<rect x="1" y="1" width="1" height="10" fill="rgb(190,190,190)"/>
-<rect x="1" y="10" width="10" height="1" fill="rgb(170,170,170)"/>
-<rect x="10" y="1" width="1" height="10" fill="rgb(170,170,170)"/>
-<rect x="4" y="4" width="4" height="4" fill="rgb(213,213,213)"/>
+<rect x="1" y="1" width="10" height="1" fill="rgb(230,230,230)"/>
+<rect x="1" y="1" width="1" height="10" fill="rgb(230,230,230)"/>
+<rect x="1" y="10" width="10" height="1" fill="rgb(140,140,140)"/>
+<rect x="10" y="1" width="1" height="10" fill="rgb(140,140,140)"/>
+<rect x="4" y="4" width="4" height="4" fill="rgb(230,230,230)"/>
 <rect x="5" y="5" width="2" height="2" fill="rgb(8,8,8)"/>
 </svg>

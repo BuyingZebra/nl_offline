@@ -4,7 +4,8 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {drawTileFace,drawIBar,drawPieceTiles} from './tile-face.js?v118';
+import {drawTileFace,drawIFragment,drawPieceTiles} from './tile-face.js?v119';
+import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
 import {getBuildVersion} from './build-version.js?v066';
@@ -238,7 +239,7 @@ function invalidate(reason='input'){
 const unsubscribeGameEvents=game.onEvent(event=>{
  if(event.type!=='lines-cleared'||event.status!=='playing')return;
  if(!event.board||!event.rows.length)return;
- lineClearFX={board:event.board,rows:new Set(event.rows),elapsed:0};
+ lineClearFX={board:event.board,boardMeta:event.boardMeta,rows:new Set(event.rows),elapsed:0};
  layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate();
 });
 const screenManager=createScreenManager({
@@ -361,34 +362,26 @@ function stage(r,drawPieces=true,recordRegion=true){
  if(drawPieces){
  const displayBoard=lineClearFX?.board||game.board;
  const clearIsEmpty=lineClearFX&&Math.floor(lineClearFX.elapsed/LINE_FLASH_TOGGLE_MS)%2===1;
- // Joined I cells are one continuous pixel-gravel bar, including when
- // vertical or partly surviving a line clear. No per-cell seams.
- const paintedI=new Set();
- const visibleI=(cx,cy)=>cx>=0&&cx<10&&cy>=0&&cy<20&&
-  displayBoard[cy][cx]==='I'&&!(clearIsEmpty&&lineClearFX.rows.has(cy))&&
-  !paintedI.has(cy*10+cx);
+ // Join only consecutive original cells from ONE locked piece. Adjacent I
+ // pieces keep independent frames; clearing rows never re-seeds the gravel.
+ const displayMeta=lineClearFX?.boardMeta||game.boardMeta;
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
    const px=offX+rx*tile,py=offY+ry*tile;
    g.save();g.strokeStyle=C.border;g.globalAlpha=.42;g.lineWidth=.7;
    g.strokeRect(px+2,py+2,tile-4,tile-4);g.restore();
-   return;
-  }
-  if(kind!=='I'){cell(offX,offY,rx,ry,tile,kind);return;}
-  if(paintedI.has(ry*10+rx))return;
-  let length=1,vertical=false;
-  while(visibleI(rx+length,ry))length++;
-  if(length===1){
-   while(visibleI(rx,ry+length))length++;
-   vertical=length>1;
-  }
-  for(let i=0;i<length;i++)
-   paintedI.add((ry+(vertical?i:0))*10+rx+(vertical?0:i));
-  if(length===1)cell(offX,offY,rx,ry,tile,kind);
-  else drawIBar(g,offX+rx*tile,offY+ry*tile,
-   (vertical?1:length)*tile,(vertical?length:1)*tile);
+  }else if(kind!=='I')cell(offX,offY,rx,ry,tile,kind);
  }));
+ const iRuns=collectIFragments(displayBoard,displayMeta,{
+  hiddenRows:clearIsEmpty?lineClearFX.rows:null
+ });
+ for(const run of iRuns){
+  const vertical=(run.rotation&1)===1;
+  drawIFragment(g,offX+run.x*tile,offY+run.y*tile,
+   (vertical?1:run.length)*tile,(vertical?run.length:1)*tile,
+   {sourceOffset:run.sourceOffset,length:run.length,rotation:run.rotation});
+ }
  if(!lineClearFX&&game.current&&game.status!=='over'){
   const p=game.current;
   if(settings.pieceGhost&&(game.status==='playing'||game.status==='paused')){
@@ -403,7 +396,7 @@ function stage(r,drawPieces=true,recordRegion=true){
    });
    else cell(offX,offY,p.x+rx,p.y+ry,tile,kind);
   }));
-  if(p.kind==='I')drawPieceTiles(g,activeTiles,'I');
+  if(p.kind==='I')drawPieceTiles(g,activeTiles,'I',{rotation:p.rotation});
  }
  }
  g.restore();

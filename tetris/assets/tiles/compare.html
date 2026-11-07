@@ -45,7 +45,7 @@ footer{color:#85b390;font-size:12px;margin-top:18px}
 <header>
 <small>NOMAD / Tetris System · Asset Comparison</small>
 <h1>Approved Patterns</h1>
-<p>Exact approved V118 pixel originals beside smooth variants rebuilt from layered rectangles, a triangular highlight, and stable circular dots.</p>
+<p>Approved pixel motifs with more organic gravel, beside smooth layered variants with clearer S/Z highlights and shadows. Both use stable piece-local patterns.</p>
 <nav><label for="tint">Preview tint:</label>
 <select id="tint"><option value="green">Green phosphor approximation</option><option value="amber">Amber phosphor approximation</option><option value="neutral">Original grayscale source</option></select>
 </nav><p class="note">Tints are approximate. The actual game compositor remains responsible for CRT bloom, colour and persistence. This is an asset comparison, not the live game.</p>
@@ -76,7 +76,7 @@ const shapes={
 function img(src,label){const im=document.createElement('img');im.className='art';im.src=src;im.alt=label;im.decoding='async';return im;}
 function piece(kind,style,manifest){
  const holder=document.createElement('div');holder.className='piece';
- const path=manifest.pieces[kind][style];
+ const path=manifest.pieces[kind][style]+'?v119';
  if(kind==='I'){const strip=img(path,kind+' continuous gravel strip');strip.classList.add('strip');holder.append(strip);return holder;}
  shapes[kind].forEach((line,y)=>line.forEach((v,x)=>{
   if(!v)return;const cell=img(path,kind+' motif');cell.style.gridColumn=String(x+1);cell.style.gridRow=String(y+1);holder.append(cell);
@@ -84,7 +84,7 @@ function piece(kind,style,manifest){
  return holder;
 }
 async function render(){
- const response=await fetch('./manifest.json');
+ const response=await fetch('./manifest.json?v119',{cache:'no-store'});
  if(!response.ok)throw Error('Cannot load asset manifest');
  const manifest=await response.json();
  const root=document.getElementById('content');
@@ -110,7 +110,7 @@ document.getElementById('tint').addEventListener('change',e=>{document.body.clas
 render().catch(e=>{document.getElementById('content').textContent='Failed to display assets: '+String(e)});
 </script>
 <script type="module">
-import {renderIStateSVG,IFragmentRuns} from './smooth-geometry.mjs';
+import {renderIStateSVG,IFragmentRuns} from './smooth-geometry.mjs?v119';
 const checks=[...document.querySelectorAll('[data-i-cell]')];
 const orientation=document.getElementById('i-orientation');
 const output=document.getElementById('i-result');

@@ -4,6 +4,7 @@
  * green/amber tint, CRT bloom and scanlines. No layout or rules changes.
  */
 import {PIECE_LUMINANCE} from './piece-luminance.js?v106';
+import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 export {PIECE_LUMINANCE};
 
 export const PIECE_PATTERNS=Object.freeze({
@@ -56,7 +57,7 @@ function tilePixels(kind){
  case 'J': // scattered isolated dark dots, never checkerboard
   box(m,1,1,10,10,L+17);
   outline(m,L+45,L+45,L+35,L+35);
-  for(const [x,y] of [[3,3],[7,3],[9,4],[5,5],[3,7],[8,7],[5,9],[9,9]])box(m,x,y,1,1,12);
+  for(const [x,y,w,h] of J_GRAVEL_BITS)box(m,x,y,w,h,12);
   break;
  case 'L': // medium face with a square beveled recess
   box(m,1,1,10,10,L-26);
@@ -71,23 +72,30 @@ function tilePixels(kind){
  }
  return m;
 }
-function barPixels(length,vertical){
- const count=Math.max(1,Math.min(20,Math.round(length)));
- const w=SIZE*count,h=SIZE;
- const L=PIECE_LUMINANCE.I;
- const m=matrix(w,h);
- // One uninterrupted strip; no outlines at internal 12-pixel boundaries.
- box(m,1,1,w-2,h-2,L-55);
+function rotate90(m){
+ const h=m.length,w=m[0].length;
+ const rotated=matrix(h,w);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++)rotated[x][h-1-y]=m[y][x];
+ return rotated;
+}
+function barPixels(length,vertical,sourceOffset=0,rotation=vertical?1:0){
+ const count=Math.round(length),offset=Math.round(sourceOffset);
+ if(count<1||count>4||offset<0||offset+count>4)
+  throw new RangeError('Invalid I fragment length or sourceOffset');
+ if(!Number.isInteger(rotation)||rotation<0||rotation>3)
+  throw new RangeError('Invalid I fragment rotation');
+ const w=SIZE*count,L=PIECE_LUMINANCE.I;
+ let m=matrix(w,SIZE);
+ // Face and outer rim belong to this one contiguous fragment, never each
+ // adjacent block. Only actual source gravel spots appear inside this rim.
+ box(m,1,1,w-2,10,L-55);
  outline(m,L+16,L+16,L+8,L+8);
- // Small irregular pixel-gravel dots run across the WHOLE bar.
- for(let y=3;y<h-2;y+=3){
-  for(let x=3+(y%3);x<w-2;x+=4){
-   if((x*7+y*11)%9===0)continue;
-   box(m,x,y,1,1,L-167);
-  }
+ for(const [x,y,dw,dh] of I_GRAVEL_BITS){
+  const localX=x-offset*SIZE;
+  if(localX>=2&&localX+dw<=w-2)box(m,localX,y,dw,dh,L-167);
  }
- if(!vertical)return m;
- return Array.from({length:w},(_,y)=>Array.from({length:h},(_,x)=>m[h-1-x][y]));
+ for(let n=0;n<rotation;n++)m=rotate90(m);
+ return m;
 }
 const tileCache=new Map();
 function sprite(kind){
@@ -116,6 +124,10 @@ function raster(g,pixels,x,y,w,h){
   }
  }
 }
+export function drawIFragment(g,x,y,w,h,{sourceOffset=0,length=4,rotation=0}={}){
+ if(!(w>0&&h>0))return;
+ raster(g,barPixels(length,Boolean(rotation%2),sourceOffset,rotation),x,y,w,h);
+}
 export function drawIBar(g,x,y,w,h){
  if(!(w>0&&h>0))return;
  const vertical=h>w;
@@ -127,13 +139,15 @@ export function drawTileFace(g,x,y,w,h,kind){
  raster(g,sprite(kind),x,y,w,h);
 }
 // The four I cells share ONE continuous rectangle in NEXT/HOLD and in flight.
-export function drawPieceTiles(g,tiles,kind){
+export function drawPieceTiles(g,tiles,kind,{rotation}={}){
  if(!Array.isArray(tiles)||!tiles.length)return;
  if(kind==='I'){
   const minX=Math.min(...tiles.map(t=>t.x)),minY=Math.min(...tiles.map(t=>t.y));
   const maxX=Math.max(...tiles.map(t=>t.x+t.size));
   const maxY=Math.max(...tiles.map(t=>t.y+t.size));
-  drawIBar(g,minX,minY,maxX-minX,maxY-minY);
+  const vertical=maxY-minY>maxX-minX;
+  drawIFragment(g,minX,minY,maxX-minX,maxY-minY,
+   {sourceOffset:0,length:tiles.length,rotation:rotation??(vertical?1:0)});
   return;
  }
  for(const t of tiles)drawTileFace(g,t.x,t.y,t.size,t.size,kind);

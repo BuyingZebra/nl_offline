@@ -44,6 +44,15 @@
   const CLEAR_POINTS = [0,40,100,300,1200];
   const MAX_LEVEL = 20;
   const blankBoard = () => Array.from({length:ROWS}, () => Array(COLS).fill(0));
+  // A stable source index follows each of the four I cells through rotation.
+  // The index belongs to the original spawned strip, never its board position.
+  function iSourceIndex(rotation,x,y) {
+    if(rotation===0)return y===1?x:null;
+    if(rotation===1)return x===2?y:null;
+    if(rotation===2)return y===2?3-x:null;
+    if(rotation===3)return x===1?3-y:null;
+    return null;
+  }
   const copyMatrix = m => m.map(row => row.slice());
   function turn(matrix, dir) {
     const N = matrix.length;
@@ -86,6 +95,10 @@
     }
     reset() {
       this.board=blankBoard();
+      // Parallel to the original kind-only board: old collision/scoring APIs
+      // keep working, while renderers can distinguish touching I instances.
+      this.boardMeta=blankBoard();
+      this._nextPieceId=1;
       this.queue=[];
       this.hold=null;
       this.canHold=true;
@@ -111,7 +124,7 @@
     }
     piece(kind) {
       const matrix=copyMatrix(SHAPES[kind]);
-      return {kind,matrix,rotation:0,x:Math.floor((COLS-matrix[0].length)/2),y:0};
+      return {kind,id:this._nextPieceId++,matrix,rotation:0,x:Math.floor((COLS-matrix[0].length)/2),y:0};
     }
     spawn(kind,notifyGameOver=true) {
       if (!kind) { this.fillQueue(); kind=this.queue.shift(); this.fillQueue(); }
@@ -210,13 +223,20 @@
     lockPiece() {
       const p=this.current;
       if(!p||this.status!=='playing')return;
+      if(!Number.isSafeInteger(p.id))p.id=this._nextPieceId++;
       let above=false;
       for(let iy=0;iy<p.matrix.length;iy++)for(let ix=0;ix<p.matrix[iy].length;ix++){
         const kind=p.matrix[iy][ix];
         if(!kind)continue;
         const x=p.x+ix,y=p.y+iy;
         if(y<0)above=true;
-        else if(y<ROWS&&x>=0&&x<COLS)this.board[y][x]=kind;
+        else if(y<ROWS&&x>=0&&x<COLS){
+          this.board[y][x]=kind;
+          this.boardMeta[y][x]=Object.freeze({
+            kind,pieceId:p.id,rotation:p.rotation,
+            sourceIndex:kind==='I'?iSourceIndex(p.rotation,ix,iy):null
+          });
+        }
       }
       if(above){
         this.status='over';this.lastEvent='GAME OVER';
@@ -224,19 +244,28 @@
           score:this.score,lines:this.lines,level:this.level,status:this.status});
         return;
       }
-      const remaining=[],completed=[];
+      const remaining=[],remainingMeta=[],completed=[];
       for(let y=0;y<ROWS;y++){
         const row=this.board[y];
         if(row.every(Boolean))completed.push(y);
-        else remaining.push(row);
+        else {
+          remaining.push(row);
+          remainingMeta.push(this.boardMeta[y]);
+        }
       }
       const cleared=completed.length;
       // Capture the exact landed board before completed rows are removed.
       // Only allocate the frozen board snapshot when there are rows to flash.
       const beforeClear=cleared&&this._eventListeners.size?
        Object.freeze(this.board.map(row=>Object.freeze(row.slice()))):null;
-      while(remaining.length<ROWS)remaining.unshift(Array(COLS).fill(0));
+      const beforeClearMeta=beforeClear?
+       Object.freeze(this.boardMeta.map(row=>Object.freeze(row.slice()))):null;
+      while(remaining.length<ROWS){
+        remaining.unshift(Array(COLS).fill(0));
+        remainingMeta.unshift(Array(COLS).fill(0));
+      }
       this.board=remaining;
+      this.boardMeta=remainingMeta;
       this.lastClear=cleared;
       const priorLevel=this.level;
       this.lines+=cleared;
@@ -257,7 +286,8 @@
       });
       if(cleared)this._emit({
         type:'lines-cleared',count:cleared,rows:Object.freeze(completed),
-        board:beforeClear,score:this.score,lines:this.lines,level:this.level,status:this.status
+        board:beforeClear,boardMeta:beforeClearMeta,
+        score:this.score,lines:this.lines,level:this.level,status:this.status
       });
       if(this.level!==priorLevel)this._emit({
         type:'level-changed',from:priorLevel,to:this.level,

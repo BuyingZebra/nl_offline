@@ -1,16 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-v118" data-kind="J" data-style="vector" data-signature="efca11ff">
-<title>NOMAD J — layered smooth geometry from approved V118 artwork</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-v119" data-kind="J" data-style="vector" data-signature="ad78ec51">
+<title>NOMAD J — layered smooth geometry from approved V119 artwork</title>
 <rect x="1" y="1" width="10" height="10" fill="rgb(146,146,146)"/>
 <rect x="1" y="1" width="10" height="1" fill="rgb(174,174,174)"/>
 <rect x="1" y="1" width="1" height="10" fill="rgb(174,174,174)"/>
 <rect x="1" y="10" width="10" height="1" fill="rgb(164,164,164)"/>
 <rect x="10" y="1" width="1" height="10" fill="rgb(164,164,164)"/>
-<circle cx="3.63" cy="3.682" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="7.708" cy="3.318" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="9.344" cy="4.396" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="5.422" cy="5.474" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="3.5" cy="7.552" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="8.578" cy="7.63" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="5.656" cy="9.708" r="0.39" fill="rgb(12,12,12)"/>
-<circle cx="9.292" cy="9.344" r="0.39" fill="rgb(12,12,12)"/>
+<circle cx="3.419" cy="3.581" r="0.36" fill="rgb(12,12,12)"/>
+<circle cx="8.797" cy="2.338" r="0.385" fill="rgb(12,12,12)"/>
+<circle cx="5.554" cy="5.716" r="0.41" fill="rgb(12,12,12)"/>
+<circle cx="9.311" cy="6.473" r="0.36" fill="rgb(12,12,12)"/>
+<circle cx="2.689" cy="8.23" r="0.385" fill="rgb(12,12,12)"/>
+<circle cx="6.446" cy="8.608" r="0.41" fill="rgb(12,12,12)"/>
+<circle cx="4.203" cy="9.365" r="0.36" fill="rgb(12,12,12)"/>
+<circle cx="8.581" cy="9.743" r="0.385" fill="rgb(12,12,12)"/>
+<circle cx="3.338" cy="6.5" r="0.41" fill="rgb(12,12,12)"/>
 </svg>

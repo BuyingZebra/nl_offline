@@ -1,10 +1,10 @@
 {
   "schema": 1,
-  "design": "NOMAD approved V118",
-  "source": "tetris/tile-face.js",
+  "design": "NOMAD approved tile motifs with V119 organic gravel",
+  "source": "tetris/tile-face.js + tetris/assets/tiles/gravel-layout.mjs",
   "source_kind": "deterministic grayscale masks",
-  "version": "2.0",
-  "note": "Pixel SVGs are immutable exports of the approved V118 masks. Smooth SVGs are independently authored overlapping grayscale rectangles, one triangular corner facet, and stable circular dots; they are not rounded pixel contours. The game compositor controls theme tint and glow.",
+  "version": "2.1",
+  "note": "Pixel SVG masters preserve the seven approved motifs and use deterministic, pixel-grid irregular gravel for I/J. Smooth SVG variants use the same authored marks with stable subpixel circular dots and stronger S/Z highlights and shadows. The 1989 CRT compositor controls tint and glow.",
   "order": [
     "I",
     "O",
@@ -21,7 +21,7 @@
         4,
         1
       ],
-      "sourceSignature": "e36b726d",
+      "sourceSignature": "1a176e7d",
       "pixel": "pixel/I.svg",
       "vector": "vector/I.svg",
       "joins": "continuous strip (no seams)"
@@ -72,7 +72,7 @@
         1,
         1
       ],
-      "sourceSignature": "efca11ff",
+      "sourceSignature": "ad78ec51",
       "pixel": "pixel/J.svg",
       "vector": "vector/J.svg"
     },
@@ -95,15 +95,21 @@
       "horizontal",
       "vertical"
     ],
-    "sourceCoordinates": "original 4-cell I-piece positions",
+    "sourceCoordinates": "Original 4-cell position + sourceIndex + pieceId",
     "combinations": "all 16 surviving-cell masks, including disconnected fragments",
     "fragmentParameters": [
       "sourceOffset",
       "length",
       "orientation"
     ],
-    "rule": "Surviving dots retain original source coordinates; new outer frame is drawn around each remaining run.",
+    "rule": "Only original consecutive cells of the same pieceId can join; line-clear fragments retain original gravel coordinates and orientation.",
     "renderer": "renderIFragmentSVG / renderIStateSVG in smooth-geometry.mjs",
-    "liveGameSupport": "preview/library only; gameplay board does not yet store cell-origin metadata"
+    "liveGameSupport": "V119 game core stores boardMeta with pieceId, original sourceIndex, and rotation; renderer groups by piece instance, never adjacent kind."
+  },
+  "organicScatter": {
+    "source": "gravel-layout.mjs",
+    "pixel": "authored irregular pixel coordinates",
+    "smooth": "stable subpixel circles at the same authored positions",
+    "runtimeRandomness": false
   }
 }

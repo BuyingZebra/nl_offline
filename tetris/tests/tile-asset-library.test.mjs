@@ -54,7 +54,7 @@ test('seven pixel masters and seven smooth SVGs exist independently',()=>{
   O:'corner-highlight',S:'small-center',T:'solid-fill',Z:'centered-square'
  });
  assert.equal(manifest.vectorGenerator,'smooth-geometry.mjs');
- assert.equal(manifest.version,'2.0');
+ assert.equal(manifest.version,'2.1');
  for(const kind of manifest.order)for(const style of ['pixel','vector']){
   const f=path.join(root,manifest.pieces[kind][style]);
   assert.ok(fs.existsSync(f),kind+' '+style);
@@ -66,7 +66,7 @@ test('seven pixel masters and seven smooth SVGs exist independently',()=>{
   assert.ok(!xml.includes('<image'),'no hidden raster images');
  }
 });
-test('approved pixel masters are bit-for-bit faithful to the V118 renderer',()=>{
+test('approved pixel masters are bit-for-bit faithful to the V119 pixel renderer',()=>{
  for(const kind of manifest.order){
   const expected=actualTiles(kind),w=expected[0].length,h=expected.length;
   const svg=fs.readFileSync(path.join(root,manifest.pieces[kind].pixel),'utf8');
@@ -84,7 +84,7 @@ test('smooth SVGs regenerate exactly from layered source, without micro-rounded 
   assert.match(vector,/<rect /);
   assert.doesNotMatch(vector,/<path|<image|<filter| rx=| ry=|checker|stripe|diagonal/);
   const circles=(vector.match(/<circle /g)||[]).length;
-  assert.equal(circles,kind==='I'?29:kind==='J'?8:0);
+  assert.equal(circles,kind==='I'?31:kind==='J'?9:0);
  }
 });
 test('O corner is a genuine straight-edged triangle and the art has no separated bevel strokes',()=>{
@@ -96,7 +96,7 @@ test('O corner is a genuine straight-edged triangle and the art has no separated
 });
 test('dot scatter is stable, bounded, and visually organic',()=>{
  const i=originalIDotCenters(),j=originalJDotCenters();
- assert.equal(i.length,29);assert.equal(j.length,8);
+ assert.equal(i.length,31);assert.equal(j.length,9);
  assert.deepEqual(i,originalIDotCenters());assert.deepEqual(j,originalJDotCenters());
  assert.ok(i.every(p=>p.x>=2&&p.x<=46&&p.y>=2&&p.y<=10));
  assert.ok(j.every(p=>p.x>=2&&p.x<=10&&p.y>=2&&p.y<=10));
@@ -106,9 +106,9 @@ test('I original coordinates survive any contiguous fragment at any original off
  const original=originalIDotCenters();
  for(let offset=0;offset<4;offset++)for(let length=1;length<=4-offset;length++){
   const expected=original.filter(p=>
-   p.x>=offset*12+1.45&&p.x<=offset*12+length*12-1.45);
+   p.x-p.radius>=offset*12+1.35&&p.x+p.radius<=offset*12+length*12-1.35);
   const out=renderIFragmentSVG({sourceOffset:offset,length});
-  const centers=[...out.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="0.39"/g)]
+  const centers=[...out.matchAll(/<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"/g)]
    .map(m=>({x:Number((Number(m[1])+offset*12).toFixed(3)),y:Number(m[2])}));
   const roundedExpected=expected.map(p=>({x:Number(p.x.toFixed(3)),y:Number(p.y.toFixed(3))}));
   assert.deepEqual(centers,roundedExpected,'phase moved at '+offset+'+'+length);
@@ -134,8 +134,17 @@ test('all sixteen I deletion masks are supported in either orientation',()=>{
 });
 test('the comparison page contains a functional original-cell masking control',()=>{
  const html=fs.readFileSync(path.join(root,'compare.html'),'utf8');
- assert.match(html,/import \{renderIStateSVG,IFragmentRuns\} from '\.\/smooth-geometry\.mjs'/);
+ assert.match(html,/import \{renderIStateSVG,IFragmentRuns\} from '\.\/smooth-geometry\.mjs\?v119'/);
  assert.match(html,/checks\.reduce\(\(n,ch,i\)=>n\|\(ch\.checked\?1<<i:0\),0\)/);
  assert.match(html,/const xml=renderIStateSVG\(mask,o\)/);
  assert.doesNotMatch(html,/core\.js|three-v027\.js|localStorage|serviceWorker/);
+});
+
+test('S and Z smooth versions have visibly differentiated light and shadow planes',()=>{
+ const s=renderSmoothTileSVG('S'),z=renderSmoothTileSVG('Z');
+ for(const svg of [s,z]){
+  const values=[...svg.matchAll(/fill="rgb\((\d+),\1,\1\)"/g)].map(m=>Number(m[1]));
+  assert.ok(Math.max(...values)-Math.min(...values)>135,'large tonal separation');
+  assert.ok((svg.match(/<rect /g)||[]).length>=6,'explicit bottom/right shadows');
+ }
 });
