@@ -38,6 +38,11 @@ const optionPoint=p=>getModal()==='options'&&getModalView()&&
  p.y>=getModalView().y&&p.y<=getModalView().y+getModalView().h;
 const eventStamp=e=>Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
 const isVisualButton=r=>r?.kind==='button'||['toggle','patternSelect','scanlineChoice'].includes(r?.act);
+// iOS Safari can invoke native text-selection/callout on a held canvas
+// despite touch-action:none. Cancel only the browser's selection menu,
+// never the pointerdown/up cycle that powers hold and auto-repeat.
+listen(screen,'contextmenu',e=>e.preventDefault());
+listen(screen,'selectstart',e=>e.preventDefault());
 listen(screen,'pointerdown',e=>{
  if(disposed||!canInteract())return;
  if(e.pointerType==='mouse'&&e.button!==0)return;

@@ -7,7 +7,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Single authoritative build number; update only this marker on each release. -->
-<meta name="tetris-build" content="121">
+<meta name="tetris-build" content="122">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -34,12 +34,18 @@ html,body{margin:0;width:100%;height:100%;background:#080808;overflow:hidden}
    clips the 800px game footer even when #display itself is 100vh. Match the
    root and document heights to the actual full viewport, exclusively in PWA. */
 html.ios-standalone,html.ios-standalone body{height:100vh}
-#display{position:fixed;inset:0;width:100%;height:100dvh;overflow:hidden;touch-action:none}
+/* Treat the game canvas as a touch controller, not selectable webpage text.
+   Apply only to the gameplay surface; don't suppress the initials input. */
+#display{position:fixed;inset:0;width:100%;height:100dvh;overflow:hidden;touch-action:none;
+ -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+ -webkit-tap-highlight-color:transparent}
 /* iOS Home Screen may report (display-mode: standalone)=false even when
    navigator.standalone=true. The measured 100vh is the full 852px screen,
    whereas 100dvh is only 793px on the affected device. */
 html.ios-standalone #display{height:100vh}
-#screen{display:block;width:100%;height:100%;touch-action:none}
+#screen{display:block;width:100%;height:100%;touch-action:none;
+ -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+ -webkit-user-drag:none;-webkit-tap-highlight-color:transparent}
 #safeArea{position:absolute;visibility:hidden;pointer-events:none;
  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
  padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}

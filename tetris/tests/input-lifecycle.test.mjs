@@ -50,7 +50,7 @@ function harness(repeating=false,canInteract=()=>true,regions=null){
 test('input ownership registers one matching listener for each event',()=>{
  const h=harness();
  assert.deepEqual([...h.screen.listeners.keys()],
-  ['pointerdown','pointermove','pointerup','pointercancel','wheel']);
+  ['contextmenu','selectstart','pointerdown','pointermove','pointerup','pointercancel','wheel']);
  assert.deepEqual([...h.window.listeners.keys()],['blur']);
  assert.deepEqual([...h.document.listeners.keys()],['keydown']);
  assert.deepEqual(h.screen.listeners.get('wheel').options,{passive:false});
@@ -82,7 +82,7 @@ test('temporary cancel retains listeners for browser restoration',()=>{
  const h=harness();
  h.down();h.controller.cancel();
  assert.equal(h.controller.pressed,null);
- assert.equal(h.screen.listeners.size,5);
+ assert.equal(h.screen.listeners.size,7);
  h.down(4);
  assert.equal(h.controller.pressed.id,4);
  assert.deepEqual(h.actions,['left','left']);
@@ -133,5 +133,26 @@ test('inactive and recovering sessions cannot trigger afterglow events',()=>{
  h.down();
  h.document.emit('keydown',{code:'ArrowLeft',preventDefault(){}});
  assert.deepEqual(h.buttonPresses,[]);
+ h.controller.dispose();
+});
+
+test('iOS native long-press menus and selection are suppressed on the game surface',()=>{
+ const h=harness();
+ let cancelled=0;
+ h.screen.emit('contextmenu',{preventDefault(){cancelled++}});
+ h.screen.emit('selectstart',{preventDefault(){cancelled++}});
+ assert.equal(cancelled,2);
+ h.down();
+ assert.deepEqual(h.actions,['left'],'press action remains immediate');
+ assert.equal(h.controller.pressed.id,3,'long press remains owned by game');
+ h.controller.dispose();
+ assert.equal(h.screen.listeners.size,0,'native-menu prevention cleans up');
+});
+
+test('long-press suppression is scoped to canvas, not the high-score initials',()=>{
+ const h=harness();
+ assert.equal(h.document.listeners.has('contextmenu'),false);
+ assert.equal(h.document.listeners.has('selectstart'),false);
+ assert.equal(h.window.listeners.has('contextmenu'),false);
  h.controller.dispose();
 });
