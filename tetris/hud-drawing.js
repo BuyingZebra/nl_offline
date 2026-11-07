@@ -65,9 +65,9 @@ function drawSidebar(r){
  nested(hold,game.hold,'hold');
 }
 function drawControls(r){
- // V114: restore the enclosing controls panel; button geometry and hitboxes
- // stay exactly as before.
- panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ // V127: a shared outer screen border replaces the old deck container.
+ // The cropped layer already clears this area to standard screen black.
+ // All six buttons keep their original layout, geometry and hitboxes.
  const px=r.dx+r.deckPad,pw=r.dw-2*r.deckPad;
  // The score strip is now in the right-hand column; leave the approved
  // positions and dimensions of every game control unchanged.

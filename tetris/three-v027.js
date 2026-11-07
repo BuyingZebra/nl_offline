@@ -26,6 +26,7 @@ import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v123';
 import {createActionController} from './action-controller.js?v123';
 import {createGraphicsHealth} from './graphics-health.js?v089';
+import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v127';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea');
@@ -325,6 +326,8 @@ const vectorTiles=createVectorTileRenderer({
  }
 });
 vectorTiles.preload();
+// Both SVG masters and these fast, DPR-cached stamps share authored geometry.
+const brickFrame=createBrickFrame({pixelRatio:()=>DPR});
 // Retain V027-inspired preview tile sizing but use a single uniform scale.
 // Tetrominoes are centred and contained in their square preview frames.
 // Fresh grayscale tile styling for both the board and miniature previews:
@@ -401,6 +404,8 @@ function stage(r,drawPieces=true,recordRegion=true){
  }
  }
  g.restore();
+ // Keep the existing playfield, pieces and hitboxes at their old dimensions.
+ brickFrame.draw(g,r,'inside');
  if(recordRegion)region(x,y,w,h,'board',{board:true});
 
 }
@@ -515,7 +520,13 @@ function paintBaseGame(){
  }
  g=baseContext;
  rect(0,0,W,H,C.bg);
- panel(r.hx,r.hy,r.hw,r.hh,0,C.panel);
+ // Single transparent frame enclosing the existing header, game and footer.
+ // Its sides stay outside the opaque cropped-controls redraw region.
+ const frameInset=Math.max(3,r.pad-6);
+ const outerX=r.off+frameInset,outerY=Math.max(r.safe.top+1,r.hy-3);
+ const frameBottom=Math.min(H-r.safe.bottom-2,r.footerY+15);
+ panel(outerX,outerY,r.width-2*frameInset,
+  Math.max(0,frameBottom-outerY),0,null,C.border);
  // The logo, wordmark, and subtitle use the EXISTING font and luminance
  // palette. Only the title organization changes; header buttons stay put.
  const th=r.headerButtonH;
@@ -538,6 +549,9 @@ function paintBaseGame(){
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false,true);
+ // The exposed portions of the bricks stay on the stationary base layer;
+ // their inner edges are drawn by the cropped playfield layer.
+ brickFrame.draw(g,r,'outside');
  drawSidebar(r);
  drawControls(r);
  const footerLeft='Program: Three.JS',footerRight='version: '+THREE_BUILD_VERSION;
@@ -881,6 +895,7 @@ appLifecycle=createAppLifecycle({
   ['game-observer',unsubscribeGameEvents],
   ['input',()=>inputController?.dispose()],
   ['vector-tiles',()=>vectorTiles.dispose()],
+  ['brick-rails',()=>brickFrame.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
   ['platform',()=>platform.stop()],
   ['graphics',()=>graphicsCleanup.dispose()]

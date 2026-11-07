@@ -99,11 +99,11 @@ test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
   }
  }
 });
-test('approved 6 game controls retain button arrangement and positions',()=>{
+test('approved controls retain their positions without a deck container',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  const {hud,painted}=makeHUD();
  hud.drawControls(r);
- assert.equal(painted.panels.length,1,'enclosing controls container is visible');
+ assert.equal(painted.panels.length,0,'no separate deck container');
  assert.deepEqual(painted.keys.map(k=>k[0]),['◀','DROP','▶','↻','HOLD','PAUSE']);
  assert.deepEqual(painted.keys.map(k=>k[5]),['left','soft','right','cw','hold','pause']);
  assert.deepEqual(painted.keys.map(k=>k[2]),[677,677,677,677,736,736]);
@@ -132,4 +132,15 @@ test('official logo is an editable, rounded-cap SVG bundled locally',()=>{
  assert.ok(56-18<51-8&&142-104<152-109,'middle strokes are longest');
  assert.match(sw,/\.\/nomad-mark\.svg/);
  assert.match(html,/family=Roboto\+Condensed/);
+});
+
+test('outer screen frame replaces only header and controls containers',()=>{
+ const source=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const hud=fs.readFileSync(new URL('../hud-drawing.js',import.meta.url),'utf8');
+ assert.match(source,/panel\(outerX,outerY,r\.width-2\*frameInset,/);
+ assert.match(source,/Math\.max\(0,frameBottom-outerY\),0,null,C\.border\)/);
+ assert.doesNotMatch(source,/panel\(r\.hx,r\.hy,r\.hw,r\.hh,0,C\.panel\)/);
+ assert.doesNotMatch(hud,/panel\(r\.dx,r\.dy,r\.dw,r\.dh/);
+ assert.match(source,/brickFrame\.draw\(g,r,'inside'\)/);
+ assert.match(source,/brickFrame\.draw\(g,r,'outside'\)/);
 });
