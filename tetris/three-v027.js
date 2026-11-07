@@ -19,7 +19,7 @@ import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v107';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
-import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v113';
+import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v114';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v086';
@@ -351,7 +351,8 @@ function stage(r,drawPieces=true,recordRegion=true){
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
  rect(offX,offY,w-4,h-4,'#101010');
- g.globalAlpha=.42;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
+ // V114: increase playfield grid contrast by 17% with unchanged geometry.
+ g.globalAlpha=.4914;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
