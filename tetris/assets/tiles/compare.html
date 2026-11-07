@@ -76,7 +76,7 @@ const shapes={
 function img(src,label){const im=document.createElement('img');im.className='art';im.src=src;im.alt=label;im.decoding='async';return im;}
 function piece(kind,style,manifest){
  const holder=document.createElement('div');holder.className='piece';
- const path=manifest.pieces[kind][style]+'?v121';
+ const path=manifest.pieces[kind][style]+'?v125';
  if(kind==='I'){const strip=img(path,kind+' continuous gravel strip');strip.classList.add('strip');holder.append(strip);return holder;}
  shapes[kind].forEach((line,y)=>line.forEach((v,x)=>{
   if(!v)return;const cell=img(path,kind+' motif');cell.style.gridColumn=String(x+1);cell.style.gridRow=String(y+1);holder.append(cell);
@@ -84,7 +84,7 @@ function piece(kind,style,manifest){
  return holder;
 }
 async function render(){
- const response=await fetch('./manifest.json?v121',{cache:'no-store'});
+ const response=await fetch('./manifest.json?v125',{cache:'no-store'});
  if(!response.ok)throw Error('Cannot load asset manifest');
  const manifest=await response.json();
  const root=document.getElementById('content');
@@ -97,7 +97,7 @@ async function render(){
    const cap=document.createElement('div');cap.className='kind';
    cap.innerHTML='<small>'+ (style==='pixel'?'PIXEL':'SMOOTH VECTOR')+'</small>';
    const swatch=document.createElement('div');swatch.className='swatch';
-   const preview=img(manifest.pieces[kind][style]+'?v121',kind+' '+style+' master');
+   const preview=img(manifest.pieces[kind][style]+'?v125',kind+' '+style+' master');
    if(kind==='I'){preview.style.width='min(100%,148px)';preview.style.height='40px';}
    else{preview.style.width='62px';preview.style.height='62px';}
    swatch.append(preview);
@@ -110,7 +110,7 @@ document.getElementById('tint').addEventListener('change',e=>{document.body.clas
 render().catch(e=>{document.getElementById('content').textContent='Failed to display assets: '+String(e)});
 </script>
 <script type="module">
-import {renderIStateSVG,IFragmentRuns} from './smooth-geometry.mjs?v121';
+import {renderIStateSVG,IFragmentRuns} from './smooth-geometry.mjs?v125';
 const checks=[...document.querySelectorAll('[data-i-cell]')];
 const orientation=document.getElementById('i-orientation');
 const output=document.getElementById('i-result');

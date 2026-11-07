@@ -95,7 +95,7 @@ function chunkParts(sourceOffset,length){
  const layers=[
   // One uninterrupted strip at every length: never four framed squares.
   rect(1,1,width-2,10,L-55),
-  rect(1,1,width-2,1,L+25),rect(1,1,1,10,L+25),
+  rect(1,1,width-2,1,L-100),rect(1,1,1,10,L-100),
   rect(1,10,width-2,1,L-67),rect(width-2,1,1,10,L-70)
  ];
  const start=sourceOffset*12;

@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {createVectorTileRenderer} from './vector-tile-renderer.js?v121';
+import {createVectorTileRenderer} from './vector-tile-renderer.js?v125';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
@@ -433,7 +433,7 @@ function paintBoardPopup(r){
   // A compact 12px gap (twice the standard 6px panel gap) between title
   // and button. The start-screen tagline retains two such compact gaps.
   if(type==='ready'){
-   const subSize=14;
+   const subSize=10;
    const subY=by-headingGap-subSize/2;
    const titleY=subY-subSize/2-headingGap-headingSize/2;
    text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
@@ -534,7 +534,7 @@ function paintBaseGame(){
   r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
   C.ink,'left',titleWidth);
  text('Tetris System',titleX,r.hy+r.hh/2+11,
-  14,C.weak,'left',titleWidth);
+  10,C.weak,'left',titleWidth);
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false,true);
