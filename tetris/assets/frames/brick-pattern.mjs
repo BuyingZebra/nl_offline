@@ -54,7 +54,7 @@ export function brickRailGeometry(r){
  // Neither the grid nor the sidebar is ever overpainted.
  const leftVisible=Object.freeze({
   x:Math.max(left.x,outerLeft),
-  w:Math.max(0,x-gap-Math.max(left.x,outerLeft))
+  w:Math.max(0,Math.min(cell,x-gap-Math.max(left.x,outerLeft)))
  });
  const rightVisible=Object.freeze({
   x:right.x,

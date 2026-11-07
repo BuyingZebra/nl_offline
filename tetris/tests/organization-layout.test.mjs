@@ -141,6 +141,7 @@ test('outer screen frame replaces only header and controls containers',()=>{
  assert.match(source,/Math\.max\(0,frameBottom-outerY\),0,null,C\.border\)/);
  assert.doesNotMatch(source,/panel\(r\.hx,r\.hy,r\.hw,r\.hh,0,C\.panel\)/);
  assert.doesNotMatch(hud,/panel\(r\.dx,r\.dy,r\.dw,r\.dh/);
- assert.match(source,/brickFrame\.draw\(g,r,'inside'\)/);
- assert.match(source,/brickFrame\.draw\(g,r,'outside'\)/);
+ assert.match(source,/brickFrame\.draw\(g,r\)/);
+ assert.equal((source.match(/brickFrame\.draw\(g,r\)/g)||[]).length,1,
+  'rails render once outside the board');
 });
