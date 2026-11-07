@@ -44,7 +44,7 @@ export function renderBrickSVG(style='vector'){
 }
 export function brickRailGeometry(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
- if(!(w>0&&h>0))return null;
+ if(!(w>4&&h>0))return null;
  const width=clamp(w*.043,7,11);
  // Only use the established side gap; no layout position or gameplay cell
  // is resized. A few pixels of the decoration may overlap the outermost edge.

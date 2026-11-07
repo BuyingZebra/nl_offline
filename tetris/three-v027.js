@@ -26,7 +26,7 @@ import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v123';
 import {createActionController} from './action-controller.js?v123';
 import {createGraphicsHealth} from './graphics-health.js?v089';
-import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v127';
+import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v128';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea');
@@ -361,6 +361,9 @@ function stage(r,drawPieces=true,recordRegion=true){
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
+ // The cell-sized brick rail lives BEHIND the game pieces; the first and
+ // last occupied board columns therefore stay fully readable.
+ brickFrame.draw(g,r,'inside');
  // Blink freshly completed rows between the detailed tiles and empty
  // outlined cubes before revealing the core's already-cleared board.
  if(drawPieces){
@@ -404,8 +407,6 @@ function stage(r,drawPieces=true,recordRegion=true){
  }
  }
  g.restore();
- // Keep the existing playfield, pieces and hitboxes at their old dimensions.
- brickFrame.draw(g,r,'inside');
  if(recordRegion)region(x,y,w,h,'board',{board:true});
 
 }
