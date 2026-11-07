@@ -22,8 +22,32 @@ function fbm(x,y,s){return .57*vnoise(x,y,s)+.29*vnoise(x*2.13,y*2.13,s+291)+.14
 function occupiedOf(pcs){const res=new Set();for(const p of pcs)for(const pt of p.points)res.add(idx(pt[0],pt[1]));return res;}
 // Collisions include the arrow's OWN tail. The arrowhead must travel straight to
 // the edge without passing through any occupied cell, including its own body.
+// Structural geometry rule: an arrow is a single non-crossing grid path.
+// Its head must point along the final segment, and the straight escape lane
+// cannot run through ANY part of that same arrow. This rule is independent
+// of other arrows and checked both during construction and before gameplay.
+function validArrowGeometry(p){
+  if(!p||!Array.isArray(p.points)||p.points.length<2||!DIRS[p.dir])return false;
+  const seen=new Set(),parts=p.points;
+  for(let i=0;i<parts.length;i++){
+    const pt=parts[i],x=pt&&pt[0],y=pt&&pt[1];
+    if(!Number.isInteger(x)||!Number.isInteger(y)||!within(x,y))return false;
+    const key=idx(x,y);
+    if(seen.has(key))return false;
+    seen.add(key);
+    if(i){const prev=parts[i-1];if(Math.abs(x-prev[0])+Math.abs(y-prev[1])!==1)return false;}
+  }
+  const h=parts[parts.length-1],before=parts[parts.length-2],d=DIRS[p.dir];
+  if(h[0]-before[0]!==d[0]||h[1]-before[1]!==d[1])return false;
+  let x=h[0]+d[0],y=h[1]+d[1];
+  while(within(x,y)){
+    if(seen.has(idx(x,y)))return false;
+    x+=d[0];y+=d[1];
+  }
+  return true;
+}
 function canEscape(p,ob){
-  if(!p || !Array.isArray(p.points) || p.points.length<2 || !DIRS[p.dir]) return false;
+  if(!validArrowGeometry(p))return false;
   const own=new Set(p.points.slice(0,-1).map(q=>idx(q[0],q[1])));
   const d=DIRS[p.dir],h=p.points[p.points.length-1];
   let x=h[0]+d[0],y=h[1]+d[1];
@@ -77,7 +101,7 @@ function solveBoard(pieces){
   if(!Array.isArray(pieces)||pieces.length===0)return {ok:false,sequence:[],reason:'empty'};
   const pending=pieces.slice(),cells=new Set(),ids=new Set();
   for(const p of pending){
-    if(ids.has(p.id)||!DIRS[p.dir]||!Array.isArray(p.points)||p.points.length<2) return {ok:false,sequence:[],reason:'invalid piece'};
+    if(ids.has(p.id)||!validArrowGeometry(p)) return {ok:false,sequence:[],reason:'invalid arrow geometry (including self-crossing)'};
     ids.add(p.id);
     const local=new Set();
     for(let i=0;i<p.points.length;i++){
@@ -120,7 +144,7 @@ function generateOnce(level,seed,profile){
     const tries=220+(n>29?160:0);
     for(let t=0;t<tries;t++){
       const p=arrow(rand,seed,n/desired,profile);
-      if(!p||p.points.some(q=>occupied.has(idx(q[0],q[1]))))continue;
+      if(!p||!validArrowGeometry(p)||p.points.some(q=>occupied.has(idx(q[0],q[1]))))continue;
       if(!canEscape(p,occupied))continue;
       let deps=0;for(const cor of corridors)if(p.points.some(q=>cor.has(idx(q[0],q[1]))))deps++;
       if(deps>profile.maxNewBlockers)continue;
@@ -159,4 +183,4 @@ function generate(level,seed){
   }
   return best;
 }
-if(typeof module!=='undefined'&&module.exports)module.exports={generate,canEscape,occupiedOf,difficulty,within,idx,solveBoard,getDimensions:()=>({cols:MC,rows:MR})};
+if(typeof module!=='undefined'&&module.exports)module.exports={generate,canEscape,validArrowGeometry,occupiedOf,difficulty,within,idx,solveBoard,getDimensions:()=>({cols:MC,rows:MR})};

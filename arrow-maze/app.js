@@ -360,6 +360,10 @@ $('install').addEventListener('click',async()=>{
 });
 function swStatus(){
   if(!('serviceWorker' in navigator)){els.connection.textContent='BROWSER MODE';return;}
+  const hadController=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(hadController){els.connection.textContent='UPDATE READY';feedback('Update ready — reopen the app to apply it.');}
+  });
   navigator.serviceWorker.register('./sw.js').then(()=>{
     els.connection.textContent='OFFLINE-READY';
   }).catch(e=>{

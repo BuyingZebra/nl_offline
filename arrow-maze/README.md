@@ -44,3 +44,12 @@ This folder is independent of the repository's other NOMAD/FIELD ATLAS/Tetris pr
 - Preserves level, seed and appearance settings on v3→v4 upgrade, but restarts the current puzzle with three lives, since old piece IDs are incompatible.
 - V4 scripts are versioned and the offline service-worker cache is updated without touching other projects.
 - Verified 1,650 random boards; completed the screenshot seed through 13 real mobile-size taps; progressed to Level 12.
+
+
+## V5 — Self-intersection guard and PWA freshness (2026-11-07)
+
+- Checked screenshot seed `15-UUZ8JY` from the old cached build: old piece #11 was self-blocking.
+- `validArrowGeometry` now explicitly rejects repeated cells, disconnected paths, heads not aligned with their terminal segment, and any escape ray intersecting its **own** body.
+- Both candidate construction and independent `solveBoard()` enforce this invariant.
+- Navigation fetches are now network-first, with the cached app retained as an offline fallback; script/CSS URLs are versioned `v=5`.
+- The game footer now displays `V5`. Saves from V4 are retained.
