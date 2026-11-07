@@ -5,6 +5,7 @@
 (function(root){
 'use strict';
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+const BOARD_SCALE=.95; // V130: one deliberate 5% playfield reduction
 function computeLayout(W,H,safe,ui){
   W=Math.max(1,Number(W)||1);H=Math.max(1,Number(H)||1);
   const edges={
@@ -53,14 +54,14 @@ function computeLayout(W,H,safe,ui){
   }
   const sideGap=Math.min(ui.sideGap,Math.max(0,sw*.025));
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
-  // Preserve V108 playfield size and placement; statistics stay in sidebar.
-  // The landscape playfield never used the old portrait score row.
+  // Shrink the full playfield rectangle by 5% in width and height.
+  // Its 10x20 grid, square cells, and 2:1 aspect ratio remain unchanged.
   const boardRegionH=landscape?sh:Math.max(0,sh-legacyStatsOffset);
-  const bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
+  const unscaledBoardW=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
+  const bw=unscaledBoardW*BOARD_SCALE;
   const bh=bw*2;
   const bx=sx+Math.max(0,(sw-bw-sideGap-sideWidth)/2);
-  // Centre the full board/sidebar composition in the gap between
-  // header and controls. Preserve V108 board width/height exactly.
+  // Centre the scaled board/sidebar composition between header and controls.
   const by=sy+Math.max(0,(sh-bh)/2);
   // V129: the right-side rail must sit OUTSIDE the ten-column playfield.
   // Borrow only unused right-side padding for the sidebar, never game width.

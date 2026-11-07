@@ -54,13 +54,14 @@ for(const [name,w,h,safe] of phones){
   }
  });
 }
-test('portrait moves statistics to sidebar without moving the control buttons',()=>{
+test('portrait scales the board by 5% without moving the control buttons',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.landscape,false);
  assert.equal(r.compactControls,false);
- assert.equal(r.boardW,234.5,'V108 portrait board width');
- assert.equal(r.boardH,469,'V108 portrait board height');
- assert.equal(r.boardY,170.5,'unchanged board height, centred vertically');
+ assert.ok(Math.abs(r.boardW-234.5*.95)<1e-9,'board width reduced exactly 5%');
+ assert.ok(Math.abs(r.boardH-469*.95)<1e-9,'board height reduced exactly 5%');
+ assert.ok(Math.abs(r.boardY-182.225)<1e-9,'scaled board centred vertically');
+ assert.ok(Math.abs(r.boardH-r.boardW*2)<1e-9,'10 x 20 board stays proportional');
  const topGap=r.boardY-(r.hy+r.hh),bottomGap=r.dy-(r.boardY+r.boardH);
  assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
  assert.equal(r.dy+r.deckPad,677,'old first button y');
@@ -72,11 +73,11 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
   'statistics centered between previews');
  assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
 });
-test('tall portrait also retains its V108 playfield dimensions',()=>{
+test('tall portrait also scales only the playfield by 5%',()=>{
  const r=computeLayout(430,932,{top:62,bottom:34},ui);
- assert.equal(r.boardW,273);
- assert.equal(r.boardH,546);
- assert.equal(r.boardY,173.5,'tall board is centered in playable gap');
+ assert.ok(Math.abs(r.boardW-273*.95)<1e-9);
+ assert.ok(Math.abs(r.boardH-546*.95)<1e-9);
+ assert.ok(Math.abs(r.boardY-187.15)<1e-9,'tall board stays centered in the gap');
  assert.equal(r.dy+r.deckPad,757,'V109 button position stays unchanged');
 });
 test('portrait board and entire sidebar are vertically centered between header and controls',()=>{
@@ -121,8 +122,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v129'));
- assert.ok(html.indexOf('layout.js?three=v129')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v130'));
+ assert.ok(html.indexOf('layout.js?three=v130')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });

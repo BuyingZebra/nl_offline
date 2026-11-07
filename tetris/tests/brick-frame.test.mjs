@@ -58,15 +58,15 @@ test('pixel bevels stay on integer coordinates and vector bevels are subpixel',(
   assert.deepEqual([p[i].x,p[i].y,p[i].w,p[i].h],
    [v[i].x,v[i].y,v[i].w,v[i].h]);
 });
-test('iPhone portrait retains EXACT playfield and buttons while accommodating both rails',()=>{
+test('iPhone portrait retains the 5% smaller square-cell playfield and buttons',()=>{
  const r=sample,g=brickRailGeometry(r);
  const tile=(r.boardW-4)/10;
- assert.ok(near(r.boardX,29.75));
- assert.ok(near(r.boardY,170.5));
- assert.ok(near(r.boardW,234.5));
- assert.ok(near(r.boardH,469));
+ assert.ok(near(r.boardX,35.6125));
+ assert.ok(near(r.boardY,182.225));
+ assert.ok(near(r.boardW,234.5*.95));
+ assert.ok(near(r.boardH,469*.95));
  assert.ok(near(r.dx,11),'controls remain at original x');
- assert.ok(near(r.sideX,288.3),'sidebar borrows spare right padding only');
+ assert.ok(near(r.sideX,281.265),'sidebar stays aligned outside reduced board');
  assert.ok(near(g.width,tile)&&near(g.height,tile));
  assert.ok(near(g.leftVisible.w,tile));
  assert.ok(near(g.rightVisible.w,tile));
