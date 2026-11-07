@@ -53,3 +53,15 @@ This folder is independent of the repository's other NOMAD/FIELD ATLAS/Tetris pr
 - Both candidate construction and independent `solveBoard()` enforce this invariant.
 - Navigation fetches are now network-first, with the cached app retained as an offline fallback; script/CSS URLs are versioned `v=5`.
 - The game footer now displays `V5`. Saves from V4 are retained.
+
+## V6 — Constructive generator and thousand-level tests (2026-11-07)
+
+- New **exit-first** placement grows each arrow backwards from a verified clear ray, avoiding other arrows, its own cells, and its own outgoing lane.
+- Reverse construction plus independent `solveBoard()` validation preserve full solvability; board generation discards incomplete attempts rather than publishing them.
+- Gradually relaxed bounded candidate budgets and deterministic retry attempts protect mobile performance while retaining variety and seed repeatability.
+- A separate `analyzeBoard()` measures initial legal moves, dependencies, longest dependency chain, bends, and line lengths for future difficulty design (not yet applied to progression).
+- `ENGINE.md` documents the invariants and `test_engine.js` provides regression tests.
+- Local validation: 2,302 distinct boards, all Levels 1–1,000 with two different seeds, 106,968 arrow paths, zero test failures. Verified randomized legal removal orders.
+- Mobile Chromium checked Level 1, Level 1,000, animated tapping, retry, new maze, and a full 17-arrow touchscreen playthrough at Level 15.
+- Save migration retains level, seed, theme and settings; restarts the in-progress puzzle once because V5 arrow IDs are incompatible with V6.
+- PWA assets and offline cache versioned as V6. All other repository apps remain unchanged.

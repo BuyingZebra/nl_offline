@@ -1,7 +1,7 @@
 // Scope-safe, offline-capable cache. Navigations are network-first to prevent
 // a previously installed app from showing outdated versions after a release.
-const CACHE='arrow-maze-pwa-v5';
-const ASSETS=['./','./index.html','./app.js?v=5','./generator.js?v=5','./style.css?v=5','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
+const CACHE='arrow-maze-pwa-v6';
+const ASSETS=['./','./index.html','./app.js?v=6','./generator.js?v=6','./style.css?v=6','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 const ROOT=new URL('./',self.registration.scope).pathname;
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
