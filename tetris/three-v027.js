@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {drawTileFace} from './tile-face.js?v106';
+import {drawTileFace} from './tile-face.js?v117';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
 import {getBuildVersion} from './build-version.js?v066';
@@ -351,8 +351,8 @@ function stage(r,drawPieces=true,recordRegion=true){
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
  rect(offX,offY,w-4,h-4,'#101010');
- // V114: increase playfield grid contrast by 17% with unchanged geometry.
- g.globalAlpha=.4914;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
+ // V117: preserve the V114 grid and lift its line opacity another 9%.
+ g.globalAlpha=.5356;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
