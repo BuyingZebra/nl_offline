@@ -4,11 +4,11 @@
  * and score services through explicit adapters. V087 behaviour is retained.
  */
 export const GAME_ACTIONS=Object.freeze([
- 'left','right','cw','hard','hold','pause','start'
+ 'left','right','cw','soft','hold','pause','start'
 ]);
 
 const BLOCKED_DURING_LINE_CLEAR=new Set([
- 'left','right','cw','hard','hold'
+ 'left','right','cw','soft','hold'
 ]);
 
 export function createActionController({
@@ -49,7 +49,7 @@ export function createActionController({
   if(type==='left')ok=game.move(-1);
   else if(type==='right')ok=game.move(1);
   else if(type==='cw')ok=game.rotate(1);
-  else if(type==='hard')ok=game.hardDrop();
+  else if(type==='soft')ok=game.softDrop();
   else if(type==='hold')ok=game.holdPiece();
   else if(type==='pause')ok=game.pause();
   else if(type==='start')ok=game.start();
@@ -62,7 +62,6 @@ export function createActionController({
    if(game.lines>lines)tone(610,.14);
    else if(game.pieces>pieces)tone(175);
    else if(type==='cw')tone(305);
-   else if(type==='hard')tone(185);
    else if(type==='hold')tone(265);
    onGameOver();invalidate();
   }

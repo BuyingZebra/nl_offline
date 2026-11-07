@@ -11,7 +11,7 @@ function harness(initialStatus='ready',canInteract=()=>true){
   status:initialStatus,pieces:0,lines:0,score:0,level:1,hold:null,
   move:dx=>{if(game.status!=='playing')return false;events.push(['move',dx]);return true;},
   rotate:dir=>{if(game.status!=='playing')return false;events.push(['rotate',dir]);return true;},
-  hardDrop:()=>{if(game.status!=='playing')return false;game.score+=8;game.pieces++;events.push(['drop']);return true;},
+  softDrop:()=>{if(game.status!=='playing')return false;game.score++;events.push(['soft']);return true;},
   holdPiece:()=>{if(game.status!=='playing')return false;game.hold='T';events.push(['hold']);return true;},
   pause:()=>{if(game.status==='playing'){game.status='paused';return true;}
    if(game.status==='paused'){game.status='playing';return true;}return false;},
@@ -63,12 +63,12 @@ function harness(initialStatus='ready',canInteract=()=>true){
 }
 
 test('the existing seven gameplay action names remain unchanged',()=>{
- assert.deepEqual(GAME_ACTIONS,['left','right','cw','hard','hold','pause','start']);
+ assert.deepEqual(GAME_ACTIONS,['left','right','cw','soft','hold','pause','start']);
 });
 test('ready-state gameplay input fails without drawing or sound',()=>{
  const h=harness();
  assert.equal(h.actions.perform('left'),false);
- assert.equal(h.actions.perform('hard'),false);
+ assert.equal(h.actions.perform('soft'),false);
  assert.equal(h.actions.perform('unknown'),false);
  assert.deepEqual(h.events,[]);
 });
@@ -78,7 +78,7 @@ test('a successful start marks the board, controls and popup exactly as before',
  assert.equal(h.game.status,'playing');
  assert.deepEqual(h.events,[['dirty','board','controls'],['dirty','base'],['invalidate']]);
 });
-test('movement, rotation, holding and hard drop keep existing visual/sound effects',()=>{
+test('movement, rotation, holding and soft drop keep existing visual/sound effects',()=>{
  const h=harness('playing');
  assert.equal(h.actions.perform('left'),true);
  assert.deepEqual(h.events,[['move',-1],['dirty','board','controls'],['invalidate']]);
@@ -89,13 +89,13 @@ test('movement, rotation, holding and hard drop keep existing visual/sound effec
  h.actions.perform('hold');
  assert.deepEqual(h.events,[['hold'],['dirty','board','controls'],['dirty','sidebar'],['tone',265,undefined],['invalidate']]);
  h.events.length=0;
- h.actions.perform('hard');
- assert.deepEqual(h.events,[['drop'],['dirty','board','controls'],['dirty','sidebar'],
-  ['dirty','controls'],['tone',175,undefined],['invalidate']]);
+ h.actions.perform('soft');
+ assert.deepEqual(h.events,[['soft'],['dirty','board','controls'],
+  ['dirty','controls'],['invalidate']]);
 });
 test('line-clear lock blocks movement but allows pause/resume',()=>{
  const h=harness('playing');h.setLineClear(true);
- for(const action of ['left','right','cw','hard','hold'])
+ for(const action of ['left','right','cw','soft','hold'])
   assert.equal(h.actions.perform(action),false,action);
  assert.deepEqual(h.events,[]);
  assert.equal(h.actions.perform('pause'),true);
@@ -173,10 +173,10 @@ test('UI restart confirmation resets the game and closes menu',()=>{
   ['clearLine'],['reset'],['dirty','board','sidebar','controls','base'],['close'],['invalidate']
  ]);
 });
-test('game over caused by hard drop still offers high-score entry',()=>{
+test('game over caused by soft drop still offers high-score entry',()=>{
  const h=harness('playing');h.game.score=100;
- h.game.hardDrop=()=>{h.game.status='over';return true;};
- h.actions.perform('hard');
+ h.game.softDrop=()=>{h.game.status='over';return true;};
+ h.actions.perform('soft');
  assert.equal(h.initials.value,'AAA');
  assert.equal(h.events.some(e=>e[0]==='entry'),true);
 });
@@ -190,7 +190,7 @@ test('controller is isolated from UI, renderer, and event listener ownership',()
 test('GPU interruption blocks invisible gameplay and menu actions',()=>{
  const h=harness('paused',()=>false);
  assert.equal(h.actions.perform('pause'),false);
- assert.equal(h.actions.perform('hard'),false);
+ assert.equal(h.actions.perform('soft'),false);
  assert.equal(h.actions.perform('start'),false);
  h.actions.dispatch('restartYes');
  h.actions.dispatch('options');

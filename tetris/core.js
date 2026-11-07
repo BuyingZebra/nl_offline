@@ -40,7 +40,9 @@
     '3>0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
     '0>3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]]
   };
-  const CLEAR_POINTS = [0,100,300,500,800];
+  // Original Nintendo 1989 line-clear base scores; displayed Level 01 is classic Level 00.
+  const CLEAR_POINTS = [0,40,100,300,1200];
+  const MAX_LEVEL = 20;
   const blankBoard = () => Array.from({length:ROWS}, () => Array(COLS).fill(0));
   const copyMatrix = m => m.map(row => row.slice());
   function turn(matrix, dir) {
@@ -193,14 +195,6 @@
       while(!this.collides(p,p.x,y+1))y++;
       return y;
     }
-    hardDrop() {
-      if(this.status!=='playing')return false;
-      const distance=this.ghostY()-this.current.y;
-      this.current.y+=distance;
-      this.score+=Math.max(0,distance)*2;
-      this.lockPiece();
-      return true;
-    }
     holdPiece() {
       if(this.status!=='playing'||!this.canHold)return false;
       const active=this.current.kind;
@@ -230,9 +224,6 @@
           score:this.score,lines:this.lines,level:this.level,status:this.status});
         return;
       }
-      // A successful placement scores even when a piece settles by gravity.
-      // This small bonus complements, rather than replaces, drop/line points.
-      this.score+=10*this.level;
       const remaining=[],completed=[];
       for(let y=0;y<ROWS;y++){
         const row=this.board[y];
@@ -248,9 +239,11 @@
       this.board=remaining;
       this.lastClear=cleared;
       const priorLevel=this.level;
-      this.score+=CLEAR_POINTS[cleared]*this.level;
       this.lines+=cleared;
-      this.level=1+Math.floor(this.lines/10);
+      // NES 1989 awards line-clears at the resulting level on a level-up.
+      // Present the original level-00 score tier as NOMAD level 01.
+      this.level=Math.min(MAX_LEVEL,1+Math.floor(this.lines/10));
+      this.score+=CLEAR_POINTS[cleared]*this.level;
       this.pieces++;
       this.canHold=true;
       this.lastEvent=cleared===4?'TETRIS!':cleared?cleared+' LINE'+(cleared!==1?'S':''):'LOCK';
@@ -307,5 +300,5 @@
       return result;
     }
   }
-  return Object.freeze({COLS,ROWS,IDS,SHAPES,turn,shuffledBag,Game});
+  return Object.freeze({COLS,ROWS,MAX_LEVEL,IDS,SHAPES,turn,shuffledBag,Game});
 });

@@ -94,10 +94,11 @@ test('real game, screen manager and settings preserve pause-before-options and a
  const s=session();
  assert.equal(s.actions.perform('start'),true);
  assert.equal(s.game.status,'playing');
- assert.equal(s.actions.perform('hard'),true);
+ assert.equal(s.actions.perform('soft'),true);
+ s.game.current.y=s.game.ghostY();s.game.lockPiece();
  assert.equal(s.game.pieces,1);
  assert.equal(s.events.filter(e=>e.type==='piece-locked').length,1);
- assert.ok(s.tones.length>0,'hard drop sound feedback is still requested');
+ assert.equal(s.game.score,1,'manually soft-dropped row scores one point');
  s.actions.dispatch('options');
  assert.equal(s.game.status,'paused');
  assert.equal(s.screens.isOptions,true);
@@ -123,7 +124,7 @@ test('line clear event drives input lock and score/level updates without engine 
  s.game.board=Array.from({length:20},()=>Array(10).fill(0));
  for(let x=0;x<10;x++)s.game.board[19][x]=(x===4||x===5)?0:'Z';
  s.game.current=s.game.piece('O');s.game.current.y=18;
- assert.equal(s.actions.perform('hard'),true);
+ s.game.current.y=s.game.ghostY();s.game.lockPiece();
  assert.equal(s.game.lines,10);
  assert.equal(s.game.level,2);
  const last=s.events.filter(e=>['piece-locked','lines-cleared','level-changed'].includes(e.type));
@@ -144,7 +145,7 @@ test('background, bfcache and WebGL interruption never resume gameplay invisibly
  const s=session();s.actions.perform('start');
  assert.equal(s.lifecycle.suspend('visibility'),true);
  assert.equal(s.game.status,'paused','background must pause even after input guard activates');
- assert.equal(s.actions.perform('hard'),false);
+ assert.equal(s.actions.perform('soft'),false);
  assert.equal(s.actions.perform('start'),false);
  assert.equal(s.lifecycle.pageHide(true),false,'repeated hidden event is inert');
  assert.equal(s.lifecycle.pageShow(true),true);
@@ -154,7 +155,7 @@ test('background, bfcache and WebGL interruption never resume gameplay invisibly
  assert.equal(s.game.status,'playing');
  assert.equal(s.emit('webglcontextlost'),true);
  assert.equal(s.game.status,'paused');
- assert.equal(s.actions.perform('hard'),false);
+ assert.equal(s.actions.perform('soft'),false);
  s.emit('webglcontextrestored');
  assert.equal(s.graphics.status,'recovering');
  assert.equal(s.actions.perform('start'),false);
@@ -163,7 +164,7 @@ test('background, bfcache and WebGL interruption never resume gameplay invisibly
  assert.equal(s.game.status,'playing');
  assert.equal(s.lifecycle.pageHide(false),true);
  assert.equal(s.lifecycle.status,'disposed');
- assert.equal(s.actions.perform('hard'),false);
+ assert.equal(s.actions.perform('soft'),false);
  assert.equal(s.canvasListeners.size,0);
  assert.deepEqual(s.cleaned.slice(-4),['game-events','graphics','input','resources']);
  assert.equal(s.lifecycle.dispose(),false);

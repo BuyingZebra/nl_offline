@@ -80,12 +80,12 @@ function drawControls(r){
   key('◀',px,cy,third,ch,'left',{light:true,repeat:true});
   key('↻',px+third+gap,cy,third,ch,'cw');
   key('▶',px+2*(third+gap),cy,third,ch,'right',{light:true,repeat:true});
-  key('DROP',px,cy+ch+gap,pw,ch,'hard',{light:true});
+  key('DROP',px,cy+ch+gap,pw,ch,'soft',{light:true,repeat:true});
   ey=cy+2*(ch+gap);
  }else{
   const col=Math.max(0,(pw-gap*4)/5);
   key('◀',px,cy,col,ch,'left',{light:true,repeat:true});
-  key('DROP',px+col+gap,cy,col*2+gap,ch,'hard',{light:true});
+  key('DROP',px+col+gap,cy,col*2+gap,ch,'soft',{light:true,repeat:true});
   key('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
   key('↻',px+col*4+gap*4,cy,col,ch,'cw');
   ey=cy+ch+r.deckGap;

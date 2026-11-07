@@ -56,9 +56,14 @@ listen(screen,'pointerdown',e=>{
  if(!getModal()&&r&&!r.board){
   setBaseDirty(r.act);
   handleAction(r.act);
-  if(r.repeat)repeatDelay=setTimeout(()=>{
-   repeatInterval=setInterval(()=>handleAction(r.act),82);
-  },210);
+  if(r.repeat){
+   // Holding soft drop accelerates continuously; lateral movement retains
+   // its existing delayed auto-shift and cadence.
+   if(r.act==='soft')repeatInterval=setInterval(()=>handleAction(r.act),50);
+   else repeatDelay=setTimeout(()=>{
+    repeatInterval=setInterval(()=>handleAction(r.act),82);
+   },210);
+  }
  }
  invalidate();
 });
@@ -121,7 +126,7 @@ function releaseTouch(e){
   else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
    for(let i=0;i<clamp(Math.round(Math.abs(dx)/32),1,5);i++)
     perform(dx>0?'right':'left');
-  }else if(dy>25)perform('hard');
+  }else if(dy>25)perform('soft');
  }
  invalidate();
 }
@@ -135,7 +140,7 @@ listen(screen,'wheel',e=>{
  }
 },{passive:false});
 const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
- ArrowDown:'hard',Space:'hard',KeyC:'hold',ShiftLeft:'hold',
+ ArrowDown:'soft',Space:'soft',KeyC:'hold',ShiftLeft:'hold',
  KeyP:'pause',Escape:'pause'};
 listen(document,'keydown',e=>{
  if(disposed||!canInteract())return;
@@ -147,7 +152,7 @@ listen(document,'keydown',e=>{
  const a=KEYS[e.code];
  if(!a)return;
  e.preventDefault();
- if(e.repeat&&['hard','hold','pause','start'].includes(a))return;
+ if(e.repeat&&['hold','pause','start'].includes(a))return;
  const keyRegion=getRegions().find(r=>r.kind==='button'&&r.act===a);
  if(keyRegion)onButtonPress(keyRegion,performance.now(),false);
  perform(a);
