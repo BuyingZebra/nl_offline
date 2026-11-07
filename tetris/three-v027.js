@@ -255,7 +255,7 @@ const screenManager=createScreenManager({
   invalidate();
  }
 });
-// Game commands and personal-best updates are delegated.
+// All game commands, menu actions and personal-best updates are delegated.
 // UI and render adapters remain here; the controller never paints.
 const actions=createActionController({
  game,scores:Scores,storage:window.localStorage,settings,screens:screenManager,

@@ -63,7 +63,7 @@
   const existing=sanitize(current);
   const incoming=sanitize(candidate);
   return incoming&&(!existing||incoming.score>existing.score)?
-   save(storage,incoming):existing;
+   save(storage,incoming):(existing?current:null);
  }
  return Object.freeze({KEY,OLD_TOP_FIVE,LEGACY,sanitize,read,save,update});
 });
