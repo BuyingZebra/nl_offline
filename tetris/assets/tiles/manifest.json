@@ -3,8 +3,8 @@
   "design": "NOMAD approved V118",
   "source": "tetris/tile-face.js",
   "source_kind": "deterministic grayscale masks",
-  "version": "1.0",
-  "note": "pixel SVGs are exact lossless exports of the seven V118 tile arrangements; smooth SVGs trace the same masks, round external contours and replace only original dark gravel/dot marks with circles. Both assets remain neutral grayscale; the CRT compositor supplies green/amber tint.",
+  "version": "2.0",
+  "note": "Pixel SVGs are immutable exports of the approved V118 masks. Smooth SVGs are independently authored overlapping grayscale rectangles, one triangular corner facet, and stable circular dots; they are not rounded pixel contours. The game compositor controls theme tint and glow.",
   "order": [
     "I",
     "O",
@@ -86,5 +86,24 @@
       "pixel": "pixel/L.svg",
       "vector": "vector/L.svg"
     }
+  },
+  "vectorGenerator": "smooth-geometry.mjs",
+  "iTexture": {
+    "canonicalLength": 4,
+    "sourceCellUnits": 12,
+    "orientations": [
+      "horizontal",
+      "vertical"
+    ],
+    "sourceCoordinates": "original 4-cell I-piece positions",
+    "combinations": "all 16 surviving-cell masks, including disconnected fragments",
+    "fragmentParameters": [
+      "sourceOffset",
+      "length",
+      "orientation"
+    ],
+    "rule": "Surviving dots retain original source coordinates; new outer frame is drawn around each remaining run.",
+    "renderer": "renderIFragmentSVG / renderIStateSVG in smooth-geometry.mjs",
+    "liveGameSupport": "preview/library only; gameplay board does not yet store cell-origin metadata"
   }
 }
