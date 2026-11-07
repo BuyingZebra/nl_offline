@@ -131,10 +131,12 @@ test('the live app uses vector art everywhere and owns its offline fallback',()=
  assert.match(js,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
  assert.match(js,/vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
  assert.match(js,/vectorTiles\.dispose\(\)/);
- assert.match(sw,/CACHE_VERSION='v121'/);
+ const build=html.match(/name="tetris-build" content="([0-9]{3})"/)?.[1];
+ assert.ok(build,'HTML must declare a three-digit build');
+ assert.ok(sw.includes("CACHE_VERSION='v"+build+"'"),'offline cache and HTML must agree');
  for(const kind of VECTOR_PIECE_KINDS)
   assert.ok(sw.includes("'./assets/tiles/vector/"+kind+".svg'"));
  assert.match(sw,/'.\/assets\/tiles\/smooth-geometry\.mjs'/);
  assert.match(sw,/'.\/assets\/tiles\/gravel-layout\.mjs'/);
- assert.match(html,/name="tetris-build" content="121"/);
+
 });
