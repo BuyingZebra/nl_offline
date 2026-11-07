@@ -66,33 +66,51 @@ test('spawn collision produces game over',()=>{
  assert.equal(g.status,'over');
  assert.equal(g.move(1),false);
 });
-test('malformed, negative and excess scores are sanitized',()=>{
- const list=Scores.sanitize([
-  {name:'A*1',score:500,lines:2,level:1,at:1},
-  {name:'BAD',score:-2},null,
-  ...Array.from({length:8},(_,i)=>({name:'OK',score:i,lines:0,level:1,at:i}))
- ]);
- assert.equal(list.length,5);
- assert.equal(list[0].name,'A1');
- assert.deepEqual(list.map(x=>x.score),[500,7,6,5,4]);
- assert.deepEqual(Scores.sanitize({not:'a list'}),[]);
- assert.equal(Scores.qualifies(list,4),false);
+test('a single local record is sanitized and never permits invalid or negative scores',()=>{
+ assert.equal(Scores.sanitize(null),null);
+ assert.equal(Scores.sanitize({score:-5}),null);
+ assert.equal(Scores.sanitize({score:'unknown'}),null);
+ assert.deepEqual(Scores.sanitize({score:'500.9',lines:-4,level:3.2,at:7}),{
+  score:500,lines:0,level:3,at:7
+ });
 });
-test('storage errors leave scores usable without modifying game state',()=>{
+test('storage errors do not interrupt gameplay or erase current-session record',()=>{
  const blocked={getItem(){throw Error('blocked')},setItem(){throw Error('quota')}};
- assert.deepEqual(Scores.read(blocked),[]);
- const list=Scores.save(blocked,[{name:'ABC',score:42,lines:0,level:1,at:1}]);
- assert.equal(list[0].score,42);
+ assert.equal(Scores.read(blocked),null);
+ const record=Scores.update(blocked,null,{score:42,lines:2,level:1,at:99});
+ assert.equal(record.score,42);
+ assert.equal(Scores.update(blocked,record,{score:12}),record);
 });
-test('high score schema and legacy key remain compatible',()=>{
- assert.equal(Scores.KEY,'fieldAtlasTetrisTopFiveV01');
+test('one local best replaces the leaderboard; ties preserve previous metadata',()=>{
  const map=new Map();
- const storage={getItem:k=>map.has(k)?map.get(k):null,setItem:(k,v)=>map.set(k,v)};
- Scores.save(storage,[{name:'ABC',score:42,lines:1,level:1,at:10}]);
- assert.equal(Scores.read(storage)[0].score,42);
- assert.equal(map.get('fieldAtlasTetrisBest'),'42');
+ const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};
+ assert.equal(Scores.KEY,'nomadTetrisPersonalBestV01');
+ const first=Scores.update(storage,null,{score:42,lines:1,level:1,at:10});
+ assert.deepEqual(Scores.read(storage),first);
+ assert.equal(Scores.update(storage,first,{score:42,lines:10,level:8}),first);
+ assert.equal(Scores.read(storage).lines,1);
+ const next=Scores.update(storage,first,{score:94,lines:3,level:2,at:22});
+ assert.equal(next.score,94);
+ assert.deepEqual(Scores.read(storage),next);
+ assert.equal(map.has(Scores.OLD_TOP_FIVE),false);
+ assert.equal(map.has(Scores.LEGACY),false);
 });
-
+test('legacy five-entry scores migrate highest result and keep their original backup',()=>{
+ const backup=JSON.stringify([
+  {name:'ABC',score:62,lines:4,level:1,at:5},
+  {name:'XYZ',score:400,lines:12,level:2,at:9},
+  {name:'BAD',score:-20}]);
+ const map=new Map([[Scores.OLD_TOP_FIVE,backup],[Scores.LEGACY,'350']]);
+ const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};
+ assert.deepEqual(Scores.read(storage),{score:400,lines:12,level:2,at:9});
+ assert.equal(map.get(Scores.OLD_TOP_FIVE),backup);
+ assert.equal(JSON.parse(map.get(Scores.KEY)).score,400);
+});
+test('numeric legacy best is recovered if higher than leaderboard score',()=>{
+ const map=new Map([[Scores.OLD_TOP_FIVE,JSON.stringify([{score:100,lines:1,level:1}])],[Scores.LEGACY,'800']]);
+ const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};
+ assert.deepEqual(Scores.read(storage),{score:800,lines:0,level:0,at:0});
+});
 test('game event subscriptions are removable, and invalid listeners are rejected',()=>{
  const g=fresh(),events=[];
  assert.throws(()=>g.onEvent(null),TypeError);

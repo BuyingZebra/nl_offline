@@ -19,7 +19,6 @@ function session(){
  };
  const settings=createSettingsManager(storage);
  const game=new Core.Game(()=>.5);
- const initials={value:'MRC',blur:()=>{},focus:()=>{}};
  let clearActive=false,actions,lifecycle;
  const canvasListeners=new Map();
  const canvas={
@@ -60,7 +59,6 @@ function session(){
   markLayers:(...names)=>layers.push(...names),
   invalidate:()=>layers.push('invalidated'),
   tone:(freq)=>tones.push(freq),
-  getInitialsInput:()=>initials,
   onCopyDebug:()=>layers.push('debug'),
   onResetSettingsUI:()=>layers.push('settings-ui-reset'),
   canInteract:()=>graphics.status==='ready'&&lifecycle?.canWork!==false,
@@ -84,7 +82,7 @@ function session(){
   ])
  });
  return {game,storage,saved,settings,actions,screens,lifecycle,graphics,
-  emit,canvasListeners,initials,events,tones,transitions,layers,cleaned,
+  emit,canvasListeners,events,tones,transitions,layers,cleaned,
   get clearActive(){return clearActive;},
   clearFlash(){clearActive=false;}
  };
@@ -170,24 +168,23 @@ test('background, bfcache and WebGL interruption never resume gameplay invisibly
  assert.equal(s.lifecycle.dispose(),false);
 });
 
-test('qualifying game over, score entry and persistence survive a session reset',()=>{
+test('one device-local personal record is saved on game over and survives restart',()=>{
  const s=session();s.actions.perform('start');
- s.game.score=1000;
+ s.game.score=1000;s.game.lines=18;s.game.level=2;
  s.game.board[0][4]='Z';
  s.game.spawn('O');
  assert.equal(s.game.status,'over');
  s.actions.onGameOver();
- assert.equal(s.screens.active,'entry');
- s.initials.value='MRC';
- s.actions.saveScore();
- assert.equal(s.screens.isScores,true);
- assert.equal(Scores.read(s.storage)[0].name,'MRC');
- assert.equal(Scores.read(s.storage)[0].score,1000);
- assert.equal(s.settings.readInitials(),'MRC');
+ assert.equal(s.screens.active,null,'no score-entry overlay');
+ assert.deepEqual(Scores.read(s.storage),{score:1000,lines:18,level:2,at:5000});
+ assert.equal(s.saved.has(Scores.OLD_TOP_FIVE),false);
  s.actions.restart();
  assert.equal(s.game.status,'playing');
  assert.equal(s.game.score,0);
  assert.equal(s.screens.hasModal,false);
- assert.equal(Scores.read(s.storage)[0].score,1000);
+ assert.equal(Scores.read(s.storage).score,1000);
+ s.actions.dispatch('pause');
+ s.actions.dispatch('scores');
+ assert.equal(s.screens.isScores,true);
  s.lifecycle.dispose();
 });

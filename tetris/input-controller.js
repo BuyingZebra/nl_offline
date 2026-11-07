@@ -4,7 +4,7 @@ import {findRegionAt,sliderValueAt} from './ui-controls.js?v065';
  * go through injected callbacks. A controller owns the repeat timers and
  * active pointer so they can be cancelled safely on modal transitions.
  */
-export function createInputController({screen,document,window,initialsInput,
+export function createInputController({screen,document,window,
  getViewport,getRegions,getModal,getModalView,getOptionsScroll,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
@@ -149,7 +149,6 @@ const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
  KeyP:'pause',Escape:'pause'};
 listen(document,'keydown',e=>{
  if(disposed||!canInteract())return;
- if(document.activeElement===initialsInput)return;
  if(getModal()){
   if(e.code==='Escape'){e.preventDefault();openModal(null);}
   return;

@@ -18,17 +18,17 @@ import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layer
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
-import {createModalUI} from './modal-ui.js?v107';
+import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v115';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
-import {createScreenManager} from './screen-manager.js?v086';
-import {createActionController} from './action-controller.js?v089';
+import {createScreenManager} from './screen-manager.js?v123';
+import {createActionController} from './action-controller.js?v123';
 import {createGraphicsHealth} from './graphics-health.js?v089';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
-const safeProbe=document.getElementById('safeArea'),initialsInput=document.getElementById('initials');
+const safeProbe=document.getElementById('safeArea');
 const fatal=document.getElementById('error');
 if(!Core?.Game||!Scores){fatal.hidden=false;fatal.textContent='Tetris core missing';throw Error('Tetris core missing');}
 const ScreenLayout=window.FieldAtlasTetrisLayout;
@@ -255,7 +255,7 @@ const screenManager=createScreenManager({
   invalidate();
  }
 });
-// All game commands, menu actions and score-entry coordination are delegated.
+// Game commands and personal-best updates are delegated.
 // UI and render adapters remain here; the controller never paints.
 const actions=createActionController({
  game,scores:Scores,storage:window.localStorage,settings,screens:screenManager,
@@ -264,20 +264,10 @@ const actions=createActionController({
  markLayers:(...names)=>layers.mark(...names),
  invalidate:()=>invalidate(),
  tone:(freq,len)=>tone(freq,len),
- getInitialsInput:()=>initialsInput,
  onCopyDebug:()=>copyDebugReport(),
  onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
  canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
-function onInitialsInput(){
- initialsInput.value=initialsInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
- invalidate();
-}
-function onInitialsKeydown(e){
- if(e.key==='Enter'){e.preventDefault();actions.saveScore();}
-}
-initialsInput.addEventListener('input',onInitialsInput);
-initialsInput.addEventListener('keydown',onInitialsKeydown);
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
  getButtonPower:r=>buttonSparks.find(s=>s.x===r.x&&s.y===r.y&&
@@ -487,7 +477,7 @@ function paintBoardLayer(){
 }
 // Keep all original drawing commands and labels; only their render target changes.
 const {drawSidebar,drawControls}=createHudDrawing({
- panel,text,rect,key,smallPiece,getGame:()=>game,getHighs:()=>actions.highs,
+ panel,text,rect,key,smallPiece,getGame:()=>game,
  C,UI_SPACE,fmt
 });
 // Cached opaque crops cover stale duplicates on the full-screen base. The
@@ -622,7 +612,7 @@ const modalUI=createModalUI({
  getFX:()=>settings.effects,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
  settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
  invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
- getHighs:()=>actions.highs,getGame:()=>game,getInitialsInput:()=>initialsInput,
+ getBest:()=>actions.best,getGame:()=>game,
  getModal:()=>screenManager.active
 });
 function createDebugReport(){
@@ -680,7 +670,7 @@ function paintModalOverlay(){
  perf.textureChanged('modal');
 }
 inputController=createInputController({
- screen,document,window,initialsInput,
+ screen,document,window,
  getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
  getModal:()=>screenManager.active,getModalView:()=>modalUI.view,
  getOptionsScroll:()=>modalUI.scroll,setOptionsScroll:v=>{modalUI.scroll=v;},
@@ -768,6 +758,7 @@ function frame(now){
   if(visualChanged){
    layers.mark('board');
    // Ordinary gravity shifts only the board, not the surrounding UI.
+   if(game.score!==prior.score)actions.observeScore();
    if(game.score!==prior.score||game.lines!==prior.lines||
     game.level!==prior.level)layers.mark('controls');
    if(game.pieces!==prior.pieces||game.hold!==prior.hold||
@@ -889,8 +880,6 @@ appLifecycle=createAppLifecycle({
   ['animation',cancelPendingFrame],
   ['game-observer',unsubscribeGameEvents],
   ['input',()=>inputController?.dispose()],
-  ['initials-input',()=>initialsInput.removeEventListener('input',onInitialsInput)],
-  ['initials-keydown',()=>initialsInput.removeEventListener('keydown',onInitialsKeydown)],
   ['vector-tiles',()=>vectorTiles.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
   ['platform',()=>platform.stop()],

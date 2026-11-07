@@ -27,7 +27,7 @@ export function fitPreviewCells(shape,x,y,w,h,role='next'){
  }));
 }
 
-export function createHudDrawing({panel,text,rect,key,smallPiece,getGame,getHighs,
+export function createHudDrawing({panel,text,rect,key,smallPiece,getGame,
  C,UI_SPACE,fmt}){
 function drawSidebar(r){
  const game=getGame();

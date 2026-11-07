@@ -1,4 +1,4 @@
-/* NOMAD Tetris V088 — application actions and event coordination.
+/* NOMAD Tetris V123 — application actions and event coordination.
  * No Canvas, WebGL, browser events, input geometry, or layout ownership.
  * This module maps user/game actions to the existing game, screen, settings
  * and score services through explicit adapters. V087 behaviour is retained.
@@ -14,26 +14,29 @@ const BLOCKED_DURING_LINE_CLEAR=new Set([
 export function createActionController({
  game,scores,storage,settings,screens,
  getLineClearActive,clearLineClear,markLayers,invalidate,tone,
- getInitialsInput,onCopyDebug,onResetSettingsUI,
+ onCopyDebug,onResetSettingsUI,
  canInteract=()=>true,now=()=>Date.now()
 }){
  if(!game||!scores||!settings||!screens||
     typeof getLineClearActive!=='function'||
     typeof clearLineClear!=='function'||typeof markLayers!=='function'||
     typeof invalidate!=='function'||typeof tone!=='function'||
-    typeof getInitialsInput!=='function'||
     typeof onCopyDebug!=='function'||typeof onResetSettingsUI!=='function')
   throw new TypeError('Application Actions require game, screen and UI adapters');
 
- let highs=scores.read(storage),overOffered=false;
+ let best=scores.read(storage);
 
+ // Save new personal records as soon as the score improves, rather than
+ // requiring initials or waiting for GAME OVER. Ties keep prior metadata.
+ function observeScore(){
+  const previous=best;
+  best=scores.update(storage,best,{
+   score:game.score,lines:game.lines,level:game.level,at:now()
+  });
+  return best!==previous;
+ }
  function onGameOver(){
-  if(game.status!=='over'||overOffered)return;
-  overOffered=true;
-  if(scores.qualifies(highs,game.score)){
-   getInitialsInput().value=settings.readInitials();
-   screens.openHighScoreEntry();
-  }
+  if(game.status==='over')observeScore();
  }
 
  function perform(type){
@@ -58,11 +61,11 @@ export function createActionController({
    if(game.pieces!==pieces||game.hold!==held)markLayers('sidebar');
    if(game.score!==score||game.lines!==lines)markLayers('controls');
    if(game.status!==was)markLayers('base');
-   if(was==='over'&&game.status==='playing')overOffered=false;
    if(game.lines>lines)tone(610,.14);
    else if(game.pieces>pieces)tone(175);
    else if(type==='cw')tone(305);
    else if(type==='hold')tone(265);
+   if(game.score!==score)observeScore();
    onGameOver();invalidate();
   }
   return ok;
@@ -70,21 +73,11 @@ export function createActionController({
 
  function restart(){
   if(!canInteract())return;
+  observeScore();
   clearLineClear();
   game.reset();game.start();
   markLayers('board','sidebar','controls','base');
-  overOffered=false;
   screens.close();invalidate();
- }
-
- function saveScore(){
-  if(!canInteract())return;
-  const input=getInitialsInput(),tag=scores.initials(input.value);
-  highs=scores.save(storage,scores.add(highs,{
-   name:tag,score:game.score,lines:game.lines,level:game.level,at:now()
-  }));
-  settings.saveInitials(tag);
-  input.blur();markLayers('sidebar');screens.openScores();
  }
 
  function setSetting(key,value){
@@ -106,9 +99,6 @@ export function createActionController({
   }
   if(action==='restart'){screens.requestRestart();return;}
   if(action==='restartYes'){restart();return;}
-  if(action==='skipScore'){getInitialsInput().blur();screens.close();return;}
-  if(action==='saveScore'){saveScore();return;}
-  if(action==='typeInitials'){getInitialsInput().focus();return;}
   if(action==='resetFX'){
    settings.restoreDefaults();onResetSettingsUI();
    markLayers('base');invalidate();return;
@@ -117,7 +107,7 @@ export function createActionController({
  }
 
  return Object.freeze({
-  perform,dispatch,restart,saveScore,onGameOver,setSetting,
-  get highs(){return highs;}
+  perform,dispatch,restart,observeScore,onGameOver,setSetting,
+  get best(){return best;}
  });
 }

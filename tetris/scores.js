@@ -1,48 +1,69 @@
-/* FIELD ATLAS / ARCADE — persisted, device-local top-five Tetris scores. */
-(function (root, factory) {
-  const api=factory();
-  if(typeof module==='object'&&module.exports)module.exports=api;
-  if(root)root.FieldAtlasScores=api;
+/* NOMAD V123 — one device-local personal best, with non-destructive
+ * migration from the former top-five leaderboard and legacy numeric best.
+ * No accounts, initials or network calls. Storage errors never stop gameplay.
+ */
+(function(root,factory){
+ const api=factory();
+ if(typeof module==='object'&&module.exports)module.exports=api;
+ if(root)root.FieldAtlasScores=api;
 })(typeof window!=='undefined'?window:(typeof globalThis!=='undefined'?globalThis:null),function(){
-  'use strict';
-  const KEY='fieldAtlasTetrisTopFiveV01',LEGACY='fieldAtlasTetrisBest';
-  const LIMIT=5;
-  const clampInt=(n)=>Number.isFinite(Number(n))?Math.max(0,Math.floor(Number(n))):0;
-  function initials(s) {
-    return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'AAA';
-  }
-  function sanitize(input) {
-    if(!Array.isArray(input))return [];
-    return input.filter(v=>v&&typeof v==='object'&&Number.isFinite(Number(v.score))&&Number(v.score)>=0)
-      .map(v=>({name:initials(v.name),score:clampInt(v.score),
-        lines:clampInt(v.lines),level:clampInt(v.level),at:clampInt(v.at)}))
-      .sort((a,b)=>b.score-a.score||b.lines-a.lines||a.at-b.at)
-      .slice(0,LIMIT);
-  }
-  function qualifies(entries, score) {
-    const points=clampInt(score),list=sanitize(entries);
-    return points>0&&(list.length<LIMIT||points>list.at(-1).score);
-  }
-  function add(entries, entry) {
-    if(!qualifies(entries,entry&&entry.score))return sanitize(entries);
-    return sanitize([...sanitize(entries),entry]);
-  }
-  function read(storage) {
-    if(!storage)return [];
+ 'use strict';
+ const KEY='nomadTetrisPersonalBestV01';
+ const OLD_TOP_FIVE='fieldAtlasTetrisTopFiveV01';
+ const LEGACY='fieldAtlasTetrisBest';
+ const positive=n=>{
+  const value=Number(n);
+  return Number.isFinite(value)?Math.min(Number.MAX_SAFE_INTEGER,Math.max(0,Math.floor(value))):0;
+ };
+ function sanitize(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const score=positive(value.score);
+  if(!score)return null;
+  return Object.freeze({score,lines:positive(value.lines),
+   level:positive(value.level),at:positive(value.at)});
+ }
+ function better(a,b){
+  if(!a)return b;
+  if(!b)return a;
+  return b.score>a.score?b:a;
+ }
+ function read(storage){
+  if(!storage)return null;
+  try{
+   let result=null;
+   const raw=storage.getItem(KEY);
+   if(raw!==null){
+    try{result=sanitize(JSON.parse(raw));}catch(error){/* Legacy fallback below. */}
+   }
+   const old=storage.getItem(OLD_TOP_FIVE);
+   if(old!==null){
     try{
-      const raw=storage.getItem(KEY);
-      if(raw!==null) return sanitize(JSON.parse(raw));
-      const best=clampInt(storage.getItem(LEGACY));
-      return best>0?[{name:'OLD',score:best,lines:0,level:0,at:0}]:[];
-    }catch(e){return [];}
-  }
-  function save(storage,entries) {
-    const list=sanitize(entries);
-    try{
-      storage?.setItem(KEY,JSON.stringify(list));
-      storage?.setItem(LEGACY,String(list[0]?.score||0));
-    }catch(e){/* Private browsing may disable storage; gameplay continues. */}
-    return list;
-  }
-  return Object.freeze({KEY,LIMIT,initials,sanitize,qualifies,add,read,save});
+     const list=JSON.parse(old);
+     if(Array.isArray(list))
+      for(const entry of list)result=better(result,sanitize(entry));
+    }catch(error){/* Damaged old leaderboard. */}
+   }
+   const legacy=positive(storage.getItem(LEGACY));
+   result=better(result,legacy>0?sanitize({score:legacy}):null);
+   // A successful migration has no effect on the former backup records.
+   if(result&&(!raw||raw!==JSON.stringify(result))){
+    try{storage.setItem(KEY,JSON.stringify(result));}
+    catch(error){/* Read-only/private storage remains usable in memory. */}
+   }
+   return result;
+  }catch(error){return null;}
+ }
+ function save(storage,record){
+  const best=sanitize(record);
+  if(best)try{storage?.setItem(KEY,JSON.stringify(best));}
+  catch(error){/* Storage disabled; keep the current-session best. */}
+  return best;
+ }
+ function update(storage,current,candidate){
+  const existing=sanitize(current);
+  const incoming=sanitize(candidate);
+  return incoming&&(!existing||incoming.score>existing.score)?
+   save(storage,incoming):existing;
+ }
+ return Object.freeze({KEY,OLD_TOP_FIVE,LEGACY,sanitize,read,save,update});
 });

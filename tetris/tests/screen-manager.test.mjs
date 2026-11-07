@@ -76,19 +76,15 @@ test('restart confirmation is only accessible when gameplay is paused',()=>{
  assert.equal(h.screens.paintsModalLayer,true);
 });
 
-test('high-score entry appears over game over without changing game state',()=>{
+test('there is no initials-entry modal; one personal record uses the existing board overlay',()=>{
  const h=harness('over');
- assert.equal(h.screens.openHighScoreEntry(),true);
- assert.equal(h.screens.active,SCREENS.ENTRY);
- assert.equal(h.pauses,0);
+ assert.equal(SCREENS.ENTRY,undefined);
+ assert.equal(h.screens.openHighScoreEntry,undefined);
  h.screens.openScores();
  assert.equal(h.screens.active,SCREENS.SCORES);
  assert.equal(h.pauses,0);
- assert.deepEqual(h.transitions.map(x=>[x.from,x.to]),[
-  [null,'entry'],['entry','scores']
- ]);
+ assert.deepEqual(h.transitions.map(x=>[x.from,x.to]),[[null,'scores']]);
 });
-
 test('closing always returns to the existing gameplay status and clears overlay state',()=>{
  const h=harness('playing');
  h.screens.openOptions();

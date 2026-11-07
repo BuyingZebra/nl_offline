@@ -9,7 +9,7 @@ export function createModalUI({
  getViewport,layout,insets,clearRegions,getContext,
  panel,text,rect,region,key,buttonLight,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
  getFX,activeScanlinePreset,settingValue,chooseScanlineSetting,invalidate,setScrollVelocity,
- getHighs,getGame,getInitialsInput,getModal
+ getBest,getGame,getModal
 }){
  const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
  let modalView=null,optionsScroll=0,optionsMaxScroll=0;
@@ -24,7 +24,7 @@ function modalBounds(name){
  // Its title and fixed bottom control still respect the iPhone safe areas.
  if(name==='options')return {w:W,h:H,x:0,y:0,pad,gap,buttonH,
   safeTop:safe.top,safeBottom:safe.bottom};
- // In portrait the Top Five screen fills the game's physical playfield.
+ // The personal record fills the existing blurred playfield.
  // Unusually narrow landscape boards need a wider, legible overlay.
  if(name==='scores'){
   const b=layout(),narrow=b.boardW<205||b.boardH<310;
@@ -352,57 +352,42 @@ function drawOptions(q){
  // Keep scroll input and momentum; omit decorative scrollbar/row separators.
 }
 function drawScores(q){
- // Concept 1: Top Five in the existing playfield, grayscale source through CRT.
+ // One local personal record, displayed over the existing blurred playfield.
+ // Rendered as neutral grayscale for the unchanged green/amber CRT compositor.
  const {W,H}=getViewport(),{x,y,w,h,pad,gap}=q;
  clearRegions();region(0,0,W,H,'block');
  panel(x,y,w,h,5,null,C.border);
- const inner=w-2*pad,secondaryH=q.secondaryH,buttonW=w*UI_SPACE.overlayButtonWidthScale;
- const titleSize=Math.min(20,Math.max(15,w*.082));
- const titleH=titleSize+4,iconH=13,headerH=16;
- const rowH=Math.max(18,Math.min(42,
-  (h-2*pad-titleH-iconH-headerH-secondaryH-6*gap)/5));
- const contentH=titleH+iconH+headerH+5*rowH+secondaryH+6*gap;
- let top=y+Math.max(pad,(h-contentH)/2);
- text('HIGH SCORES',x+w/2,top+titleH/2,titleSize,C.bright,'center',inner);
- top+=titleH+gap;
- // Small custom winged-circle divider, with no coloured image or extra texture.
- const c=getContext(),cx=x+w/2,cy=top+iconH/2;
- rect(x+pad,cy-.5,inner*.30,1,C.border);
- rect(x+w-pad-inner*.30,cy-.5,inner*.30,1,C.border);
- c.save();c.strokeStyle=C.bright;c.lineWidth=1.25;
- c.beginPath();c.ellipse(cx,cy,4,4,0,0,Math.PI*2);c.stroke();c.restore();
- rect(cx-2,cy-2,4,4,C.bright);
- rect(cx-13,cy-2,7,1,C.bright);rect(cx+6,cy-2,7,1,C.bright);
- rect(cx-13,cy+1,7,1,C.border);rect(cx+6,cy+1,7,1,C.border);
- top+=iconH+gap;
- const ix=x+pad;
- // Centered chart columns; the ranking column needs no '#' heading.
- const centers={rank:ix+inner*.067,name:ix+inner*.255,
-  score:ix+inner*.532,lvl:ix+inner*.766,lines:ix+inner*.927};
- const headSize=Math.min(9,Math.max(7,w*.033)),headY=top+headerH/2;
- for(const [label,column] of [['NAME','name'],['SCORE','score'],
-  ['LVL','lvl'],['LINES','lines']])
-  text(label,centers[column],headY,headSize,C.weak,'center');
- top+=headerH;
- const entries=getHighs(),font=Math.min(10,Math.max(8,w*.039));
- // Single transparent chart outline with square outer corners.
- // Straight internal lines complete the square outline of all five rows.
- const tableH=5*rowH;
- panel(ix,top,inner,tableH,8,null,C.border);
- for(let i=1;i<5;i++)
-  rect(ix+1,top+i*rowH-.5,inner-2,1,C.border);
- for(let i=0;i<5;i++){
-  const s=entries[i],middle=top+(i+.5)*rowH;
-  const shade=i===0?C.bright:C.ink;
-  text(String(i+1),centers.rank,middle,font,C.weak,'center',Infinity,'terminal');
-  text(s?.name||'---',centers.name,middle,font,shade,'center',inner*.21,'terminal');
-  text(s?Number(s.score).toLocaleString('en-CA'):'—',
-   centers.score,middle,font,shade,'center',inner*.32,'terminal');
-  text(s?String(s.level):'-',centers.lvl,middle,font,C.weak,'center',Infinity,'terminal');
-  text(s?String(s.lines):'-',centers.lines,middle,font,C.weak,'center',Infinity,'terminal');
- }
- const by=top+tableH+2*gap,bx=x+(w-buttonW)/2;
- key('RETURN',bx,by,buttonW,secondaryH,'close',{light:true});
+ const best=getBest();
+ const inset=Math.max(12,pad*2),inner=w-2*inset;
+ const titleSize=Math.min(21,Math.max(15,w*.081));
+ const titleH=titleSize+10;
+ const rowH=Math.max(35,Math.min(51,h*.087));
+ const buttonH=q.secondaryH,buttonW=w*UI_SPACE.overlayButtonWidthScale;
+ const contentH=titleH+gap*3+3*rowH;
+ const top=y+Math.max(inset,(h-contentH-buttonH-gap*3)/2);
+ text('HIGH SCORE',x+w/2,top+titleH/2,titleSize,C.bright,'center',inner);
+ const rows=[
+  ['SCORE',String(best?.score??0).padStart(6,'0')],
+  ['LINES',String(best?.lines??0).padStart(2,'0')],
+  ['LEVEL',String(best?.level??0).padStart(2,'0')]
+ ];
+ const rowTop=top+titleH+gap*2;
+ const labelSize=Math.max(11,Math.min(14,w*.053));
+ const valueSize=Math.max(12,Math.min(16,w*.061));
+ rows.forEach(([label,value],i)=>{
+  const ry=rowTop+i*rowH;
+  const middle=ry+rowH*.39;
+  text(label,x+inset,middle,labelSize,C.ink,'left',inner*.43,'terminal');
+  text(value,x+w-inset,middle,valueSize,C.bright,'right',inner*.56,'terminal');
+  if(i<2){
+   const dividerY=ry+rowH-2;
+   // Thin dotted terminal separators, not the old ranking-table borders.
+   for(let dx=0;dx<inner;dx+=5)rect(x+inset+dx,dividerY,1.5,.8,C.border);
+  }
+ });
+ const bx=x+(w-buttonW)/2;
+ const by=Math.min(y+h-inset-buttonH,rowTop+3*rowH+gap*3);
+ key('RETURN',bx,by,buttonW,buttonH,'close',{light:true});
 }
 function drawRestart(q){
  modalPanel('START NEW GAME?',q);
@@ -411,26 +396,11 @@ function drawRestart(q){
  text('Your current game and score will be lost.',q.x+q.w/2,
   (bodyTop+footerY-q.gap)/2,10,C.weak,'center',q.w-2*q.pad);
 }
-function drawEntry(q){
- const game=getGame(),initialsInput=getInitialsInput();
- modalPanel('NEW HIGH SCORE',q);
- const {x,w,pad,gap,buttonH}=q;
- const top=modalBodyTop(q);
- panel(x+pad,top,w-2*pad,buttonH,8,C.button,C.border);
- text('YOUR SCORE: '+game.score.toLocaleString('en-CA'),x+w/2,top+buttonH/2,
-  12,C.bright,'center',w-4*pad,'terminal');
- const labelY=top+buttonH+gap;
- text('INITIALS / UP TO THREE',x+w/2,labelY+9,10,C.weak,'center',w-2*pad);
- const inputY=labelY+18+gap;
- key(initialsInput.value||'TAP TO ENTER',x+pad,inputY,w-2*pad,buttonH,'typeInitials');
- modalActionRow(q,[['SKIP','skipScore'],['SAVE SCORE','saveScore',true]]);
-}
 function paintModal(q){
  const modal=getModal();
  if(modal==='options')drawOptions(q);
  else if(modal==='scores')drawScores(q);
  else if(modal==='restart')drawRestart(q);
- else if(modal==='entry')drawEntry(q);
 }
 
  function resetSettings(){
