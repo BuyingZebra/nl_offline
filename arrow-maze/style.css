@@ -1,0 +1,45 @@
+:root{color-scheme:light;--bg:#f5eddc;--ink:#3a260f;--muted:#857b68;--dots:#e3cfb3;--line:#dcd4c5;--accent:#c07b3d;--blue:#4fa9ee;--glow:#ffb830;--danger:#c56050;--panel:#fbf5e9}
+:root.phosphor{color-scheme:dark;--bg:#0f1610;--ink:#a6db9e;--muted:#749074;--dots:#334735;--line:#2d4130;--accent:#95cb86;--blue:#66afac;--glow:#eabb5b;--danger:#ec7357;--panel:#182219}
+*,*::before,*::after{box-sizing:border-box}
+html{min-height:100%;background:var(--bg);overscroll-behavior-y:none}
+body{margin:0;min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--ink);font:400 16px/1.4 ui-rounded,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+button{font:inherit;cursor:pointer;touch-action:manipulation;-webkit-appearance:none;appearance:none}
+button:focus-visible,#board:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{width:min(100%,520px);margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 18px)}
+.top{display:grid;grid-template-columns:58px 1fr 112px;align-items:center;min-height:64px}
+.icon-button{width:44px;height:44px;display:grid;place-items:center;border:0;background:none;color:var(--muted);padding:5px;border-radius:12px}
+.icon-button svg{width:34px;height:34px;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.level-title{background:none;border:none;padding:0 4px;color:var(--accent);font-size:clamp(25px,6vw,34px);font-weight:760;letter-spacing:.035em;white-space:nowrap;text-align:center}
+.top-actions{display:flex;justify-content:flex-end;align-items:center;gap:4px}
+.rule{height:3px;background:var(--line);margin:7px 0 13px}
+.status-strip{min-height:65px;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.lives{display:flex;align-items:center;gap:8px}.drop{width:32px;height:40px;fill:var(--blue);transition:opacity .22s ease,transform .22s ease}.drop.lost{opacity:.14;transform:scale(.90)}.drop.just-lost{animation:life-pop .3s ease}
+@keyframes life-pop{50%{transform:translateY(5px) scale(.6)}}
+.status-right{display:flex;align-items:center;gap:8px}.remaining{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;font-weight:650}
+.hint-button{border:0;background:transparent;color:var(--muted);display:flex;align-items:center;flex-direction:column;justify-content:center;width:55px;height:62px;padding:0}
+.hint-button svg{width:39px;height:39px;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.hint-button span{font-size:9px;letter-spacing:.1em;font-weight:800;color:var(--accent);margin-top:-1px}
+.board-holder{position:relative;max-width:500px;width:100%;margin:16px auto 0;overflow:hidden;isolation:isolate}
+#board{display:block;width:100%;aspect-ratio:616 / 814;height:auto;touch-action:manipulation;cursor:pointer;user-select:none;-webkit-user-select:none}
+.board-loader{position:absolute;inset:0;display:grid;place-items:center;color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.1em;background:var(--bg);z-index:2}
+.board-loader[hidden],.overlay[hidden]{display:none!important}
+.no-script{position:absolute;top:25%;left:7%;width:86%;padding:12px;background:var(--panel);border:1px solid var(--accent);border-radius:10px;font-size:12px}
+.feedback{margin:3px 4px 12px;color:var(--muted);font-size:12px;letter-spacing:.02em;text-align:center;min-height:17px}
+.bottom-actions{display:flex;justify-content:center;gap:10px}
+.primary,.secondary{min-width:126px;min-height:43px;padding:10px 16px;border-radius:8px;border:1.5px solid var(--ink);font-size:12px;font-weight:750;letter-spacing:.085em}
+.primary{background:var(--ink);color:var(--bg)}.secondary{background:none;color:var(--ink)}
+.primary:active,.secondary:active,.icon-button:active,.hint-button:active{transform:scale(.97)}
+.footer{display:flex;justify-content:center;align-items:center;gap:7px;color:var(--muted);font-size:10px;letter-spacing:.08em;margin:17px 0 0;flex-wrap:wrap}
+.footer button{background:none;border:none;color:inherit;padding:2px;font-size:inherit;letter-spacing:inherit}
+.footer button span{text-decoration:underline;text-underline-offset:3px}
+.overlay{position:absolute;inset:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(5px);z-index:3;display:grid;place-items:center;padding:14px}
+.overlay-inner{background:var(--panel);border:2px solid var(--line);padding:22px 18px;border-radius:12px;text-align:center;width:min(100%,300px);box-shadow:0 12px 32px #24160812}
+.finish-icon{font-size:35px;color:var(--glow);line-height:1.1}.overlay h2{font-size:24px;color:var(--accent);margin:8px 0}.overlay p{font-size:14px;color:var(--muted);line-height:1.5;margin:0 0 18px}.overlay button{width:100%;margin-top:8px}.text-button{background:none;border:0;color:var(--muted);font-size:12px;padding:8px}
+dialog{border:1.5px solid var(--line);color:var(--ink);background:var(--bg);border-radius:15px;padding:0;width:min(calc(100vw - 28px),390px);box-shadow:0 18px 75px #0005;max-height:85dvh;overflow:auto}dialog::backdrop{background:#1c160b94}.settings-content{padding:22px;display:flex;flex-direction:column;gap:12px}.dialog-heading{display:flex;justify-content:space-between;align-items:center}.dialog-heading h2{margin:0;color:var(--accent);font-size:25px}.close{font-size:27px;border:none;background:none;color:var(--muted)}dialog p{font-size:13px;line-height:1.55;margin:0}dialog label{font-size:13px;font-weight:700}.toggle{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:7px 0}.toggle input{accent-color:var(--accent);width:20px;height:20px}.text-label{margin-top:5px}.code-row{display:flex;gap:8px}.code-row input{flex:1;min-width:0;border:1px solid var(--line);border-radius:7px;padding:8px 10px;background:var(--panel);color:var(--ink);font-size:15px}.code-row button{min-width:70px}.error{color:var(--danger)}.install-button{background:transparent;color:var(--accent);border:1px solid var(--accent);padding:10px;border-radius:8px;font-size:12px;font-weight:750;letter-spacing:.06em}.install-help{color:var(--muted)}.done-button{width:100%}
+@media(max-width:360px){.app{padding-left:7px;padding-right:7px}.top{grid-template-columns:44px 1fr 98px}.top-actions{gap:1px}.icon-button{width:43px}.drop{width:29px;height:38px}}
+@media(min-width:650px){.app{padding-top:28px;padding-bottom:34px}}
+@media(prefers-reduced-motion:reduce){.drop{transition:none}.primary:active,.secondary:active{transform:none}}
+
+/* Level 1 has a tighter playfield; advanced levels expand the canvas. */
+#board{outline-offset:0}
+.start-over{align-self:stretch;min-height:43px}

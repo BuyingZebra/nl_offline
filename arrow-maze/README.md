@@ -22,3 +22,14 @@ Mobile-first arrow-escape puzzle with head-first, winding-path animation and sol
 - `icons/`: install icons.
 
 This folder is independent of the repository's other NOMAD/FIELD ATLAS/Tetris projects.
+
+## Update: Progressive levels and touch controls
+
+- Level 1 begins with **3 straight arrows** on a smaller board. Levels add one arrow per level, up to 49 arrows at Level 47.
+- Larger grids, winding routes, and more blocking relationships arrive gradually. See `difficulty(level)` in `generator.js`.
+- Touch input uses the **nearest actual arrow segment**, with a finger-friendly 21 CSS-pixel hit radius (11 px for mouse) and press feedback.
+- The generator uses reverse construction, maintaining a solvable removal order.
+- Game code is separated into `generator.js`, `app.js`, and `style.css` for safer updates.
+- Existing saves from the former generator keep the level setting but reset removed arrows, since old piece IDs describe different layouts.
+- Settings includes **Start from Level 1**. Tap the level heading to jump to another level.
+- Service-worker cache upgrades are scoped to Arrow Maze and cannot delete caches for other apps.
