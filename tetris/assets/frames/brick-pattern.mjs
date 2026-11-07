@@ -1,25 +1,23 @@
-/* NOMAD V127 — one authored running-bond brick texture in pixel and vector form.
+/* NOMAD V128 — one authored running-bond brick texture in pixel and vector form.
  * Grayscale geometry only; the existing CRT compositor supplies phosphor tint.
  * Rails decorate the current board edges without changing grid/layout geometry.
  */
-export const BRICK_UNIT=Object.freeze({width:12,height:24,courses:4});
+export const BRICK_UNIT=Object.freeze({width:12,height:24,courses:2});
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const fmt=n=>Number(n.toFixed(3)).toString();
 const rgb=n=>'rgb('+n+','+n+','+n+')';
-// Four horizontal brick courses repeat seamlessly. Each alternate course
-// consists of two cut bricks, so the vertical joints are visibly staggered.
+// Two staggered brick courses span two game cells, keeping each face 10x10
+// source units just like the inset face of a 12x12 tetromino cell.
 const COURSES=Object.freeze([
  Object.freeze({y:1,bricks:Object.freeze([{x:1,w:10}])}),
- Object.freeze({y:7,bricks:Object.freeze([{x:-4,w:9},{x:6,w:9}])}),
- Object.freeze({y:13,bricks:Object.freeze([{x:1,w:10}])}),
- Object.freeze({y:19,bricks:Object.freeze([{x:-4,w:9},{x:6,w:9}])})
+ Object.freeze({y:13,bricks:Object.freeze([{x:-4,w:9},{x:6,w:9}])})
 ]);
 export function brickShapes(style='vector'){
  if(style!=='pixel'&&style!=='vector')throw new RangeError('Unknown brick style');
  const pixel=style==='pixel',layers=[];
  function add(x,y,w,h,shade){if(w>0&&h>0)layers.push(Object.freeze({x,y,w,h,shade}));}
  for(const course of COURSES)for(const {x,w} of course.bricks){
-  const y=course.y,h=4;
+  const y=course.y,h=10;
   // Face coordinates are identical in both artworks; only the bevel is finer
   // in the vector version. No gradients, radius, texture noise or runtime RNG.
   add(x,y,w,h,pixel?173:178);
@@ -38,16 +36,16 @@ export function renderBrickSVG(style='vector'){
  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 24" '+
   'width="12" height="24" shape-rendering="'+
   (style==='pixel'?'crispEdges':'geometricPrecision')+'" '+
-  'data-design="nomad-bricks-v127" data-style="'+style+'">\n'+
+  'data-design="nomad-bricks-v128" data-style="'+style+'">\n'+
   '<title>NOMAD staggered '+style+' brick rail</title>\n'+
   shapes.join('\n')+'\n</svg>\n';
 }
 export function brickRailGeometry(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  if(!(w>4&&h>0))return null;
- const width=clamp(w*.043,7,11);
- // Only use the established side gap; no layout position or gameplay cell
- // is resized. A few pixels of the decoration may overlap the outermost edge.
+ const width=(w-4)/10;
+ // Expand the authored brick size to the board cell scale, while clipping
+ // into the existing game area/sidebar gap without changing their layouts.
  const gap=Math.max(0,(r.sideX??x+w)-(x+w));
  const outerLeft=r.off+Math.max(3,(r.pad??11)-6);
  const leftSpace=Math.max(0,x-outerLeft-2);
@@ -90,8 +88,7 @@ export function createBrickFrame({
   const tile=stamp(g.width,style);if(!tile)return;
   const period=g.width*2;
   for(const rail of [g.left,g.right]){
-   const split=rail===g.left?g.boardLeft:g.boardRight;
-   const clipX=part==='inside'?
+    const clipX=part==='inside'?
     (rail===g.left?g.boardLeft:rail.x):
     (rail===g.left?rail.x:g.boardRight);
    const clipW=part==='inside'?g.inside:g.outside;
