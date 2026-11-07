@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "design": "NOMAD approved V118",
+  "source": "tetris/tile-face.js",
+  "source_kind": "deterministic grayscale masks",
+  "version": "1.0",
+  "note": "pixel SVGs are exact lossless exports of the seven V118 tile arrangements; smooth SVGs trace the same masks, round external contours and replace only original dark gravel/dot marks with circles. Both assets remain neutral grayscale; the CRT compositor supplies green/amber tint.",
+  "order": [
+    "I",
+    "O",
+    "T",
+    "S",
+    "Z",
+    "J",
+    "L"
+  ],
+  "pieces": {
+    "I": {
+      "name": "Continuous gravel",
+      "grid": [
+        4,
+        1
+      ],
+      "sourceSignature": "e36b726d",
+      "pixel": "pixel/I.svg",
+      "vector": "vector/I.svg",
+      "joins": "continuous strip (no seams)"
+    },
+    "O": {
+      "name": "Corner highlight",
+      "grid": [
+        1,
+        1
+      ],
+      "sourceSignature": "07a1e19f",
+      "pixel": "pixel/O.svg",
+      "vector": "vector/O.svg"
+    },
+    "T": {
+      "name": "Solid fill",
+      "grid": [
+        1,
+        1
+      ],
+      "sourceSignature": "99c7a755",
+      "pixel": "pixel/T.svg",
+      "vector": "vector/T.svg"
+    },
+    "S": {
+      "name": "Small dark center",
+      "grid": [
+        1,
+        1
+      ],
+      "sourceSignature": "8e460bc0",
+      "pixel": "pixel/S.svg",
+      "vector": "vector/S.svg"
+    },
+    "Z": {
+      "name": "Centered square",
+      "grid": [
+        1,
+        1
+      ],
+      "sourceSignature": "daa7d6f1",
+      "pixel": "pixel/Z.svg",
+      "vector": "vector/Z.svg"
+    },
+    "J": {
+      "name": "Sparse dots",
+      "grid": [
+        1,
+        1
+      ],
+      "sourceSignature": "efca11ff",
+      "pixel": "pixel/J.svg",
+      "vector": "vector/J.svg"
+    },
+    "L": {
+      "name": "Recessed square",
+      "grid": [
+        1,
+        1
+      ],
+      "sourceSignature": "6134c0ae",
+      "pixel": "pixel/L.svg",
+      "vector": "vector/L.svg"
+    }
+  }
+}

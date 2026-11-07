@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOMAD — Approved Tiles: Pixel / Smooth Comparison</title>
+<style>
+*{box-sizing:border-box}
+:root{color-scheme:dark;background:#060c08;color:#a6f2b5;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;--cell:25px}
+body{margin:0;padding:16px 14px 48px;background:radial-gradient(ellipse at top,#102817 0,#060c08 65%)}
+main{max-width:900px;margin:auto}
+h1{font-size:clamp(19px,4vw,27px);margin:7px 0 4px;letter-spacing:.12em}
+h2{font-size:15px;font-weight:600;margin:0}
+p{margin:0 0 14px;color:#8abf97}
+header{border-bottom:1px solid #42744a;padding-bottom:15px;margin-bottom:15px}
+nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+select{background:#122315;border:1px solid #4f8f60;color:inherit;padding:7px;font:inherit;border-radius:5px}
+.item{padding:13px 0;border-bottom:1px solid #285130}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.variant{border:1px solid #355d3a;padding:9px;border-radius:7px;background:#08120a;min-width:0}
+.kind{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;gap:6px}
+small{font-size:10px;color:#80ac88;text-transform:uppercase;letter-spacing:.12em}
+.swatch{display:flex;justify-content:center;align-items:center;min-height:84px;padding:9px;overflow:hidden}
+.swatch img{display:block;object-fit:contain}
+.piece{position:relative;display:grid;grid-template-columns:repeat(4,var(--cell));grid-template-rows:repeat(4,var(--cell));width:calc(4*var(--cell));height:calc(4*var(--cell));margin:0 auto;align-items:stretch}
+.piece img{height:var(--cell);width:var(--cell)}
+.piece img.strip{width:calc(4*var(--cell));height:var(--cell)}
+.tile-title{font-size:12px;color:#a9d9af;margin-bottom:3px}
+.compare-title{margin:14px 0 8px}
+nav label{font-size:12px;color:#afd5b4}
+body.green img.art{filter:sepia(1) saturate(4) hue-rotate(72deg)}
+body.amber img.art{filter:sepia(1) saturate(4) hue-rotate(339deg)}
+.note{font-size:11px;line-height:1.4;margin:8px 0}
+footer{color:#85b390;font-size:12px;margin-top:18px}
+@media(max-width:390px){:root{--cell:20px}.variant{padding:6px}.row{gap:8px}.swatch{min-height:74px;padding:4px}}
+</style></head>
+<body class="green"><main>
+<header>
+<small>NOMAD / Tetris System · Asset Comparison</small>
+<h1>Approved Patterns</h1>
+<p>Pixel originals and matching smooth geometric versions, generated from the same V118 source geometry.</p>
+<nav><label for="tint">Preview tint:</label>
+<select id="tint"><option value="green">Green phosphor approximation</option><option value="amber">Amber phosphor approximation</option><option value="neutral">Original grayscale source</option></select>
+</nav><p class="note">Tints are approximate. The actual game compositor remains responsible for CRT bloom, colour and persistence. This is an asset comparison, not the live game.</p>
+</header>
+<div class="row"><h2>Classic Pixel</h2><h2>Smooth Geometry</h2></div>
+<div id="content"></div>
+<footer>Nothing in the deployed gameplay renderer is changed by this asset library. The 4-cell I motif is always continuous.</footer>
+</main>
+<script>
+const shapes={
+ I:[[1,1,1,1]],O:[[1,1],[1,1]],T:[[0,1,0],[1,1,1]],
+ S:[[0,1,1],[1,1,0]],Z:[[1,1,0],[0,1,1]],
+ J:[[1,0,0],[1,1,1]],L:[[0,0,1],[1,1,1]]
+};
+function img(src,label){const im=document.createElement('img');im.className='art';im.src=src;im.alt=label;im.decoding='async';return im;}
+function piece(kind,style,manifest){
+ const holder=document.createElement('div');holder.className='piece';
+ const path=manifest.pieces[kind][style];
+ if(kind==='I'){const strip=img(path,kind+' continuous gravel strip');strip.classList.add('strip');holder.append(strip);return holder;}
+ shapes[kind].forEach((line,y)=>line.forEach((v,x)=>{
+  if(!v)return;const cell=img(path,kind+' motif');cell.style.gridColumn=String(x+1);cell.style.gridRow=String(y+1);holder.append(cell);
+ }));
+ return holder;
+}
+async function render(){
+ const response=await fetch('./manifest.json');
+ if(!response.ok)throw Error('Cannot load asset manifest');
+ const manifest=await response.json();
+ const root=document.getElementById('content');
+ for(const kind of manifest.order){
+  const group=document.createElement('section');group.className='item';
+  const title=document.createElement('div');title.className='tile-title';title.textContent=kind+' — '+manifest.pieces[kind].name;
+  const row=document.createElement('div');row.className='row';
+  for(const style of ['pixel','vector']){
+   const area=document.createElement('div');area.className='variant';
+   const cap=document.createElement('div');cap.className='kind';
+   cap.innerHTML='<small>'+ (style==='pixel'?'PIXEL':'SMOOTH VECTOR')+'</small>';
+   const swatch=document.createElement('div');swatch.className='swatch';
+   const preview=img(manifest.pieces[kind][style],kind+' '+style+' master');
+   if(kind==='I'){preview.style.width='min(100%,148px)';preview.style.height='40px';}
+   else{preview.style.width='62px';preview.style.height='62px';}
+   swatch.append(preview);
+   area.append(cap,swatch,piece(kind,style,manifest));row.append(area);
+  }
+  group.append(title,row);root.append(group);
+ }
+}
+document.getElementById('tint').addEventListener('change',e=>{document.body.className=e.target.value});
+render().catch(e=>{document.getElementById('content').textContent='Failed to display assets: '+String(e)});
+</script></body></html>
