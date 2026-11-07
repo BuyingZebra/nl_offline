@@ -33,3 +33,14 @@ This folder is independent of the repository's other NOMAD/FIELD ATLAS/Tetris pr
 - Existing saves from the former generator keep the level setting but reset removed arrows, since old piece IDs describe different layouts.
 - Settings includes **Start from Level 1**. Tap the level heading to jump to another level.
 - Service-worker cache upgrades are scoped to Arrow Maze and cannot delete caches for other apps.
+
+
+## V4 — Solvability and collision repair (2026-11-07)
+
+- Fixed Level 11 seed `11-1HSNS6X`: an arrowhead pointed into its own tail; the old generator wrongly allowed this, and other arrows then depended on it.
+- Both gameplay and generation now check collisions with the arrow's **own body**.
+- Independent `solveBoard` verifies a complete legal removal sequence before any generated board is shown.
+- Safety guard offers free **Repair Puzzle** if no legal arrow remains.
+- Preserves level, seed and appearance settings on v3→v4 upgrade, but restarts the current puzzle with three lives, since old piece IDs are incompatible.
+- V4 scripts are versioned and the offline service-worker cache is updated without touching other projects.
+- Verified 1,650 random boards; completed the screenshot seed through 13 real mobile-size taps; progressed to Level 12.

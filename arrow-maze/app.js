@@ -8,8 +8,10 @@ const coord=q=>[PAD+q[0]*STEP,PAD+q[1]*STEP];
 const els={level:$('level-title'),lives:$('lives'),remaining:$('remaining'),feedback:$('feedback'),loader:$('board-loader'),overlay:$('overlay'),overlayTitle:$('overlay-heading'),overlayDetail:$('overlay-detail'),overlayAction:$('overlay-action'),overlaySecondary:$('overlay-secondary'),settings:$('settings'),theme:$('theme'),animations:$('animations'),sounds:$('sounds'),seed:$('seed-label'),connection:$('connection')};
 let palette={};
 const prefersReduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
-const saved=(()=>{try{return JSON.parse(localStorage.getItem('arrow_maze_pwa_state_v3')||'null')}catch(e){return null}})();
+const saved=(()=>{try{return JSON.parse(localStorage.getItem('arrow_maze_pwa_state_v4')||'null')}catch(e){return null}})();
+const previousVersion=(()=>{try{return JSON.parse(localStorage.getItem('arrow_maze_pwa_state_v3')||'null')}catch(e){return null}})();
 const oldSettings=(()=>{try{return JSON.parse(localStorage.getItem('arrow_maze_pwa_state')||'null')}catch(e){return null}})();
+const migratedOldSave=!saved&&!!previousVersion;
 let installPrompt=null, audioCtx=null;
 const freshSeed=()=>{
   if(window.crypto?.getRandomValues){let a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]>>>0;}
@@ -24,6 +26,14 @@ if(saved&&typeof saved==='object'){
   if(typeof saved.motion==='boolean')game.motion=saved.motion;
   if(typeof saved.sound==='boolean')game.sound=saved.sound;
   if(saved.dark===true)document.documentElement.classList.add('phosphor');
+}else if(previousVersion&&typeof previousVersion==='object'){
+  // The collision rules changed, so previous removed IDs cannot be reused.
+  // Keep level/seed/preferences but restart the repaired level with 3 drops.
+  if(Number.isInteger(previousVersion.level)&&previousVersion.level>=1&&previousVersion.level<=9999)game.level=previousVersion.level;
+  if(Number.isInteger(previousVersion.seed)&&previousVersion.seed>=0&&previousVersion.seed<=4294967295)game.seed=previousVersion.seed>>>0;
+  if(previousVersion.dark===true)document.documentElement.classList.add('phosphor');
+  if(typeof previousVersion.motion==='boolean')game.motion=previousVersion.motion;
+  if(typeof previousVersion.sound==='boolean')game.sound=previousVersion.sound;
 }else if(oldSettings&&typeof oldSettings==='object'){
   // The generator changed: do not apply old removed-arrow IDs to a different puzzle.
   if(Number.isInteger(oldSettings.level)&&oldSettings.level>=1&&oldSettings.level<=9999)game.level=oldSettings.level;
@@ -34,7 +44,7 @@ if(saved&&typeof saved==='object'){
 els.animations.checked=game.motion;
 els.sounds.checked=game.sound;
 const code=()=>game.level+'-'+game.seed.toString(36).toUpperCase();
-function persist(){try{localStorage.setItem('arrow_maze_pwa_state_v3',JSON.stringify({level:game.level,seed:game.seed,removed:[...game.removed],lives:game.lives,motion:game.motion,sound:game.sound,dark:document.documentElement.classList.contains('phosphor')}))}catch(e){}}
+function persist(){try{localStorage.setItem('arrow_maze_pwa_state_v4',JSON.stringify({level:game.level,seed:game.seed,removed:[...game.removed],lives:game.lives,motion:game.motion,sound:game.sound,dark:document.documentElement.classList.contains('phosphor')}))}catch(e){}}
 function feedback(text){els.feedback.textContent=text;}
 function refreshUI(){
   els.level.textContent='Level '+game.level;
@@ -161,6 +171,7 @@ function loop(t,epoch){
       const left=game.pieces.length-game.removed.size;
       feedback(left?`Arrow escaped · ${left} remaining`:'All arrows escaped!');
       if(left===0)showResult('win');
+      else if(!activePieces().some(eligible))showResult('repair');
     }else requestAnimationFrame(v=>loop(v,epoch));
   }else if(game.blocked){
     if(t-game.blocked.start>=330){
@@ -186,6 +197,7 @@ function choose(id){
   if(!game.ready||game.lives<=0||game.animating||game.blocked||!els.overlay.hidden)return;
   const p=game.pieces.find(x=>x.id===id&&!game.removed.has(id));
   if(!p)return;
+  if(!activePieces().some(eligible)){showResult('repair');return;}
   game.hint=0;
   if(!eligible(p)){
     const epoch=++game.epoch;
@@ -256,13 +268,13 @@ canvas.addEventListener('keydown',e=>{
   if(e.key==='Enter'||e.key===' '){e.preventDefault();const p=activePieces().find(eligible);if(p)choose(p.id);}
 });
 function showResult(type){
-  const won=type==='win';
+  const won=type==='win',repair=type==='repair';
   els.overlay.hidden=false;
-  $('finish-icon').textContent=won?'✦':'↶';
-  els.overlayTitle.textContent=won?'Level complete!':'Out of drops';
-  els.overlayDetail.textContent=won?`You cleared all ${game.pieces.length} arrows. Ready for Level ${game.level+1}?`:'A complete solution exists. Try this same layout again.';
-  els.overlayAction.textContent=won?'NEXT LEVEL':'RETRY LEVEL';
-  els.overlayAction.onclick=()=>won?nextLevel():retry();
+  $('finish-icon').textContent=won?'✦':repair?'⚙':'↶';
+  els.overlayTitle.textContent=won?'Level complete!':repair?'Puzzle needs repair':'Out of drops';
+  els.overlayDetail.textContent=won?`You cleared all ${game.pieces.length} arrows. Ready for Level ${game.level+1}?`:repair?'No arrow has a clear escape. This should never happen. You can repair the puzzle for free without losing your level.':'A complete solution exists. Try this same layout again.';
+  els.overlayAction.textContent=won?'NEXT LEVEL':repair?'REPAIR PUZZLE':'RETRY LEVEL';
+  els.overlayAction.onclick=()=>won?nextLevel():repair?newMaze():retry();
   els.overlaySecondary.textContent=won?'NEW MAZE':'NEW MAZE';
   els.overlaySecondary.onclick=()=>newMaze();
   if(won)playTone('win');
@@ -282,13 +294,19 @@ function start(level,seed,restore=false){
     try{
       game.pieces=generate(game.level,game.seed);
       if(!game.pieces.length)throw new Error('No arrows generated');
+      const result=solveBoard(game.pieces);
+      if(!result.ok)throw new Error('Puzzle validation failed: '+result.reason);
       const available=new Set(game.pieces.map(p=>p.id));
       game.removed=new Set([...game.removed].filter(id=>available.has(id)));
+      // Validate saved partial board too. A damaged save is restarted safely.
+      const partial=activePieces();
+      const repaired=partial.length&&!solveBoard(partial).ok;
+      if(repaired){game.removed.clear();game.lives=3;}
       game.ready=true;els.loader.hidden=true;resize();refreshUI();persist();
       const remaining=game.pieces.length-game.removed.size;
       if(remaining===0)showResult('win');
       else if(game.lives===0)showResult('loss');
-      else feedback(game.level<=3?`${remaining} arrows · tap any line to clear it`:`${remaining} arrows · ${difficulty(game.level).label.toLowerCase()} puzzle`);
+      else feedback(repaired?'Invalid saved position repaired. Your level was kept.':(migratedOldSave?'Puzzle updated: self-blocking arrows fixed, level restarted.':game.level<=3?`${remaining} arrows · tap any line to clear it`:`${remaining} arrows · ${difficulty(game.level).label.toLowerCase()} puzzle`));
     }catch(e){
       els.loader.textContent='LEVEL COULD NOT LOAD';feedback('Game startup error: '+e.message);
       console.error('Arrow Maze failed to initialize',e);
@@ -356,7 +374,7 @@ if(new URLSearchParams(location.search).has('test')){
   window.__arrowMazeDebug={
     state:()=>({level:game.level,seed:game.seed,lives:game.lives,ready:game.ready,remaining:activePieces().length,total:game.pieces.length,cols:MC,rows:MR,animating:!!game.animating,overlay:!els.overlay.hidden}),
     arrows:()=>activePieces().map(p=>({id:p.id,dir:p.dir,points:p.points,eligible:eligible(p)})),
-    choose,hitTest,boardPoint,
+    choose,hitTest,boardPoint,validate:()=>solveBoard(activePieces()),
     reset:retry,
     start
   };

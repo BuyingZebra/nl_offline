@@ -1,5 +1,5 @@
-const CACHE='arrow-maze-pwa-v3';
-const ASSETS=['./','./index.html','./app.js','./generator.js','./style.css','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
+const CACHE='arrow-maze-pwa-v4';
+const ASSETS=['./','./index.html','./app.js?v=4','./generator.js?v=4','./style.css?v=4','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });

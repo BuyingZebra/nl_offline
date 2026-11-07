@@ -20,7 +20,20 @@ function hash(x,y,seed){let v=(Math.imul(x,374761393)+Math.imul(y,668265263)+Mat
 function vnoise(x,y,s){const xx=Math.floor(x),yy=Math.floor(y);let fx=x-xx,fy=y-yy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);return (hash(xx,yy,s)*(1-fx)+hash(xx+1,yy,s)*fx)*(1-fy)+(hash(xx,yy+1,s)*(1-fx)+hash(xx+1,yy+1,s)*fx)*fy;}
 function fbm(x,y,s){return .57*vnoise(x,y,s)+.29*vnoise(x*2.13,y*2.13,s+291)+.14*vnoise(x*4.39,y*4.39,s+732);}
 function occupiedOf(pcs){const res=new Set();for(const p of pcs)for(const pt of p.points)res.add(idx(pt[0],pt[1]));return res;}
-function canEscape(p,ob){const d=DIRS[p.dir],h=p.points[p.points.length-1];let x=h[0]+d[0],y=h[1]+d[1];while(within(x,y)){if(ob.has(idx(x,y)))return false;x+=d[0];y+=d[1];}return true;}
+// Collisions include the arrow's OWN tail. The arrowhead must travel straight to
+// the edge without passing through any occupied cell, including its own body.
+function canEscape(p,ob){
+  if(!p || !Array.isArray(p.points) || p.points.length<2 || !DIRS[p.dir]) return false;
+  const own=new Set(p.points.slice(0,-1).map(q=>idx(q[0],q[1])));
+  const d=DIRS[p.dir],h=p.points[p.points.length-1];
+  let x=h[0]+d[0],y=h[1]+d[1];
+  while(within(x,y)){
+    const k=idx(x,y);
+    if(own.has(k)||ob.has(k))return false;
+    x+=d[0];y+=d[1];
+  }
+  return true;
+}
 function sweep(p){const r=new Set(),d=DIRS[p.dir],h=p.points[p.points.length-1];let x=h[0]+d[0],y=h[1]+d[1];while(within(x,y)){r.add(idx(x,y));x+=d[0];y+=d[1];}return r;}
 function arrow(rand,seed,stage,profile){
   const x=Math.floor(1+rand()*(MC-2)),y=Math.floor(1+rand()*(MR-2));
@@ -55,6 +68,45 @@ function arrow(rand,seed,stage,profile){
     }
   }
   return {id:0,dir,points:points.reverse()};
+}
+// Independent whole-board validator. Unlike the generator's candidate check,
+// this evaluates the complete final board and actually peels pieces away.
+// Any valid move on a solved board must leave another solved board: removing
+// obstacles never introduces a collision.
+function solveBoard(pieces){
+  if(!Array.isArray(pieces)||pieces.length===0)return {ok:false,sequence:[],reason:'empty'};
+  const pending=pieces.slice(),cells=new Set(),ids=new Set();
+  for(const p of pending){
+    if(ids.has(p.id)||!DIRS[p.dir]||!Array.isArray(p.points)||p.points.length<2) return {ok:false,sequence:[],reason:'invalid piece'};
+    ids.add(p.id);
+    const local=new Set();
+    for(let i=0;i<p.points.length;i++){
+      const [x,y]=p.points[i];
+      if(!Number.isInteger(x)||!Number.isInteger(y)||!within(x,y)) return {ok:false,sequence:[],reason:'off board'};
+      const k=idx(x,y);
+      if(cells.has(k)||local.has(k))return {ok:false,sequence:[],reason:'overlapping path'};
+      cells.add(k);local.add(k);
+      if(i){const q=p.points[i-1];if(Math.abs(x-q[0])+Math.abs(y-q[1])!==1)return {ok:false,sequence:[],reason:'disconnected path'};}
+    }
+  }
+  const sequence=[];
+  while(pending.length){
+    let choice=-1;
+    for(let i=0;i<pending.length;i++){
+      const p=pending[i],d=DIRS[p.dir],h=p.points[p.points.length-1];
+      let x=h[0]+d[0],y=h[1]+d[1],clear=true;
+      while(within(x,y)){
+        if(cells.has(idx(x,y))){clear=false;break;}
+        x+=d[0];y+=d[1];
+      }
+      if(clear){choice=i;break;}
+    }
+    if(choice<0)return {ok:false,sequence,reason:'deadlock at '+pending.length+' arrows'};
+    const [done]=pending.splice(choice,1);
+    sequence.push(done.id);
+    for(const q of done.points)cells.delete(idx(q[0],q[1]));
+  }
+  return {ok:true,sequence,reason:null};
 }
 function generateOnce(level,seed,profile){
   const rand=rng((seed^Math.imul(level,2654435761))>>>0);
@@ -98,9 +150,13 @@ function generate(level,seed){
   for(let attempt=0;attempt<8;attempt++){
     const salt=attempt===0?seed:(seed^Math.imul(attempt,0x9e3779b1))>>>0;
     const result=generateOnce(level,salt,profile);
+    // Never publish an unverified board, even if a future generator change
+    // accidentally violates the reverse-construction invariant.
+    const check=result.length?solveBoard(result):{ok:false};
+    if(!check.ok)continue;
     if(result.length>best.length)best=result;
     if(best.length>=desired)return best;
   }
   return best;
 }
-if(typeof module!=='undefined'&&module.exports)module.exports={generate,canEscape,occupiedOf,difficulty,within,idx,getDimensions:()=>({cols:MC,rows:MR})};
+if(typeof module!=='undefined'&&module.exports)module.exports={generate,canEscape,occupiedOf,difficulty,within,idx,solveBoard,getDimensions:()=>({cols:MC,rows:MR})};
