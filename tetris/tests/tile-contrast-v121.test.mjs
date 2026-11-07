@@ -77,15 +77,21 @@ test('I gravel remains fixed when original four-block strip is fragmented',()=>{
 test('I-piece highlight is replaced with a same-position inset shadow',()=>{
  const faces=shapes(renderSmoothTileSVG('I'));
  assert.equal(faces[0],'<rect x="1" y="1" width="46" height="10" fill="rgb(164,164,164)"/>');
- assert.equal(faces[1],'<rect x="1" y="1" width="46" height="1" fill="rgb(119,119,119)"/>');
- assert.equal(faces[2],'<rect x="1" y="1" width="1" height="10" fill="rgb(119,119,119)"/>');
+ assert.equal(faces[1],'<rect x="1" y="1" width="46" height="1" fill="rgb(77,77,77)"/>');
+ assert.equal(faces[2],'<rect x="1" y="1" width="1" height="10" fill="rgb(77,77,77)"/>');
  assert.equal(grayscale(faces[3]),152);
  assert.equal(grayscale(faces[4]),149);
  for(let offset=0;offset<4;offset++)for(let length=1;length<=4-offset;length++){
   const parts=shapes(renderIFragmentSVG({sourceOffset:offset,length}));
-  assert.equal(grayscale(parts[1]),119);
-  assert.equal(grayscale(parts[2]),119);
+  assert.equal(grayscale(parts[1]),77);
+  assert.equal(grayscale(parts[2]),77);
   assert.equal(parts[1].match(/x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/)[0],
    'x="1" y="1" width="'+(length*12-2)+'" height="1"');
  }
+});
+
+test('the preserved I shadow is 35 percent darker than the prior V125 value',()=>{
+ const prior=119,current=77;
+ assert.equal(Math.round(prior*.65),current);
+ assert.ok(current<prior);
 });

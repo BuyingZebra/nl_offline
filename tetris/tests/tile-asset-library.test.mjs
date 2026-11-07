@@ -134,7 +134,7 @@ test('all sixteen I deletion masks are supported in either orientation',()=>{
 });
 test('the comparison page contains a functional original-cell masking control',()=>{
  const html=fs.readFileSync(path.join(root,'compare.html'),'utf8');
- assert.match(html,/import \{renderIStateSVG,IFragmentRuns\} from '\.\/smooth-geometry\.mjs\?v125'/);
+ assert.match(html,/import \{renderIStateSVG,IFragmentRuns\} from '\.\/smooth-geometry\.mjs\?v126'/);
  assert.match(html,/checks\.reduce\(\(n,ch,i\)=>n\|\(ch\.checked\?1<<i:0\),0\)/);
  assert.match(html,/const xml=renderIStateSVG\(mask,o\)/);
  assert.doesNotMatch(html,/core\.js|three-v027\.js|localStorage|serviceWorker/);

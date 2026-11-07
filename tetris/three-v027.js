@@ -4,7 +4,7 @@
  */
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
-import {createVectorTileRenderer} from './vector-tile-renderer.js?v125';
+import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v107';
@@ -533,7 +533,7 @@ function paintBaseGame(){
  text('NOMAD',titleX,r.hy+r.hh/2-9,
   r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
   C.ink,'left',titleWidth);
- text('Tetris System',titleX,r.hy+r.hh/2+11,
+ text('TETRIS SYSTEM',titleX,r.hy+r.hh/2+11,
   10,C.weak,'left',titleWidth);
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');

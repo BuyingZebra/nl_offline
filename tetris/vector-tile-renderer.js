@@ -5,7 +5,7 @@
  * from the same authored SVG geometry with original source coordinates.
  * Pixel renderer is a resilient fallback while SVG images finish loading.
  */
-import {renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v125';
+import {renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 import {drawTileFace,drawIFragment as drawPixelIFragment} from './tile-face.js?v120';
 
 const KINDS=Object.freeze(['I','J','L','O','S','T','Z']);
@@ -34,7 +34,7 @@ export function createVectorTileRenderer({
  const MAX_RASTERS=128;
  const sendReady=()=>{if(!disposed)onReady();};
  function spriteSource(key){
-  if(key.length===1||key==='I:0:4:0')return assetPrefix+key[0]+'.svg?v125';
+  if(key.length===1||key==='I:0:4:0')return assetPrefix+key[0]+'.svg?v126';
   const [,offset,length,rotation]=key.split(':').map((n,i)=>i?Number(n):n);
   const svg=renderIFragmentSVG({sourceOffset:offset,length,rotation});
   return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);

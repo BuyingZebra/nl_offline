@@ -1,4 +1,4 @@
-/* NOMAD Tetris V125 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V126 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * once those clients close. Never skipWaiting or mix cache generations.
  */
 'use strict';
-const CACHE_VERSION='v125';
+const CACHE_VERSION='v126';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
