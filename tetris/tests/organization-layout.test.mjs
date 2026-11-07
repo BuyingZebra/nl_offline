@@ -112,7 +112,7 @@ test('approved 6 game controls retain button arrangement and positions',()=>{
 test('the existing fonts, game-board renderer and footer wording are retained',()=>{
  const source=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  assert.match(source,/text\('NOMAD'/);
- assert.match(source,/text\('Tetris System'/);
+ assert.match(source,/text\('TETRIS SYSTEM'/);
  assert.match(source,/Program: Three\.JS/);
  assert.match(source,/version: '\+THREE_BUILD_VERSION/);
  assert.match(source,/ruleStart,r\.footerY-\.5/);
