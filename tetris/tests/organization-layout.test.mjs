@@ -35,11 +35,11 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
  assert.deepEqual(painted.text.map(t=>t[0]),
   ['NEXT','SCORE','000684','LEVEL','03','LINES','12','HOLD']);
  assert.deepEqual(painted.pieces.map(p=>[p[0],p[5]]),[['T','next'],['S','hold']]);
- assert.equal(painted.panels.length,5,'NEXT, three flat readouts, HOLD');
- assert.deepEqual(painted.panels.map(p=>p[4]),[0,0,0,0,0],
+ assert.equal(painted.panels.length,8,'NEXT, three double-frame readouts, HOLD');
+ assert.deepEqual(painted.panels.map(p=>p[4]),Array(8).fill(0),
   'score modules, like the previews, have square corners and no bevel');
- const [next,scoreBox,levelBox,linesBox,hold]=painted.panels;
- const panels=painted.panels;
+ const [next,scoreBox,scoreInner,levelBox,levelInner,linesBox,linesInner,hold]=painted.panels;
+ const panels=[next,scoreBox,levelBox,linesBox,hold];
  for(const [x,y,w,h] of panels){
   assert.ok(Math.abs(w-r.nextPanel.w)<.00001,'ALL five boxes have equal width');
   assert.ok(Math.abs(x+w-r.sideX-r.sideW)<.00001,
@@ -51,6 +51,12 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
   r.nextPanel.x,r.nextPanel.y,r.nextPanel.w,r.nextPanel.h]);
  assert.deepEqual(hold.slice(0,4),[
   r.holdPanel.x,r.holdPanel.y,r.holdPanel.w,r.holdPanel.h]);
+ for(const [outer,inner] of [[scoreBox,scoreInner],[levelBox,levelInner],[linesBox,linesInner]]){
+  assert.equal(inner[4],0,'inner border remains square');
+  assert.equal(inner[5],null,'inner border has no fill');
+  assert.equal(inner[6],'#2e2e2e','inset uses approved subdued border tone');
+  assert.deepEqual(inner.slice(0,4),[outer[0]+2,outer[1]+2,outer[2]-4,outer[3]-4]);
+ }
  assert.equal(next[3],hold[3],'NEXT/HOLD same preview height');
  assert.equal(next[2],hold[2],'NEXT/HOLD same preview width');
  assert.ok(Math.abs(scoreBox[3]-levelBox[3])<.00001,
@@ -180,8 +186,16 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
  ]){
   const r=computeLayout(w,h,safe,ui),{hud,painted}=makeHUD();
   hud.drawSidebar(r);
-  assert.equal(painted.panels.length,5);
-  const boxes=painted.panels;
+  assert.equal(painted.panels.length,8);
+  const boxes=[0,1,3,5,7].map(i=>painted.panels[i]);
+  const insets=[2,4,6].map(i=>painted.panels[i]);
+  for(let i=0;i<3;i++){
+   const outer=boxes[i+1],inner=insets[i];
+   assert.ok(inner[0]>outer[0]&&inner[1]>outer[1]);
+   assert.ok(inner[0]+inner[2]<outer[0]+outer[2]);
+   assert.ok(inner[1]+inner[3]<outer[1]+outer[3]);
+   assert.equal(inner[4],0,'inset frame remains square');
+  }
   assert.ok(boxes.every(box=>Math.abs(box[2]-r.nextPanel.w)<1e-7),
    'NEXT/HOLD and all score modules keep identical widths');
   assert.ok(boxes.every(box=>Math.abs(box[0]+box[2]-r.nextPanel.x-r.nextPanel.w)<1e-7),
