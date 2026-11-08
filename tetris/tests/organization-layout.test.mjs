@@ -258,12 +258,12 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v161'/);
- assert.match(html,/<meta name="tetris-build" content="161">/);
- assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#121212'\)/);
+ assert.match(sw,/CACHE_VERSION='v162'/);
+ assert.match(html,/<meta name="tetris-build" content="162">/);
+ assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
 });
 
-test('V159 projects inset-matched piece shadows onto the board',()=>{
+test('V162 stamps independently owned and rotating piece shadows onto the board',()=>{
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
@@ -272,10 +272,11 @@ test('V159 projects inset-matched piece shadows onto the board',()=>{
  const board=renderer.slice(start,end);
  assert.ok(start>=0&&end>start,'inset shadow belongs to board renderer');
  assert.match(board,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid/);
- assert.match(board,/rect\(offX,offY,w-4,h-4,'#121212'\)/);
+ assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
  assert.match(renderer,/grid:'#2b2b2b'/);
- assert.match(renderer,/pieceShadowOccupancy,drawPieceShadowGradients/);
- assert.match(board,/drawPieceShadowGradients\(g,shadowCells,offX,offY,tile\)/);
+ assert.match(renderer,/collectPieceShadowGroups,createPieceShadowRenderer/);
+ assert.match(board,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
+ assert.match(board,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
  assert.doesNotMatch(board,/g\.shadowBlur=5\.5|g\.shadowOffsetY=4\.5/);
  assert.match(sw,/\.\/piece-drop-shadow\.js/);
  assert.match(renderer,/terminalLog\.enqueue\('BUILD: VERSION V'\+THREE_BUILD_VERSION,/);
@@ -286,9 +287,9 @@ test('V159 projects inset-matched piece shadows onto the board',()=>{
  assert.match(board,/g\.createLinearGradient/);
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
- assert.match(board,/rect\(offX,offY,w-4,h-4,'#121212'\)/);
- assert.match(sw,/CACHE_VERSION='v161'/);
- assert.match(html,/<meta name="tetris-build" content="161">/);
+ assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
+ assert.match(sw,/CACHE_VERSION='v162'/);
+ assert.match(html,/<meta name="tetris-build" content="162">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
@@ -305,5 +306,5 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="161">/);
+ assert.match(shell,/<meta name="tetris-build" content="162">/);
 });
