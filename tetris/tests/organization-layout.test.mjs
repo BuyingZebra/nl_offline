@@ -23,7 +23,7 @@ function makeHUD(){
   smallPiece:(...v)=>painted.pieces.push(v),
   getGame:()=>game,getHighs:()=>[{score:9000}],
   C:{panel:'#1d1d1d',bg:'#080808',border:'#777',subtleBorder:'#2e2e2e',
-    weak:'#aeaeae',ink:'#e3e3e3'},
+    weak:'#aeaeae',bright:'#cecece',ink:'#e3e3e3'},
   UI_SPACE:ui,fmt:(n,k=6)=>String(n).padStart(k,'0')
  });
  return {hud,painted,game};
@@ -56,7 +56,7 @@ test('NEXT, SCORE, LEVEL, LINES and HOLD share square double borders',()=>{
   [levelBox,levelInner],[linesBox,linesInner],[hold,holdInner]]){
   assert.equal(inner[4],0,'inner border remains square');
   assert.equal(inner[5],null,'inner border has no fill');
-  assert.equal(inner[6],'#aeaeae','brighter inset frame is visible');
+  assert.equal(inner[6],'#cecece','inset frame matches solid button luminance');
   const rim=Math.min(4,Math.max(2,(outer[3]-12)/2));
   assert.deepEqual(inner.slice(0,4),[
    outer[0]+rim,outer[1]+rim,outer[2]-2*rim,outer[3]-2*rim]);
@@ -224,7 +224,7 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
    assert.ok(inner[0]+inner[2]<outer[0]+outer[2]);
    assert.ok(inner[1]+inner[3]<outer[1]+outer[3]);
    assert.equal(inner[4],0,'inset frame remains square');
-   assert.equal(inner[6],'#aeaeae','strong inner border remains visible');
+   assert.equal(inner[6],'#cecece','internal boundary matches button outline');
    assert.equal(outer[5],'#1d1d1d','readout matches header/footer fill');
   }
   assert.ok(boxes.every(box=>Math.abs(box[2]-r.nextPanel.w)<1e-7),
@@ -258,8 +258,8 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v155'/);
- assert.match(html,/<meta name="tetris-build" content="155">/);
+ assert.match(sw,/CACHE_VERSION='v156'/);
+ assert.match(html,/<meta name="tetris-build" content="156">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
 });
 
@@ -279,8 +279,8 @@ test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
- assert.match(sw,/CACHE_VERSION='v155'/);
- assert.match(html,/<meta name="tetris-build" content="155">/);
+ assert.match(sw,/CACHE_VERSION='v156'/);
+ assert.match(html,/<meta name="tetris-build" content="156">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
@@ -297,5 +297,5 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="155">/);
+ assert.match(shell,/<meta name="tetris-build" content="156">/);
 });
