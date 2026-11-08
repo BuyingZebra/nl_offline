@@ -21,6 +21,7 @@ import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v132';
+import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v134';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v123';
@@ -325,6 +326,7 @@ const vectorTiles=createVectorTileRenderer({
  }
 });
 vectorTiles.preload();
+const brickFrame=createBrickFrame({pixelRatio:()=>DPR});
 // Retain V027-inspired preview tile sizing but use a single uniform scale.
 // Tetrominoes are centred and contained in their square preview frames.
 // Fresh grayscale tile styling for both the board and miniature previews:
@@ -538,6 +540,9 @@ function paintBaseGame(){
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false,true);
+ // Static 75%-cell brick rails, exactly one control-gap outside either edge.
+ // Draw on the base layer, not inside the cropped board texture.
+ brickFrame.draw(g,r);
  drawSidebar(r);
  drawControls(r);
  const footerLeft='Program: Three.JS',footerRight='version: '+THREE_BUILD_VERSION;
@@ -881,6 +886,7 @@ appLifecycle=createAppLifecycle({
   ['game-observer',unsubscribeGameEvents],
   ['input',()=>inputController?.dispose()],
   ['vector-tiles',()=>vectorTiles.dispose()],
+  ['brick-frame',()=>brickFrame.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
   ['platform',()=>platform.stop()],
   ['graphics',()=>graphicsCleanup.dispose()]
