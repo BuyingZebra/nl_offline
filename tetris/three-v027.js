@@ -918,11 +918,11 @@ appLifecycle=createAppLifecycle({
   if(game.status==='playing'){
    game.pause();
    layers.mark('base','board','controls');
+   queueTerminalMessage('GAME: PAUSED','PAUSED');
   }
   inputController?.cancel();scrollVelocity=0;
   buttonFeedback.clear();buttonSparks=[];
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
-  queueTerminalMessage('GAME: PAUSED','PAUSED');
   compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
