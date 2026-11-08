@@ -40,6 +40,14 @@ function drawSidebar(r){
  const game=getGame();
  const {nextPanel:next,statsPanel:stats,holdPanel:hold}=r;
  const inset=Math.max(3,Math.min(6,stats.w*.06));
+ // V141: the same square double-border housing for all five boxes.
+ const doubleFrame=(x,y,w,h)=>{
+  const rim=Math.min(4,Math.max(2,(h-12)/2));
+  panel(x,y,w,h,0,C.panel,C.border);
+  if(w>rim*2+1&&h>rim*2+1)
+   panel(x+rim,y+rim,w-rim*2,h-rim*2,0,null,C.weak);
+  return rim;
+ };
  const preview=(box,kind,role)=>{
   // One compact panel only. The NEXT/HOLD label is outside its border.
   const heading=role==='next'?'NEXT':'HOLD';
@@ -47,7 +55,7 @@ function drawSidebar(r){
   // stays left-aligned, just outside the panel's top edge.
   text(heading,box.x+inset+1,box.y-r.previewLabelSpace/2,
    9,C.weak,'left',Math.max(8,box.w-2*inset));
-  panel(box.x,box.y,box.w,box.h,0,C.panel);
+  doubleFrame(box.x,box.y,box.w,box.h);
   const pad=5;
   smallPiece(kind,box.x+pad,box.y+pad,
    Math.max(0,box.w-2*pad),Math.max(0,box.h-2*pad),
@@ -66,12 +74,7 @@ function drawSidebar(r){
   const top=stats.y+i*slot,boxY=top+titleSpace;
   text(title,stats.x+inset+1,top+titleSpace*.50,9,C.weak,
    'left',Math.max(8,stats.w-2*inset));
-  // V140: match the header/footer housing and strengthen square borders.
-  panel(stats.x,boxY,stats.w,readoutHeight,0,C.panel,C.border);
-  const rim=Math.min(4,Math.max(2,(readoutHeight-12)/2));
-  if(stats.w>rim*2+1&&readoutHeight>rim*2+1)
-   panel(stats.x+rim,boxY+rim,stats.w-rim*2,readoutHeight-rim*2,
-    0,null,C.weak);
+  const rim=doubleFrame(stats.x,boxY,stats.w,readoutHeight);
   // Terminal data values are LEFT aligned within their frames.
   const valueInset=Math.max(10,Math.min(12,stats.w*.14));
   const digitSize=Math.max(10,Math.min(16,stats.w*.175,readoutHeight*.54));
