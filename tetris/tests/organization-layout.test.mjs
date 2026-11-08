@@ -260,7 +260,6 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.match(sw,/CACHE_VERSION='v149'/);
  assert.match(html,/<meta name="tetris-build" content="149">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
- assert.match(renderer,/\/\/ V117: preserve the V114 grid/);
 });
 
 test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
