@@ -1,4 +1,4 @@
-/* NOMAD V162 — per-piece raised cast shadows.
+/* NOMAD V163 — deeper per-piece raised cast shadows.
  * Preserve core piece IDs and current rotated matrices. Pre-rasterized stamps
  * are cached by SILHOUETTE (not position) for fast movement and rotation on iOS.
  * Shadows darken the floor/grid only; SVG piece artwork remains untouched.
@@ -42,10 +42,13 @@ export function collectPieceShadowGroups(board,meta,active=null,hiddenRows=null)
 export function pieceShadowProfile(tile){
  const depth=depthForTile(tile);
  return Object.freeze({
-  // Large penumbra projected down and right onto the recessed floor.
-  cast:{blur:depth,offsetX:6,offsetY:7,alpha:.83},
-  // Smaller, near-black contact shadow visually lifts the piece face.
-  contact:{blur:3.5,offsetX:2.5,offsetY:3.5,alpha:.94},
+  // Keep the existing shadow reach, but deepen its projection so phosphor
+  // bloom doesn't wash it out. An opaque central shadow is offset below
+  // the piece, while a soft penumbra gradually extinguishes the grid.
+  cast:{blur:depth,offsetX:6,offsetY:7,alpha:1},
+  core:{blur:5,offsetX:6,offsetY:7,alpha:1},
+  // Tight contact shadow preserves the apparent separation at each edge.
+  contact:{blur:2.25,offsetX:2.5,offsetY:3.5,alpha:1},
   depth
  });
 }
@@ -79,7 +82,7 @@ export function createPieceShadowRenderer({
   };
   // Apply physical pixel offsets to Canvas2D shadow props because shadowBlur
   // and shadowOffset are not transformed with the canvas coordinate matrix.
-  for(const layer of [profile.cast,profile.contact]){
+  for(const layer of [profile.cast,profile.core,profile.contact]){
    ctx.save();
    ctx.fillStyle='#000000';
    ctx.shadowColor='rgba(0,0,0,'+layer.alpha+')';
