@@ -87,19 +87,10 @@ function key(label,x,y,w,h,act,opts={}){
  const inverseInk=grayLevel(buttonInkLevel(power));
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- // Give solid buttons a visible but still flat bottom-to-top gradient,
- // like the approved blue-phosphor concept. Preserve the brightest stop
- // as the EXACT original solid luminance (206..255); only the lower
- // region darkens. No raised edges, highlights, or bevel geometry.
- let face=C.button;
- if(model.light){
-  const gradient=getContext().createLinearGradient(
-   model.x,model.y+model.h,model.x,model.y);
-  gradient.addColorStop(0,grayLevel(buttonLevel(power)-40));
-  gradient.addColorStop(1,lit);
-  face=gradient;
- }
- panel(model.x,model.y,model.w,model.h,8,face,lit);
+ // V165: keep button artwork as a single flat face. Solid buttons
+ // remain exactly the approved full luminance (206 base, 255 pressed);
+ // press afterglow, text, stroke, and hitboxes are unchanged.
+ panel(model.x,model.y,model.w,model.h,8,model.light?lit:C.button,lit);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
   model.light?inverseInk:lit,'center',Math.max(10,model.w-14));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
