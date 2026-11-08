@@ -172,7 +172,7 @@ test('fallback is selectable and reports which button backend is active',()=>{
  const src=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  assert.match(src,/maxFragmentUniforms>=32/);
  assert.match(src,/\.get\('buttonRenderer'\)==='canvas'/);
- assert.match(src,/controlsGpuEnabled\?0:buttonSparks/);
+ assert.match(src,/controlsGpuEnabled\)\?0:buttonSparks/);
  assert.match(src,/if\(!controlLighting\.configure\(regions,bounds\)\)disableGpuControls\(\)/);
  assert.match(src,/buttonRenderer:controlsGpuEnabled\?'GPU uniforms':'Canvas2D fallback'/);
 });
