@@ -10,7 +10,7 @@ const {computeLayout}=require('../layout.js');
 const ui={
  unit:6,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,
  padX:11,stackGap:6,side:93,sideGap:6,headHeight:80,headIcons:46,
- headIconGap:6,headRightPad:6,headTitleInset:17,deckBottom:30,
+ headIconGap:6,headRightPad:6,headTitleInset:17,deckBottom:48,
  deckPad:6,scoreHeight:45,deckGap:6,padGap:6,padHeight:53,
  extrasHeight:44,extrasGap:6,holdHeight:88,nextHeight:162,statsHeight:92
 };
@@ -157,10 +157,13 @@ test('approved 6 game controls retain button arrangement and positions',()=>{
  assert.equal(painted.panels.length,1,'enclosing controls container is visible');
  assert.deepEqual(painted.keys.map(k=>k[0]),['◀','DROP','▶','↻','HOLD','PAUSE']);
  assert.deepEqual(painted.keys.map(k=>k[5]),['left','soft','right','cw','hold','pause']);
- assert.deepEqual(painted.keys.map(k=>k[2]),[677,677,677,677,736,736]);
+ assert.deepEqual(painted.keys.map(k=>k[2]),[
+  r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,
+  r.dy+r.deckPad+r.buttonH+r.deckGap,r.dy+r.deckPad+r.buttonH+r.deckGap
+ ]);
  assert.deepEqual(painted.text,[],'level score lines no longer drawn above game buttons');
 });
-test('V147 unframed operation log replaces the old shaded version strip',()=>{
+test('V149 scrolling two-row operation log replaces the old shaded version strip',()=>{
  const source=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  const cropped=fs.readFileSync(new URL('../cropped-ui-layers.js',import.meta.url),'utf8');
  const terminal=fs.readFileSync(new URL('../terminal-log.js',import.meta.url),'utf8');
@@ -172,7 +175,7 @@ test('V147 unframed operation log replaces the old shaded version strip',()=>{
  assert.match(source,/const TERMINAL_FONT='"Share Tech Mono"/);
  assert.doesNotMatch(source,/const footerLeft=|ruleStart,r\.footerY|rect\(r\.off\+11,r\.footerY-12/);
  assert.match(source,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg\)/);
- assert.match(cropped,/r\.footerY-12/);
+ assert.match(cropped,/r\.footerY-25/);
  assert.match(terminal,/Roboto Condensed/);
  assert.doesNotMatch(html,/family=VT323/);
  assert.match(terminal,/composeTerminalMessage/);
@@ -183,9 +186,9 @@ test('V147 unframed operation log replaces the old shaded version strip',()=>{
   [852,393,{top:0,bottom:20}]
  ]){
   const r=computeLayout(w,h,safe,ui);
-  assert.ok(r.dy+r.dh<=r.footerY-12+.01,
-   'terminal stays OUTSIDE and below the entire controls container');
-  assert.ok(r.footerY+12<=h-safe.bottom+.01,'terminal respects bottom safe area');
+  assert.ok(r.dy+r.dh<=r.footerY-25+.01,
+   'both terminal rows stay OUTSIDE and below the controls container');
+  assert.ok(r.footerY+11<=h-safe.bottom+.01,'terminal respects bottom safe area');
  }
 });
 test('official logo is an editable, rounded-cap SVG bundled locally',()=>{
@@ -254,8 +257,8 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v148'/);
- assert.match(html,/<meta name="tetris-build" content="148">/);
+ assert.match(sw,/CACHE_VERSION='v149'/);
+ assert.match(html,/<meta name="tetris-build" content="149">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
  assert.match(renderer,/\/\/ V117: preserve the V114 grid/);
 });
@@ -276,8 +279,8 @@ test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
- assert.match(sw,/CACHE_VERSION='v148'/);
- assert.match(html,/<meta name="tetris-build" content="148">/);
+ assert.match(sw,/CACHE_VERSION='v149'/);
+ assert.match(html,/<meta name="tetris-build" content="149">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
@@ -294,5 +297,5 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="148">/);
+ assert.match(shell,/<meta name="tetris-build" content="149">/);
 });
