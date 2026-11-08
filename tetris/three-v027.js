@@ -619,7 +619,7 @@ function paintTerminalLayer(){
  // cursor, history gradient, pixel coordinates and background luminance.
  // Crop only its two unframed rows, leaving the game controls stationary.
  paintUIRegion(terminalCanvas,terminalContext,terminalPlane,terminalTexture,
-  croppedBounds([terminalLineBounds(r)],W,H,DPR,1),'terminal',r=>{
+  croppedBounds([terminalLineBounds(r)],W,H,DPR,0),'terminal',r=>{
    drawTerminalLog(g,terminalLog,r,performance.now(),C.ink,C.bg,FONT);
   });
 }
