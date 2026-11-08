@@ -282,6 +282,9 @@ const screenManager=createScreenManager({
   // Entering/re-entering Options needs a fresh full menu; leaving it must
   // discard any pending modal dirtiness even if another screen is selected.
   if(previous==='options'||next==='options')layers.mark('modal');
+  // Gameplay's base can remain untouched while the full-screen Options
+  // view is in front. Refresh it exactly once when becoming visible again.
+  if(previous==='options'&&next!=='options')layers.mark('base','controls');
   if(next===null)regions=baseRegions;
   invalidate();
  }
@@ -911,13 +914,15 @@ function frame(now){
    // texture for deck-only button animations. Header and board-status
    // popup buttons still invalidate base; consider BOTH sets so a
    // completed afterglow repaints the last illuminated pixels.
-   const affected=buttonFeedbackLayers(
-    previousButtonSparks,buttonSparks,layoutInfo||layout());
-   if(affected.length)layers.mark(...affected);
-   // Settings buttons have their own source luminance and reverse-ink
-   // animations. Redraw the modal only when a live/clearing spark exists.
-   if(screenManager.paintsModalLayer&&
-      (buttonSparks.length||previousButtonSparks.length))layers.mark('modal');
+   if(screenManager.paintsModalLayer){
+    // Settings cover the fullscreen source completely. Their buttons
+    // illuminate ONLY the modal canvas; the base is refreshed on exit.
+    if(buttonSparks.length||previousButtonSparks.length)layers.mark('modal');
+   }else{
+    const affected=buttonFeedbackLayers(
+     previousButtonSparks,buttonSparks,layoutInfo||layout());
+    if(affected.length)layers.mark(...affected);
+   }
    layers.reason('button-luminance');
   }
   if(layers.needsRender()){
