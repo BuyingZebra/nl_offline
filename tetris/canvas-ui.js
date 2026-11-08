@@ -87,14 +87,15 @@ function key(label,x,y,w,h,act,opts={}){
  const inverseInk=grayLevel(buttonInkLevel(power));
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- // Illuminated buttons now have a subtle bottom-to-top grayscale gradient.
- // The brightest stop remains the exact current solid fill (206..255);
- // the darker bottom stop is only 14 luminance levels below it.
+ // Give solid buttons a visible but still flat bottom-to-top gradient,
+ // like the approved blue-phosphor concept. Preserve the brightest stop
+ // as the EXACT original solid luminance (206..255); only the lower
+ // region darkens. No raised edges, highlights, or bevel geometry.
  let face=C.button;
  if(model.light){
   const gradient=getContext().createLinearGradient(
    model.x,model.y+model.h,model.x,model.y);
-  gradient.addColorStop(0,grayLevel(buttonLevel(power)-14));
+  gradient.addColorStop(0,grayLevel(buttonLevel(power)-40));
   gradient.addColorStop(1,lit);
   face=gradient;
  }
