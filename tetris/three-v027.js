@@ -41,7 +41,7 @@ const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')
 // Lift panels by 3 percentage points of the 0–255 grayscale scale (21 -> 29).
 const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
- bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#292929',dark:'#060606'};
+ bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#2b2b2b',dark:'#060606'};
 // Fonts follow Fallout 4's UI/terminal roles; original icons stay intact.
 const ICON_FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const FONT='"Roboto Condensed",'+ICON_FONT;
@@ -80,6 +80,11 @@ let appLifecycle=null;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
 const terminalLog=createTerminalLog();
+// The HTML build marker is authoritative, including when the app is offline.
+// Let the boot terminal finish with the exact running build, so the version
+// remains on its bright active row until the next gameplay event.
+terminalLog.enqueue('BUILD: VERSION V'+THREE_BUILD_VERSION,
+ 'VER: V'+THREE_BUILD_VERSION);
 let terminalTimer=null,lastTerminalCursorVisible=true;
 function queueTerminalMessage(full,short=full,priority=false){
  terminalLog.enqueue(full,short,priority);
@@ -379,10 +384,11 @@ function stage(r,drawPieces=true,recordRegion=true){
  panel(x,y,w,h,7,C.panel);
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
- rect(offX,offY,w-4,h-4,'#101010');
- // V157: increase the existing grid-line contrast by 17%, keeping
- // the same grid colour, thickness and positions (0.583804 x 1.17).
- g.globalAlpha=.68305068;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
+ rect(offX,offY,w-4,h-4,'#121212');
+ // V158: increase the visible grid by another ~10%. The board background
+ // is 18/255 (up from 16/255); grid opacity is 0.68305068 x 1.10 and
+ // its source luminance is 43 (up from 41). Geometry/thickness are unchanged.
+ g.globalAlpha=.751355748;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
@@ -397,9 +403,9 @@ function stage(r,drawPieces=true,recordRegion=true){
  const iRuns=collectIFragments(displayBoard,displayMeta,{
   hiddenRows:clearIsEmpty?lineClearFX.rows:null
  });
- // Render subtle cast shadows BEFORE any piece faces, in a single silhouette
- // pass. This avoids shadowing the gravel/texture details or darkening
- // neighbouring tiles while preserving original SVG artwork.
+ // Cast stronger shadows ONTO the board behind each tetromino silhouette.
+ // A wider offset and soft penumbra make the raised-piece effect visible,
+ // while the same original SVG tile textures are painted sharply on top.
  g.save();
  g.beginPath();
  const shadowRect=(sx,sy,sw,sh)=>{
@@ -432,11 +438,11 @@ function stage(r,drawPieces=true,recordRegion=true){
    }));
   }
  }
- g.fillStyle='#0d0d0d';
- g.shadowColor='rgba(0,0,0,.76)';
- g.shadowBlur=3;
- g.shadowOffsetX=1.5;
- g.shadowOffsetY=2.5;
+ g.fillStyle='#080808';
+ g.shadowColor='rgba(0,0,0,.95)';
+ g.shadowBlur=5.5;
+ g.shadowOffsetX=3;
+ g.shadowOffsetY=4.5;
  g.fill();
  g.restore();
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
