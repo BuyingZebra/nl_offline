@@ -258,8 +258,8 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v163'/);
- assert.match(html,/<meta name="tetris-build" content="163">/);
+ assert.match(sw,/CACHE_VERSION='v164'/);
+ assert.match(html,/<meta name="tetris-build" content="164">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
 });
 
@@ -288,8 +288,8 @@ test('V162 stamps independently owned and rotating piece shadows onto the board'
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
- assert.match(sw,/CACHE_VERSION='v163'/);
- assert.match(html,/<meta name="tetris-build" content="163">/);
+ assert.match(sw,/CACHE_VERSION='v164'/);
+ assert.match(html,/<meta name="tetris-build" content="164">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
@@ -306,5 +306,5 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="163">/);
+ assert.match(shell,/<meta name="tetris-build" content="164">/);
 });
