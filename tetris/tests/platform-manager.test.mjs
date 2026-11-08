@@ -232,3 +232,23 @@ test('pinned service-worker generations cannot trigger stale-shell reload loops'
  assert.equal(await h.platform.checkForNewBuild(),true);
  assert.equal(h.metrics.reloads,1,'uncontrolled page may update when idle');
 });
+
+test('a pinned old worker requests promotion only when a newer build is published and idle',async()=>{
+ const h=createHarness();h.platform.start();
+ // Existing test harness has no special worker handler; add one to a second
+ // manager for exercising the explicit update-request callback.
+ const calls=[];let nextTime=40000;
+ const manager=createPlatformManager({
+  window:h.window,document:h.document,display:h.display,safeProbe:h.safeProbe,
+  baseModuleURL:'https://buyingzebra.github.io/nl_offline/tetris/three-v027.js',
+  buildVersion:'145',getGameStatus:()=> 'ready',isScreenOpen:()=>false,
+  onViewport:()=>{},onVisibility:()=>{},
+  canReloadNewBuild:()=>false,requestWorkerUpgrade:async()=>{calls.push('activate');return true;},
+  now:()=>nextTime,
+  fetchPage:async()=>({ok:true,text:async()=>'<meta name="tetris-build" content="146">'})
+ });
+ manager.start();
+ assert.equal(await manager.checkForNewBuild(),false);
+ assert.deepEqual(calls,['activate']);
+ manager.stop();
+});
