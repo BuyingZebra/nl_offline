@@ -20,7 +20,7 @@ import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
-import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v139';
+import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v140';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
@@ -526,6 +526,9 @@ function paintBaseGame(){
  }
  g=baseContext;
  rect(0,0,W,H,C.bg);
+ // V140: footer shares header and scoreboard housing fill.
+ // Paint underneath UI so landscape controls remain unobscured.
+ rect(r.off+11,r.footerY-12,Math.max(0,r.width-22),24,C.panel);
  panel(r.hx,r.hy,r.hw,r.hh,0,C.panel);
  // The logo, wordmark, and subtitle use the EXISTING font and luminance
  // palette. Only the title organization changes; header buttons stay put.
