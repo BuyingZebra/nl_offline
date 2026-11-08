@@ -1,86 +1,124 @@
-/* NOMAD V159 — raised tetromino shadows cast onto the grid.
- * Uses the SAME shadow distance and peak darkness as the playfield inset:
- * depth = clamp(tile * .8, 8, 20); opacity .58 / .42 / .24.
- * No texture changes, per-tile bevels, canvas filters, or extra render pass.
+/* NOMAD V162 — per-piece raised cast shadows.
+ * Preserve core piece IDs and current rotated matrices. Pre-rasterized stamps
+ * are cached by SILHOUETTE (not position) for fast movement and rotation on iOS.
+ * Shadows darken the floor/grid only; SVG piece artwork remains untouched.
  */
-const ROWS=20,COLS=10;
+const COLS=10,ROWS=20;
 const depthForTile=tile=>Math.min(20,Math.max(8,tile*.8));
+const cappedDpr=n=>Math.max(1,Math.min(3,Number(n)||1));
 
-// One occupied silhouette for locked + falling cells. Touching tiles share
-// an outer edge, avoiding black seams through an intact tetromino shape.
-export function pieceShadowOccupancy(board,active=null,hiddenRows=null){
- const cells=Array.from({length:ROWS},(_,y)=>Array.from(
-  {length:COLS},(_,x)=>Boolean(board?.[y]?.[x])&&!hiddenRows?.has(y)));
- if(active?.matrix)active.matrix.forEach((row,dy)=>row.forEach((kind,dx)=>{
-  if(!kind)return;
-  const x=active.x+dx,y=active.y+dy;
-  if(Number.isInteger(x)&&Number.isInteger(y)&&
-     x>=0&&x<COLS&&y>=0&&y<ROWS)cells[y][x]=true;
- }));
- return cells;
+// Respect immutable boardMeta.pieceId even when two independent tetrominoes
+// share edges or have been split by completed rows. Fallback legacy cells
+// have distinct IDs rather than merging every connected block.
+export function collectPieceShadowGroups(board,meta,active=null,hiddenRows=null){
+ const groups=new Map();
+ function add(id,x,y){
+  if(!Number.isInteger(x)||!Number.isInteger(y)||
+     x<0||x>=COLS||y<0||y>=ROWS)return;
+  if(!groups.has(id))groups.set(id,[]);
+  groups.get(id).push({x,y});
+ }
+ for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+  if(!board?.[y]?.[x]||hiddenRows?.has(y))continue;
+  const pieceId=meta?.[y]?.[x]?.pieceId;
+  add(Number.isSafeInteger(pieceId)&&pieceId>0?'locked:'+pieceId:'cell:'+x+':'+y,x,y);
+ }
+ // A new group is rebuilt from the live matrix EVERY repaint. Rotations,
+ // wall kicks, gravity and hold therefore update the silhouette immediately.
+ if(active?.matrix){
+  const id='active:'+(Number.isSafeInteger(active.id)?active.id:'current');
+  active.matrix.forEach((row,dy)=>row.forEach((kind,dx)=>{
+   if(kind)add(id,active.x+dx,active.y+dy);
+  }));
+ }
+ return [...groups].map(([id,cells])=>{
+  cells.sort((a,b)=>a.y-b.y||a.x-b.x);
+  const minX=Math.min(...cells.map(c=>c.x)),minY=Math.min(...cells.map(c=>c.y));
+  const maxX=Math.max(...cells.map(c=>c.x)),maxY=Math.max(...cells.map(c=>c.y));
+  return {id,cells,minX,minY,maxX,maxY};
+ });
 }
 
-// Every edge has an explicit linear gradient from the silhouette (dark) to
-// the distant grid (transparent). The black is painted AFTER the grid,
-// BEFORE the authored tile SVGs, so it gradually hides grid lines without
-// dimming the actual piece art. The board's existing clip owns all bounds.
-export function drawPieceShadowGradients(g,cells,offX,offY,tile){
- if(!(tile>0))return;
+export function pieceShadowProfile(tile){
  const depth=depthForTile(tile);
- const occupied=(x,y)=>x>=0&&x<COLS&&y>=0&&y<ROWS&&Boolean(cells?.[y]?.[x]);
- const fade=(x0,y0,x1,y1,x,y,w,h,alpha)=>{
-  if(!(w>0&&h>0))return;
-  const gradient=g.createLinearGradient(x0,y0,x1,y1);
-  gradient.addColorStop(0,'rgba(0,0,0,'+alpha+')');
-  gradient.addColorStop(1,'rgba(0,0,0,0)');
-  g.fillStyle=gradient;
-  g.fillRect(x,y,w,h);
- };
- // Coalesce uninterrupted cell edges into one fade to keep each piece
- // silhouette smooth and avoid one gradient allocation per block.
- for(let y=0;y<ROWS;y++)for(const side of ['top','bottom']){
-  const delta=side==='top'?-1:1,alpha=side==='bottom'?.58:.24;
-  for(let x=0;x<COLS;){
-   if(!occupied(x,y)||occupied(x,y+delta)){x++;continue;}
-   const begin=x;
-   while(x<COLS&&occupied(x,y)&&!occupied(x,y+delta))x++;
-   const edgeY=offY+(y+(side==='bottom'?1:0))*tile;
-   const startX=offX+begin*tile,length=(x-begin)*tile;
-   if(side==='bottom')fade(startX,edgeY,startX,edgeY+depth,
-    startX,edgeY,length,depth,alpha);
-   else fade(startX,edgeY,startX,edgeY-depth,
-    startX,edgeY-depth,length,depth,alpha);
+ return Object.freeze({
+  // Large penumbra projected down and right onto the recessed floor.
+  cast:{blur:depth,offsetX:6,offsetY:7,alpha:.83},
+  // Smaller, near-black contact shadow visually lifts the piece face.
+  contact:{blur:3.5,offsetX:2.5,offsetY:3.5,alpha:.94},
+  depth
+ });
+}
+
+export function createPieceShadowRenderer({
+ createCanvas=()=>document.createElement('canvas'),
+ pixelRatio=()=>1,capacity=48
+}={}){
+ const cache=new Map();
+ const limit=Math.max(1,Math.floor(capacity)||48);
+ function stamp(group,tile,dpr){
+  const profile=pieceShadowProfile(tile);
+  const normalized=group.cells.map(c=>(c.x-group.minX)+','+(c.y-group.minY)).sort().join(';');
+  const key=tile.toFixed(4)+'@'+dpr.toFixed(2)+':'+normalized;
+  const prev=cache.get(key);
+  if(prev){cache.delete(key);cache.set(key,prev);return prev;}
+  const pad=Math.ceil(profile.depth*2+Math.max(
+   profile.cast.offsetX,profile.cast.offsetY)+4);
+  const shapeW=(group.maxX-group.minX+1)*tile;
+  const shapeH=(group.maxY-group.minY+1)*tile;
+  const width=shapeW+2*pad,height=shapeH+2*pad;
+  const canvas=createCanvas();
+  canvas.width=Math.ceil(width*dpr);canvas.height=Math.ceil(height*dpr);
+  const ctx=canvas.getContext('2d',{alpha:true});
+  if(!ctx)return null;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const silhouette=()=>{
+   ctx.beginPath();
+   for(const {x,y} of group.cells)ctx.rect(
+    pad+(x-group.minX)*tile,pad+(y-group.minY)*tile,tile,tile);
+  };
+  // Apply physical pixel offsets to Canvas2D shadow props because shadowBlur
+  // and shadowOffset are not transformed with the canvas coordinate matrix.
+  for(const layer of [profile.cast,profile.contact]){
+   ctx.save();
+   ctx.fillStyle='#000000';
+   ctx.shadowColor='rgba(0,0,0,'+layer.alpha+')';
+   ctx.shadowBlur=layer.blur*dpr;
+   ctx.shadowOffsetX=layer.offsetX*dpr;
+   ctx.shadowOffsetY=layer.offsetY*dpr;
+   silhouette();ctx.fill();
+   ctx.restore();
   }
+  // Erase each source silhouette from the offscreen shadow, so transparent
+  // motifs in the actual SVG pieces still show their correct original floor.
+  ctx.save();
+  ctx.globalCompositeOperation='destination-out';
+  ctx.fillStyle='#000000';
+  silhouette();ctx.fill();
+  ctx.restore();
+  const item={canvas,width,height,pad};
+  if(cache.size>=limit)cache.delete(cache.keys().next().value);
+  cache.set(key,item);
+  return item;
  }
- for(let x=0;x<COLS;x++)for(const side of ['left','right']){
-  const delta=side==='left'?-1:1,alpha=side==='right'?.42:.24;
-  for(let y=0;y<ROWS;){
-   if(!occupied(x,y)||occupied(x+delta,y)){y++;continue;}
-   const begin=y;
-   while(y<ROWS&&occupied(x,y)&&!occupied(x+delta,y))y++;
-   const edgeX=offX+(x+(side==='right'?1:0))*tile;
-   const startY=offY+begin*tile,length=(y-begin)*tile;
-   if(side==='right')fade(edgeX,startY,edgeX+depth,startY,
-    edgeX,startY,depth,length,alpha);
-   else fade(edgeX,startY,edgeX-depth,startY,
-    edgeX-depth,startY,depth,length,alpha);
+ function draw(g,groups,offX,offY,tile){
+  if(!(tile>0)||!groups?.length)return 0;
+  const dpr=cappedDpr(pixelRatio());
+  let drawn=0;
+  // The board's existing clip confines every shadow to the recessed floor.
+  for(const group of groups){
+   if(!group.cells.length)continue;
+   const item=stamp(group,tile,dpr);
+   if(!item)continue;
+   g.drawImage(item.canvas,
+    offX+group.minX*tile-item.pad,
+    offY+group.minY*tile-item.pad,item.width,item.height);
+   drawn++;
   }
+  return drawn;
  }
- // Radial corner quarters connect the straight fades without squared-off
- // corners. Only EXPOSED convex corners contribute; interior seams do not.
- for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
-  if(!occupied(x,y))continue;
-  for(const [dx,dy,alpha] of [
-   [-1,-1,.24],[1,-1,.24],[-1,1,.42],[1,1,.58]
-  ]){
-   if(occupied(x+dx,y)||occupied(x,y+dy))continue;
-   const cx=offX+(x+(dx===1?1:0))*tile;
-   const cy=offY+(y+(dy===1?1:0))*tile;
-   const gradient=g.createRadialGradient(cx,cy,0,cx,cy,depth);
-   gradient.addColorStop(0,'rgba(0,0,0,'+alpha+')');
-   gradient.addColorStop(1,'rgba(0,0,0,0)');
-   g.fillStyle=gradient;
-   g.fillRect(dx===1?cx:cx-depth,dy===1?cy:cy-depth,depth,depth);
-  }
- }
+ return Object.freeze({
+  draw,dispose:()=>cache.clear(),
+  get cacheSize(){return cache.size;}
+ });
 }
