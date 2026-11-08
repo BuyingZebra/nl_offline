@@ -10,7 +10,7 @@ function stamped(date,seconds=true){
   (seconds?':'+pad(d.getSeconds()):'')+']';
 }
 export function terminalLineBounds(r){
- return {x:r.dx+5,y:r.dy+r.dh+1,w:Math.max(1,r.dw-10),h:29};
+ return {x:r.dx+5,y:r.dy+r.dh+1,w:Math.max(1,r.dw-10),h:43};
 }
 // A line is built once, then emitted through the same character grid that
 // moves the full-cell cursor. Statuses never pop in at the right-hand edge.
@@ -56,9 +56,9 @@ export function composeTerminalMessage(entry,columns){
 // Line-oriented display: active event on top, the previous event fades on
 // the bottom. Existing text disappears at once, then reappears as history
 // after 250 ms; after another 250 ms the new event begins typing. Prompts
-// never move. 57 milliseconds per character (~17.5 characters/second).
+// never move. 84 milliseconds per character (~11.9 characters/second).
 export function createTerminalLog({clock=()=>new Date(),
- typeMs=57,holdMs=1750,offMs=250,pretypeMs=250}={}){
+ typeMs=84,holdMs=1750,offMs=250,pretypeMs=250}={}){
  const capacity=160;
  const cells=Array(capacity).fill(' ');
  let columns=36,cursor=2,phase='new';
@@ -171,7 +171,9 @@ export function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  const ascent=metrics.actualBoundingBoxAscent||fontSize*.70;
  const descent=metrics.actualBoundingBoxDescent||0;
  const cellH=Math.ceil(ascent+descent)+4;
- const pitch=14,top=b.y+8,bottom=top+pitch;
+ // Only the terminal artwork advances by one existing 14px row.
+ // The active line occupies the previous history row's position.
+ const pitch=14,top=b.y+22,bottom=top+pitch;
  function glyph(ch,col,y,color=ink){
   ctx.fillStyle=color;
   ctx.fillText(ch,b.x+col*cell+(cell-ctx.measureText(ch).width)/2,
@@ -189,11 +191,11 @@ export function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
   if(ch!==' ')glyph(ch,i,bottom);
  }
  // Background-gradient occlusion affects ONLY older text at the bottom.
- const fade=ctx.createLinearGradient(0,b.y+10,0,b.y+b.h);
+ const fade=ctx.createLinearGradient(0,b.y+29,0,b.y+b.h);
  fade.addColorStop(0,'rgba(8,8,8,0)');
  fade.addColorStop(.55,'rgba(8,8,8,0.40)');
  fade.addColorStop(1,bg);
- ctx.fillStyle=fade;ctx.fillRect(b.x,b.y+10,b.w,b.h-10);
+ ctx.fillStyle=fade;ctx.fillRect(b.x,b.y+29,b.w,b.h-29);
  // Draw fixed arrows AFTER fading so neither the arrow nor its position dims.
  glyph('>',0,top);
  glyph('>',0,bottom);
