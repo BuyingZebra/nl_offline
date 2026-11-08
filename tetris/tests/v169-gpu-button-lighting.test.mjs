@@ -8,6 +8,7 @@ import {createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY} from '../
 import {createHudDrawing} from '../hud-drawing.js';
 import {buttonLevel,buttonInkLevel} from '../button-feedback.js';
 import {controlsBounds} from '../cropped-ui-layers.js';
+import {createActionController} from '../action-controller.js';
 import '../layout.js';
 
 class Vector4{
@@ -150,4 +151,28 @@ test('renderer keeps Canvas source at baseline and pushes excitation through uni
  const action=src.slice(src.indexOf("markLayers:(...names)=>"),
   src.indexOf('invalidate:()=>invalidate()',src.indexOf("markLayers:(...names)=>")));
  assert.match(action,/name!=='controls'/);
+});
+
+test('direct input score changes invalidate sidebar readouts, not the GPU controls',()=>{
+ const game={status:'playing',score:0,lines:0,level:0,pieces:0,hold:null,
+  softDrop(){this.score++;return true;}};
+ const marked=[];
+ const actions=createActionController({
+  game,scores:{read:()=>({score:0}),
+   update:(storage,best,next)=>next},storage:{},settings:{},
+  screens:{close(){}},getLineClearActive:()=>false,clearLineClear(){},
+  markLayers:(...layers)=>marked.push(...layers.filter(x=>x!=='controls')),
+  invalidate(){},tone(){},onCopyDebug(){},onResetSettingsUI(){}
+ });
+ assert.equal(actions.perform('soft'),true);
+ assert.equal(game.score,1);
+ assert.deepEqual(marked,['board','sidebar']);
+});
+test('fallback is selectable and reports which button backend is active',()=>{
+ const src=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ assert.match(src,/maxFragmentUniforms>=32/);
+ assert.match(src,/\.get\('buttonRenderer'\)==='canvas'/);
+ assert.match(src,/controlsGpuEnabled\?0:buttonSparks/);
+ assert.match(src,/if\(!controlLighting\.configure\(regions,bounds\)\)disableGpuControls\(\)/);
+ assert.match(src,/buttonRenderer:controlsGpuEnabled\?'GPU uniforms':'Canvas2D fallback'/);
 });
