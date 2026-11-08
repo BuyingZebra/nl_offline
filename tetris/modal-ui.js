@@ -38,26 +38,10 @@ function modalBounds(name){
    buttonH:b.extraH,secondaryH:b.overlaySecondaryH,landscapeFallback:false};
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
- const wanted=name==='restart'?2*pad+2*buttonH+2*gap+40:
-  2*pad+4*buttonH+4*gap+18;
+ const wanted=2*pad+4*buttonH+4*gap+18;
  const w=Math.max(0,Math.min(410,W-2*UI_SPACE.padX));
  const h=Math.max(0,Math.min(wanted,usable-2*gap));
  return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,gap,buttonH};
-}
-function modalPanel(title,q){
- const {W,H}=getViewport();
- clearRegions();region(0,0,W,H,'block');
- panel(q.x,q.y,q.w,q.h,13,C.panel,C.border);
- text(title,q.x+q.pad,q.y+q.pad+q.buttonH/2,14,C.bright,'left',q.w-2*q.pad);
-}
-function modalBodyTop(q){return q.y+q.pad+q.buttonH+q.gap;}
-function modalActionRow(q,items){
- const x=q.x+q.pad,y=q.y+q.h-q.pad-q.buttonH;
- const width=q.w-2*q.pad,n=items.length;
- const buttonW=(width-(n-1)*q.gap)/n;
- items.forEach(([label,act,light],i)=>
-  key(label,x+i*(buttonW+q.gap),y,buttonW,q.buttonH,act,{light:Boolean(light)}));
- return y;
 }
 // All visual previews share the very same T tetromino matrix and base image
 // treatment. Per-effect rendering alters ONLY the effect, not the subject.
@@ -212,7 +196,7 @@ function drawSettingsSlider(x,y,w,setting){
   SETTINGS_SQUARE_SIZE,UI_SPACE.unit);
  const {label,size,labelW,trackX,trackW,fraction,valueText,valueW}=ctrl;
  if(label)text(label,x,y,10,C.ink,'left',labelW);
- rect(trackX,y-1.5,trackW,3,C.border);
+ rect(trackX,y-1.5,trackW,3,C.bright);
  rect(trackX,y-1.5,trackW*fraction,3,C.bright);
  rect(trackX+trackW*fraction-size/2,y-size/2,size,size,C.bright);
  text(valueText,x+w,y,10,C.bright,'right',valueW,'terminal');
@@ -382,25 +366,17 @@ function drawScores(q){
   if(i<2){
    const dividerY=ry+rowH-2;
    // Thin dotted terminal separators, not the old ranking-table borders.
-   for(let dx=0;dx<inner;dx+=5)rect(x+inset+dx,dividerY,1.5,.8,C.border);
+   for(let dx=0;dx<inner;dx+=5)rect(x+inset+dx,dividerY,1.5,.8,C.bright);
   }
  });
  const bx=x+(w-buttonW)/2;
  const by=Math.min(y+h-inset-buttonH,rowTop+3*rowH+gap*3);
  key('RETURN',bx,by,buttonW,buttonH,'close',{light:true});
 }
-function drawRestart(q){
- modalPanel('START NEW GAME?',q);
- const footerY=modalActionRow(q,[['CANCEL','close'],['YES, RESTART','restartYes',true]]);
- const bodyTop=modalBodyTop(q);
- text('Your current game and score will be lost.',q.x+q.w/2,
-  (bodyTop+footerY-q.gap)/2,10,C.weak,'center',q.w-2*q.pad);
-}
 function paintModal(q){
  const modal=getModal();
  if(modal==='options')drawOptions(q);
  else if(modal==='scores')drawScores(q);
- else if(modal==='restart')drawRestart(q);
 }
 
  function resetSettings(){
