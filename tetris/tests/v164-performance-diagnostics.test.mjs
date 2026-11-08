@@ -100,7 +100,7 @@ test('debug report distinguishes dirty requests, real uploads and the peak frame
    passTimes:{}
   }]
  });
- assert.match(report,/DIRTY B\/D\/S\/C\/P\/M/);
+ assert.match(report,/DIRTY B\/D\/S\/C\/T\/P\/M/);
  assert.match(report,/PRE-UPLOAD: controls 4.8ms×8 \/ ~5.5MB src/);
  assert.match(report,/PEAK FRAME: 9.1ms \/ state paused \/ causes terminal-log/);
  assert.match(report,/layers controls:1 \/ stages controls:1.2ms/);
