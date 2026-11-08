@@ -12,16 +12,16 @@ test('dot leaders remain right-aligned on small and large screens',()=>{
   assert.match(line,/START(?:ED)?$/);
  }
 });
-test('24 characters per second controls terminal typing cadence',()=>{
+test('37 characters per second controls terminal typing cadence',()=>{
  const log=createTerminalLog({clock:()=>at});
  log.setColumns(30);
  log.advance(0);
  assert.equal(log.snapshot().cursor,2);
  log.advance(10);
  assert.equal(log.snapshot().cursor,3);
- assert.equal(log.advance(51),false);
+ assert.equal(log.advance(37),false);
  assert.equal(log.snapshot().cursor,3);
- assert.equal(log.advance(52),true);
+ assert.equal(log.advance(38),true);
  assert.equal(log.snapshot().cursor,4);
 });
 test('snap-off 250ms, snap-down 250ms, then new top-row typing',()=>{
