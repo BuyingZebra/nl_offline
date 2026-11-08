@@ -4,6 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSettingsManager,STORAGE_KEYS} from '../settings-manager.js';
+import fs from 'node:fs';
 import {DEFAULT_EFFECTS} from '../display-settings-catalog.js';
 
 function memoryStorage(initial={}){
@@ -154,4 +155,25 @@ test('a prior saved decay at 190ms is automatically clamped to 120ms',()=>{
  assert.equal(settings.effects.persistenceMs,120);
  settings.setSetting('persistenceMs',120);
  assert.equal(createSettingsManager(stored).effects.persistenceMs,120);
+});
+
+test('V160 cycles the existing phosphor overlay through green, amber and blue',()=>{
+ const storage=memoryStorage();
+ const settings=createSettingsManager(storage);
+ assert.equal(settings.theme,'green');
+ assert.equal(settings.toggleTheme(),'amber');
+ assert.equal(settings.toggleTheme(),'blue');
+ assert.equal(storage.data.get(STORAGE_KEYS.theme),'blue');
+ const reopened=createSettingsManager(storage);
+ assert.equal(reopened.theme,'blue','blue survives reload');
+ assert.equal(reopened.toggleTheme(),'green');
+ assert.equal(reopened.toggleTheme(),'amber');
+ const unknown=createSettingsManager(memoryStorage({[STORAGE_KEYS.theme]:'unexpected'}));
+ assert.equal(unknown.theme,'green','unknown themes keep legacy fallback');
+});
+test('V160 blue is a fixed luminance tint, not saturation or piece colour',()=>{
+ const source=fs.readFileSync(new URL('../compositor.js',import.meta.url),'utf8');
+ assert.match(source,/blue:new THREE\.Vector3\(\.22,\.40,1\)/);
+ assert.match(source,/tint\.uniforms\.uTint\.value\.copy\(hues\[theme\]\|\|hues\.green\)/);
+ assert.doesNotMatch(source,/saturationSlider|pieceTint|uSaturation/);
 });
