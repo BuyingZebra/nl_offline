@@ -10,10 +10,10 @@ This is the **approved character design** from the 1930s-cartoon Vietnam-era fie
 - Black/gray ink art designed to work as grayscale source for NOMAD's phosphor palettes (green or amber)
 - Avoid photorealism, bevels, 3D modeling, modern tactical equipment, or redesigning his head proportions
 
-## Source and derivatives
-The original full-body expression/action sheet generated in ChatGPT is the **visual source of truth**. `nomad-field-soldier-head.svg` is a cleaned, simplified vector trace of that image's main large head, with real editable SVG path data (no embedded bitmap). It is a reusable derived asset, not a replacement for the original character sheet.
+## Source of truth
+The original full-body expression/action sheet generated in ChatGPT is the **visual source of truth**. The experimental traced SVG and decorative board sticker were rejected and removed in V143.
 
-When creating a new pose or reaction, use the original character sheet **and** this asset together as visual references. Keep helmet foliage, face, eyes, grin, gloves, and proportions consistent. Animate expression and pose rather than inventing a different mascot.
+For future poses, use the original approved character sheet as a reference. Keep helmet foliage, face, eyes, grin, gloves and proportions consistent. Develop clean, authored vector art before integrating new mascot graphics.
 
 ## Game board
-The head currently appears only as a subtle faded decorative wall sticker under the grid and pieces. The SVG remains independent of gameplay, scoring, collision, buttons, and the CRT compositor. The game loads the asset once and draws it into the existing grayscale canvas so the user's phosphor settings still apply. No external image servers are needed.
+The Tetris game board intentionally contains no mascot artwork.
