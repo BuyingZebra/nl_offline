@@ -21,7 +21,7 @@ import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v141';
-import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v146';
+import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v147';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
@@ -248,11 +248,11 @@ const unsubscribeGameEvents=game.onEvent(event=>{
  if(event.type==='lines-cleared'){
   const name=['','SINGLE','DOUBLE','TRIPLE','TETRIS'][event.count]||'LINE';
   const points=[0,40,100,300,1200][event.count]*(event.level+1);
-  queueTerminalMessage(name+' CLEAR +'+points,'LINES X'+event.count+' +'+points);
+  queueTerminalMessage('CLEAR: '+name+' +'+points,'CLR: '+event.count+'L+'+points);
  }
  if(event.type==='level-changed')queueTerminalMessage(
-  'LEVEL ADVANCED: '+fmt(event.to,2),'LEVEL: '+fmt(event.to,2));
- if(event.type==='game-over')queueTerminalMessage('SESSION: GAME OVER','GAME OVER',true);
+  'LEVEL: ADVANCED '+fmt(event.to,2),'LVL: '+fmt(event.to,2));
+ if(event.type==='game-over')queueTerminalMessage('SESSION: GAME OVER','GM: OVER',true);
  if(event.type!=='lines-cleared'||event.status!=='playing')return;
  if(!event.board||!event.rows.length)return;
  lineClearFX={board:event.board,boardMeta:event.boardMeta,rows:new Set(event.rows),elapsed:0};
@@ -323,8 +323,7 @@ function paintNomadMark(x,y,w,h){
 }
 // Do not block first paint on web fonts; redraw once either face loads.
 if(document.fonts?.load){
- const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"',
-  '400 18px "VT323"'];
+ const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"'];
  Promise.allSettled(specs.map(spec=>document.fonts.load(spec))).then(results=>{
   if(appLifecycle?.status==='disposed')return;
   if(!results.some(r=>r.status==='fulfilled'&&r.value.length))return;
@@ -553,7 +552,7 @@ function paintControlsLayer(){
  paintUIRegion(controlsCanvas,controlsContext,controlsPlane,controlsTexture,
   controlsBounds(r,W,H,DPR),'controls',r=>{
    drawControls(r);
-   drawTerminalLog(g,terminalLog,r,performance.now(),C.ink,C.bg);
+   drawTerminalLog(g,terminalLog,r,performance.now(),C.ink,C.bg,FONT);
   });
 }
 function paintBaseGame(){
