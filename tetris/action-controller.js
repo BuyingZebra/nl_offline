@@ -103,8 +103,7 @@ export function createActionController({
   if(action==='theme'){
    settings.toggleTheme();markLayers('base');invalidate();return;
   }
-  if(action==='restart'){screens.requestRestart();return;}
-  if(action==='restartYes'){restart();return;}
+  if(action==='restart'){restart();return;}
   if(action==='resetFX'){
    settings.restoreDefaults();onResetSettingsUI();
    markLayers('base');invalidate();return;
