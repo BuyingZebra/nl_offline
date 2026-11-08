@@ -22,6 +22,7 @@ export function createPlatformManager({
  window,document,display,safeProbe,baseModuleURL,buildVersion,
  getGameStatus,isScreenOpen,onViewport,onVisibility,
  onPageHide=()=>{},onPageShow=()=>{},canReloadNewBuild=()=>true,
+ requestWorkerUpgrade=()=>false,
  now=()=>Date.now(),
  fetchPage=(url,options)=>window.fetch(url,options),
  reloadPage=()=>window.location.reload()
@@ -65,11 +66,16 @@ export function createPlatformManager({
    if(!reply.ok)return false;
    const published=parsePublishedBuild(await reply.text());
    // Check eligibility AFTER awaiting the network, not just before it.
-   if(started&&canReloadNewBuild()&&shouldReloadBuild(buildVersion,published,{
+   if(started&&shouldReloadBuild(buildVersion,published,{
     hidden:document.hidden,modalOpen:isScreenOpen(),gameStatus:getGameStatus()
    })){
-    reloadPage();
-    return true;
+    if(canReloadNewBuild()){
+     reloadPage();
+     return true;
+    }
+    // A pinned client cannot refresh its own HTML. Ask the fully installed
+    // waiting worker to activate while the game is idle; reload on takeover.
+    await requestWorkerUpgrade();
    }
   }catch(e){/* Offline or fetch error: keep the current playable build. */}
   finally{checkingBuild=false;}
