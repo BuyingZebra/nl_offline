@@ -1,4 +1,4 @@
-/* NOMAD two-row scrolling terminal. Fixed character cells, uppercase typography and
+/* NOMAD two-row line-at-a-time terminal. Fixed character cells, uppercase typography and
  * character-at-a-time output. Right-side statuses are aligned using dot leaders
  * computed BEFORE the line is typed; no text ever jumps on screen.
  * Rendering owns no game rules, DOM, or WebGL state.
@@ -53,18 +53,27 @@ export function composeTerminalMessage(entry,columns){
 }
 // One active line at the bottom, one faded history line above. New prompts
 // enter from below as the prior completed line scrolls into the history row.
-export function createTerminalLog({clock=()=>new Date(),typeMs=40,holdMs=1750,
- scrollMs=365,gapMs=120}={}){
+// Line-oriented display: active event on top, the previous event fades on
+// the bottom. Existing text disappears at once, then reappears as history
+// after 250 ms; after another 250 ms the new event begins typing. Prompts
+// never move. 57 WPM = 57*5 standard characters per minute.
+export function createTerminalLog({clock=()=>new Date(),
+ typeMs=60000/(57*5),holdMs=1750,offMs=250,pretypeMs=250}={}){
  const capacity=160;
- let cells=Array(capacity).fill(' '),columns=36,cursor=0;
- let phase='new',current='',activeEntry=null,history='',historyEntry=null;
- let enteringEntry=null,nextAt=0,lastInput=0,scrollStart=0;
- let events=[{full:'SYSTEM: READY',short:'SYS: READY',at:clock()}];
- const write=(ch,now)=>{if(cursor<columns){cells[cursor++]=ch;lastInput=now;}};
- const prompt=now=>{cells.fill(' ');cursor=0;write('>',now);write(' ',now);};
+ const cells=Array(capacity).fill(' ');
+ let columns=36,cursor=2,phase='new';
+ let current='',activeEntry=null,history='',historyEntry=null;
+ let nextAt=0,lastInput=0;
+ const events=[{full:'SYSTEM: READY',short:'SYS: READY',at:clock()}];
+ const clearActive=now=>{
+  cells.fill(' ');cursor=2;lastInput=now;
+ };
+ const write=(ch,now)=>{
+  if(cursor<columns){cells[cursor++]=ch;lastInput=now;}
+ };
  function enqueue(full,short=full,priority=false){
   const entry={full:String(full).toUpperCase(),short:String(short).toUpperCase(),at:clock()};
-  if(priority)events=[entry];
+  if(priority)events.splice(0,events.length,entry);
   else{events.push(entry);if(events.length>6)events.splice(0,events.length-6);}
  }
  function setColumns(n){
@@ -72,40 +81,27 @@ export function createTerminalLog({clock=()=>new Date(),typeMs=40,holdMs=1750,
   if(next===columns)return;
   columns=next;
   if(historyEntry)history='> '+composeTerminalMessage(historyEntry,columns);
-  // During typing and the following hold, reflow before revealing another
-  // character. Restart the current line only when old cells no longer fit.
-  if(activeEntry&&phase!=='scroll'){
+  if(activeEntry&&phase!=='snap-off'){
    const rewritten=composeTerminalMessage(activeEntry,columns);
    const alreadyTyped=cells.slice(2,cursor).join('');
    current=rewritten;
    if(!rewritten.startsWith(alreadyTyped)||cursor>=columns){
-    prompt(lastInput);phase='type';nextAt=0;
+    // Reflow an active message only if its old character grid cannot fit.
+    clearActive(lastInput);
+    if(phase==='hold')phase='type';
+    nextAt=0;
    }
   }else cursor=Math.min(cursor,columns-1);
  }
  function start(now){
   activeEntry=events.shift()||null;
   if(!activeEntry){phase='hold';nextAt=now+holdMs;return false;}
-  prompt(now);
+  clearActive(now);
   current=composeTerminalMessage(activeEntry,columns);
   phase='type';nextAt=now;
   return true;
  }
- function finishScroll(now){
-  // At the end of the upward movement, the previous active line becomes
-  // historical output, and the new prompt is exactly on the lower row.
-  historyEntry=activeEntry;
-  history=cells.slice(0,cursor).join('');
-  activeEntry=enteringEntry;enteringEntry=null;
-  prompt(now);
-  current=composeTerminalMessage(activeEntry,columns);
-  phase='type';nextAt=now+gapMs;
- }
  function advance(now){
-  if(phase==='scroll'){
-   if(now-scrollStart<scrollMs)return true; // Animate only the small HUD crop.
-   finishScroll(now);return true;
-  }
   if(now<nextAt)return false;
   if(phase==='new')return start(now);
   if(phase==='type'){
@@ -113,12 +109,28 @@ export function createTerminalLog({clock=()=>new Date(),typeMs=40,holdMs=1750,
    if(typed<current.length){
     write(current[typed],now);nextAt=now+typeMs;return true;
    }
-   phase='hold';nextAt=now+holdMs;return false;
+   phase='hold';nextAt=now+holdMs;
+   return false;
   }
   if(phase==='hold'){
-   if(!events.length)return false;
-   enteringEntry=events.shift();
-   phase='scroll';scrollStart=now;lastInput=now;
+   if(events.length===0)return false;
+   // Content snaps OFF the top row immediately; stationary prompts remain.
+   phase='snap-off';nextAt=now+offMs;lastInput=now;
+   return true;
+  }
+  if(phase==='snap-off'){
+   // A quarter-second later the old message snaps ON the bottom row.
+   historyEntry=activeEntry;
+   history='> '+composeTerminalMessage(historyEntry,columns);
+   activeEntry=events.shift();
+   clearActive(now);
+   current=composeTerminalMessage(activeEntry,columns);
+   phase='pretype';nextAt=now+pretypeMs;
+   return true;
+  }
+  if(phase==='pretype'){
+   // The new top-row cursor waits another quarter-second before typing.
+   phase='type';nextAt=now;
    return true;
   }
   return false;
@@ -128,77 +140,69 @@ export function createTerminalLog({clock=()=>new Date(),typeMs=40,holdMs=1750,
   return elapsed<500||Math.floor((elapsed-500)/480)%2===0;
  }
  function nextDelay(now){
-  if(phase==='scroll')return 24;
   const elapsed=Math.max(0,now-lastInput);
   const blink=elapsed<500?500-elapsed:480-((elapsed-500)%480);
   const phaseWait=(phase==='hold'&&!events.length)?Infinity:Math.max(0,nextAt-now);
   return Math.max(16,Math.min(blink,phaseWait));
  }
- function snapshot(now=0){
-  return {
-   cells:cells.slice(0,columns),cursor,columns,phase,pending:events.length,
-   history,scrollProgress:phase==='scroll'?
-    Math.max(0,Math.min(1,(now-scrollStart)/scrollMs)):0
-  };
+ function snapshot(){
+  return {cells:cells.slice(0,columns),cursor,columns,phase,
+   pending:events.length,history,activeVisible:phase!=='snap-off'};
  }
  return Object.freeze({enqueue,setColumns,advance,cursorVisible,nextDelay,snapshot});
 }
 export function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  font='"Roboto Condensed",ui-monospace,Menlo,monospace'){
  const b=terminalLineBounds(r);
- // Match SURVIVE THE SOVIET CHALLENGE: same face, same 10px size.
- const fontSize=10;
+ const fontSize=10; // Same size and weight as SURVIVE THE SOVIET CHALLENGE.
  ctx.save();
  ctx.beginPath();ctx.rect(b.x,b.y,b.w,b.h);ctx.clip();
  ctx.font='700 '+fontSize+'px '+font;
  ctx.textBaseline='alphabetic';ctx.textAlign='left';
  ctx.letterSpacing='0px';
  if('fontKerning' in ctx)ctx.fontKerning='none';
- // Keep proportional title glyphs inside rigid character cells.
+ // Title-style proportional characters retain a fixed terminal cell grid.
  const cell=Math.max(1,Math.ceil(Math.max(
   ...['M','W','@','0'].map(ch=>ctx.measureText(ch).width)
  ))+1);
  log.setColumns(Math.max(4,Math.floor(b.w/cell)));
- const {cells,cursor,history,phase,scrollProgress}=log.snapshot(now);
+ const {cells,cursor,history,activeVisible}=log.snapshot();
  const metrics=ctx.measureText('H');
  const ascent=metrics.actualBoundingBoxAscent||fontSize*.70;
  const descent=metrics.actualBoundingBoxDescent||0;
  const cellH=Math.ceil(ascent+descent)+4;
  const pitch=14,top=b.y+8,bottom=top+pitch;
- const progress=phase==='scroll'?1-Math.pow(1-scrollProgress,3):0;
- const shift=pitch*progress;
- const drawLine=(str,y,showCursor=false,position=0)=>{
-  const baseline=y+(ascent-descent)/2;
-  for(let i=0;i<str.length&&i<cells.length;i++){
-   const ch=str[i];if(ch===' ')continue;
-   const x=b.x+i*cell+(cell-ctx.measureText(ch).width)/2;
-   ctx.fillStyle=ink;ctx.fillText(ch,x,baseline);
-  }
-  if(showCursor&&log.cursorVisible(now)&&position<cells.length){
-   const x=b.x+position*cell;
-   ctx.fillStyle=ink;ctx.fillRect(x,y-cellH/2,cell,cellH);
-   const ch=str[position]||' ';
-   if(ch!==' '){
-    ctx.fillStyle=bg;
-    ctx.fillText(ch,x+(cell-ctx.measureText(ch).width)/2,baseline);
-   }
-  }
- };
- // The old history row slides out, while the active line rises into history.
- if(phase==='scroll'){
-  if(history)drawLine(history,top-shift);
-  drawLine(cells.slice(0,cursor).join(''),bottom-shift);
-  drawLine('> ',bottom+pitch-shift,true,2);
- }else{
-  if(history)drawLine(history,top);
-  drawLine(cells.slice(0,cursor).join(''),bottom,true,cursor);
+ function glyph(ch,col,y,color=ink){
+  ctx.fillStyle=color;
+  ctx.fillText(ch,b.x+col*cell+(cell-ctx.measureText(ch).width)/2,
+   y+(ascent-descent)/2);
  }
- // An invisible, unframed terminal viewport. Its upper gradient partially
- // hides older output without affecting the bottom reading position.
- const fade=ctx.createLinearGradient(0,b.y,0,b.y+pitch+6);
- fade.addColorStop(0,bg);
- fade.addColorStop(.52,'rgba(8,8,8,0.55)');
- fade.addColorStop(1,'rgba(8,8,8,0)');
- ctx.fillStyle=fade;ctx.fillRect(b.x,b.y,b.w,pitch+6);
+ // The two prompts are fixed. Historical text never moves or rewrites them.
+ if(activeVisible){
+  for(let i=2;i<cursor;i++){
+   const ch=cells[i];
+   if(ch!==' ')glyph(ch,i,top);
+  }
+ }
+ for(let i=2;i<history.length&&i<cells.length;i++){
+  const ch=history[i];
+  if(ch!==' ')glyph(ch,i,bottom);
+ }
+ // Background-gradient occlusion affects ONLY older text at the bottom.
+ const fade=ctx.createLinearGradient(0,b.y+10,0,b.y+b.h);
+ fade.addColorStop(0,'rgba(8,8,8,0)');
+ fade.addColorStop(.55,'rgba(8,8,8,0.40)');
+ fade.addColorStop(1,bg);
+ ctx.fillStyle=fade;ctx.fillRect(b.x,b.y+10,b.w,b.h-10);
+ // Draw fixed arrows AFTER fading so neither the arrow nor its position dims.
+ glyph('>',0,top);
+ glyph('>',0,bottom);
+ if(log.cursorVisible(now)&&cursor<cells.length){
+  const position=activeVisible?cursor:2;
+  const x=b.x+position*cell,y=top-cellH/2;
+  ctx.fillStyle=ink;ctx.fillRect(x,y,cell,cellH);
+  const ch=activeVisible?cells[position]:' ';
+  if(ch&&ch!==' ')glyph(ch,position,top,bg);
+ }
  ctx.restore();
 }
