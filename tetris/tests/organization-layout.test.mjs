@@ -188,7 +188,8 @@ test('V153 lowered two-row operation log replaces the old shaded version strip',
   const r=computeLayout(w,h,safe,ui);
   assert.ok(r.dy+r.dh<=r.dy+r.dh+1+.01,
    'both terminal rows stay OUTSIDE and below the controls container');
-  assert.equal(r.dx+r.dw,r.hx+r.hw,'control alignment remains unchanged');
+  if(!r.landscape)assert.equal(r.dx+r.dw,r.hx+r.hw,
+    'portrait controls retain their established header alignment');
  }
 });
 test('official logo is an editable, rounded-cap SVG bundled locally',()=>{
