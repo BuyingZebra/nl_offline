@@ -109,11 +109,19 @@ test('uniform changes illuminate and fade with no CanvasTexture mutation',()=>{
  const texture={version:7,needsUpdate:false};
  const shader=createGpuButtonLighting({THREE,texture});
  assert.equal(shader.configure(buttons,bounds),true);
+ assert.equal(shader.material.uniformsNeedUpdate,true);
+ shader.material.uniformsNeedUpdate=false; // simulate successful WebGL draw
  assert.equal(shader.update([]),false);
+ assert.equal(shader.material.uniformsNeedUpdate,false);
  const first=buttons[1];
  assert.equal(shader.update([{...first,power:1}]),true);
  assert.equal(shader.active,true);
+ assert.equal(shader.material.uniformsNeedUpdate,true,
+  'Three.js must upload newly excited face/ink uniforms');
+ shader.material.uniformsNeedUpdate=false;
  assert.equal(shader.update([{...first,power:1}]),false);
+ assert.equal(shader.material.uniformsNeedUpdate,false,
+  'unchanged inputs must not force uniform transfer');
  const state=shader.material.uniforms.uLevels.value[1];
  assert.equal(state.y,1);
  assert.equal(state.z,30/255);
@@ -121,6 +129,8 @@ test('uniform changes illuminate and fade with no CanvasTexture mutation',()=>{
  assert.equal(shader.update([{...first,power:.5}]),true);
  assert.equal(shader.update([]),true);
  assert.equal(shader.active,false);
+ assert.equal(shader.material.uniformsNeedUpdate,true,
+  'the final afterglow frame must clear the shader uniformly');
  assert.equal(shader.update([]),false);
  assert.equal(texture.version,7);
  assert.equal(texture.needsUpdate,false);
