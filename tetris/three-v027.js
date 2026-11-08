@@ -364,8 +364,8 @@ function stage(r,drawPieces=true,recordRegion=true){
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
  rect(offX,offY,w-4,h-4,'#101010');
- // V117: preserve the V114 grid and lift its line opacity another 9%.
- g.globalAlpha=.5356;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
+ // V144: increase ONLY the grid opacity by 9% (0.5356 x 1.09).
+ g.globalAlpha=.583804;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
@@ -411,6 +411,27 @@ function stage(r,drawPieces=true,recordRegion=true){
   if(p.kind==='I')vectorTiles.drawPiece(g,activeTiles,'I',{rotation:p.rotation});
  }
  }
+ // V144: a soft, clipped inner drop shadow makes the playfield feel inset.
+ // Overlay only the inside edges; board shape, grid geometry and pieces stay put.
+ g.save();
+ const innerW=w-4,innerH=h-4;
+ const depth=Math.min(20,Math.max(8,tile*.8));
+ const insetShade=(x0,y0,x1,y1,rx,ry,rw,rh,alpha)=>{
+  const fade=g.createLinearGradient(x0,y0,x1,y1);
+  fade.addColorStop(0,'rgba(0,0,0,'+alpha+')');
+  fade.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=fade;
+  g.fillRect(rx,ry,rw,rh);
+ };
+ insetShade(offX,offY,offX,offY+depth,
+  offX,offY,innerW,depth,.58);
+ insetShade(offX,offY,offX+depth,offY,
+  offX,offY,depth,innerH,.42);
+ insetShade(offX,offY+innerH,offX,offY+innerH-depth,
+  offX,offY+innerH-depth,innerW,depth,.24);
+ insetShade(offX+innerW,offY,offX+innerW-depth,offY,
+  offX+innerW-depth,offY,depth,innerH,.24);
+ g.restore();
  g.restore();
  if(recordRegion)region(x,y,w,h,'board',{board:true});
 
