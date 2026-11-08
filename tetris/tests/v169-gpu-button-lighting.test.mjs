@@ -89,7 +89,9 @@ test('the six original HUD buttons configure without changing positions',()=>{
  ]){
   const {buttons,bounds}=realDeck(w,h,safe);
   const shader=make();
-  assert.deepEqual(buttons.map(b=>b.act),['left','soft','right','cw','hold','pause']);
+  assert.deepEqual(buttons.map(b=>b.act),r.compactControls?
+   ['left','cw','right','soft','hold','pause']:
+   ['left','soft','right','cw','hold','pause']);
   assert.equal(shader.configure(buttons,bounds),true,w+'x'+h);
   assert.equal(shader.count,6);
   assert.deepEqual(shader.regions.map(b=>[b.x,b.y,b.w,b.h]),
