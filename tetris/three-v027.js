@@ -21,7 +21,7 @@ import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-v
 import {formatDebugReport} from './debug-report.js?v164';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v156';
-import {createRenderInvalidation} from './render-invalidation.js?v063';
+import {createRenderInvalidation} from './render-invalidation.js?v167';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v156';
 import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v155';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
@@ -246,6 +246,11 @@ function tone(freq=240,len=.04){
  }catch(e){}
 }
 function invalidate(reason='input'){
+ // V167: only events that can alter visible menu pixels should redraw the
+ // modal. Terminal typing, gravity and background CRT updates cannot.
+ if(screenManager.paintsModalLayer&&
+   ['input','button-press','button-release','resize','resume',
+    'context-restored','font-ready'].includes(reason))layers.mark('modal');
  layers.reason(reason);requestFrame();
 }
 // The core owns piece locking and line-clear detection. Its read-only event
@@ -274,6 +279,9 @@ const screenManager=createScreenManager({
   // Buttons release on navigation, but the full-screen afterglow survives.
   buttonFeedback.clear();
   if(previous==='scores'||next==='scores')layers.mark('base');
+  // Entering/re-entering Options needs a fresh full menu; leaving it must
+  // discard any pending modal dirtiness even if another screen is selected.
+  if(previous==='options'||next==='options')layers.mark('modal');
   if(next===null)regions=baseRegions;
   invalidate();
  }
@@ -651,10 +659,12 @@ function paintBaseGame(){
 }
 function paintGame(){
  if(game.status!==lastPaintedBoardPopupStatus)layers.mark('base');
+ let paintedBase=false;
  if(layers.consume('base')){
   const started=performance.now();
   paintBaseGame();
   perf.recordDuration('base',performance.now()-started);
+  paintedBase=true;
  }
  if(layers.consume('board')){
   const started=performance.now();
@@ -672,11 +682,19 @@ function paintGame(){
   perf.recordDuration('controls',performance.now()-started);
  }
  if(screenManager.paintsModalLayer){
-  const started=performance.now();
-  paintModalOverlay();
-  perf.recordDuration('modal',performance.now()-started);
+  // paintBaseGame resets hit regions to the base; repaint the modal too so
+  // that its hitboxes still receive touch after a font/viewport refresh.
+  if(paintedBase)layers.mark('modal');
+  // The existing modal plane retains the last texture on terminal typing
+  // or button changes behind an unchanged menu. No canvas paint or upload.
+  if(layers.consume('modal')||!modalPlane.visible){
+   const started=performance.now();
+   paintModalOverlay();
+   perf.recordDuration('modal',performance.now()-started);
+  }
  }
  else{
+  layers.consume('modal');
   surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;controlsPlane.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions;
@@ -872,7 +890,7 @@ function frame(now){
    modalUI.scroll=clamp(modalUI.scroll+scrollVelocity*dt,0,modalUI.maxScroll);
    scrollVelocity*=Math.exp(-dt/190);
    if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
-   else{layers.reason('scroll');}
+   else{layers.mark('modal');layers.reason('scroll');}
   }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
   const phosphorOn=settings.effects.persistence===true;
@@ -896,12 +914,16 @@ function frame(now){
    const affected=buttonFeedbackLayers(
     previousButtonSparks,buttonSparks,layoutInfo||layout());
    if(affected.length)layers.mark(...affected);
+   // Settings buttons have their own source luminance and reverse-ink
+   // animations. Redraw the modal only when a live/clearing spark exists.
+   if(screenManager.paintsModalLayer&&
+      (buttonSparks.length||previousButtonSparks.length))layers.mark('modal');
    layers.reason('button-luminance');
   }
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
-   const canvasDirty=['base','board','sidebar','controls'].some(layer=>layers.needs(layer));
+   const canvasDirty=['base','board','sidebar','controls','modal'].some(layer=>layers.needs(layer));
    if(canvasDirty||why.some(reason=>reason!=='phosphor-history'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
    surface.material.map=texture;
