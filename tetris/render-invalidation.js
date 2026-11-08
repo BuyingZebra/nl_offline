@@ -1,9 +1,9 @@
-/* V167 — the single owner of rendering dirtiness and attribution.
+/* V168 — the single owner of rendering dirtiness and attribution.
  * No canvas, DOM, game engine, or Three.js dependencies.
  * A mark schedules work; consume(layer) acknowledges one layer repaint.
  */
-export function createRenderInvalidation(initial=['base','board','sidebar','controls']){
- const layers=new Set(['base','board','sidebar','controls','modal']);
+export function createRenderInvalidation(initial=['base','board','sidebar','controls','terminal']){
+ const layers=new Set(['base','board','sidebar','controls','terminal','modal']);
  const pending=new Set(initial.filter(x=>layers.has(x)));
  const reasons=new Set(['startup']);
  let renderNeeded=true;
