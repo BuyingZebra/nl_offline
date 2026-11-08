@@ -1,4 +1,4 @@
-/* NOMAD V135 — aligned square rails flush with the board's vertical edges. */
+/* NOMAD V136 — textured squares, full-tile rows between both board borders. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -29,14 +29,20 @@ test('pixel and vector SVGs share a single aligned square tile with no stagger',
   assert.match(svg,/viewBox="0 0 12 12"/);
   assert.match(svg,/width="12" height="12"/);
   assert.match(svg,new RegExp('data-style="'+style+'"'));
-  assert.equal((svg.match(/<rect /g)||[]).length,5);
+  assert.equal((svg.match(/<rect /g)||[]).length,16);
   assert.doesNotMatch(svg,/<image|<filter|<linearGradient|<radialGradient/);
   for(const match of svg.matchAll(/rgb\((\d+),(\d+),(\d+)\)/g)){
    assert.equal(match[1],match[2]);assert.equal(match[2],match[3]);
   }
-  const faces=brickShapes(style).filter((_,i)=>i%5===0);
-  assert.deepEqual(faces.map(x=>[x.x,x.y,x.w,x.h]),[[1,1,10,10]],
+  const faces=brickShapes(style);
+  assert.deepEqual([faces[0].x,faces[0].y,faces[0].w,faces[0].h],[1,1,10,10],
    'one full inset square per repeat, no staggered joints');
+  assert.deepEqual([faces[6].x,faces[6].y,faces[6].w,faces[6].h],[3,3,6,6],
+   'distinct recessed textured square face');
+  assert.ok(new Set(faces.map(x=>x.shade)).size>=12,
+   'multiple bevel and chisel luminance levels, not a flat solid bar');
+  assert.ok(faces.every(x=>x.x>=1&&x.y>=1&&x.x+x.w<=11&&x.y+x.h<=11),
+   'bevel and chisel marks remain inside a square tile');
  }
  assert.throws(()=>renderBrickSVG('invalid'),RangeError);
 });
@@ -105,14 +111,25 @@ test('raster stamp stays square, static rails cover full height and reuse cache'
   rect(...v){clips.push(v);},clip(){},drawImage(...v){draws.push(v);}};
  frame.draw(ctx,r);
  const g=brickRailGeometry(r);
- const repeats=Math.ceil(g.left.h/g.height-1e-9);
+ const repeats=Math.max(1,Math.round(g.left.h/g.height));
  assert.equal(stamps.length,1);
  assert.equal(stamps[0].width,stamps[0].height);
  assert.equal(clips.length,2,'one clip per board-side rail');
- assert.equal(draws.length,repeats*2,'both rails extend down to last game row');
+ assert.equal(draws.length,repeats*2,'no clipped/extra tile at the rail bottom');
  assert.ok(repeats>20,'smaller bricks do not stop at twenty repeats');
  for(const [image,x,y,w,h] of draws){
-  assert.ok(near(w,g.width)&&near(h,g.height));
+  assert.ok(near(w,g.width)&&near(h,g.height),
+   'each drawn brick stays exactly square at 75% of a game block');
+ }
+ for(const side of [0,1]){
+  const series=draws.slice(side*repeats,(side+1)*repeats);
+  assert.ok(near(series[0][2],r.boardY),'first complete tile starts at board top');
+  assert.ok(near(series.at(-1)[2]+series.at(-1)[4],r.boardY+r.boardH),
+   'last complete tile ends flush with board bottom');
+  const pitch=(r.boardH-g.height)/(repeats-1);
+  for(let i=1;i<series.length;i++)
+   assert.ok(near(series[i][2]-series[i-1][2],pitch),
+    'even spacing across the board without a truncated last block');
  }
  frame.draw(ctx,r);
  assert.equal(frame.cachedStamps,1,'no redundant rasterization');
@@ -134,4 +151,34 @@ test('bricks are painted on the static base, never on the playfield texture',()=
   './assets/frames/pixel/brick.svg',
   './assets/frames/vector/brick.svg'
  ])assert.ok(sw.includes(item),'offline asset: '+item);
+});
+
+test('all tested viewport rails have complete undistorted first and last tiles',()=>{
+ for(const [W,H,safe] of [
+  [393,852,{top:59,bottom:34}],[430,932,{top:62,bottom:34}],
+  [375,812,{top:50,bottom:34}],[320,568,{top:20}],
+  [280,600,{top:20,bottom:20}],[844,390,{left:59,right:59,bottom:21}]
+ ]){
+  const r=get(W,H,safe),geom=brickRailGeometry(r);
+  const drawCalls=[];
+  const frame=createBrickFrame({
+   pixelRatio:()=>2,
+   createCanvas:()=>({width:0,height:0,getContext:()=>({fillRect(){}})})
+  });
+  frame.draw({
+   save(){},restore(){},beginPath(){},rect(){},clip(){},
+   drawImage(...args){drawCalls.push(args);}
+  },r);
+  const n=Math.max(1,Math.round(r.boardH/geom.height));
+  // Some constrained landscape viewports intentionally clip one rail entirely.
+  const visibleRails=[geom.leftVisible,geom.rightVisible].filter(g=>g.w>0);
+  assert.equal(drawCalls.length,n*visibleRails.length);
+  for(let i=0;i<visibleRails.length;i++){
+   const tiles=drawCalls.slice(i*n,(i+1)*n);
+   assert.ok(near(tiles[0][2],r.boardY));
+   assert.ok(near(tiles.at(-1)[2]+tiles.at(-1)[4],r.boardY+r.boardH));
+   assert.ok(tiles.every(t=>near(t[3],geom.width)&&near(t[4],geom.height)));
+  }
+  frame.dispose();
+ }
 });

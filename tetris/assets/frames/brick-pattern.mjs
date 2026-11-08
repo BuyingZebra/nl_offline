@@ -1,4 +1,4 @@
-/* NOMAD V135 — aligned square brick tiles in pixel and vector form.
+/* NOMAD V136 — textured, beveled square brick tiles in pixel and vector form.
  * Grayscale geometry only; the existing CRT compositor supplies phosphor tint.
  * Rails sit 6px outside the board and use 75%-cell-sized square pattern tiles.
  */
@@ -14,18 +14,30 @@ const COURSES=Object.freeze([
 export function brickShapes(style='vector'){
  if(style!=='pixel'&&style!=='vector')throw new RangeError('Unknown brick style');
  const pixel=style==='pixel',layers=[];
- function add(x,y,w,h,shade){if(w>0&&h>0)layers.push(Object.freeze({x,y,w,h,shade}));}
- for(const course of COURSES)for(const {x,w} of course.bricks){
-  const y=course.y,h=10;
-  // Face coordinates are identical in both artworks; only the bevel is finer
-  // in the vector version. No gradients, radius, texture noise or runtime RNG.
-  add(x,y,w,h,pixel?173:178);
-  const rim=pixel?1:.65;
-  add(x,y,w,rim,pixel?218:230);
-  add(x,y,rim,h,pixel?209:217);
-  add(x,y+h-rim,w,rim,pixel?77:81);
-  add(x+w-rim,y,rim,h,pixel?89:103);
- }
+ const rim=pixel?1:.7,hair=pixel?1:.55;
+ const add=(x,y,w,h,shade)=>{
+  if(w>0&&h>0)layers.push(Object.freeze({x,y,w,h,shade}));
+ };
+ // V136: a raised square masonry block, not a single solid bright strip.
+ // Face/edge heights are restrained so CRT glow doesn't erase the detail.
+ add(1,1,10,10,pixel?103:107);  // dark cut-stone outline
+ add(2,2,8,8,pixel?159:163);    // beveled top surface
+ add(2,2,8,rim,pixel?212:215);
+ add(2,2,rim,8,pixel?189:196);
+ add(2,10-rim,8,rim,pixel?67:74);
+ add(10-rim,2,rim,8,pixel?81:88);
+ add(3,3,6,6,pixel?134:140);   // recessed square stone face
+ add(3,3,6,hair,pixel?174:180);
+ add(3,3,hair,6,pixel?157:163);
+ add(3,9-hair,6,hair,pixel?90:96);
+ add(9-hair,3,hair,6,pixel?97:103);
+ // Deterministic low-profile chisel marks, visible at 75% cell size.
+ // Pixel coordinates stay integral in the pixel asset.
+ add(4,4,3,1,pixel?158:161);
+ add(5,6,2,1,pixel?92:98);
+ add(4,7,1,1,pixel?104:110);
+ add(7,5,1,2,pixel?107:113);
+ add(6,8,2,1,pixel?155:159);
  return layers;
 }
 export function renderBrickSVG(style='vector'){
@@ -35,7 +47,7 @@ export function renderBrickSVG(style='vector'){
  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" '+
   'width="12" height="12" shape-rendering="'+
   (style==='pixel'?'crispEdges':'geometricPrecision')+'" '+
-  'data-design="nomad-bricks-v135" data-style="'+style+'">\n'+
+  'data-design="nomad-bricks-v136" data-style="'+style+'">\n'+
   '<title>NOMAD aligned square '+style+' brick rail</title>\n'+
   shapes.join('\n')+'\n</svg>\n';
 }
@@ -107,12 +119,16 @@ export function createBrickFrame({
    if(!(visible.w>0))continue;
    ctx.save();
    ctx.beginPath();ctx.rect(visible.x,rail.y,visible.w,rail.h);ctx.clip();
-   // Fill the FULL playable height, not just twenty smaller pattern tiles.
-   // Use row multiplication to prevent accumulated floating-point gaps.
-   const count=Math.ceil(rail.h/geometry.height-1e-9);
-   for(let row=0;row<count;row++)
-    ctx.drawImage(tile,rail.x,rail.y+row*geometry.height,
-     geometry.width,geometry.height);
+   // Fit complete SQUARE 75%-cell bricks between BOTH board borders.
+   // The board is not an integer number of 75%-scale tiles tall. Spacing
+   // the whole tiles by a subpixel fraction prevents a chopped-off last tile
+   // without distorting their width, height or the 6px board gutters.
+   const count=Math.max(1,Math.round(rail.h/geometry.height));
+   const step=count>1?(rail.h-geometry.height)/(count-1):0;
+   for(let row=0;row<count;row++){
+    const yy=row===count-1?rail.y+rail.h-geometry.height:rail.y+row*step;
+    ctx.drawImage(tile,rail.x,yy,geometry.width,geometry.height);
+   }
    ctx.restore();
   }
  }
