@@ -301,13 +301,10 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   'Scene + uploads','Board blur H','Board popup','Phosphor history','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
- // Preserve the artist-approved green and amber ratios exactly.
- // Blue is P11-inspired (~460 nm deep blue): a fixed RGB emission ratio
- // applied to grayscale luminance through the EXISTING phosphor pass.
- // No per-piece colours, saturation control or separate overlay.
+ // Restore the original fixed green and amber phosphor ratios;
+ // the blue experiment is removed without changing luminance or bloom.
  const hues={green:new THREE.Vector3(.2,1,.2),
-  amber:new THREE.Vector3(185/255,79/255,9/255),
-  blue:new THREE.Vector3(.22,.40,1)};
+  amber:new THREE.Vector3(185/255,79/255,9/255)};
  let persistenceWasEnabled=false;
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
