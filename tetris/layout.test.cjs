@@ -93,7 +93,9 @@ test('portrait board and entire sidebar are vertically centered between header a
   assert.ok(Math.abs(r.nextPanel.h-r.holdPanel.h)<.01,
    name+' matching preview heights');
   const upperGap=r.statsPanel.y-(r.nextPanel.y+r.nextPanel.h);
-  const lowerGap=r.holdPanel.y-(r.statsPanel.y+r.statsPanel.h);
+  // HOLD now has an external heading, so measure its free space from
+  // the heading rather than from the preview panel's top border.
+  const lowerGap=r.holdPanel.y-r.previewLabelSpace-(r.statsPanel.y+r.statsPanel.h);
   assert.ok(upperGap>=ui.unit-.01&&lowerGap>=ui.unit-.01,
    name+' adequate gaps between panels');
   assert.ok(Math.abs(upperGap-lowerGap)<.01,
@@ -121,8 +123,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v113-r1'));
- assert.ok(html.indexOf('layout.js?three=v113-r1')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v132'));
+ assert.ok(html.indexOf('layout.js?three=v132')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
