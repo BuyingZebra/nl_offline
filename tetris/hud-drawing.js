@@ -66,17 +66,17 @@ function drawSidebar(r){
   const top=stats.y+i*slot,boxY=top+titleSpace;
   text(title,stats.x+inset+1,top+titleSpace*.50,9,C.weak,
    'left',Math.max(8,stats.w-2*inset));
-  panel(stats.x,boxY,stats.w,readoutHeight,0,C.dark??C.bg,C.border);
-  // V139: an inset, square second border gives each readout the approved
-  // double frame without beveling it or changing its outer dimensions.
-  const rim=2;
+  // V140: match the header/footer housing and strengthen square borders.
+  panel(stats.x,boxY,stats.w,readoutHeight,0,C.panel,C.border);
+  const rim=Math.min(4,Math.max(2,(readoutHeight-12)/2));
   if(stats.w>rim*2+1&&readoutHeight>rim*2+1)
    panel(stats.x+rim,boxY+rim,stats.w-rim*2,readoutHeight-rim*2,
-    0,null,C.subtleBorder);
-  // Centered fixed-width numbers read as terminal instrumentation.
+    0,null,C.weak);
+  // Terminal data values are LEFT aligned within their frames.
+  const valueInset=Math.max(10,Math.min(12,stats.w*.14));
   const digitSize=Math.max(10,Math.min(16,stats.w*.175,readoutHeight*.54));
-  text(value,stats.x+stats.w/2,boxY+readoutHeight/2,digitSize,
-   C.ink,'center',Math.max(8,stats.w-2*inset),'terminal');
+  text(value,stats.x+valueInset,boxY+readoutHeight/2,digitSize,
+   C.ink,'left',Math.max(8,stats.w-valueInset-rim-4),'terminal');
  });
  preview(hold,game.hold,'hold');
 }
