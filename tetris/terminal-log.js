@@ -56,9 +56,9 @@ export function composeTerminalMessage(entry,columns){
 // Line-oriented display: active event on top, the previous event fades on
 // the bottom. Existing text disappears at once, then reappears as history
 // after 250 ms; after another 250 ms the new event begins typing. Prompts
-// never move. 57 WPM = 57*5 standard characters per minute.
+// never move. 57 milliseconds per character (~17.5 characters/second).
 export function createTerminalLog({clock=()=>new Date(),
- typeMs=60000/(57*5),holdMs=1750,offMs=250,pretypeMs=250}={}){
+ typeMs=57,holdMs=1750,offMs=250,pretypeMs=250}={}){
  const capacity=160;
  const cells=Array(capacity).fill(' ');
  let columns=36,cursor=2,phase='new';
