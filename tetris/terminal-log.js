@@ -1,4 +1,4 @@
-import {createTerminalEngine} from './terminal-engine.js';
+import {createTerminalEngine} from './terminal-engine.js?v155';
 
 /* NOMAD two-row line-at-a-time terminal. Fixed character cells, uppercase typography and
  * character-at-a-time output. Right-side statuses are aligned using dot leaders
