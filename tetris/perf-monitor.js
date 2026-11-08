@@ -8,6 +8,13 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  onSample=()=>{},intervalMs=5000}={}){
  let started=enabled?now():0,last=null,lastRaf=null;
  let viewport=null,gpu=null;
+ // Internal scheduler labels, kept exact rather than all mapped to "unknown".
+ const reasonNames=new Set([
+  'startup','input','gravity','flash','scroll','resize','resume',
+  'terminal-log','terminal-event','button-luminance','button-press',
+  'button-release','phosphor-history','context-restored',
+  'nomad-mark-ready','font-ready','vector-tile-ready','brick-svg-ready'
+ ]);
  const fresh=()=>({ticks:0,draws:0,frameMs:0,renderMs:0,maxFrameMs:0,
   rafSamples:0,rafDeltaTotal:0,maxRafDelta:0,slowRafTicks:0,
   baseUploadRequests:0,boardUploadRequests:0,sidebarUploadRequests:0,controlsUploadRequests:0,popupUploadRequests:0,modalUploadRequests:0,
@@ -16,8 +23,12 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   controlsPaintMs:0,controlsPaintCount:0,
   modalPaintMs:0,modalPaintCount:0,syncMs:0,syncCount:0,
   redrawReasons:{},frameStates:{},gravityTickAdvances:0,visualStateChanges:0,
-  passTimes:{},webglCalls:0,renderSubmissions:0,uploadTimes:{}});
+  passTimes:{},webglCalls:0,renderSubmissions:0,uploadTimes:{},
+  worstFrame:null});
  let counters=fresh();
+ // Reused during each RAF: no additional timers, paints, or GPU readbacks.
+ let frameReasons=new Set(),frameStageMs={},frameUploadMs=0,
+  frameUploadLayers={},frameState='other';
  function recordRaf(timestamp){
   if(!enabled||!Number.isFinite(timestamp))return;
   if(lastRaf!==null){
@@ -77,10 +88,16 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
    avgWebglCalls:+(counters.webglCalls/Math.max(1,counters.renderSubmissions)).toFixed(2),
    uploadTimes:Object.fromEntries(Object.entries(counters.uploadTimes).map(([name,v])=>
     [name,{calls:v.calls,avgCpuMs:+(v.cpuMs/v.calls).toFixed(3),
-     maxCpuMs:+v.maxCpuMs.toFixed(3),totalCpuMs:+v.cpuMs.toFixed(2)}])),
+     maxCpuMs:+v.maxCpuMs.toFixed(3),totalCpuMs:+v.cpuMs.toFixed(2),
+     estimatedSourceMB:+(v.sourceBytes/1048576).toFixed(2),
+     sourcePixels:v.sourcePixels}])),
    passTimes:Object.fromEntries(Object.entries(counters.passTimes).map(([name,v])=>
     [name,{calls:v.calls,avgCpuMs:+(v.cpuMs/v.calls).toFixed(3),
      maxCpuMs:+v.maxCpuMs.toFixed(3),totalCpuMs:+v.cpuMs.toFixed(2)}])),
+   worstFrame:counters.worstFrame?{...counters.worstFrame,
+    reasons:[...counters.worstFrame.reasons],
+    stageCpuMs:{...counters.worstFrame.stageCpuMs},
+    uploadLayers:{...counters.worstFrame.uploadLayers}}:null,
    viewport:viewport?{...viewport}:null,gpu:gpu?{...gpu}:null};
  }
  function currentSnapshot(){return enabled?buildSnapshot():null;}
@@ -88,6 +105,7 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
  // interpreting time inside compositor.render() as game logic or canvas drawing.
  function recordDuration(kind,elapsed){
   if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
+  frameStageMs[kind]=(frameStageMs[kind]||0)+elapsed;
   if(kind==='logic'){counters.logicCalls++;counters.logicMs+=elapsed;}
   else if(kind==='base'){counters.basePaintCount++;counters.basePaintMs+=elapsed;}
   else if(kind==='board'){counters.boardPaintCount++;counters.boardPaintMs+=elapsed;}
@@ -100,15 +118,25 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   if(!enabled)return;
   const names=Array.isArray(reasons)&&reasons.length?new Set(reasons):new Set(['unknown']);
   for(const name of names){
-   const key=['startup','input','gravity','flash','scroll','resize','unknown'].includes(name)?name:'unknown';
+   const key=reasonNames.has(name)?name:'unknown';
    counters.redrawReasons[key]=(counters.redrawReasons[key]||0)+1;
+   frameReasons.add(key);
   }
  }
- function recordUpload(name,elapsed){
+ function recordUpload(name,elapsed,source={}){
   if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
   const key=['base','board','sidebar','controls','popup','modal'].includes(name)?name:'other';
-  const v=counters.uploadTimes[key]||(counters.uploadTimes[key]={calls:0,cpuMs:0,maxCpuMs:0});
+  const v=counters.uploadTimes[key]||(counters.uploadTimes[key]={
+   calls:0,cpuMs:0,maxCpuMs:0,sourcePixels:0,sourceBytes:0
+  });
+  // Approximate uncompressed RGBA8 source size, NOT GPU VRAM/bandwidth.
+  const width=Number(source.width),height=Number(source.height);
+  const pixels=Number.isSafeInteger(width)&&Number.isSafeInteger(height)&&
+   width>0&&height>0&&width<=16384&&height<=16384?width*height:0;
   v.calls++;v.cpuMs+=elapsed;v.maxCpuMs=Math.max(v.maxCpuMs,elapsed);
+  v.sourcePixels+=pixels;v.sourceBytes+=pixels*4;
+  frameUploadMs+=elapsed;
+  frameUploadLayers[key]=(frameUploadLayers[key]||0)+1;
  }
  function recordPass(name,elapsed){
   if(!enabled||!Number.isFinite(elapsed)||elapsed<0)return;
@@ -129,14 +157,29 @@ export function createPerfMonitor({enabled=false,now=()=>performance.now(),
   if(!enabled)return;
   const key=['playing','paused','ready','over'].includes(state)?state:'other';
   counters.frameStates[key]=(counters.frameStates[key]||0)+1;
+  frameState=key;
  }
- function startFrame(){return enabled?now():0;}
+ function startFrame(){
+  if(!enabled)return 0;
+  frameReasons=new Set();frameStageMs={};frameUploadMs=0;
+  frameUploadLayers={};frameState='other';
+  return now();
+ }
  function endFrame(start){
   if(!enabled)return;
   const elapsed=now()-start;
   counters.ticks++;
   counters.frameMs+=elapsed;
-  counters.maxFrameMs=Math.max(counters.maxFrameMs,elapsed);
+  if(elapsed>counters.maxFrameMs){
+   counters.maxFrameMs=elapsed;
+   counters.worstFrame={
+    cpuMs:+elapsed.toFixed(3),state:frameState,
+    reasons:[...frameReasons],stageCpuMs:Object.fromEntries(
+     Object.entries(frameStageMs).map(([name,ms])=>[name,+ms.toFixed(3)])),
+    preuploadCpuMs:+frameUploadMs.toFixed(3),
+    uploadLayers:{...frameUploadLayers}
+   };
+  }
   const period=now()-started;
   if(period>=intervalMs){
    const value=buildSnapshot(period);
