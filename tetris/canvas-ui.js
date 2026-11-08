@@ -87,9 +87,18 @@ function key(label,x,y,w,h,act,opts={}){
  const inverseInk=grayLevel(buttonInkLevel(power));
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
- // Excite the existing source geometry: no additional filled overlay.
- panel(model.x,model.y,model.w,model.h,8,
-  model.light?lit:C.button,lit);
+ // Illuminated buttons now have a subtle bottom-to-top grayscale gradient.
+ // The brightest stop remains the exact current solid fill (206..255);
+ // the darker bottom stop is only 14 luminance levels below it.
+ let face=C.button;
+ if(model.light){
+  const gradient=getContext().createLinearGradient(
+   model.x,model.y+model.h,model.x,model.y);
+  gradient.addColorStop(0,grayLevel(buttonLevel(power)-14));
+  gradient.addColorStop(1,lit);
+  face=gradient;
+ }
+ panel(model.x,model.y,model.w,model.h,8,face,lit);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
   model.light?inverseInk:lit,'center',Math.max(10,model.w-14));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
