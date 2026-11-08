@@ -58,7 +58,11 @@ function computeLayout(W,H,safe,ui){
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
   // Preserve V108 playfield size and placement; statistics stay in sidebar.
   // The landscape playfield never used the old portrait score row.
-  const boardRegionH=landscape?sh:Math.max(0,sh-legacyStatsOffset);
+  // The terminal's extra 18px comes from the previously unused 45px
+  // statistics strip, not from the board's 10x20 playable dimensions.
+  const terminalExpansion=Math.max(0,ui.deckBottom-30);
+  const boardRegionH=landscape?sh:
+    Math.max(0,sh-Math.max(0,legacyStatsOffset-terminalExpansion));
   const brickGap=ui.padGap; // Identical to the horizontal control gap.
   let bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   if(!landscape&&bw>4){
