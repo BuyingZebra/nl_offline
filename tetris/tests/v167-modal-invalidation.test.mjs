@@ -48,7 +48,7 @@ test('renderer only repaints modal on dirty state, first show or base repaint',(
  assert.match(paint,/paintModalOverlay\(\)/);
  assert.match(paint,/layers\.consume\('modal'\);/);
  assert.doesNotMatch(paint,/if\(screenManager\.paintsModalLayer\)\{\s*const started=performance\.now\(\)/);
- assert.match(s,/const canvasDirty=\['base','board','sidebar','controls','modal'\]/);
+ assert.match(s,/const canvasDirty=\['base','board','sidebar','controls','terminal','modal'\]/);
 });
 
 test('settings, presses, viewport changes and asynchronous clipboard results mark modal',()=>{
@@ -73,7 +73,7 @@ test('menu button luminance targets modal, never hidden base, while visible',()=
  assert.match(paint,/if\(screenManager\.paintsModalLayer\)/);
  assert.match(paint,/if\(buttonSparks\.length\|\|previousButtonSparks\.length\)layers\.mark\('modal'\)/);
  assert.match(paint,/else\{\s*const affected=buttonFeedbackLayers\(/);
- assert.match(s,/if\(previous==='options'&&next!=='options'\)layers\.mark\('base','controls'\)/);
+ assert.match(s,/if\(previous==='options'&&next!=='options'\)layers\.mark\('base','controls','terminal'\)/);
  assert.match(s,/if\(previous==='options'\|\|next==='options'\)layers\.mark\('modal'\)/);
 });
 
