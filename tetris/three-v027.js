@@ -8,6 +8,7 @@ import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
 import {collectPieceShadowGroups,createPieceShadowRenderer} from './piece-drop-shadow.js?v163';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
+import {buttonFeedbackLayers} from './button-layer-invalidation.js?v166';
 import {createCanvasUI} from './canvas-ui.js?v165';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
@@ -881,12 +882,20 @@ function frame(now){
    layers.reason('phosphor-history');
   // Only repaint when the actual source luminance changes (206..255),
   // including the final return to baseline. Phosphor history owns the fade.
+  const previousButtonSparks=buttonSparks;
   buttonSparks=buttonFeedback.sample(now,phosphorOn);
   const buttonSignature=buttonSparks.map(s=>[s.x,s.y,s.w,s.h,
    Math.round(s.power*49)].join(':')).join('|');
   if(buttonSignature!==priorButtonSignature){
    priorButtonSignature=buttonSignature;
-   layers.mark('base','controls');
+   // V166: the opaque, cropped controls plane already hides the base
+   // canvas' duplicate deck artwork. Avoid reuploading the entire base
+   // texture for deck-only button animations. Header and board-status
+   // popup buttons still invalidate base; consider BOTH sets so a
+   // completed afterglow repaints the last illuminated pixels.
+   const affected=buttonFeedbackLayers(
+    previousButtonSparks,buttonSparks,layoutInfo||layout());
+   if(affected.length)layers.mark(...affected);
    layers.reason('button-luminance');
   }
   if(layers.needsRender()){
