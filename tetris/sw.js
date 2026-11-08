@@ -1,4 +1,4 @@
-/* NOMAD Tetris V146 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V147 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -8,12 +8,12 @@
  * it while idle; never promote a partially cached shell.
  */
 'use strict';
-const CACHE_VERSION='v146';
+const CACHE_VERSION='v147';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
 const SCOPE=new URL(self.registration.scope);
-const FONT_STYLESHEET='https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&family=Share+Tech+Mono&family=VT323&display=swap';
+const FONT_STYLESHEET='https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&family=Share+Tech+Mono&display=swap';
 const FONT_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com']);
 
 // Explicit allowlist; no runtime network crawling, broad caches or map assets.
