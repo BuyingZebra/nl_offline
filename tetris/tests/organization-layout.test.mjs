@@ -244,3 +244,23 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
  assert.match(renderer,/\/\/ V117: preserve the V114 grid/);
 });
+
+test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
+ const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
+ const start=renderer.indexOf('function stage(r,drawPieces=true,recordRegion=true){');
+ const end=renderer.indexOf('function paintBoardPopup(r)',start);
+ const board=renderer.slice(start,end);
+ assert.ok(start>=0&&end>start,'inset shadow belongs to board renderer');
+ assert.match(board,/g\.globalAlpha=\.583804;g\.strokeStyle=C\.grid/);
+ assert.match(board,/const depth=Math\.min\(20,Math\.max\(8,tile\*\.8\)\)/);
+ assert.equal((board.match(/insetShade\(/g)||[]).length,4,
+  'top, left, bottom and right inner shadow strips');
+ assert.match(board,/g\.createLinearGradient/);
+ assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
+ assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
+ assert.match(board,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
+ assert.match(sw,/CACHE_VERSION='v144'/);
+ assert.match(html,/<meta name="tetris-build" content="144">/);
+});
