@@ -37,7 +37,11 @@ export function createSettingsManager(storage){
  effects.persistenceMs=normalizePersistenceMs(effects.persistenceMs);
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
- let theme=read(STORAGE_KEYS.theme,'green')==='amber'?'amber':'green';
+ // Legacy saved green/amber values remain unchanged. Blue uses the same
+ // grayscale-phosphor overlay as the original two themes.
+ const themes=['green','amber','blue'];
+ const savedTheme=read(STORAGE_KEYS.theme,'green');
+ let theme=themes.includes(savedTheme)?savedTheme:'green';
 
  function persistEffects(){
   write(STORAGE_KEYS.effects,JSON.stringify(effects));
@@ -68,7 +72,7 @@ export function createSettingsManager(storage){
   persistEffects();
  }
  function toggleTheme(){
-  theme=theme==='green'?'amber':'green';
+  theme=themes[(themes.indexOf(theme)+1)%themes.length];
   write(STORAGE_KEYS.theme,theme);
   return theme;
  }
