@@ -27,7 +27,7 @@ export function controlsBounds(r,width,height,dpr){
  // The unframed two-line terminal is drawn inside this same small HUD crop.
  // Extend its bounds without expanding the button container itself.
  return croppedBounds([{x:r.dx,y:r.dy,w:r.dw,h:r.dh},
-  {x:r.dx+5,y:r.dy+r.dh+1,w:Math.max(1,r.dw-10),h:29}],width,height,dpr);
+  {x:r.dx+5,y:r.dy+r.dh+1,w:Math.max(1,r.dw-10),h:43}],width,height,dpr);
 }
 export function drawCroppedCanvas({canvas,context,plane,texture,bounds,dpr,width,height,draw}){
  const {x,y,w,h}=bounds;
