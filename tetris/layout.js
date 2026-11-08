@@ -31,7 +31,9 @@ function computeLayout(W,H,safe,ui){
   // The recovered score-row space is reserved, not added to the game board.
   const legacyStatsOffset=ui.scoreHeight+deckGap;
   const dhDefault=2*deckPad+deckGap+buttonH+extraH;
-  const bottomMargin=H>=550?ui.deckBottom:Math.max(ui.unit,Math.min(ui.deckBottom,usableH*.055));
+  // The two history/output rows sit below (never inside) the controls panel.
+  // Reserve at least 44px even on compact portrait screens.
+  const bottomMargin=Math.min(ui.deckBottom,Math.max(44,usableH*.11));
   let dh=dhDefault,dy=H-edges.bottom-bottomMargin-dh;
   let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
   let hx=off+pad,hw=inner,sx=off+pad,sw=inner,dx=off+pad,dw=inner;
@@ -45,8 +47,8 @@ function computeLayout(W,H,safe,ui){
     }
     hy=edges.top+8;hh=Math.min(64,Math.max(42,usableH-16));
     dy=edges.top+8+legacyStatsOffset;
-    // Reserve an unframed terminal line below the landscape controls.
-    dh=Math.max(0,usableH-16-legacyStatsOffset-31);
+    // Leave room for both history and active output below landscape controls.
+    dh=Math.max(0,usableH-16-legacyStatsOffset-46);
     sy=edges.top+8;sh=Math.max(0,usableH-16);
     hx=off+8;hw=Math.max(0,left);
     sx=off+left+14;sw=Math.max(0,width-left-right-36);
