@@ -170,10 +170,19 @@ const sidebarPlane=makeUILayer(sidebarTexture,.6,.011);
 const controlsPlane=makeUILayer(controlsTexture,.7,.012);
 // Reuse the same control-plane draw call: a GPU shader remaps only the
 // button-face/ink luminance. The uploaded CanvasTexture stays at baseline.
-const controlLighting=createGpuButtonLighting({THREE,texture:controlsTexture});
-const originalControlsMaterial=controlsPlane.material;
-controlsPlane.material=controlLighting.material;
-originalControlsMaterial.dispose();
+// Some WebGL1 implementations expose fewer than 32 fragment uniform
+// vectors. Keep the original supported Canvas2D material on those devices.
+const controlsFallbackMaterial=controlsPlane.material;
+const controlLighting=renderer.capabilities.maxFragmentUniforms>=32?
+ createGpuButtonLighting({THREE,texture:controlsTexture}):null;
+let controlsGpuEnabled=Boolean(controlLighting);
+if(controlsGpuEnabled)controlsPlane.material=controlLighting.material;
+function disableGpuControls(){
+ if(!controlsGpuEnabled)return;
+ controlsGpuEnabled=false;
+ controlsPlane.material=controlsFallbackMaterial;
+ layers.mark('controls');invalidate('gpu-controls-fallback');
+}
 // Same CRT scene and pass order, with one additional tiny opaque HUD crop.
 const terminalPlane=makeUILayer(terminalTexture,.8,.013);
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
@@ -312,7 +321,8 @@ const actions=createActionController({
  // Score, lines and preview content already belong to sidebar/board.
  // The deck itself is static; presses are now uniform-only GPU changes.
  markLayers:(...names)=>{
-  const applicable=names.filter(name=>name!=='controls');
+  const applicable=controlsGpuEnabled?
+   names.filter(name=>name!=='controls'):names;
   if(applicable.length)layers.mark(...applicable);
  },
  invalidate:()=>invalidate(),
@@ -324,7 +334,7 @@ const actions=createActionController({
 });
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
- getButtonPower:r=>g===controlsContext?0:buttonSparks.find(
+ getButtonPower:r=>(g===controlsContext&&controlsGpuEnabled)?0:buttonSparks.find(
   s=>s.x===r.x&&s.y===r.y&&s.w===r.w&&s.h===r.h)?.power??0,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
@@ -628,9 +638,10 @@ function paintControlsLayer(){
    drawControls(r);
    // The temporary regions list contains the exact button geometry
    // produced by the same Canvas painter and touch-hitbox model.
-   if(!controlLighting.configure(regions,bounds))
-    throw new Error('GPU controls geometry must match the source layer');
-   controlLighting.update(buttonSparks);
+   if(controlsGpuEnabled){
+    if(!controlLighting.configure(regions,bounds))disableGpuControls();
+    else controlLighting.update(buttonSparks);
+   }
   });
 }
 function paintTerminalLayer(){
@@ -828,8 +839,9 @@ inputController=createInputController({
  setBaseDirty:(act)=>{
   if(act==='theme'||act==='options')layers.mark('base');
   else if(act==='board')layers.mark('board');
-  // Deck buttons no longer modify their CanvasTexture on press/release.
-  // The same input action still advances the game and schedules a frame.
+  // GPU button brightness needs only a shader-uniform update. Retain
+  // original source painting on devices without sufficient GPU capability.
+  else if(act&&!controlsGpuEnabled)layers.mark('controls');
  },
  handleAction:act=>{
   const previous=game.status;
@@ -967,14 +979,15 @@ function frame(now){
     // Game controls now use GPU uniform updates, not CanvasTexture
     // invalidation. Header and board-status popup buttons retain the
     // original source-owned brightness and require base painting.
-    const canvasAffected=affected.filter(name=>name!=='controls');
+    const canvasAffected=controlsGpuEnabled?
+     affected.filter(name=>name!=='controls'):affected;
     if(canvasAffected.length)layers.mark(...canvasAffected);
    }
    layers.reason('button-luminance');
   }
   // Uniform-only updates still render through the unchanged CRT FX,
   // allowing pressed pixels to contribute to bloom and phosphor naturally.
-  controlLighting.update(buttonSparks);
+  if(controlsGpuEnabled)controlLighting.update(buttonSparks);
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
@@ -1072,6 +1085,7 @@ appLifecycle=createAppLifecycle({
   ['vector-tiles',()=>vectorTiles.dispose()],
   ['piece-shadows',()=>pieceShadows.dispose()],
   ['brick-frame',()=>brickFrame.dispose()],
+  ['gpu-button-fallback-material',()=>controlsFallbackMaterial.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
   ['platform',()=>platform.stop()],
   ['graphics',()=>graphicsCleanup.dispose()]
