@@ -14,7 +14,7 @@ const BLOCKED_DURING_LINE_CLEAR=new Set([
 export function createActionController({
  game,scores,storage,settings,screens,
  getLineClearActive,clearLineClear,markLayers,invalidate,tone,
- onCopyDebug,onResetSettingsUI,
+ onCopyDebug,onResetSettingsUI,onTerminalEvent=()=>{},
  canInteract=()=>true,now=()=>Date.now()
 }){
  if(!game||!scores||!settings||!screens||
@@ -66,6 +66,11 @@ export function createActionController({
    else if(type==='cw')tone(305);
    else if(type==='hold')tone(265);
    if(game.score!==score)observeScore();
+   if(type==='start')onTerminalEvent(was==='paused'?'GAME: RESUMED':'GAME: SESSION STARTED',
+    was==='paused'?'RESUMED':'SESSION STARTED');
+   if(type==='pause')onTerminalEvent(game.status==='paused'?'GAME: PAUSED':'GAME: RESUMED',
+    game.status==='paused'?'PAUSED':'RESUMED');
+   if(type==='hold')onTerminalEvent('INPUT: HOLD PIECE '+game.hold,'HOLD: '+game.hold);
    onGameOver();invalidate();
   }
   return ok;
@@ -76,6 +81,7 @@ export function createActionController({
   observeScore();
   clearLineClear();
   game.reset();game.start();
+  onTerminalEvent('GAME: SESSION RESTARTED','RESTARTED');
   markLayers('board','sidebar','controls','base');
   screens.close();invalidate();
  }
