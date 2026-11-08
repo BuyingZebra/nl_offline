@@ -31,9 +31,7 @@ function computeLayout(W,H,safe,ui){
   // The recovered score-row space is reserved, not added to the game board.
   const legacyStatsOffset=ui.scoreHeight+deckGap;
   const dhDefault=2*deckPad+deckGap+buttonH+extraH;
-  // The two history/output rows sit below (never inside) the controls panel.
-  // Reserve at least 44px even on compact portrait screens.
-  const bottomMargin=Math.min(ui.deckBottom,Math.max(44,usableH*.11));
+  const bottomMargin=H>=550?ui.deckBottom:Math.max(ui.unit,Math.min(ui.deckBottom,usableH*.055));
   let dh=dhDefault,dy=H-edges.bottom-bottomMargin-dh;
   let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
   let hx=off+pad,hw=inner,sx=off+pad,sw=inner,dx=off+pad,dw=inner;
@@ -47,8 +45,8 @@ function computeLayout(W,H,safe,ui){
     }
     hy=edges.top+8;hh=Math.min(64,Math.max(42,usableH-16));
     dy=edges.top+8+legacyStatsOffset;
-    // Leave room for both history and active output below landscape controls.
-    dh=Math.max(0,usableH-16-legacyStatsOffset-46);
+    // Reserve an unframed terminal line below the landscape controls.
+    dh=Math.max(0,usableH-16-legacyStatsOffset-31);
     sy=edges.top+8;sh=Math.max(0,usableH-16);
     hx=off+8;hw=Math.max(0,left);
     sx=off+left+14;sw=Math.max(0,width-left-right-36);
@@ -58,11 +56,7 @@ function computeLayout(W,H,safe,ui){
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
   // Preserve V108 playfield size and placement; statistics stay in sidebar.
   // The landscape playfield never used the old portrait score row.
-  // The terminal's extra 18px comes from the previously unused 45px
-  // statistics strip, not from the board's 10x20 playable dimensions.
-  const terminalExpansion=Math.max(0,ui.deckBottom-30);
-  const boardRegionH=landscape?sh:
-    Math.max(0,sh-Math.max(0,legacyStatsOffset-terminalExpansion));
+  const boardRegionH=landscape?sh:Math.max(0,sh-legacyStatsOffset);
   const brickGap=ui.padGap; // Identical to the horizontal control gap.
   let bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   if(!landscape&&bw>4){
