@@ -9,7 +9,8 @@ import {croppedBounds,controlsBounds,drawCroppedCanvas} from '../cropped-ui-laye
 import {terminalLineBounds} from '../terminal-log.js';
 import {createPerfMonitor} from '../perf-monitor.js';
 import {formatDebugReport} from '../debug-report.js';
-import {computeLayout} from '../layout.js';
+import '../layout.js'; // layout.js preserves its existing browser/CommonJS global API
+const {computeLayout}=globalThis.FieldAtlasTetrisLayout;
 
 const UI={unit:6,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,
  padX:11,stackGap:6,side:93,sideGap:6,headHeight:80,headIcons:46,
