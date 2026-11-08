@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
 import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
-import {pieceShadowOccupancy,drawPieceShadowGradients} from './piece-drop-shadow.js?v159';
+import {collectPieceShadowGroups,createPieceShadowRenderer} from './piece-drop-shadow.js?v162';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v157';
@@ -339,6 +339,7 @@ if(document.fonts?.load){
 }
 // V121: higher-contrast smooth SVG sprites, raster-cached at display DPR.
 // Approved pixel motifs remain a fallback during SVG loading/errors.
+const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,
  onReady:()=>{
@@ -385,7 +386,7 @@ function stage(r,drawPieces=true,recordRegion=true){
  panel(x,y,w,h,7,C.panel);
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
- rect(offX,offY,w-4,h-4,'#121212');
+ rect(offX,offY,w-4,h-4,'#181818');
  // V158: increase the visible grid by another ~10%. The board background
  // is 18/255 (up from 16/255); grid opacity is 0.68305068 x 1.10 and
  // its source luminance is 43 (up from 41). Geometry/thickness are unchanged.
@@ -404,14 +405,14 @@ function stage(r,drawPieces=true,recordRegion=true){
  const iRuns=collectIFragments(displayBoard,displayMeta,{
   hiddenRows:clearIsEmpty?lineClearFX.rows:null
  });
- // V159: the tiles sit above a shadow-box floor. Each exposed edge uses
- // a piece-shaped gradient with the SAME 8-20px depth and .58/.42/.24
- // black stops as the existing board inset shadow. Paint AFTER the grid
- // but BEFORE the SVG tile faces, letting shadows slowly hide grid lines.
- const shadowCells=pieceShadowOccupancy(displayBoard,
+ // V162: cast each locked/active tetromino's own 2-layer shadow onto the
+ // grid BEFORE painting its source SVG art. Piece IDs preserve separate
+ // shadows for touching stacks, and the current rotated matrix is sampled
+ // anew on every paint so even wall kicks change the silhouette correctly.
+ const shadowGroups=collectPieceShadowGroups(displayBoard,displayMeta,
   !lineClearFX&&game.status!=='over'?game.current:null,
   clearIsEmpty?lineClearFX.rows:null);
- drawPieceShadowGradients(g,shadowCells,offX,offY,tile);
+ pieceShadows.draw(g,shadowGroups,offX,offY,tile);
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
@@ -982,6 +983,7 @@ appLifecycle=createAppLifecycle({
   ['game-observer',unsubscribeGameEvents],
   ['input',()=>inputController?.dispose()],
   ['vector-tiles',()=>vectorTiles.dispose()],
+  ['piece-shadows',()=>pieceShadows.dispose()],
   ['brick-frame',()=>brickFrame.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
   ['platform',()=>platform.stop()],
