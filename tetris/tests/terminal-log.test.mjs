@@ -59,7 +59,7 @@ test('title font remains visible in a fixed-width, full-height cursor grid',()=>
  };
  const r={dx:11,dw:371,footerY:800};
  drawTerminalLog(ctx,log,r,0);
- assert.match(ctx.font,/700 17px "Roboto Condensed"/);
+ assert.match(ctx.font,/700 10px "Roboto Condensed"/);
  const cursor=drawn.find(x=>x.type==='cursor');
  assert.ok(cursor);
  assert.equal(cursor.w,11,'cursor is a full measured character cell');
