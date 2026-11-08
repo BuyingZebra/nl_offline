@@ -5,7 +5,7 @@ import {createCanvasUI} from '../canvas-ui.js';
 import {createActionController} from '../action-controller.js';
 import {createScreenManager,SCREENS} from '../screen-manager.js';
 
-test('solid button gradient is visible, but its top remains the original fill',()=>{
+test('V165 solid buttons use flat original luminance, not a gradient',()=>{
  const gradients=[],fills=[],borders=[],regions=[];
  const g={
   beginPath(){},roundRect(){},
@@ -28,10 +28,8 @@ test('solid button gradient is visible, but its top remains the original fill',(
  });
  ui.key('DROP',4,6,100,50,'soft',{light:true});
  ui.key('PAUSE',110,6,80,50,'pause');
- assert.equal(gradients.length,1);
- assert.deepEqual(gradients[0].coords,[4,56,4,6]);
- assert.deepEqual(gradients[0].stops,[
-  [0,'rgb(166,166,166)'],[1,'rgb(206,206,206)']]);
+ assert.equal(gradients.length,0,'flat solid faces make no gradients');
+ assert.equal(fills[0],'rgb(206,206,206)','solid face uses full baseline luminance');
  assert.equal(borders[0],'rgb(206,206,206)');
  assert.equal(fills[1],'#080808','unfilled controls stay unchanged');
  assert.deepEqual(regions.map(r=>[r.x,r.y,r.w,r.h]),
