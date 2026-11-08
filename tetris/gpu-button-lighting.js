@@ -104,7 +104,7 @@ export function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPAC
   side:THREE.DoubleSide,toneMapped:false
  });
  let geometry=[],active=false;
- let lastSignature='',layoutSignature='';
+ let layoutSignature='';
  function configure(buttons,bounds){
   if(!Array.isArray(buttons)||!finiteBox(bounds))return false;
   const visible=buttons.filter(b=>b?.kind==='button'&&finiteBox(b));
@@ -134,29 +134,33 @@ export function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPAC
   }
   uniforms.uCount.value=geometry.length;
   uniforms.uExcited.value=0;
-  lastSignature='';
   layoutSignature=fingerprint;active=true;
   return true;
  }
  function update(sparks=[]){
   if(!active)return false;
-  let any=false;
-  const fingerprint=[];
+  let any=false,updated=false;
   for(let i=0;i<geometry.length;i++){
    const b=geometry[i];
    const spark=sparks.find(s=>sameBox(s,b));
    const power=clamp(Number(spark?.power)||0,0,1);
-   const target=levelFor(b.light,power);
-   const changed=(b.light?target.face!==206||target.ink!==6:target.ink!==206);
-   if(changed)any=true;
-   levels[i].set(b.light?1:0,target.face/255,target.ink/255,changed?1:0);
-   fingerprint.push(target.face,target.ink);
+   const face=b.light?buttonLevel(power):8;
+   const ink=b.light?buttonInkLevel(power):buttonLevel(power);
+   const isActive=b.light?face!==206||ink!==6:ink!==206;
+   const nextFace=face/255,nextInk=ink/255;
+   const state=levels[i];
+   if(state.y!==nextFace||state.z!==nextInk||
+     state.w!==(isActive?1:0)){
+    state.set(b.light?1:0,nextFace,nextInk,isActive?1:0);
+    updated=true;
+   }
+   if(isActive)any=true;
   }
-  uniforms.uExcited.value=any?1:0;
-  const signature=fingerprint.join(',');
-  const changed=signature!==lastSignature;
-  lastSignature=signature;
-  return changed;
+  if(uniforms.uExcited.value!==(any?1:0)){
+   uniforms.uExcited.value=any?1:0;
+   updated=true;
+  }
+  return updated;
  }
  return Object.freeze({
   material,configure,update,
