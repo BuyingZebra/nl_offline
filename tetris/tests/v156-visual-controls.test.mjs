@@ -5,7 +5,7 @@ import {createCanvasUI} from '../canvas-ui.js';
 import {createActionController} from '../action-controller.js';
 import {createScreenManager,SCREENS} from '../screen-manager.js';
 
-test('solid buttons slope subtly upward to the original fill, not a bevel',()=>{
+test('solid button gradient is visible, but its top remains the original fill',()=>{
  const gradients=[],fills=[],borders=[],regions=[];
  const g={
   beginPath(){},roundRect(){},
@@ -31,7 +31,7 @@ test('solid buttons slope subtly upward to the original fill, not a bevel',()=>{
  assert.equal(gradients.length,1);
  assert.deepEqual(gradients[0].coords,[4,56,4,6]);
  assert.deepEqual(gradients[0].stops,[
-  [0,'rgb(192,192,192)'],[1,'rgb(206,206,206)']]);
+  [0,'rgb(166,166,166)'],[1,'rgb(206,206,206)']]);
  assert.equal(borders[0],'rgb(206,206,206)');
  assert.equal(fills[1],'#080808','unfilled controls stay unchanged');
  assert.deepEqual(regions.map(r=>[r.x,r.y,r.w,r.h]),
