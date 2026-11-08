@@ -120,35 +120,40 @@ with sync_playwright() as p:
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     page.mouse.click(155, 416)  # START GAME
     page.wait_for_timeout(300)
-    playing_image = page.screenshot()
-    assert playing_image != ready.read_bytes(), "Start did not change the game board"
+    read_best = "() => window.FieldAtlasScores.read(localStorage)?.score ?? 0"
+    page.keyboard.press("ArrowDown")
+    started_score = page.evaluate(read_best)
+    assert started_score > 0, "Soft drop did not score after START GAME"
 
     # PAUSE transitions playing→paused during pointerdown. The pressed PAUSE
     # button must visibly brighten even though game status changes immediately.
-    pause_box = (205, 770, 332, 817)
-    frame = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
-    cold_pause = frame.crop(pause_box)
-    cold_mean = sum(cold_pause.getdata()) / (cold_pause.width*cold_pause.height)
     page.mouse.move(265, 792)
     page.mouse.down()
     pause_means = []
-    for _ in range(3):
+    for _ in range(6):
         page.wait_for_timeout(160)
         frame = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
-        roi = frame.crop(pause_box)
+        roi = frame.crop(crop)
         pause_means.append(sum(roi.getdata()) / (roi.width*roi.height))
     page.mouse.up()
+    page.wait_for_timeout(1200)
+    cold_pause = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L").crop(crop)
+    cold_mean = sum(cold_pause.getdata()) / (cold_pause.width*cold_pause.height)
     delta_pause = max(pause_means) - cold_mean
     print("ACTIVE PAUSE LUMINANCE:", {"cold": cold_mean, "hot": max(pause_means),
                                     "delta": delta_pause})
     assert delta_pause > 1.0, (
         f"PAUSE lost its pressed luminance on status change: {delta_pause:.2f}"
     )
+    page.keyboard.press("ArrowDown")
+    assert page.evaluate(read_best) == started_score, "Soft drop still scored while paused"
     page.keyboard.press("p")  # Resume before gameplay/bfcache checks
     page.wait_for_timeout(150)
 
     page.keyboard.press("Space")  # Soft drop
+    assert page.evaluate(read_best) > started_score, "Soft drop did not score after resume"
     page.wait_for_timeout(150)
+    playing_image = page.screenshot()
     # A temporary bfcache round-trip must pause gameplay but keep its WebGL
     # resources, canvas pixels and input handlers alive.
     page.evaluate("""() => {
