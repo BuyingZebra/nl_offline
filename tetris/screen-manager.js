@@ -5,12 +5,11 @@
 export const SCREENS=Object.freeze({
  GAME:'game',
  OPTIONS:'options',
- SCORES:'scores',
- RESTART:'restart'
+ SCORES:'scores'
 });
 
 const MODALS=new Set([
- null,SCREENS.OPTIONS,SCREENS.SCORES,SCREENS.RESTART
+ null,SCREENS.OPTIONS,SCREENS.SCORES
 ]);
 
 export function createScreenManager({getGameStatus,pauseGame,onChange}){
@@ -41,7 +40,6 @@ export function createScreenManager({getGameStatus,pauseGame,onChange}){
   get paintsModalLayer(){return active!==null&&active!==SCREENS.SCORES;},
   close:()=>open(null),
   openOptions:()=>openWithPause(SCREENS.OPTIONS),
-  openScores:()=>openWithPause(SCREENS.SCORES),
-  requestRestart:()=>getGameStatus()==='paused'&&open(SCREENS.RESTART)
+  openScores:()=>openWithPause(SCREENS.SCORES)
  });
 }
