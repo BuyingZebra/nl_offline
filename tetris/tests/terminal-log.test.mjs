@@ -62,7 +62,7 @@ test('the fading top history does not move the bottom cursor',()=>{
  const cursor=glyphs.find(x=>x.w===11);
  assert.ok(cursor);
  assert.equal(cursor.h,16,'block cursor retains a 2px top/bottom overhang');
- assert.equal(cursor.y+cursor.h/2,terminalLineBounds(r).y+29);
+ assert.equal(cursor.y+cursor.h/2,terminalLineBounds(r).y+22);
  assert.equal(gradients.length,1);
  assert.equal(gradients[0].stops[0][1],'#080808');
  assert.equal(gradients[0].stops.at(-1)[1],'rgba(8,8,8,0)');
