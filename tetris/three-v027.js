@@ -14,14 +14,14 @@ import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-li
 import {createInputController} from './input-controller.js?v096';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
-import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v149';
+import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v150';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v141';
-import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v149';
+import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v150';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
@@ -66,7 +66,7 @@ const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
  headTitleInset:17,
- deckBottom:48,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
+ deckBottom:30,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
  padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
  holdHeight:88,nextHeight:162,statsHeight:92
 });
