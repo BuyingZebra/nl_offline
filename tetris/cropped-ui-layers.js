@@ -24,7 +24,9 @@ export function sidebarBounds(r,width,height,dpr){
  ],width,height,dpr);
 }
 export function controlsBounds(r,width,height,dpr){
- return croppedBounds([{x:r.dx,y:r.dy,w:r.dw,h:r.dh}],width,height,dpr);
+ // Include the unframed terminal below the buttons in the cropped layer.
+ return croppedBounds([{x:r.dx,y:r.dy,w:r.dw,h:r.dh},
+  {x:r.dx+5,y:r.footerY-12,w:Math.max(1,r.dw-10),h:24}],width,height,dpr);
 }
 export function drawCroppedCanvas({canvas,context,plane,texture,bounds,dpr,width,height,draw}){
  const {x,y,w,h}=bounds;
