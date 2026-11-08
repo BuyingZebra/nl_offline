@@ -45,7 +45,7 @@ function drawSidebar(r){
   const rim=Math.min(4,Math.max(2,(h-12)/2));
   panel(x,y,w,h,0,C.panel,C.border);
   if(w>rim*2+1&&h>rim*2+1)
-   panel(x+rim,y+rim,w-rim*2,h-rim*2,0,null,C.weak);
+   panel(x+rim,y+rim,w-rim*2,h-rim*2,0,null,C.bright);
   return rim;
  };
  const preview=(box,kind,role)=>{
