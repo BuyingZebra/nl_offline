@@ -175,7 +175,8 @@ test('V155 stream-backed two-row operation log replaces the old shaded version s
  assert.match(source,/const TERMINAL_FONT='"Share Tech Mono"/);
  assert.doesNotMatch(source,/const footerLeft=|ruleStart,r\.footerY|rect\(r\.off\+11,r\.footerY-12/);
  assert.match(source,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg,FONT\)/);
- assert.match(cropped,/r\.dy\+r\.dh\+1/);
+ assert.doesNotMatch(cropped,/r\.dy\+r\.dh\+1/);
+ assert.match(terminal,/r\.dy\+r\.dh\+1/);
  assert.match(terminal,/Roboto Condensed/);
  assert.doesNotMatch(html,/family=VT323/);
  assert.match(terminal,/composeTerminalMessage/);
