@@ -62,7 +62,12 @@ function computeLayout(W,H,safe,ui){
   // Centre the full board/sidebar composition in the gap between
   // header and controls. Preserve V108 board width/height exactly.
   const by=sy+Math.max(0,(sh-bh)/2);
-  const sxSide=bx+bw+sideGap;
+  // V133: in portrait, align the complete sidebar's RIGHT edge with
+  // the header and footer; do not right-align its text labels.
+  // Landscape retains its existing three-column arrangement.
+  const firstSideX=bx+bw+sideGap;
+  const sxSide=landscape?firstSideX:
+    Math.max(firstSideX,hx+hw-sideWidth);
   const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
   // V132: compact, equal-width panels share one right edge. NEXT/HOLD each
   // have just one visible preview frame, with a label above its border.

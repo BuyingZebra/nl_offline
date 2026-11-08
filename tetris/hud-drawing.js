@@ -43,8 +43,10 @@ function drawSidebar(r){
  const preview=(box,kind,role)=>{
   // One compact panel only. The NEXT/HOLD label is outside its border.
   const heading=role==='next'?'NEXT':'HOLD';
-  text(heading,box.x+box.w,box.y-r.previewLabelSpace/2,
-   9,C.weak,'right',box.w);
+  // The panel aligns right with the header/footer; the label itself
+  // stays left-aligned, just outside the panel's top edge.
+  text(heading,box.x+inset+1,box.y-r.previewLabelSpace/2,
+   9,C.weak,'left',Math.max(8,box.w-2*inset));
   panel(box.x,box.y,box.w,box.h,0,C.panel);
   const pad=5;
   smallPiece(kind,box.x+pad,box.y+pad,

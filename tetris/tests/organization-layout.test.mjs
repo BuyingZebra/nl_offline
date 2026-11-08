@@ -40,7 +40,10 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
  for(let i=0;i<3;i++){
   const [x,y,w,h]=painted.panels[i];
   assert.ok(w<r.sideW,'all three panels save sidebar width');
-  assert.ok(Math.abs(x+w-r.sideX-r.sideW)<.00001,'right edges are aligned');
+  assert.ok(Math.abs(x+w-r.sideX-r.sideW)<.00001,'all panel right edges aligned');
+  assert.ok(Math.abs(x+w-r.hx-r.hw)<.00001,'panels right-aligned with header');
+  assert.ok(Math.abs(x+w-(r.off+r.width-r.pad))<.00001,
+   'panels align with footer right edge');
  }
  const [next,stats,hold]=painted.panels;
  assert.deepEqual(next.slice(0,4),[r.nextPanel.x,r.nextPanel.y,r.nextPanel.w,r.nextPanel.h]);
@@ -48,8 +51,12 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
  assert.deepEqual(hold.slice(0,4),[r.holdPanel.x,r.holdPanel.y,r.holdPanel.w,r.holdPanel.h]);
  assert.equal(next[3],hold[3],'NEXT/HOLD same preview height');
  assert.equal(next[2],hold[2],'NEXT/HOLD same preview width');
- assert.equal(painted.text[0][5],'right','NEXT outside label right aligned');
- assert.equal(painted.text.at(-1)[5],'right','HOLD outside label right aligned');
+ assert.equal(painted.text[0][5],'left','NEXT outside label left aligned');
+ assert.equal(painted.text.at(-1)[5],'left','HOLD outside label left aligned');
+ assert.ok(Math.abs(painted.text[0][1]-(next[0]+Math.max(3,Math.min(6,stats[2]*.06))+1))<.00001,
+  'NEXT text begins near panel left edge');
+ assert.ok(Math.abs(painted.text.at(-1)[1]-painted.text[0][1])<.00001,
+  'HOLD label shares NEXT label left edge');
  assert.ok(painted.text[0][2]<next[1],'NEXT label above its panel');
  assert.ok(painted.text.at(-1)[2]<hold[1],'HOLD label above its panel');
  assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01,

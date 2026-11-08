@@ -123,8 +123,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v132'));
- assert.ok(html.indexOf('layout.js?three=v132')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v133'));
+ assert.ok(html.indexOf('layout.js?three=v133')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
@@ -150,4 +150,24 @@ test('sidebar panels share a compact right edge and retain room for external lab
   assert.ok(Math.abs(r.previewCell-cell*.75)<.00001);
   assert.ok(r.previewLabelSpace>=14);
  }
+});
+
+test('portrait panels share the header and footer right edge without moving the board',()=>{
+ const samples=phones.filter(([name,w,h])=>w<h);
+ for(const [name,w,h,safe] of samples){
+  const r=computeLayout(w,h,safe,ui);
+  const headingRight=r.hx+r.hw;
+  const footerRight=r.off+r.width-r.pad;
+  assert.ok(Math.abs(headingRight-footerRight)<.00001,name+' header/footer right edge');
+  for(const box of [r.nextPanel,r.statsPanel,r.holdPanel]){
+   assert.ok(Math.abs(box.x+box.w-headingRight)<.00001,
+    name+' preview/stats container right edge aligns with header and footer');
+  }
+  assert.ok(r.nextPanel.x>=r.boardX+r.boardW,
+   name+' preview stays to right of the board');
+ }
+ const r=computeLayout(393,852,{top:59,bottom:34},ui);
+ assert.equal(r.boardW,234.5,'restored pre-brick board width unchanged');
+ assert.equal(r.boardX,29.75,'restored pre-brick board x unchanged');
+ assert.equal(r.dy+r.deckPad,677,'controls unaffected');
 });
