@@ -54,8 +54,10 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
  for(const [outer,inner] of [[scoreBox,scoreInner],[levelBox,levelInner],[linesBox,linesInner]]){
   assert.equal(inner[4],0,'inner border remains square');
   assert.equal(inner[5],null,'inner border has no fill');
-  assert.equal(inner[6],'#2e2e2e','inset uses approved subdued border tone');
-  assert.deepEqual(inner.slice(0,4),[outer[0]+2,outer[1]+2,outer[2]-4,outer[3]-4]);
+  assert.equal(inner[6],'#aeaeae','brighter inset frame is visible');
+  const rim=Math.min(4,Math.max(2,(outer[3]-12)/2));
+  assert.deepEqual(inner.slice(0,4),[
+   outer[0]+rim,outer[1]+rim,outer[2]-2*rim,outer[3]-2*rim]);
  }
  assert.equal(next[3],hold[3],'NEXT/HOLD same preview height');
  assert.equal(next[2],hold[2],'NEXT/HOLD same preview width');
@@ -75,17 +77,18 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
   const label=painted.text[index],number=painted.text[index+1],box=panels[boxIndex];
   assert.equal(label[5],'left','readout label remains left-aligned');
   assert.ok(label[2]<box[1],'readout label sits OUTSIDE the box');
-  assert.equal(number[5],'center','terminal number centered inside its box');
+  assert.equal(number[5],'left','terminal data are left aligned');
   assert.equal(number[7],'terminal','retain approved terminal font');
-  assert.ok(Math.abs(number[1]-(box[0]+box[2]/2))<.00001);
+  const valueInset=Math.max(10,Math.min(12,box[2]*.14));
+  assert.ok(Math.abs(number[1]-(box[0]+valueInset))<.00001);
  }
  assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01);
  assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01);
  assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01);
  assert.ok(r.statsPanel.h<=150.01,'three readouts remain compact');
  assert.equal(painted.rects.length,0,'no separator lines or bevel details');
- assert.ok(panels.slice(1,4).every(p=>p[5]==='#080808'&&p[6]==='#777'),
-  'flat, dark recessed readouts retain the approved palette');
+ assert.ok(panels.slice(1,4).every(p=>p[5]==='#1d1d1d'&&p[6]==='#777'),
+  'readout fill matches header and footer');
  for(const piece of painted.pieces){
   assert.ok(piece[3]>0&&piece[4]>0);
   assert.ok(piece[3]<=r.nextPanel.w-10+.001);
@@ -159,6 +162,8 @@ test('the existing fonts, game-board renderer and footer wording are retained',(
  assert.match(source,/Program: Three\.JS/);
  assert.match(source,/version: '\+THREE_BUILD_VERSION/);
  assert.match(source,/ruleStart,r\.footerY-\.5/);
+ assert.match(source,/rect\(r\.off\+11,r\.footerY-12,Math\.max\(0,r\.width-22\),24,C\.panel\)/,
+  'footer uses same fill as header and score');
  assert.match(source,/function stage\(r,drawPieces=true,recordRegion=true\)/);
  assert.match(source,/const FONT='"Roboto Condensed"/);
  assert.match(source,/const TERMINAL_FONT='"Share Tech Mono"/);
@@ -195,6 +200,8 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
    assert.ok(inner[0]+inner[2]<outer[0]+outer[2]);
    assert.ok(inner[1]+inner[3]<outer[1]+outer[3]);
    assert.equal(inner[4],0,'inset frame remains square');
+   assert.equal(inner[6],'#aeaeae','strong inner border remains visible');
+   assert.equal(outer[5],'#1d1d1d','readout matches header/footer fill');
   }
   assert.ok(boxes.every(box=>Math.abs(box[2]-r.nextPanel.w)<1e-7),
    'NEXT/HOLD and all score modules keep identical widths');
@@ -205,8 +212,10 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
   for(let i=1;i<4;i++){
    const p=painted.text[2*i-1],value=painted.text[2*i];
    assert.ok(p[2]<boxes[i][1],'label above its numbered panel');
-   assert.ok(Math.abs(value[1]-(boxes[i][0]+boxes[i][2]/2))<1e-7,
-    'number remains centered in its readout');
+   assert.equal(value[5],'left','number stays left aligned');
+   const valueInset=Math.max(10,Math.min(12,boxes[i][2]*.14));
+   assert.ok(Math.abs(value[1]-(boxes[i][0]+valueInset))<1e-7,
+    'number stays at its left inset');
   }
  }
 });
