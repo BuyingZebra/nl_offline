@@ -29,7 +29,7 @@ import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v156';
-import {createActionController} from './action-controller.js?v156';
+import {createActionController} from './action-controller.js?v169';
 import {createGraphicsHealth} from './graphics-health.js?v089';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
