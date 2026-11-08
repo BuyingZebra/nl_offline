@@ -28,17 +28,18 @@ function makeHUD(){
  });
  return {hud,painted,game};
 }
-test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
+test('NEXT, SCORE, LEVEL, LINES and HOLD share square double borders',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  const {hud,painted}=makeHUD();
  hud.drawSidebar(r);
  assert.deepEqual(painted.text.map(t=>t[0]),
   ['NEXT','SCORE','000684','LEVEL','03','LINES','12','HOLD']);
  assert.deepEqual(painted.pieces.map(p=>[p[0],p[5]]),[['T','next'],['S','hold']]);
- assert.equal(painted.panels.length,8,'NEXT, three double-frame readouts, HOLD');
- assert.deepEqual(painted.panels.map(p=>p[4]),Array(8).fill(0),
-  'score modules, like the previews, have square corners and no bevel');
- const [next,scoreBox,scoreInner,levelBox,levelInner,linesBox,linesInner,hold]=painted.panels;
+ assert.equal(painted.panels.length,10,'five outer frames and five inset frames');
+ assert.deepEqual(painted.panels.map(p=>p[4]),Array(10).fill(0),
+  'all ten frames have square, unbeveled corners');
+ const [next,nextInner,scoreBox,scoreInner,levelBox,levelInner,
+  linesBox,linesInner,hold,holdInner]=painted.panels;
  const panels=[next,scoreBox,levelBox,linesBox,hold];
  for(const [x,y,w,h] of panels){
   assert.ok(Math.abs(w-r.nextPanel.w)<.00001,'ALL five boxes have equal width');
@@ -51,7 +52,8 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
   r.nextPanel.x,r.nextPanel.y,r.nextPanel.w,r.nextPanel.h]);
  assert.deepEqual(hold.slice(0,4),[
   r.holdPanel.x,r.holdPanel.y,r.holdPanel.w,r.holdPanel.h]);
- for(const [outer,inner] of [[scoreBox,scoreInner],[levelBox,levelInner],[linesBox,linesInner]]){
+ for(const [outer,inner] of [[next,nextInner],[scoreBox,scoreInner],
+  [levelBox,levelInner],[linesBox,linesInner],[hold,holdInner]]){
   assert.equal(inner[4],0,'inner border remains square');
   assert.equal(inner[5],null,'inner border has no fill');
   assert.equal(inner[6],'#aeaeae','brighter inset frame is visible');
@@ -82,6 +84,9 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
   const valueInset=Math.max(10,Math.min(12,box[2]*.14));
   assert.ok(Math.abs(number[1]-(box[0]+valueInset))<.00001);
  }
+ const railEnd=r.boardX+r.boardW+r.brickGap+r.previewCell;
+ assert.ok(Math.abs(next[0]-railEnd-r.brickGap)<1e-7,
+  'brick-to-sidebar gutter matches board-to-brick gutter');
  assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01);
  assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01);
  assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01);
@@ -191,11 +196,11 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
  ]){
   const r=computeLayout(w,h,safe,ui),{hud,painted}=makeHUD();
   hud.drawSidebar(r);
-  assert.equal(painted.panels.length,8);
-  const boxes=[0,1,3,5,7].map(i=>painted.panels[i]);
-  const insets=[2,4,6].map(i=>painted.panels[i]);
-  for(let i=0;i<3;i++){
-   const outer=boxes[i+1],inner=insets[i];
+  assert.equal(painted.panels.length,10);
+  const boxes=[0,2,4,6,8].map(i=>painted.panels[i]);
+  const insets=[1,3,5,7,9].map(i=>painted.panels[i]);
+  for(let i=0;i<5;i++){
+   const outer=boxes[i],inner=insets[i];
    assert.ok(inner[0]>outer[0]&&inner[1]>outer[1]);
    assert.ok(inner[0]+inner[2]<outer[0]+outer[2]);
    assert.ok(inner[1]+inner[3]<outer[1]+outer[3]);
@@ -205,6 +210,13 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
   }
   assert.ok(boxes.every(box=>Math.abs(box[2]-r.nextPanel.w)<1e-7),
    'NEXT/HOLD and all score modules keep identical widths');
+  if(!r.landscape){
+   const railEnd=r.boardX+r.boardW+r.brickGap+r.previewCell;
+   assert.ok(Math.abs(boxes[0][0]-railEnd-r.brickGap)<1e-7,
+    'right brick-to-panel gap matches board-to-brick gap');
+   assert.ok(Math.abs(boxes[0][0]+boxes[0][2]-r.hx-r.hw)<1e-7,
+    'all sidebar containers still right-aligned with the header');
+  }
   assert.ok(boxes.every(box=>Math.abs(box[0]+box[2]-r.nextPanel.x-r.nextPanel.w)<1e-7),
    'all readouts align with the same sidebar right edge');
   assert.ok(boxes.slice(1,4).every(box=>box[4]===0&&box[3]>0),
