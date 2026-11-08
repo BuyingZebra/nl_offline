@@ -452,6 +452,29 @@ function stage(r,drawPieces=true,recordRegion=true){
  if(recordRegion)region(x,y,w,h,'board',{board:true});
 
 }
+// The stage's inset shadow is blurred along with gameplay. Redraw a
+// restrained copy on the separate popup layer, composed AFTER Gaussian blur.
+// Keep the same four-sided 2px inset without touching stage geometry.
+function drawSharpBoardInsetShadow(r){
+ const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
+ const offX=x+2,offY=y+2,innerW=w-4,innerH=h-4;
+ if(innerW<=0||innerH<=0)return;
+ const tile=innerW/10,depth=Math.min(20,Math.max(8,tile*.8));
+ g.save();g.beginPath();g.rect(offX,offY,innerW,innerH);g.clip();
+ const shade=(x0,y0,x1,y1,rx,ry,rw,rh,alpha)=>{
+  const fade=g.createLinearGradient(x0,y0,x1,y1);
+  fade.addColorStop(0,'rgba(0,0,0,'+alpha+')');
+  fade.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=fade;g.fillRect(rx,ry,rw,rh);
+ };
+ shade(offX,offY,offX,offY+depth,offX,offY,innerW,depth,.36);
+ shade(offX,offY,offX+depth,offY,offX,offY,depth,innerH,.27);
+ shade(offX,offY+innerH,offX,offY+innerH-depth,
+  offX,offY+innerH-depth,innerW,depth,.15);
+ shade(offX+innerW,offY,offX+innerW-depth,offY,
+  offX+innerW-depth,offY,depth,innerH,.15);
+ g.restore();
+}
 function paintBoardPopup(r){
  // A freshly rendered status snapshot prevents START GAME from persisting
  // when the engine transitions to PAUSED or GAME OVER.
@@ -461,6 +484,8 @@ function paintBoardPopup(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  g=boardPopupContext;
  try{
+  // Reapply the inset shadow above the blur, but not above the score screen.
+  if(!screenManager.isScores)drawSharpBoardInsetShadow(r);
   // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
   // Do not draw PAUSED/GAME OVER controls beneath the score screen.
   if(screenManager.isScores){
@@ -491,10 +516,10 @@ function paintBoardPopup(r){
    text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
   }
   // Popup buttons retain their approved 85%-width scale and standard 6px
-  // spacing between the RESUME, NEW GAME, and HIGH SCORE actions.
+  // spacing between RESUME, RESTART, and HIGH SCORE actions.
   key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true});
   if(type==='paused'){
-   key('NEW GAME',bx,by+primaryH+inset,bw,secondaryH,'restart');
+   key('RESTART',bx,by+primaryH+inset,bw,secondaryH,'restart');
    key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores');
   }
   }finally{g=baseContext;}
@@ -581,7 +606,7 @@ function paintBaseGame(){
  paintNomadMark(markX,markY,markW,markH);
  const titleX=markX+markW+Math.max(6,Math.min(11,available*.05));
  const titleWidth=Math.max(12,tx-titleX-5);
- rect(titleX-5,r.hy+r.hh*.27,1,r.hh*.46,C.subtleBorder);
+ rect(titleX-5,r.hy+r.hh*.27,1,r.hh*.46,C.bright);
  text('NOMAD',titleX,r.hy+r.hh/2-9,
   r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
   C.ink,'left',titleWidth);
