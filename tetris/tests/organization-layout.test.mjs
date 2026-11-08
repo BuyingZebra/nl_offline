@@ -258,12 +258,12 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v156'/);
- assert.match(html,/<meta name="tetris-build" content="156">/);
+ assert.match(sw,/CACHE_VERSION='v157'/);
+ assert.match(html,/<meta name="tetris-build" content="157">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
 });
 
-test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
+test('V157 increases grid contrast and gives piece silhouettes a cast shadow',()=>{
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
@@ -271,7 +271,10 @@ test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
  const end=renderer.indexOf('function paintBoardPopup(r)',start);
  const board=renderer.slice(start,end);
  assert.ok(start>=0&&end>start,'inset shadow belongs to board renderer');
- assert.match(board,/g\.globalAlpha=\.583804;g\.strokeStyle=C\.grid/);
+ assert.match(board,/g\.globalAlpha=\.68305068;g\.strokeStyle=C\.grid/);
+ assert.match(board,/g\.shadowColor='rgba\(0,0,0,\.76\)'/);
+ assert.match(board,/g\.shadowOffsetY=2\.5/);
+ assert.match(board,/for\(const run of iRuns\)/);
  assert.match(board,/const depth=Math\.min\(20,Math\.max\(8,tile\*\.8\)\)/);
  assert.equal((board.match(/insetShade\(/g)||[]).length,4,
   'top, left, bottom and right inner shadow strips');
@@ -279,8 +282,8 @@ test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
- assert.match(sw,/CACHE_VERSION='v156'/);
- assert.match(html,/<meta name="tetris-build" content="156">/);
+ assert.match(sw,/CACHE_VERSION='v157'/);
+ assert.match(html,/<meta name="tetris-build" content="157">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
@@ -297,5 +300,5 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="156">/);
+ assert.match(shell,/<meta name="tetris-build" content="157">/);
 });
