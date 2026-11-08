@@ -1,3 +1,5 @@
+import {createTerminalEngine} from './terminal-engine.js';
+
 /* NOMAD two-row line-at-a-time terminal. Fixed character cells, uppercase typography and
  * character-at-a-time output. Right-side statuses are aligned using dot leaders
  * computed BEFORE the line is typed; no text ever jumps on screen.
@@ -51,47 +53,46 @@ export function composeTerminalMessage(entry,columns){
  if(room>=4)return left+' '+'.'.repeat(room-left.length-2)+' '+right;
  return right.padStart(width,' ');
 }
-// One active line at the bottom, one faded history line above. New prompts
-// enter from below as the prior completed line scrolls into the history row.
-// Line-oriented display: active event on top, the previous event fades on
-// the bottom. Existing text disappears at once, then reappears as history
-// after 250 ms; after another 250 ms the new event begins typing. Prompts
-// never move. 24 characters per second (1000/24 ms per character).
+// A small authentic byte-stream terminal owns the character grid and cursor.
+// NOMAD owns the queue, fixed prompts, and two-row snap/fade presentation.
+// Old text snaps off, waits 250 ms, appears on the lower history row,
+// then waits 250 ms before the next message types at 37 characters/second.
 export function createTerminalLog({clock=()=>new Date(),
- typeMs=1000/24,holdMs=1750,offMs=250,pretypeMs=250}={}){
- const capacity=160;
- const cells=Array(capacity).fill(' ');
- let columns=36,cursor=2,phase='new';
- let current='',activeEntry=null,history='',historyEntry=null;
+ typeMs=1000/37,holdMs=1750,offMs=250,pretypeMs=250}={}){
+ const engine=createTerminalEngine({columns:36});
+ let columns=36,phase='new';
+ let current='',activeEntry=null,historyEntry=null;
  let nextAt=0,lastInput=0;
  const events=[{full:'SYSTEM: READY',short:'SYS: READY',at:clock()}];
  const clearActive=now=>{
-  cells.fill(' ');cursor=2;lastInput=now;
+  // CR + ANSI CSI 2K resets the output without touching either prompt.
+  engine.feed('\r\x1b[2K');
+  lastInput=now;
  };
- const write=(ch,now)=>{
-  if(cursor<columns){cells[cursor++]=ch;lastInput=now;}
- };
+ const write=(ch,now)=>{engine.feed(ch);lastInput=now;};
  function enqueue(full,short=full,priority=false){
   const entry={full:String(full).toUpperCase(),short:String(short).toUpperCase(),at:clock()};
   if(priority)events.splice(0,events.length,entry);
   else{events.push(entry);if(events.length>6)events.splice(0,events.length-6);}
  }
  function setColumns(n){
-  const next=Math.max(4,Math.min(capacity,Math.floor(Number(n)||4)));
+  const next=Math.max(4,Math.min(160,Math.floor(Number(n)||4)));
   if(next===columns)return;
+  const state=engine.snapshot();
+  const alreadyTyped=state.cells.slice(2,state.cursor).join('');
   columns=next;
-  if(historyEntry)history='> '+composeTerminalMessage(historyEntry,columns);
+  engine.setColumns(columns);
+  // Recompose the status suffix at the actual viewport's character width.
+  if(historyEntry)engine.setHistory('> '+composeTerminalMessage(historyEntry,columns));
   if(activeEntry&&phase!=='snap-off'){
    const rewritten=composeTerminalMessage(activeEntry,columns);
-   const alreadyTyped=cells.slice(2,cursor).join('');
    current=rewritten;
-   if(!rewritten.startsWith(alreadyTyped)||cursor>=columns){
-    // Reflow an active message only if its old character grid cannot fit.
+   if(!rewritten.startsWith(alreadyTyped)||state.cursor>=columns){
     clearActive(lastInput);
     if(phase==='hold')phase='type';
     nextAt=0;
    }
-  }else cursor=Math.min(cursor,columns-1);
+  }
  }
  function start(now){
   activeEntry=events.shift()||null;
@@ -105,7 +106,7 @@ export function createTerminalLog({clock=()=>new Date(),
   if(now<nextAt)return false;
   if(phase==='new')return start(now);
   if(phase==='type'){
-   const typed=cursor-2;
+   const typed=engine.snapshot().cursor-2;
    if(typed<current.length){
     write(current[typed],now);nextAt=now+typeMs;return true;
    }
@@ -114,22 +115,24 @@ export function createTerminalLog({clock=()=>new Date(),
   }
   if(phase==='hold'){
    if(events.length===0)return false;
-   // Content snaps OFF the top row immediately; stationary prompts remain.
+   // Only content snaps off; the two fixed prompt arrows remain visible.
    phase='snap-off';nextAt=now+offMs;lastInput=now;
    return true;
   }
   if(phase==='snap-off'){
-   // A quarter-second later the old message snaps ON the bottom row.
+   // LF actually advances the terminal stream. NOMAD draws the just-finished
+   // line in the faded lower row instead of a conventional upper scrollback.
    historyEntry=activeEntry;
-   history='> '+composeTerminalMessage(historyEntry,columns);
-   activeEntry=events.shift();
+   engine.feed('\n');
+   engine.setHistory('> '+composeTerminalMessage(historyEntry,columns));
+   activeEntry=events.shift()||null;
+   if(!activeEntry){phase='hold';nextAt=now+holdMs;return true;}
    clearActive(now);
    current=composeTerminalMessage(activeEntry,columns);
    phase='pretype';nextAt=now+pretypeMs;
    return true;
   }
   if(phase==='pretype'){
-   // The new top-row cursor waits another quarter-second before typing.
    phase='type';nextAt=now;
    return true;
   }
@@ -146,8 +149,8 @@ export function createTerminalLog({clock=()=>new Date(),
   return Math.max(16,Math.min(blink,phaseWait));
  }
  function snapshot(){
-  return {cells:cells.slice(0,columns),cursor,columns,phase,
-   pending:events.length,history,activeVisible:phase!=='snap-off'};
+  return {...engine.snapshot(),phase,
+   pending:events.length,activeVisible:phase!=='snap-off'};
  }
  return Object.freeze({enqueue,setColumns,advance,cursorVisible,nextDelay,snapshot});
 }
