@@ -7,7 +7,7 @@ import {createCompositor} from './compositor.js?v107';
 import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
-import {createCanvasUI} from './canvas-ui.js?v156';
+import {createCanvasUI} from './canvas-ui.js?v157';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
@@ -380,8 +380,9 @@ function stage(r,drawPieces=true,recordRegion=true){
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
  rect(offX,offY,w-4,h-4,'#101010');
- // V144: increase ONLY the grid opacity by 9% (0.5356 x 1.09).
- g.globalAlpha=.583804;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
+ // V157: increase the existing grid-line contrast by 17%, keeping
+ // the same grid colour, thickness and positions (0.583804 x 1.17).
+ g.globalAlpha=.68305068;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
@@ -393,6 +394,51 @@ function stage(r,drawPieces=true,recordRegion=true){
  // Join only consecutive original cells from ONE locked piece. Adjacent I
  // pieces keep independent frames; clearing rows never re-seeds the gravel.
  const displayMeta=lineClearFX?.boardMeta||game.boardMeta;
+ const iRuns=collectIFragments(displayBoard,displayMeta,{
+  hiddenRows:clearIsEmpty?lineClearFX.rows:null
+ });
+ // Render subtle cast shadows BEFORE any piece faces, in a single silhouette
+ // pass. This avoids shadowing the gravel/texture details or darkening
+ // neighbouring tiles while preserving original SVG artwork.
+ g.save();
+ g.beginPath();
+ const shadowRect=(sx,sy,sw,sh)=>{
+  if(sw>2&&sh>2)g.rect(sx+1,sy+1,sw-2,sh-2);
+ };
+ displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
+  if(!kind||kind==='I'||(clearIsEmpty&&lineClearFX.rows.has(ry)))return;
+  shadowRect(offX+rx*tile,offY+ry*tile,tile,tile);
+ }));
+ for(const run of iRuns){
+  const vertical=(run.rotation&1)===1;
+  shadowRect(offX+run.x*tile,offY+run.y*tile,
+   (vertical?1:run.length)*tile,(vertical?run.length:1)*tile);
+ }
+ if(!lineClearFX&&game.current&&game.status!=='over'){
+  const p=game.current;
+  if(p.kind==='I'){
+   let lowX=Infinity,lowY=Infinity,highX=-Infinity,highY=-Infinity;
+   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
+    if(!kind)return;
+    lowX=Math.min(lowX,p.x+rx);lowY=Math.min(lowY,p.y+ry);
+    highX=Math.max(highX,p.x+rx+1);highY=Math.max(highY,p.y+ry+1);
+   }));
+   if(Number.isFinite(lowX))shadowRect(offX+lowX*tile,offY+lowY*tile,
+    (highX-lowX)*tile,(highY-lowY)*tile);
+  }else{
+   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
+    if(kind&&p.x+rx>=0&&p.x+rx<10&&p.y+ry>=0&&p.y+ry<20)
+     shadowRect(offX+(p.x+rx)*tile,offY+(p.y+ry)*tile,tile,tile);
+   }));
+  }
+ }
+ g.fillStyle='#0d0d0d';
+ g.shadowColor='rgba(0,0,0,.76)';
+ g.shadowBlur=3;
+ g.shadowOffsetX=1.5;
+ g.shadowOffsetY=2.5;
+ g.fill();
+ g.restore();
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
@@ -401,9 +447,6 @@ function stage(r,drawPieces=true,recordRegion=true){
    g.strokeRect(px+2,py+2,tile-4,tile-4);g.restore();
   }else if(kind!=='I')cell(offX,offY,rx,ry,tile,kind);
  }));
- const iRuns=collectIFragments(displayBoard,displayMeta,{
-  hiddenRows:clearIsEmpty?lineClearFX.rows:null
- });
  for(const run of iRuns){
   const vertical=(run.rotation&1)===1;
   vectorTiles.drawIFragment(g,offX+run.x*tile,offY+run.y*tile,
