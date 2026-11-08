@@ -9,6 +9,7 @@ import {collectPieceShadowGroups,createPieceShadowRenderer} from './piece-drop-s
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {buttonFeedbackLayers} from './button-layer-invalidation.js?v166';
+import {createGpuButtonLighting} from './gpu-button-lighting.js?v169';
 import {createCanvasUI} from './canvas-ui.js?v165';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
@@ -167,6 +168,12 @@ function makeUILayer(texture,order,z){
 }
 const sidebarPlane=makeUILayer(sidebarTexture,.6,.011);
 const controlsPlane=makeUILayer(controlsTexture,.7,.012);
+// Reuse the same control-plane draw call: a GPU shader remaps only the
+// button-face/ink luminance. The uploaded CanvasTexture stays at baseline.
+const controlLighting=createGpuButtonLighting({THREE,texture:controlsTexture});
+const originalControlsMaterial=controlsPlane.material;
+controlsPlane.material=controlLighting.material;
+originalControlsMaterial.dispose();
 // Same CRT scene and pass order, with one additional tiny opaque HUD crop.
 const terminalPlane=makeUILayer(terminalTexture,.8,.013);
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
@@ -275,7 +282,7 @@ const unsubscribeGameEvents=game.onEvent(event=>{
  if(event.type!=='lines-cleared'||event.status!=='playing')return;
  if(!event.board||!event.rows.length)return;
  lineClearFX={board:event.board,boardMeta:event.boardMeta,rows:new Set(event.rows),elapsed:0};
- layers.mark('board');layers.mark('sidebar');layers.mark('controls');invalidate();
+ layers.mark('board');layers.mark('sidebar');invalidate();
 });
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
@@ -302,7 +309,12 @@ const actions=createActionController({
  game,scores:Scores,storage:window.localStorage,settings,screens:screenManager,
  getLineClearActive:()=>Boolean(lineClearFX),
  clearLineClear:()=>{lineClearFX=null;},
- markLayers:(...names)=>layers.mark(...names),
+ // Score, lines and preview content already belong to sidebar/board.
+ // The deck itself is static; presses are now uniform-only GPU changes.
+ markLayers:(...names)=>{
+  const applicable=names.filter(name=>name!=='controls');
+  if(applicable.length)layers.mark(...applicable);
+ },
  invalidate:()=>invalidate(),
  tone:(freq,len)=>tone(freq,len),
  onCopyDebug:()=>copyDebugReport(),
@@ -312,8 +324,8 @@ const actions=createActionController({
 });
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
- getButtonPower:r=>buttonSparks.find(s=>s.x===r.x&&s.y===r.y&&
-  s.w===r.w&&s.h===r.h)?.power??0,
+ getButtonPower:r=>g===controlsContext?0:buttonSparks.find(
+  s=>s.x===r.x&&s.y===r.y&&s.w===r.w&&s.h===r.h)?.power??0,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
 });
@@ -610,8 +622,16 @@ function paintSidebarLayer(){
 }
 function paintControlsLayer(){
  const r=layoutInfo||layout();
+ const bounds=controlsBounds(r,W,H,DPR);
  paintUIRegion(controlsCanvas,controlsContext,controlsPlane,controlsTexture,
-  controlsBounds(r,W,H,DPR),'controls',drawControls);
+  bounds,'controls',r=>{
+   drawControls(r);
+   // The temporary regions list contains the exact button geometry
+   // produced by the same Canvas painter and touch-hitbox model.
+   if(!controlLighting.configure(regions,bounds))
+    throw new Error('GPU controls geometry must match the source layer');
+   controlLighting.update(buttonSparks);
+  });
 }
 function paintTerminalLayer(){
  const r=layoutInfo||layout();
@@ -808,7 +828,8 @@ inputController=createInputController({
  setBaseDirty:(act)=>{
   if(act==='theme'||act==='options')layers.mark('base');
   else if(act==='board')layers.mark('board');
-  else if(act)layers.mark('controls');
+  // Deck buttons no longer modify their CanvasTexture on press/release.
+  // The same input action still advances the game and schedules a frame.
  },
  handleAction:act=>{
   const previous=game.status;
@@ -896,7 +917,7 @@ function frame(now){
    // Ordinary gravity shifts only the board, not the surrounding UI.
    if(game.score!==prior.score)actions.observeScore();
    if(game.score!==prior.score||game.lines!==prior.lines||
-    game.level!==prior.level)layers.mark('controls');
+    game.level!==prior.level)layers.mark('sidebar');
    if(game.pieces!==prior.pieces||game.hold!==prior.hold||
     game.current!==prior.piece)layers.mark('sidebar');
    if(game.status!==prior.status){
@@ -943,10 +964,17 @@ function frame(now){
    }else{
     const affected=buttonFeedbackLayers(
      previousButtonSparks,buttonSparks,layoutInfo||layout());
-    if(affected.length)layers.mark(...affected);
+    // Game controls now use GPU uniform updates, not CanvasTexture
+    // invalidation. Header and board-status popup buttons retain the
+    // original source-owned brightness and require base painting.
+    const canvasAffected=affected.filter(name=>name!=='controls');
+    if(canvasAffected.length)layers.mark(...canvasAffected);
    }
    layers.reason('button-luminance');
   }
+  // Uniform-only updates still render through the unchanged CRT FX,
+  // allowing pressed pixels to contribute to bloom and phosphor naturally.
+  controlLighting.update(buttonSparks);
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
