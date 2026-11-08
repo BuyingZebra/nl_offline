@@ -15,7 +15,12 @@ export function createTextureUploadProfiler({renderer,onTiming=()=>{},now=()=>pe
   // Do not mark as synchronized until the upload API returned successfully.
   renderer.initTexture(texture);
   revisions.set(texture,revision);
-  try{onTiming(name,now()-began);}catch(e){/* Profiling must not affect gameplay. */}
+  // Source dimensions are passed only as diagnostic metadata. They
+  // estimate RGBA8 input pixels; they are not GPU timing or VRAM usage.
+  const source=texture.image;
+  try{onTiming(name,now()-began,{
+   width:source?.width||0,height:source?.height||0
+  });}catch(e){/* Profiling must not affect gameplay. */}
   return true;
  }
  return Object.freeze({upload});
