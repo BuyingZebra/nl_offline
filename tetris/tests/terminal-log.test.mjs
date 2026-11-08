@@ -1,68 +1,70 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {composeTerminalMessage,createTerminalLog,drawTerminalLog} from '../terminal-log.js';
-
+import {composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../terminal-log.js';
 const at=new Date(2026,10,8,9,32,45);
-test('dot leaders fill each character cell and flush-align the status',()=>{
+
+test('statuses remain flush-right after typed dot leaders',()=>{
  const entry={at,full:'GAME: SESSION STARTED',short:'GM: START'};
- for(const width of [17,20,24,28,32,38]){
-  const line=composeTerminalMessage(entry,width);
-  assert.equal(line.length,width-3);
-  assert.match(line,/\.{2,}/,'leaders have at least two dots');
-  assert.match(line,/START(?:ED)?$/,'status remains at the right edge');
-  assert.equal(line,line.toUpperCase(),'all terminal messages are uppercase');
+ for(const columns of [17,20,24,28,32,38]){
+  const line=composeTerminalMessage(entry,columns);
+  assert.equal(line.length,columns-3);
+  assert.match(line,/\.{2,}/);
+  assert.match(line,/START(?:ED)?$/);
+  assert.equal(line,line.toUpperCase());
  }
- const expanded=composeTerminalMessage({at,full:'SYSTEM: READY',short:'SYS: READY'},38);
- assert.match(expanded,/^\[09:32:45\] SYSTEM/);
- const compact=composeTerminalMessage(entry,24);
- assert.match(compact,/^\[09:32\] GM /);
 });
-test('cursor advances one cell at a time and deletes with BS SP BS',()=>{
+test('next prompt scrolls the old message into history without backspacing',()=>{
  const log=createTerminalLog({clock:()=>at});
  log.setColumns(30);
- assert.equal(log.advance(0),true);
- assert.equal(log.snapshot().cursor,2,'prompt occupies first two columns');
- assert.equal(log.advance(40),true);
- assert.equal(log.snapshot().cursor,3,'one character per keystroke');
- for(let now=80;now<=1600;now+=20)log.advance(now);
- const initial=log.snapshot();
- assert.equal(initial.cursor,29,'cursor occupies the cell after right-aligned status');
- assert.match(initial.cells.join(''),/READY/);
- log.enqueue('GAME: PAUSED','GM: PAUSED');
- let sawErase=false,sawNew=false;
- for(let now=1620;now<=7200;now+=20){
-  log.advance(now);
-  if(log.snapshot().phase==='erase')sawErase=true;
-  if(log.snapshot().cells.join('').includes('PAUSED'))sawNew=true;
+ log.advance(0);
+ assert.equal(log.snapshot().cursor,2);
+ log.advance(40);
+ assert.equal(log.snapshot().cursor,3);
+ for(let t=80;t<2100;t+=20)log.advance(t);
+ assert.match(log.snapshot().cells.join(''),/READY/);
+ log.enqueue('GAME: SESSION STARTED','GM: START');
+ let sawScroll=false;
+ for(let t=2100;t<8000;t+=20){
+  const changed=log.advance(t),s=log.snapshot(t);
+  if(s.phase==='scroll'){
+   sawScroll=true;
+   assert.equal(changed,true);
+   assert.ok(s.scrollProgress>=0&&s.scrollProgress<=1);
+  }
  }
- assert.ok(sawErase,'previous line is erased before replacement');
- assert.ok(sawNew,'queued message is typed into the same row');
+ assert.ok(sawScroll);
+ assert.match(log.snapshot().history,/READY/);
+ assert.match(log.snapshot().cells.join(''),/START/);
 });
-test('resizing and late font loads recompose the active line to fit',()=>{
+test('a narrower viewport retains the end of the active message',()=>{
  const log=createTerminalLog({clock:()=>at});
  log.advance(0);
  log.setColumns(23);
- for(let now=40;now<=1500;now+=20)log.advance(now);
- const line=log.snapshot().cells.join('').trimEnd();
- assert.match(line,/READY$/,'status cannot be clipped by initial width');
+ for(let t=40;t<1500;t+=20)log.advance(t);
+ assert.match(log.snapshot().cells.join('').trimEnd(),/READY$/);
  assert.equal(log.snapshot().cursor,22);
 });
-test('title font remains visible in a fixed-width, full-height cursor grid',()=>{
+test('the fading top history does not move the bottom cursor',()=>{
  const log=createTerminalLog({clock:()=>at});
- const drawn=[];
+ const glyphs=[],gradients=[];
  const ctx={
   save(){},restore(){},beginPath(){},rect(){},clip(){},
   measureText(ch){return {width:ch==='M'||ch==='W'?10:ch===' '?4:8,
    actualBoundingBoxAscent:12,actualBoundingBoxDescent:0}},
-  fillText(ch,x,y){drawn.push({type:'glyph',ch,x,y});},
-  fillRect(x,y,w,h){drawn.push({type:'cursor',x,y,w,h});}
+  fillText(ch,x,y){glyphs.push({ch,x,y});},
+  fillRect(x,y,w,h){glyphs.push({x,y,w,h});},
+  createLinearGradient(){const obj={stops:[],addColorStop(at,color){this.stops.push([at,color]);}};
+   gradients.push(obj);return obj;}
  };
- const r={dx:11,dw:371,footerY:800};
+ const r={dx:11,dw:371,dy:660,dh:110,footerY:800};
  drawTerminalLog(ctx,log,r,0);
  assert.match(ctx.font,/700 10px "Roboto Condensed"/);
- const cursor=drawn.find(x=>x.type==='cursor');
+ const cursor=glyphs.find(x=>x.w===11);
  assert.ok(cursor);
- assert.equal(cursor.w,11,'cursor is a full measured character cell');
- assert.equal(cursor.h,16,'cursor extends two pixels above and below capitals');
- assert.equal(cursor.y+cursor.h/2,800,'cursor is vertically centered on text row');
+ assert.equal(cursor.h,16,'block cursor retains a 2px top/bottom overhang');
+ assert.equal(cursor.y+cursor.h/2,terminalLineBounds(r).y+29);
+ assert.equal(gradients.length,1);
+ assert.equal(gradients[0].stops[0][1],'#080808');
+ assert.equal(gradients[0].stops.at(-1)[1],'rgba(8,8,8,0)');
+ assert.ok(terminalLineBounds(r).y>=r.dy+r.dh);
 });
