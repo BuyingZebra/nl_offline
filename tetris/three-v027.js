@@ -190,7 +190,7 @@ let lastHistoryRender=0;
 // Upload changed canvases before submitting the composer so that the first
 // RenderPass no longer conflates texture transfer and scene rendering.
 const textureUploads=createTextureUploadProfiler({renderer,
- onTiming:(kind,elapsed)=>perf.recordUpload(kind,elapsed)});
+ onTiming:(kind,elapsed,source)=>perf.recordUpload(kind,elapsed,source)});
 const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
 const {SCANLINE_PRESETS}=compositor;
