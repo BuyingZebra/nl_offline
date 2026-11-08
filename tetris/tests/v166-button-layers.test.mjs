@@ -55,7 +55,8 @@ test('renderer asks for affected layers instead of always marking base',()=>{
  const part=src.slice(start,end);
  assert.match(part,/buttonFeedbackLayers\(/);
  assert.match(part,/previousButtonSparks,buttonSparks,layoutInfo\|\|layout\(\)/);
- assert.match(part,/layers\.mark\(\.\.\.affected\)/);
+ assert.match(part,/const canvasAffected=affected\.filter\(name=>name!=='controls'\)/);
+ assert.match(part,/layers\.mark\(\.\.\.canvasAffected\)/);
  assert.doesNotMatch(part,/layers\.mark\('base','controls'\)/);
  assert.match(src,/key\('◐'.*'theme'\)/);
  assert.match(src,/drawControls\(r\)/);
