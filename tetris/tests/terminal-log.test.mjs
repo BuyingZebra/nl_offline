@@ -12,16 +12,16 @@ test('dot leaders remain right-aligned on small and large screens',()=>{
   assert.match(line,/START(?:ED)?$/);
  }
 });
-test('57 WPM advances one character every ~210.5ms',()=>{
+test('57 ms per character delivers fast, readable terminal updates',()=>{
  const log=createTerminalLog({clock:()=>at});
  log.setColumns(30);
  log.advance(0);
  assert.equal(log.snapshot().cursor,2);
  log.advance(10);
  assert.equal(log.snapshot().cursor,3);
- assert.equal(log.advance(220),false);
+ assert.equal(log.advance(66),false);
  assert.equal(log.snapshot().cursor,3);
- assert.equal(log.advance(221),true);
+ assert.equal(log.advance(67),true);
  assert.equal(log.snapshot().cursor,4);
 });
 test('snap-off 250ms, snap-down 250ms, then new top-row typing',()=>{
