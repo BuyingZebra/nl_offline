@@ -231,3 +231,24 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
   }
  }
 });
+
+test('V142 soldier mascot is a vector decoration behind the grid and piece layers',()=>{
+ const svg=fs.readFileSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url),'utf8');
+ const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
+ assert.match(svg,/<svg [^>]*viewBox="0 0 400 370"/);
+ assert.match(svg,/fill-rule="evenodd"/);
+ assert.match(svg,/<path /);
+ assert.doesNotMatch(svg,/<image |data:image\/|base64/);
+ assert.match(renderer,/soldierSticker.src='\.\/assets\/mascot\/nomad-field-soldier-head\.svg\?v142'/);
+ const boardStart=renderer.indexOf("rect(offX,offY,w-4,h-4,'#101010')");
+ const decal=renderer.indexOf('if(soldierStickerReady){',boardStart);
+ const grid=renderer.indexOf('// V117: preserve the V114 grid',boardStart);
+ assert.ok(boardStart>=0&&decal>boardStart&&grid>decal,'sticker stays behind the grid');
+ assert.match(renderer,/g\.globalAlpha=\.17/);
+ assert.match(renderer,/layers\.mark\('base','board'\)/);
+ assert.match(sw,/\.\/assets\/mascot\/nomad-field-soldier-head\.svg/);
+ assert.match(sw,/CACHE_VERSION='v142'/);
+ assert.match(html,/<meta name="tetris-build" content="142">/);
+});
