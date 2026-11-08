@@ -1,7 +1,7 @@
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-export function formatDebugReport({version,createdAt,platform,viewport,game,display,gpu,graphics,lifecycle,offline,samples=[],current}={}){
+export function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,gpu,graphics,lifecycle,offline,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -11,6 +11,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   'Viewport: '+(viewport?[viewport.width+'x'+viewport.height,'render DPR '+viewport.dpr,'device DPR '+value(viewport.deviceDpr)].join(' / '):'n/a'),
   'State: '+value(game?.status)+' / level '+value(game?.level)+' / score '+value(game?.score)+' / lines '+value(game?.lines),
   'Display: '+value(display?.theme)+' phosphor / '+value(display?.orientation)+' / '+value(display?.phosphor?'on':'off')+' tint',
+  'Controls rendering: '+value(buttonRenderer),
   '',
   'RECENT FRAME SAMPLES (2-second windows, newest last)',
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
