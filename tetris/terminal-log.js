@@ -53,7 +53,7 @@ export function composeTerminalMessage(entry,columns){
 }
 export function createTerminalLog({clock=()=>new Date(),typeMs=40,eraseMs=22,holdMs=1750,gapMs=250}={}){
  let cells=Array(160).fill(' '),columns=36,cursor=0,phase='new';
- let current='',nextAt=0,lastInput=0;
+ let current='',activeEntry=null,nextAt=0,lastInput=0;
  let events=[{full:'SYSTEM: READY',short:'SYS: READY',at:clock()}];
  const write=(ch,now)=>{if(cursor<columns){cells[cursor++]=ch;lastInput=now;}};
  function command(op,now){
@@ -71,13 +71,26 @@ export function createTerminalLog({clock=()=>new Date(),typeMs=40,eraseMs=22,hol
   const newColumns=Math.max(4,Math.min(cells.length,Math.floor(Number(n)||4)));
   if(columns===newColumns)return;
   columns=newColumns;
-  // A resized viewport will format the next event at the new width.
-  // Keep any already typed characters in their existing cells.
-  cursor=Math.min(cursor,columns-1);
-  current=current.slice(0,Math.max(0,columns-3));
+  if(activeEntry&&(phase==='type'||phase==='hold')){
+   // Web fonts and orientation can change the column count during the
+   // opening line. Recompose against the real measured grid so the right
+   // status is not accidentally cropped from an older wider layout.
+   const rewritten=composeTerminalMessage(activeEntry,columns);
+   const alreadyTyped=cells.slice(2,cursor).join('');
+   current=rewritten;
+   if(!current.startsWith(alreadyTyped)||cursor>=columns){
+    command('CR',lastInput);command('EL',lastInput);
+    write('>',lastInput);write(' ',lastInput);
+    phase='type';nextAt=0;
+   }
+  }else{
+   cursor=Math.min(cursor,columns-1);
+   current=current.slice(0,Math.max(0,columns-3));
+  }
  }
  function start(now){
   const entry=events.shift();
+  activeEntry=entry||null;
   if(!entry){phase='hold';nextAt=now+holdMs;return;}
   command('CR',now);command('EL',now);
   write('>',now);write(' ',now);
