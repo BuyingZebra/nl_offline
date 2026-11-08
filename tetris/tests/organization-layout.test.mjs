@@ -239,8 +239,8 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v143'/);
- assert.match(html,/<meta name="tetris-build" content="143">/);
+ assert.match(sw,/CACHE_VERSION='v145'/);
+ assert.match(html,/<meta name="tetris-build" content="145">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
  assert.match(renderer,/\/\/ V117: preserve the V114 grid/);
 });
@@ -261,6 +261,23 @@ test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
- assert.match(sw,/CACHE_VERSION='v144'/);
- assert.match(html,/<meta name="tetris-build" content="144">/);
+ assert.match(sw,/CACHE_VERSION='v145'/);
+ assert.match(html,/<meta name="tetris-build" content="145">/);
+});
+
+test('V145 migration updates old pinned workers but protects active gameplay',()=>{
+ const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ const platform=fs.readFileSync(new URL('../platform-manager.js',import.meta.url),'utf8');
+ const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const shell=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
+ assert.match(sw,/const legacyPinned=oldNames\.some/);
+ assert.match(sw,/version<145/);
+ assert.match(sw,/if\(legacyPinned\)await self\.skipWaiting\(\)/);
+ assert.match(sw,/event\.data\?\.type!=='NOMAD_ACTIVATE_UPDATE'/);
+ assert.match(sw,/build!==CACHE_VERSION\.slice\(1\)/);
+ assert.match(platform,/await requestWorkerUpgrade\(\)/);
+ assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
+ assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
+ assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
+ assert.match(shell,/<meta name="tetris-build" content="145">/);
 });
