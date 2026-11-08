@@ -37,11 +37,9 @@ export function createSettingsManager(storage){
  effects.persistenceMs=normalizePersistenceMs(effects.persistenceMs);
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
- // Legacy saved green/amber values remain unchanged. Blue uses the same
- // grayscale-phosphor overlay as the original two themes.
- const themes=['green','amber','blue'];
- const savedTheme=read(STORAGE_KEYS.theme,'green');
- let theme=themes.includes(savedTheme)?savedTheme:'green';
+ // Restore the original green/amber-only phosphor selection. A saved
+ // blue preference from V160 gracefully falls back to green.
+ let theme=read(STORAGE_KEYS.theme,'green')==='amber'?'amber':'green';
 
  function persistEffects(){
   write(STORAGE_KEYS.effects,JSON.stringify(effects));
@@ -72,7 +70,7 @@ export function createSettingsManager(storage){
   persistEffects();
  }
  function toggleTheme(){
-  theme=themes[(themes.indexOf(theme)+1)%themes.length];
+  theme=theme==='green'?'amber':'green';
   write(STORAGE_KEYS.theme,theme);
   return theme;
  }
