@@ -73,7 +73,7 @@ with sync_playwright() as p:
 
     # Exercise real canvas input and menu integration, not only rendering.
     # Coordinates are derived from the current deterministic portrait layout
-    # (header Options at x=330..376, board center/start near x=147,y=390).
+    # (header Options at x=330..376, START GAME centered near x=155,y=416).
     # Keep these smoke interactions separate from screenshot artwork tests.
     # Test against a static ready-state control so modal redraws cannot
     # conceal a missing afterglow. The PAUSE key has a visible button even
@@ -108,6 +108,8 @@ with sync_playwright() as p:
     print("BUTTON GLOW DIAGNOSTIC:", {"hotMean":sum(hot_pixels)/len(hot_pixels),
           "coldMean":sum(cold_pixels)/len(cold_pixels),"delta":glow_delta,
           "pageErrors":errors,"consoleErrors":console_errors})
+    shader_errors = [error for error in console_errors if "WebGLProgram" in error]
+    assert not shader_errors, shader_errors
     assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
     page.mouse.click(353, 40)
     page.wait_for_timeout(150)
@@ -116,7 +118,7 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     page.wait_for_timeout(150)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-    page.mouse.click(147, 390)  # START GAME
+    page.mouse.click(155, 416)  # START GAME
     page.wait_for_timeout(300)
     playing_image = page.screenshot()
     assert playing_image != ready.read_bytes(), "Start did not change the game board"
@@ -145,7 +147,7 @@ with sync_playwright() as p:
     page.keyboard.press("p")  # Resume before gameplay/bfcache checks
     page.wait_for_timeout(150)
 
-    page.keyboard.press("Space")  # Hard drop / gameplay sound
+    page.keyboard.press("Space")  # Soft drop
     page.wait_for_timeout(150)
     # A temporary bfcache round-trip must pause gameplay but keep its WebGL
     # resources, canvas pixels and input handlers alive.
@@ -181,13 +183,14 @@ with sync_playwright() as p:
             timeout=45000,
         )
         cache_count = page.evaluate("""async () => {
+          const build = document.querySelector('meta[name="tetris-build"]').content;
           const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v113');
+          const name = names.find(n => n === 'nomad-tetris-offline-v' + build);
           if (!name) return 0;
           const cache = await caches.open(name);
           return (await cache.keys()).length;
         }""")
-        assert cache_count >= 38, f"Incomplete V113 offline cache: {cache_count} entries"
+        assert cache_count >= 38, f"Incomplete offline cache: {cache_count} entries"
 
         page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
         page.context.set_offline(True)

@@ -13,7 +13,7 @@ const scope='https://buyingzebra.github.io/nl_offline/tetris/';
 const currentBuild=html.match(/name="tetris-build" content="([0-9]{3})"/)?.[1];
 
 function workerHarness(){
- const events=new Map(),storage=new Map(),deleted=[],claims=[];
+ const events=new Map(),storage=new Map(),deleted=[],claims=[],promotions=[];
  let online=true,failPath=null,version='old',shellBuild=currentBuild;
  const asURL=item=>typeof item==='string'?new URL(item,scope).href:
   item instanceof URL?item.href:item.url;
@@ -50,6 +50,7 @@ function workerHarness(){
  const self={
   registration:{scope},
   clients:{claim:async()=>claims.push('claim')},
+  skipWaiting:async()=>promotions.push(storage.get('nomad-tetris-offline-v'+currentBuild)?.entries.size),
   addEventListener:(name,callback)=>events.set(name,callback)
  };
  const ctx={self,caches,fetch:fetchMock,URL,Request,Response,AbortController,
@@ -64,7 +65,7 @@ function workerHarness(){
   if(work.length)await Promise.all(work);
   return {response,handled:responses.length>0};
  }
- return {emit,assets,storage,caches,claims,deleted,
+ return {emit,assets,storage,caches,claims,deleted,promotions,
   setOnline:x=>online=x,setVersion:x=>version=x,setFailPath:x=>failPath=x,
   setShellBuild:x=>shellBuild=x,
   get cache(){return storage.get('nomad-tetris-offline-v'+currentBuild);}
@@ -199,13 +200,15 @@ test('a missing pinned runtime file fails closed instead of fetching another ver
 });
 test('new staging does not delete the previous release before activation',async()=>{
  const h=workerHarness();
- const previous=await h.caches.open('nomad-tetris-offline-v096');
- await previous.put(new URL('./core.js',scope),new Response('V092 core'));
+ const previousName='nomad-tetris-offline-v'+(Number(currentBuild)-1);
+ const previous=await h.caches.open(previousName);
+ await previous.put(new URL('./core.js',scope),new Response('previous core'));
  await h.emit('install');
- assert.ok((await h.caches.keys()).includes('nomad-tetris-offline-v096'));
- assert.equal((await (await previous.match(new URL('./core.js',scope))).text()),'V092 core');
+ assert.ok((await h.caches.keys()).includes(previousName));
+ assert.equal((await (await previous.match(new URL('./core.js',scope))).text()),'previous core');
+ assert.deepEqual(h.promotions,[]);
  await h.emit('activate');
- assert.ok(!(await h.caches.keys()).includes('nomad-tetris-offline-v096'));
+ assert.ok(!(await h.caches.keys()).includes(previousName));
 });
 test('requests outside the allowlist and repository sub-app are left alone',async()=>{
  const h=workerHarness();await h.emit('install');h.setOnline(false);
@@ -233,10 +236,27 @@ test('a missing critical asset fails installation instead of leaving a partial c
  await assert.rejects(h.emit('install'));
  assert.equal(h.cache,undefined);
 });
-test('the worker never unregisters itself or force-activates during a game',()=>{
- assert.ok(!swCode.includes('skipWaiting('));
+test('a staged worker waits for the app activation message after a modern release',async()=>{
+ const h=workerHarness();
+ await h.caches.open('nomad-tetris-offline-v'+(Number(currentBuild)-1));
+ await h.emit('install');
+ await h.emit('message',{data:{type:'unrelated'}});
+ assert.deepEqual(h.promotions,[]);
+ await h.emit('message',{data:{type:'NOMAD_ACTIVATE_UPDATE'}});
+ assert.deepEqual(h.promotions,[h.assets.length]);
  assert.ok(!swCode.includes('registration.unregister('));
  assert.ok(!swCode.includes('localStorage.clear'));
+});
+
+test('legacy migration promotes only a verified and complete release',async()=>{
+ const h=workerHarness();
+ await h.caches.open('nomad-tetris-offline-v144');
+ h.setShellBuild('144');
+ await assert.rejects(h.emit('install'),/version mismatch/);
+ assert.deepEqual(h.promotions,[]);
+ h.setShellBuild(currentBuild);
+ await h.emit('install');
+ assert.deepEqual(h.promotions,[h.assets.length]);
 });
 
 test('release marker, pinned cache name, and no-mixing policy stay in lockstep',()=>{
@@ -246,5 +266,4 @@ test('release marker, pinned cache name, and no-mixing policy stay in lockstep',
  assert.equal(worker,current);
  assert.ok(swCode.includes('fromPinnedCache(url)'));
  assert.ok(!swCode.includes('networkFirst('));
- assert.ok(!swCode.includes('skipWaiting('));
 });

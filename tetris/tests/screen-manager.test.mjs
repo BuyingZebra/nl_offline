@@ -61,19 +61,12 @@ test('opening settings or high scores from ready/paused/over does not pause',()=
  }
 });
 
-test('restart confirmation is only accessible when gameplay is paused',()=>{
- const h=harness('ready');
- assert.equal(h.screens.requestRestart(),false);
- assert.equal(h.screens.active,null);
- h.status='playing';
- assert.equal(h.screens.requestRestart(),false);
- h.status='over';
- assert.equal(h.screens.requestRestart(),false);
- assert.equal(h.transitions.length,0);
- h.status='paused';
- assert.equal(h.screens.requestRestart(),true);
- assert.equal(h.screens.active,SCREENS.RESTART);
- assert.equal(h.screens.paintsModalLayer,true);
+test('restart uses the paused board action without opening a modal',()=>{
+ const {screens}=harness('paused');
+ assert.equal(screens.screen,SCREENS.GAME);
+ assert.equal(screens.requestRestart,undefined);
+ assert.equal(SCREENS.RESTART,undefined);
+ assert.equal(screens.paintsModalLayer,false);
 });
 
 test('there is no initials-entry modal; one personal record uses the existing board overlay',()=>{

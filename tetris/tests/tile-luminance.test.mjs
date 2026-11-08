@@ -71,5 +71,5 @@ test('gameboard, falling piece and NEXT/HOLD use the same approved renderer',()=
  assert.match(code,/if\(p.kind==='I'\)vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
  assert.match(code,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
  assert.match(code,/tileFace\(px,py,size,size,kind\)/);
- assert.match(code,/g.globalAlpha=\.5356;g.strokeStyle=C.grid/);
+ assert.match(code,/g.globalAlpha=\.751355748;g.strokeStyle=C.grid/);
 });

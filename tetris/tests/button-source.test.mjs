@@ -54,8 +54,7 @@ test('other screen buttons use the same source brightness helper',()=>{
  for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
   assert.ok(modal.includes(control),'modal control missing brightness: '+control);
  const game=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
- assert.match(game,/getButtonPower:r=>buttonSparks.find/);
- assert.match(game,/layers.mark\('base','controls'\)/);
+ assert.match(game,/getButtonPower:r=>\(g===controlsContext&&controlsGpuEnabled\)\?0:buttonSparks\.find/);
  assert.doesNotMatch(game,/syncButtonFeedback/);
 });
 
@@ -67,5 +66,5 @@ test('PAUSE keeps its pressed luminance through immediate gameplay status change
  // though action dispatch changes game status within the pointerdown turn.
  assert.equal((actions.match(/if\(game\.status!==previous&&act!=='pause'\)buttonFeedback\.clear\(\)/g)||[]).length,2);
  assert.ok(game.includes('buttonSparks=buttonFeedback.sample(now,phosphorOn)'));
- assert.ok(game.includes("layers.mark('base','controls')"));
+ assert.match(game,/else if\(act&&!controlsGpuEnabled\)layers\.mark\('controls'\)/);
 });

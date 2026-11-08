@@ -33,8 +33,7 @@ function harness(initialStatus='ready',canInteract=()=>true){
  const screens={
   close:()=>events.push(['close']),
   openOptions:()=>events.push(['options']),
-  openScores:()=>events.push(['scores']),
-  requestRestart:()=>events.push(['restartPrompt'])
+  openScores:()=>events.push(['scores'])
  };
  let lineClear=false;
  const actions=createActionController({
@@ -84,7 +83,7 @@ test('soft drop saves the best immediately without any initials or leaderboard',
  h.actions.perform('soft');
  assert.deepEqual(h.actions.best,{score:1,lines:6,level:2,at:123456});
  assert.deepEqual(h.events,[
-  ['soft'],['dirty','board','controls'],['dirty','controls'],
+  ['soft'],['dirty','board','controls'],['dirty','sidebar'],
   ['persistScore',{score:1,lines:6,level:2,at:123456}],['invalidate']
  ]);
  h.events.length=0;h.actions.observeScore();
@@ -112,7 +111,7 @@ test('game over saves any outstanding best once, with no initials prompt',()=>{
 });
 test('restarting saves an unfinished record before resetting gameplay',()=>{
  const h=harness('paused');h.game.score=430;
- h.actions.restart();
+  h.actions.dispatch('restart');
  assert.equal(h.actions.best.score,430);
  assert.equal(h.game.score,0);
  assert.equal(h.game.status,'playing');
@@ -141,7 +140,7 @@ test('settings and appearance retain the same callbacks',()=>{
 test('menu actions retain navigation, but score entry and initials commands are gone',()=>{
  const h=harness();
  for(const [action,event] of [['close','close'],['copyDebug','debug'],
-  ['options','options'],['scores','scores'],['restart','restartPrompt']]){
+  ['options','options'],['scores','scores']]){
   h.events.length=0;h.actions.dispatch(action);
   assert.equal(h.events.at(-1)[0],event);
  }
