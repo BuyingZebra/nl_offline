@@ -1,4 +1,4 @@
-/* V162: per-piece stamped shadow depth and rotation regression tests. */
+/* V163: deeper per-piece stamped shadow and rotation regression tests. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -69,9 +69,13 @@ test('locked piece metadata preserves identity for subsequent shadows',()=>{
 test('profile adds contact and projected gradient layers at board-like depth',()=>{
  const p=pieceShadowProfile(20);
  assert.equal(p.depth,16);
- assert.ok(p.contact.blur<p.cast.blur);
+ assert.ok(p.contact.blur<p.core.blur&&p.core.blur<p.cast.blur);
  assert.ok(p.cast.offsetY>p.contact.offsetY);
- assert.ok(p.cast.alpha>.5&&p.contact.alpha>.8);
+ assert.equal(p.cast.alpha,1);
+ assert.equal(p.core.alpha,1);
+ assert.equal(p.contact.alpha,1);
+ assert.equal(p.cast.offsetY,p.core.offsetY);
+ assert.equal(p.cast.offsetX,p.core.offsetX);
  assert.equal(pieceShadowProfile(4).depth,8);
  assert.equal(pieceShadowProfile(100).depth,20);
 });
@@ -100,9 +104,12 @@ test('shadow stamps are cached across movement and rebuilt for rotation',()=>{
  assert.equal(stats.created,1);
  assert.equal(images.length,1);
  const stamp=images[0][0];
- assert.equal(stamp.draws.length,3,'cast, contact, source silhouette erasure');
+ assert.equal(stamp.draws.length,4,'cast, opaque core, contact, silhouette erasure');
  assert.ok(stamp.draws[0].blur>stamp.draws[1].blur);
- assert.equal(stamp.draws[2].operation,'destination-out');
+ assert.ok(stamp.draws[1].blur>stamp.draws[2].blur);
+ assert.equal(stamp.draws[0].alpha,'rgba(0,0,0,1)');
+ assert.equal(stamp.draws[1].alpha,'rgba(0,0,0,1)');
+ assert.equal(stamp.draws[3].operation,'destination-out');
  T.x+=2;T.y+=1;
  shadows.draw(g,collectPieceShadowGroups(b,m,T),2,2,20);
  assert.equal(stats.created,1,'translation reuses the same raster');
