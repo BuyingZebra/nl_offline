@@ -28,7 +28,7 @@ test('controls crop excludes the terminal without changing its original cell rec
   const r=computeLayout(w,h,insets,UI);
   const c=controlsBounds(r,w,h,2);
   const terminal=terminalLineBounds(r);
-  const t=croppedBounds([terminal],w,h,2,1);
+  const t=croppedBounds([terminal],w,h,2,0);
   assert.equal(terminal.x,r.dx+5);
   assert.equal(terminal.y,r.dy+r.dh+1);
   assert.equal(terminal.w,Math.max(1,r.dw-10));
@@ -37,6 +37,7 @@ test('controls crop excludes the terminal without changing its original cell rec
   assert.deepEqual(c,croppedBounds([{x:r.dx,y:r.dy,w:r.dw,h:r.dh}],w,h,2),
    'the controls crop is exactly the original button deck plus pixel snapping');
   assert.ok(t.w<=r.dw+2.00001);
+  assert.ok(t.y>=r.dy+r.dh+.99999,'terminal cannot cover controls bottom edge');
   assert.ok(t.h<=39.00001);
   assert.ok(t.y>=0&&t.y+t.h<=h+0.001);
  }
@@ -45,7 +46,7 @@ test('controls crop excludes the terminal without changing its original cell rec
 test('cropped terminal texture is painted in original CSS pixel positions at DPR2',()=>{
  const W=393,H=852,dpr=2;
  const r=computeLayout(W,H,{top:59,bottom:34},UI);
- const bounds=croppedBounds([terminalLineBounds(r)],W,H,dpr,1);
+ const bounds=croppedBounds([terminalLineBounds(r)],W,H,dpr,0);
  const canvas={width:1,height:1},calls=[];
  const context={setTransform(...a){calls.push(['transform',...a])}};
  const plane={scale:{set(...a){calls.push(['scale',...a])}},
@@ -82,7 +83,7 @@ test('standalone terminal plane uses the original text painter and CRT composito
  const cropped=source('cropped-ui-layers.js');
  assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
  assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
- assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,1\)/);
+ assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);
  assert.match(renderer,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg,FONT\)/);
  assert.match(renderer,/if\(terminalPlane\.visible\)textureUploads\.upload\(terminalTexture,'terminal'\)/);
  assert.match(renderer,/layers\.mark\('terminal'\);layers\.reason\('terminal-log'\)/);
