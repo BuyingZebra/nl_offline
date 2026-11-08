@@ -10,7 +10,7 @@ function stamped(date,seconds=true){
   (seconds?':'+pad(d.getSeconds()):'')+']';
 }
 export function terminalLineBounds(r){
- return {x:r.dx+5,y:r.footerY-25,w:Math.max(1,r.dw-10),h:36};
+ return {x:r.dx+5,y:r.dy+r.dh+1,w:Math.max(1,r.dw-10),h:29};
 }
 // A line is built once, then emitted through the same character grid that
 // moves the full-cell cursor. Statuses never pop in at the right-hand edge.
@@ -164,7 +164,7 @@ export function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  const ascent=metrics.actualBoundingBoxAscent||fontSize*.70;
  const descent=metrics.actualBoundingBoxDescent||0;
  const cellH=Math.ceil(ascent+descent)+4;
- const pitch=16,top=b.y+13,bottom=top+pitch;
+ const pitch=14,top=b.y+8,bottom=top+pitch;
  const progress=phase==='scroll'?1-Math.pow(1-scrollProgress,3):0;
  const shift=pitch*progress;
  const drawLine=(str,y,showCursor=false,position=0)=>{
