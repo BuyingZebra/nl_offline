@@ -1,4 +1,4 @@
-/* NOMAD V134 — two 75%-cell brick rails, using the 6px control gap. */
+/* NOMAD V135 — aligned square rails flush with the board's vertical edges. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -21,22 +21,22 @@ const imagePath=style=>fileURLToPath(
  new URL('../assets/frames/'+style+'/brick.svg',import.meta.url));
 const get=(w,h,safe={})=>computeLayout(w,h,safe,ui);
 
-test('the same square running-bond master generates pixel and vector SVGs',()=>{
- assert.deepEqual(BRICK_UNIT,{width:12,height:12,courses:2});
+test('pixel and vector SVGs share a single aligned square tile with no stagger',()=>{
+ assert.deepEqual(BRICK_UNIT,{width:12,height:12,courses:1});
  for(const style of ['pixel','vector']){
   const svg=renderBrickSVG(style);
   assert.equal(svg,fs.readFileSync(imagePath(style),'utf8'));
   assert.match(svg,/viewBox="0 0 12 12"/);
   assert.match(svg,/width="12" height="12"/);
   assert.match(svg,new RegExp('data-style="'+style+'"'));
-  assert.equal((svg.match(/<rect /g)||[]).length,15);
+  assert.equal((svg.match(/<rect /g)||[]).length,5);
   assert.doesNotMatch(svg,/<image|<filter|<linearGradient|<radialGradient/);
   for(const match of svg.matchAll(/rgb\((\d+),(\d+),(\d+)\)/g)){
    assert.equal(match[1],match[2]);assert.equal(match[2],match[3]);
   }
   const faces=brickShapes(style).filter((_,i)=>i%5===0);
-  assert.deepEqual(faces.map(x=>x.y),[1,7,7]);
-  assert.ok(faces.every(x=>x.h===4));
+  assert.deepEqual(faces.map(x=>[x.x,x.y,x.w,x.h]),[[1,1,10,10]],
+   'one full inset square per repeat, no staggered joints');
  }
  assert.throws(()=>renderBrickSVG('invalid'),RangeError);
 });
@@ -45,7 +45,9 @@ test('iPhone portrait rails repeat at 75% preview size and have exact 6px gap',(
  const g=brickRailGeometry(r);
  assert.ok(g);
  assert.ok(near(r.boardW,234.5),'V133 board width stays unchanged');
- assert.ok(near(r.boardX,29.75),'V133 board placement stays unchanged');
+ assert.ok(near(r.boardX,34.2875),'playfield shifts slightly to align outer rail with header');
+ assert.ok(near(r.boardX-g.width-g.gap,r.hx),'outer left brick edge aligns with header');
+ assert.ok(near(r.boardX-g.width-g.gap,r.off+r.pad),'and footer left edge');
  assert.ok(near(g.width,(r.boardW-4)/10*.75));
  assert.ok(near(g.width,r.previewCell));
  assert.ok(near(g.height,g.width),'whole brick motif is square');
@@ -54,10 +56,10 @@ test('iPhone portrait rails repeat at 75% preview size and have exact 6px gap',(
  assert.ok(near(g.right.x,r.boardX+r.boardW+ui.padGap));
  assert.ok(near(g.leftVisible.w,g.width),'full left rail fits iPhone');
  assert.ok(near(g.rightVisible.w,g.width),'full right rail fits iPhone');
- assert.ok(near(g.left.y,r.boardY+2));
- assert.ok(near(g.right.y,r.boardY+2));
- assert.ok(near(g.left.h,r.boardH-4),'bricks reach board bottom');
- assert.ok(near(g.right.h,r.boardH-4));
+ assert.ok(near(g.left.y,r.boardY)&&near(g.right.y,r.boardY),
+  'both brick rails begin at the outer board border');
+ assert.ok(near(g.left.y+g.left.h,r.boardY+r.boardH));
+ assert.ok(near(g.right.y+g.right.h,r.boardY+r.boardH));
 });
 test('all viewport sizes clip to available space, never over the board or sidebar',()=>{
  for(const [W,H,safe] of [
@@ -78,7 +80,13 @@ test('all viewport sizes clip to available space, never over the board or sideba
   assert.ok(g.leftVisible.w>=0&&g.leftVisible.w<=g.width+1e-7);
   assert.ok(g.rightVisible.w>=0&&g.rightVisible.w<=g.width+1e-7);
   assert.ok(g.rightVisible.x+g.rightVisible.w<=r.nextPanel.x-2+1e-7);
-  assert.ok(near(g.left.h,r.boardH-4));
+  assert.ok(near(g.left.y,r.boardY)&&near(g.left.y+g.left.h,r.boardY+r.boardH));
+  assert.ok(near(g.right.y,r.boardY)&&near(g.right.y+g.right.h,r.boardY+r.boardH));
+  if(!r.landscape){
+   assert.ok(near(g.left.x,r.hx),'portrait frame aligns left with header/footer');
+   assert.ok(near(g.leftVisible.w,g.width),'full left rail on portrait');
+   assert.ok(near(g.rightVisible.w,g.width),'full right rail on portrait');
+  }
   assert.deepEqual(r,before,'brick drawing never mutates the layout');
  }
  assert.equal(brickRailGeometry({...get(393,852),boardW:0}),null);

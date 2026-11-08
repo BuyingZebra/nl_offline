@@ -56,11 +56,34 @@ function computeLayout(W,H,safe,ui){
   // Preserve V108 playfield size and placement; statistics stay in sidebar.
   // The landscape playfield never used the old portrait score row.
   const boardRegionH=landscape?sh:Math.max(0,sh-legacyStatsOffset);
-  const bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
+  const brickGap=ui.padGap; // Identical to the horizontal control gap.
+  let bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
+  if(!landscape&&bw>4){
+    // V135: anchor the OUTER brick frame (not the board's playable cells)
+    // to the header and footer's left edge. Reserve the full 75%-cell-wide
+    // rail on both sides and keep the 75%-size preview panel fully visible.
+    // Only unusually width-constrained portrait viewports need a small
+    // additional board reduction to satisfy both edge alignments.
+    const framedSpan=boardWidth=>{
+      const tile=Math.max(0,(boardWidth-4)/10)*.75;
+      const sidebarPanelWidth=Math.min(sideWidth,
+        Math.max(Math.min(sideWidth,52),tile*4+10));
+      return boardWidth+2*(tile+brickGap)+sidebarPanelWidth+2;
+    };
+    if(framedSpan(bw)>hw){
+      let lo=4,hi=bw;
+      for(let i=0;i<32;i++){
+        const mid=(lo+hi)/2;
+        if(framedSpan(mid)<=hw)lo=mid;
+        else hi=mid;
+      }
+      bw=lo;
+    }
+  }
   const bh=bw*2;
-  const bx=sx+Math.max(0,(sw-bw-sideGap-sideWidth)/2);
-  // Centre the full board/sidebar composition in the gap between
-  // header and controls. Preserve V108 board width/height exactly.
+  const bx=landscape?sx+Math.max(0,(sw-bw-sideGap-sideWidth)/2):
+    hx+Math.max(0,(bw-4)/10)*.75+brickGap;
+  // Keep the game board's 10:20 ratio while centering it vertically.
   const by=sy+Math.max(0,(sh-bh)/2);
   // V133: in portrait, align the complete sidebar's RIGHT edge with
   // the header and footer; do not right-align its text labels.
@@ -91,7 +114,7 @@ function computeLayout(W,H,safe,ui){
   const compactControls=landscape&&(dw-2*deckPad)<250;
   return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
-    sideX:sxSide,sideW:swSide,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
+    sideX:sxSide,sideW:swSide,brickGap,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
     deckPad,deckGap,buttonH,headerButtonH,extraH,overlaySecondaryH,
     footerY:H-edges.bottom-18};
 }

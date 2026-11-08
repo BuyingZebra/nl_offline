@@ -60,7 +60,8 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
  assert.equal(r.compactControls,false);
  assert.equal(r.boardW,234.5,'V108 portrait board width');
  assert.equal(r.boardH,469,'V108 portrait board height');
- assert.equal(r.boardY,170.5,'unchanged board height, centred vertically');
+ assert.equal(r.boardY,170.5,'board remains centred vertically');
+ assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board begins at header/footer left edge');
  const topGap=r.boardY-(r.hy+r.hh),bottomGap=r.dy-(r.boardY+r.boardH);
  assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
  assert.equal(r.dy+r.deckPad,677,'old first button y');
@@ -72,11 +73,14 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
   'statistics centered between previews');
  assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
 });
-test('tall portrait also retains its V108 playfield dimensions',()=>{
+test('tall portrait makes a minimal width adjustment to fit the aligned brick frame',()=>{
  const r=computeLayout(430,932,{top:62,bottom:34},ui);
- assert.equal(r.boardW,273);
- assert.equal(r.boardH,546);
- assert.equal(r.boardY,173.5,'tall board is centered in playable gap');
+ assert.ok(r.boardW<273&&r.boardW>265,
+  'slight reduction fits both full-width brick rails without overlap');
+ assert.ok(Math.abs(r.boardH-2*r.boardW)<1e-7);
+ assert.ok(Math.abs(r.boardY-(r.sy+(r.sh-r.boardH)/2))<1e-7,
+  'board stays centered vertically');
+ assert.ok(Math.abs(r.boardX-r.previewCell-r.brickGap-r.hx)<1e-7);
  assert.equal(r.dy+r.deckPad,757,'V109 button position stays unchanged');
 });
 test('portrait board and entire sidebar are vertically centered between header and controls',()=>{
@@ -123,8 +127,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v133'));
- assert.ok(html.indexOf('layout.js?three=v133')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v135'));
+ assert.ok(html.indexOf('layout.js?three=v135')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
@@ -152,7 +156,7 @@ test('sidebar panels share a compact right edge and retain room for external lab
  }
 });
 
-test('portrait panels share the header and footer right edge without moving the board',()=>{
+test('portrait framed board and panels align with both outer header/footer edges',()=>{
  const samples=phones.filter(([name,w,h])=>w<h);
  for(const [name,w,h,safe] of samples){
   const r=computeLayout(w,h,safe,ui);
@@ -165,9 +169,13 @@ test('portrait panels share the header and footer right edge without moving the 
   }
   assert.ok(r.nextPanel.x>=r.boardX+r.boardW,
    name+' preview stays to right of the board');
+  assert.ok(Math.abs(r.boardX-r.previewCell-r.brickGap-r.hx)<1e-6,
+   name+' framed board left rail aligns with header and footer left edge');
+  assert.ok(r.boardX+r.boardW+r.previewCell+r.brickGap<=r.nextPanel.x-2+1e-5,
+   name+' right rail fits without entering the sidebar');
  }
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.boardW,234.5,'restored pre-brick board width unchanged');
- assert.equal(r.boardX,29.75,'restored pre-brick board x unchanged');
+ assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board left edge aligned');
  assert.equal(r.dy+r.deckPad,677,'controls unaffected');
 });

@@ -1,23 +1,22 @@
-/* NOMAD V134 — one authored running-bond brick texture in pixel and vector form.
+/* NOMAD V135 — aligned square brick tiles in pixel and vector form.
  * Grayscale geometry only; the existing CRT compositor supplies phosphor tint.
  * Rails sit 6px outside the board and use 75%-cell-sized square pattern tiles.
  */
-export const BRICK_UNIT=Object.freeze({width:12,height:12,courses:2});
+export const BRICK_UNIT=Object.freeze({width:12,height:12,courses:1});
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const fmt=n=>Number(n.toFixed(3)).toString();
 const rgb=n=>'rgb('+n+','+n+','+n+')';
-// A single 12x12 texture tile displays at 75% of one game block, with two
-// staggered half-height brick courses contained within that single tile.
+// One inset 10x10 square brick per authored 12x12 texture cell.
+// Every repeat is aligned vertically: no half-bricks or running bond.
 const COURSES=Object.freeze([
- Object.freeze({y:1,bricks:Object.freeze([{x:1,w:10}])}),
- Object.freeze({y:7,bricks:Object.freeze([{x:-4,w:9},{x:6,w:9}])})
+ Object.freeze({y:1,bricks:Object.freeze([{x:1,w:10}])})
 ]);
 export function brickShapes(style='vector'){
  if(style!=='pixel'&&style!=='vector')throw new RangeError('Unknown brick style');
  const pixel=style==='pixel',layers=[];
  function add(x,y,w,h,shade){if(w>0&&h>0)layers.push(Object.freeze({x,y,w,h,shade}));}
  for(const course of COURSES)for(const {x,w} of course.bricks){
-  const y=course.y,h=4;
+  const y=course.y,h=10;
   // Face coordinates are identical in both artworks; only the bevel is finer
   // in the vector version. No gradients, radius, texture noise or runtime RNG.
   add(x,y,w,h,pixel?173:178);
@@ -36,8 +35,8 @@ export function renderBrickSVG(style='vector'){
  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" '+
   'width="12" height="12" shape-rendering="'+
   (style==='pixel'?'crispEdges':'geometricPrecision')+'" '+
-  'data-design="nomad-bricks-v134" data-style="'+style+'">\n'+
-  '<title>NOMAD staggered '+style+' brick rail</title>\n'+
+  'data-design="nomad-bricks-v135" data-style="'+style+'">\n'+
+  '<title>NOMAD aligned square '+style+' brick rail</title>\n'+
   shapes.join('\n')+'\n</svg>\n';
 }
 // The entire authored 12x12 tile is 75% of a tetromino board cell.
@@ -49,11 +48,10 @@ export function brickRailGeometry(r){
  if(!(w>4&&h>4))return null;
  const cell=(w-4)/10;
  const tile=r.previewCell>0?r.previewCell:cell*.75;
- const gap=r.gap??6;
- const bottom=h-4;
- if(!(tile>0&&bottom>0))return null;
- const left=Object.freeze({x:x-gap-tile,y:y+2,w:tile,h:bottom});
- const right=Object.freeze({x:x+w+gap,y:y+2,w:tile,h:bottom});
+ const gap=r.brickGap??r.gap??6;
+ if(!(tile>0))return null;
+ const left=Object.freeze({x:x-gap-tile,y,w:tile,h});
+ const right=Object.freeze({x:x+w+gap,y,w:tile,h});
  const minX=Math.max(0,r.safe?.left??0,r.off??0);
  // Cropped sidebar layer has a 2px opaque margin. Stop before that layer,
  // so its refreshes never cover the stationary brick frame.

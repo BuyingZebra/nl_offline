@@ -1,18 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-bricks-v134" data-style="vector">
-<title>NOMAD staggered vector brick rail</title>
-<rect x="1" y="1" width="10" height="4" fill="rgb(178,178,178)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="12" height="12" shape-rendering="geometricPrecision" data-design="nomad-bricks-v135" data-style="vector">
+<title>NOMAD aligned square vector brick rail</title>
+<rect x="1" y="1" width="10" height="10" fill="rgb(178,178,178)"/>
 <rect x="1" y="1" width="10" height="0.65" fill="rgb(230,230,230)"/>
-<rect x="1" y="1" width="0.65" height="4" fill="rgb(217,217,217)"/>
-<rect x="1" y="4.35" width="10" height="0.65" fill="rgb(81,81,81)"/>
-<rect x="10.35" y="1" width="0.65" height="4" fill="rgb(103,103,103)"/>
-<rect x="-4" y="7" width="9" height="4" fill="rgb(178,178,178)"/>
-<rect x="-4" y="7" width="9" height="0.65" fill="rgb(230,230,230)"/>
-<rect x="-4" y="7" width="0.65" height="4" fill="rgb(217,217,217)"/>
-<rect x="-4" y="10.35" width="9" height="0.65" fill="rgb(81,81,81)"/>
-<rect x="4.35" y="7" width="0.65" height="4" fill="rgb(103,103,103)"/>
-<rect x="6" y="7" width="9" height="4" fill="rgb(178,178,178)"/>
-<rect x="6" y="7" width="9" height="0.65" fill="rgb(230,230,230)"/>
-<rect x="6" y="7" width="0.65" height="4" fill="rgb(217,217,217)"/>
-<rect x="6" y="10.35" width="9" height="0.65" fill="rgb(81,81,81)"/>
-<rect x="14.35" y="7" width="0.65" height="4" fill="rgb(103,103,103)"/>
+<rect x="1" y="1" width="0.65" height="10" fill="rgb(217,217,217)"/>
+<rect x="1" y="10.35" width="10" height="0.65" fill="rgb(81,81,81)"/>
+<rect x="10.35" y="1" width="0.65" height="10" fill="rgb(103,103,103)"/>
 </svg>
