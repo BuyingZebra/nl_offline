@@ -17,7 +17,9 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   'RAF interval = pacing between scheduled frames, not physical display refresh rate.',
   'PASS CPU = time inside each compositor pass; may include driver waits, NOT GPU shader timing.',
   'PRE-UPLOAD = CPU time for renderer.initTexture on changed canvases; not GPU execution time.',
-  'Uploads B/D/S/C/P/M = full-screen base / board / sidebar / controls / popup / modal requests.'
+  'DIRTY B/D/S/C/P/M = canvas texture refresh requests: base / board / sidebar / controls / popup / modal.',
+  'PRE-UPLOAD counts = actual changed-texture initTexture calls; source MB assumes uncompressed RGBA8 (NOT VRAM).',
+  'PEAK FRAME attributes the slowest JS frame in each sample; input and render causes may overlap.'
  ];
  const observed=samples.slice(-8);
  if(current&&current.frameTicks>0)observed.push(current);
@@ -29,7 +31,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    ' | slow '+value(s.slowRafTicks)+
    ' | CPU avg/max '+value(s.avgFrameCpuMs,'ms')+'/'+value(s.maxFrameCpuMs,'ms')+
    ' | submit '+value(s.avgRenderSubmitMs,'ms')+
-   ' | uploads B/D/S/C/P/M '+value(s.baseUploadRequests)+'/'+value(s.boardUploadRequests)+'/'+value(s.sidebarUploadRequests)+'/'+value(s.controlsUploadRequests)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
+   ' | DIRTY B/D/S/C/P/M '+value(s.baseUploadRequests)+'/'+value(s.boardUploadRequests)+'/'+value(s.sidebarUploadRequests)+'/'+value(s.controlsUploadRequests)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
   if(s.basePaints!==undefined||s.avgLogicMs!==undefined){
    const reasons=Object.entries(s.redrawReasons||{}).map(([k,n])=>k+':'+n).join(', ')||'none';
    rows.push('  STAGES: logic '+value(s.avgLogicMs,'ms/RAF')+
@@ -48,8 +50,21 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
      ' | actual visual changes '+value(s.visualStateChanges));
    if(s.uploadTimes){
     const parts=Object.entries(s.uploadTimes).map(([name,v])=>
-     name+' '+value(v.avgCpuMs,'ms')+'×'+v.calls);
+     name+' '+value(v.avgCpuMs,'ms')+'×'+v.calls+
+      (Number.isFinite(v.estimatedSourceMB)?' / ~'+v.estimatedSourceMB+'MB src':''));
     rows.push('  PRE-UPLOAD: '+(parts.length?parts.join(' | '):'none'));
+   }
+   if(s.worstFrame){
+    const peak=s.worstFrame;
+    const reasons=(peak.reasons||[]).join(', ')||'none';
+    const uploads=Object.entries(peak.uploadLayers||{}).map(
+     ([name,n])=>name+':'+n).join(', ')||'none';
+    const stages=Object.entries(peak.stageCpuMs||{}).map(
+     ([name,ms])=>name+':'+ms+'ms').join(', ')||'none';
+    rows.push('  PEAK FRAME: '+value(peak.cpuMs,'ms')+
+     ' / state '+value(peak.state)+' / causes '+reasons+
+     ' / pre-upload '+value(peak.preuploadCpuMs,'ms')+
+     ' / layers '+uploads+' / stages '+stages);
    }
    if(s.passTimes){
     const passes=Object.entries(s.passTimes)
