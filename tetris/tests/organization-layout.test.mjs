@@ -160,18 +160,31 @@ test('approved 6 game controls retain button arrangement and positions',()=>{
  assert.deepEqual(painted.keys.map(k=>k[2]),[677,677,677,677,736,736]);
  assert.deepEqual(painted.text,[],'level score lines no longer drawn above game buttons');
 });
-test('the existing fonts, game-board renderer and footer wording are retained',()=>{
+test('V146 unframed operation log replaces the old shaded version strip',()=>{
  const source=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
+ const cropped=fs.readFileSync(new URL('../cropped-ui-layers.js',import.meta.url),'utf8');
+ const terminal=fs.readFileSync(new URL('../terminal-log.js',import.meta.url),'utf8');
+ const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
  assert.match(source,/text\('NOMAD'/);
  assert.match(source,/text\('TETRIS SYSTEM'/);
- assert.match(source,/Program: Three\.JS/);
- assert.match(source,/version: '\+THREE_BUILD_VERSION/);
- assert.match(source,/ruleStart,r\.footerY-\.5/);
- assert.match(source,/rect\(r\.off\+11,r\.footerY-12,Math\.max\(0,r\.width-22\),24,C\.panel\)/,
-  'footer uses same fill as header and score');
  assert.match(source,/function stage\(r,drawPieces=true,recordRegion=true\)/);
  assert.match(source,/const FONT='"Roboto Condensed"/);
  assert.match(source,/const TERMINAL_FONT='"Share Tech Mono"/);
+ assert.doesNotMatch(source,/const footerLeft=|ruleStart,r\.footerY|rect\(r\.off\+11,r\.footerY-12/);
+ assert.match(source,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg\)/);
+ assert.match(cropped,/r\.footerY-12/);
+ assert.match(terminal,/VT323/);
+ assert.match(html,/family=VT323/);
+ for(const [w,h,safe] of [
+  [393,852,{top:59,bottom:34}],
+  [320,568,{top:18,bottom:0}],
+  [852,393,{top:0,bottom:20}]
+ ]){
+  const r=computeLayout(w,h,safe,ui);
+  assert.ok(r.dy+r.dh<=r.footerY-12+.01,
+   'terminal stays OUTSIDE and below the entire controls container');
+  assert.ok(r.footerY+12<=h-safe.bottom+.01,'terminal respects bottom safe area');
+ }
 });
 test('official logo is an editable, rounded-cap SVG bundled locally',()=>{
  const svg=fs.readFileSync(new URL('../nomad-mark.svg',import.meta.url),'utf8');
@@ -239,8 +252,8 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v145'/);
- assert.match(html,/<meta name="tetris-build" content="145">/);
+ assert.match(sw,/CACHE_VERSION='v146'/);
+ assert.match(html,/<meta name="tetris-build" content="146">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
  assert.match(renderer,/\/\/ V117: preserve the V114 grid/);
 });
@@ -261,8 +274,8 @@ test('V144 only lifts grid opacity and adds clipped inset shadow to board',()=>{
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#101010'\)/);
- assert.match(sw,/CACHE_VERSION='v145'/);
- assert.match(html,/<meta name="tetris-build" content="145">/);
+ assert.match(sw,/CACHE_VERSION='v146'/);
+ assert.match(html,/<meta name="tetris-build" content="146">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
@@ -279,5 +292,5 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="145">/);
+ assert.match(shell,/<meta name="tetris-build" content="146">/);
 });
