@@ -127,8 +127,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v138'));
- assert.ok(html.indexOf('layout.js?three=v138')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v141'));
+ assert.ok(html.indexOf('layout.js?three=v141')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
@@ -178,4 +178,17 @@ test('portrait framed board and panels align with both outer header/footer edges
  assert.equal(r.boardW,234.5,'restored pre-brick board width unchanged');
  assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board left edge aligned');
  assert.equal(r.dy+r.deckPad,677,'controls unaffected');
+});
+
+test('V141 portrait gutters and header alignment remain exact',()=>{
+ for(const [name,w,h,safe] of phones.filter(([,w,h])=>w<h)){
+  const r=computeLayout(w,h,safe,ui);
+  const rightRailEnd=r.boardX+r.boardW+r.brickGap+r.previewCell;
+  for(const panel of [r.nextPanel,r.statsPanel,r.holdPanel]){
+   assert.ok(Math.abs(panel.x-rightRailEnd-r.brickGap)<1e-6,
+    name+' equal rail-to-board and rail-to-sidebar gutters');
+   assert.ok(Math.abs(panel.x+panel.w-r.hx-r.hw)<1e-6,
+    name+' sidebar right-aligned with header');
+  }
+ }
 });
