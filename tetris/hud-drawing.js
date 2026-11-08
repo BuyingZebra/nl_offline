@@ -3,7 +3,7 @@
  * registrar; the same UI can draw on the cached base or cropped canvases.
  */
 // Square tetromino cells at every preview aspect ratio, including narrow phones.
-export function fitPreviewCells(shape,x,y,w,h,role='next'){
+export function fitPreviewCells(shape,x,y,w,h,role='next',targetCell=null){
  if(!Array.isArray(shape)||!(w>0)||!(h>0))return [];
  const points=[];
  for(let row=0;row<shape.length;row++){
@@ -15,11 +15,18 @@ export function fitPreviewCells(shape,x,y,w,h,role='next'){
  const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
  const minX=Math.min(...xs),minY=Math.min(...ys);
  const cols=Math.max(...xs)-minX+1,rows=Math.max(...ys)-minY+1;
- const sourceH=role==='hold'?90:75;
- const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
- // Scale both axes equally; independent X/Y scaling distorted the tiles.
- const scale=Math.min(w/120,h/sourceH);
- const size=Math.min(sourceCell*scale,Math.max(0,w-4)/cols,Math.max(0,h-4)/rows);
+ let size;
+ if(Number.isFinite(targetCell)&&targetCell>0){
+  // Exactly 75% of a gameplay cell on normal viewports; shrink only when
+  // a constrained panel cannot contain the entire four-block piece.
+  size=Math.min(targetCell,w/cols,h/rows);
+ }else{
+  // Preserve the legacy fit for external callers without a board-cell target.
+  const sourceH=role==='hold'?90:75;
+  const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
+  const scale=Math.min(w/120,h/sourceH);
+  size=Math.min(sourceCell*scale,Math.max(0,w-4)/cols,Math.max(0,h-4)/rows);
+ }
  if(!(size>0))return [];
  const startX=x+(w-size*cols)/2,startY=y+(h-size*rows)/2;
  return points.map(([col,row])=>({
@@ -32,24 +39,19 @@ export function createHudDrawing({panel,text,rect,key,smallPiece,getGame,
 function drawSidebar(r){
  const game=getGame();
  const {nextPanel:next,statsPanel:stats,holdPanel:hold}=r;
- const inset=Math.max(3,Math.min(6,next.w*.06));
- const label=(word,x,y)=>text(word,x+inset+1,y+15,9,C.weak,'left',Math.max(8,next.w-2*inset-2));
- const nested=(box,kind,role)=>{
+ const inset=Math.max(3,Math.min(6,stats.w*.06));
+ const preview=(box,kind,role)=>{
+  // One compact panel only. The NEXT/HOLD label is outside its border.
+  const heading=role==='next'?'NEXT':'HOLD';
+  text(heading,box.x+box.w,box.y-r.previewLabelSpace/2,
+   9,C.weak,'right',box.w);
   panel(box.x,box.y,box.w,box.h,0,C.panel);
-  label(role==='next'?'NEXT':'HOLD',box.x,box.y);
-  // The outer panel can be rectangular for its left-aligned label.
-  // The nested piece frame is a true square with equal visual padding.
-  const labelSpace=25;
-  const availableH=Math.max(0,box.h-labelSpace-inset);
-  const side=Math.min(Math.max(0,box.w-2*inset),availableH);
-  if(side<=1)return;
-  const ix=box.x+(box.w-side)/2;
-  const iy=box.y+labelSpace+(availableH-side)/2;
-  panel(ix,iy,side,side,0,C.bg,C.border);
-  const preview=Math.max(1,side-6);
-  smallPiece(kind,ix+(side-preview)/2,iy+(side-preview)/2,preview,preview,role);
+  const pad=5;
+  smallPiece(kind,box.x+pad,box.y+pad,
+   Math.max(0,box.w-2*pad),Math.max(0,box.h-2*pad),
+   role,r.previewCell);
  };
- nested(next,game.queue[0],'next');
+ preview(next,game.queue[0],'next');
  panel(stats.x,stats.y,stats.w,stats.h,0,C.panel);
  const rows=[['SCORE',fmt(game.score)],['LEVEL',fmt(game.level,2)],['LINES',fmt(game.lines,2)]];
  const slot=Math.max(1,(stats.h-8)/3);
@@ -62,7 +64,7 @@ function drawSidebar(r){
   if(i<2)rect(stats.x+inset,stats.y+6+(i+1)*slot,
    Math.max(0,stats.w-2*inset),1,C.border);
  });
- nested(hold,game.hold,'hold');
+ preview(hold,game.hold,'hold');
 }
 function drawControls(r){
  // V114: restore the enclosing controls panel; button geometry and hitboxes

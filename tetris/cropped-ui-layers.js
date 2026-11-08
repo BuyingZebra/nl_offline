@@ -13,7 +13,15 @@ export function croppedBounds(boxes,width,height,dpr=1,pad=2){
  return {x,y,w:Math.max(1/scale,right-x),h:Math.max(1/scale,bottom-y)};
 }
 export function sidebarBounds(r,width,height,dpr){
- return croppedBounds([r.holdPanel,r.nextPanel,r.statsPanel],width,height,dpr);
+ // NEXT and HOLD labels now sit above the compact preview frames.
+ const headingSpace=r.previewLabelSpace??0;
+ const headingBox=p=>({
+  x:p.x,y:p.y-headingSpace,w:p.w,h:headingSpace
+ });
+ return croppedBounds([
+  r.holdPanel,r.nextPanel,r.statsPanel,
+  headingBox(r.holdPanel),headingBox(r.nextPanel)
+ ],width,height,dpr);
 }
 export function controlsBounds(r,width,height,dpr){
  return croppedBounds([{x:r.dx,y:r.dy,w:r.dw,h:r.dh}],width,height,dpr);

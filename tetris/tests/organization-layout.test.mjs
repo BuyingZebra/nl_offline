@@ -28,52 +28,47 @@ function makeHUD(){
  });
  return {hud,painted,game};
 }
-test('right column is NEXT / SCORE LEVEL LINES / HOLD, without BEST or PIECES',()=>{
+test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  const {hud,painted}=makeHUD();
  hud.drawSidebar(r);
  assert.deepEqual(painted.text.map(t=>t[0]),
   ['NEXT','SCORE','000684','LEVEL','03','LINES','12','HOLD']);
  assert.deepEqual(painted.pieces.map(p=>[p[0],p[5]]),[['T','next'],['S','hold']]);
- assert.equal(painted.panels.length,5,'outer and nested preview containers plus stats');
- assert.deepEqual(painted.panels.map(x=>x[4]),[0,0,0,0,0],'no beveled corners');
- assert.equal(painted.panels[1][5], '#080808','NEXT interior stays near-black');
- assert.equal(painted.panels[4][5], '#080808','HOLD interior stays near-black');
- for(const [outerIdx,innerIdx] of [[0,1],[3,4]]){
-  const [ox,oy,ow,oh]=painted.panels[outerIdx];
-  const [ix,iy,iw,ih]=painted.panels[innerIdx];
-  assert.ok(Math.abs(iw-ih)<.00001,'nested preview frame is square');
-  assert.ok(Math.abs(ow-oh)>.01,'outer labeled panel remains rectangular');
-  assert.ok(ix>=ox&&ix+iw<=ox+ow+.001,'frame fits parent width');
-  assert.ok(iy>=oy&&iy+ih<=oy+oh+.001,'frame fits parent height');
+ assert.equal(painted.panels.length,3,'no interior preview containers');
+ assert.deepEqual(painted.panels.map(x=>x[4]),[0,0,0],'no beveled corners');
+ for(let i=0;i<3;i++){
+  const [x,y,w,h]=painted.panels[i];
+  assert.ok(w<r.sideW,'all three panels save sidebar width');
+  assert.ok(Math.abs(x+w-r.sideX-r.sideW)<.00001,'right edges are aligned');
  }
- for(const piece of painted.pieces){
-  assert.ok(Math.abs(piece[3]-piece[4])<.00001,'preview area is square');
- }
- assert.equal(painted.panels[0][3],painted.panels[3][3],
-  'NEXT and HOLD parent heights match exactly');
- assert.equal(painted.panels[1][2],painted.panels[4][2],
-  'NEXT and HOLD inner square widths match exactly');
- assert.equal(painted.panels[1][3],painted.panels[4][3],
-  'NEXT and HOLD inner square heights match exactly');
- assert.ok(Math.abs(painted.panels[1][1]-painted.panels[0][1]
-  -(painted.panels[4][1]-painted.panels[3][1]))<.001,
-  'same top padding inside preview parents');
- assert.ok(Math.abs(painted.panels[0][1]+painted.panels[0][3]
-  -(painted.panels[1][1]+painted.panels[1][3])
-  -(painted.panels[3][1]+painted.panels[3][3]
-  -(painted.panels[4][1]+painted.panels[4][3])))<.001,
-  'same bottom padding inside preview parents');
- assert.ok(Math.abs(r.nextPanel.y-r.boardY)<.01,
-  'NEXT outer panel top matches game board');
+ const [next,stats,hold]=painted.panels;
+ assert.deepEqual(next.slice(0,4),[r.nextPanel.x,r.nextPanel.y,r.nextPanel.w,r.nextPanel.h]);
+ assert.deepEqual(stats.slice(0,4),[r.statsPanel.x,r.statsPanel.y,r.statsPanel.w,r.statsPanel.h]);
+ assert.deepEqual(hold.slice(0,4),[r.holdPanel.x,r.holdPanel.y,r.holdPanel.w,r.holdPanel.h]);
+ assert.equal(next[3],hold[3],'NEXT/HOLD same preview height');
+ assert.equal(next[2],hold[2],'NEXT/HOLD same preview width');
+ assert.equal(painted.text[0][5],'right','NEXT outside label right aligned');
+ assert.equal(painted.text.at(-1)[5],'right','HOLD outside label right aligned');
+ assert.ok(painted.text[0][2]<next[1],'NEXT label above its panel');
+ assert.ok(painted.text.at(-1)[2]<hold[1],'HOLD label above its panel');
+ assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01,
+  'NEXT label occupies original top alignment');
  assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
-  'HOLD outer panel bottom matches game board');
+  'HOLD panel bottom aligned with board');
  assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
-  'statistics centered between anchors');
- assert.ok(r.statsPanel.h<=132.01,'no oversized score container');
- assert.equal(painted.rects.length,2,'separators between three compact data rows');
+  'score remains centered between previews');
+ assert.ok(r.statsPanel.h<=112.01,'score panel compacted');
+ assert.equal(painted.rects.length,2,'score retains its two dividers');
  assert.ok(painted.rects.every(line=>line[4]==='#777'),
-  'score dividers use the exact border brightness');
+  'score dividers retain approved luminance');
+ for(const piece of painted.pieces){
+  assert.ok(piece[3]>0&&piece[4]>0);
+  assert.ok(piece[3]<=r.nextPanel.w-10+.001);
+  assert.ok(piece[4]<=r.nextPanel.h-10+.001);
+  assert.ok(Math.abs(piece[6]-((r.boardW-4)/10)*.75)<1e-8,
+   'preview targets exactly 75% game tile size');
+ }
 });
 test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
  const shapes=[
@@ -95,6 +90,30 @@ test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
      assert.ok(tile.x+tile.size<=frame.x+frame.w+.001);
      assert.ok(tile.y+tile.size<=frame.y+frame.h+.001);
     }
+   }
+  }
+ }
+});
+test('all seven tetrominoes use exactly 75% of game tile on normal panels',()=>{
+ const shapes=[
+  [[1,1,1,1]],[[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],[[1,0],[1,0],[1,1]],
+  [[0,1],[0,1],[1,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]
+ ];
+ const r=computeLayout(393,852,{top:59,bottom:34},ui);
+ for(const role of ['next','hold']){
+  const frame=role==='next'?r.nextPanel:r.holdPanel;
+  const inset=5,inner=frame.w-2*inset;
+  for(const shape of shapes){
+   const cells=fitPreviewCells(shape,frame.x+inset,frame.y+inset,
+    inner,frame.h-2*inset,role,r.previewCell);
+   assert.equal(cells.length,4);
+   for(const tile of cells){
+    assert.ok(Math.abs(tile.size-r.previewCell)<.000001,
+     'each block is 0.75 × board tile size');
+    assert.ok(tile.x>=frame.x+inset-.001&&tile.y>=frame.y+inset-.001);
+    assert.ok(tile.x+tile.size<=frame.x+frame.w-inset+.001);
+    assert.ok(tile.y+tile.size<=frame.y+frame.h-inset+.001);
    }
   }
  }

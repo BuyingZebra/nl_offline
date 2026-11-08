@@ -64,27 +64,29 @@ function computeLayout(W,H,safe,ui){
   const by=sy+Math.max(0,(sh-bh)/2);
   const sxSide=bx+bw+sideGap;
   const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
-  // NEXT and HOLD share identical outer and square-inner geometry. Keep
-  // sufficient space for the left-aligned label, square frame and bottom inset.
-  const previewInset=Math.max(3,Math.min(6,swSide*.06));
-  const previewTarget=Math.max(0,swSide-previewInset+25);
-  // Compact three-row statistics, without expanding to fill spare board height.
-  const statsTarget=132;
+  // V132: compact, equal-width panels share one right edge. NEXT/HOLD each
+  // have just one visible preview frame, with a label above its border.
+  // The game board and outer sidebar bounds remain untouched.
+  const previewLabelSpace=16;
   const panelGap=ui.unit;
-  const available=Math.max(0,bh-2*panelGap);
+  const boardCell=Math.max(0,(bw-4)/10);
+  const previewCell=boardCell*.75;
+  const desiredWidth=previewCell*4+10; // max-size I piece + 5px edge inset
+  const panelWidth=Math.min(swSide,Math.max(Math.min(swSide,52),desiredWidth));
+  const panelX=sxSide+swSide-panelWidth;
+  const previewTarget=panelWidth;
+  const statsTarget=Math.min(112,Math.max(72,bh*.24));
+  const usablePanelHeight=Math.max(0,bh-2*previewLabelSpace-2*panelGap);
   const targetTotal=2*previewTarget+statsTarget;
-  const fit=targetTotal>0?Math.min(1,available/targetTotal):0;
+  const fit=targetTotal>0?Math.min(1,usablePanelHeight/targetTotal):0;
   const previewH=previewTarget*fit,statsH=statsTarget*fit;
-  // Anchor the outer preview panels to the board edges while centering
-  // the compact statistics between them. The existing fit guarantees at
-  // least one panelGap between each pair, even on short viewports.
-  const nextPanel={x:sxSide,y:by,w:swSide,h:previewH};
-  const statsPanel={x:sxSide,y:by+(bh-statsH)/2,w:swSide,h:statsH};
-  const holdPanel={x:sxSide,y:by+bh-previewH,w:swSide,h:previewH};
+  const nextPanel={x:panelX,y:by+previewLabelSpace,w:panelWidth,h:previewH};
+  const statsPanel={x:panelX,y:by+(bh-statsH)/2,w:panelWidth,h:statsH};
+  const holdPanel={x:panelX,y:by+bh-previewH,w:panelWidth,h:previewH};
   const compactControls=landscape&&(dw-2*deckPad)<250;
   return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
-    sideX:sxSide,sideW:swSide,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
+    sideX:sxSide,sideW:swSide,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
     deckPad,deckGap,buttonH,headerButtonH,extraH,overlaySecondaryH,
     footerY:H-edges.bottom-18};
 }

@@ -14,13 +14,13 @@ import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-li
 import {createInputController} from './input-controller.js?v096';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
-import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v062';
+import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v132';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
-import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v115';
+import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v132';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v123';
@@ -332,11 +332,11 @@ vectorTiles.preload();
 function tileFace(x,y,w,h,kind){
  vectorTiles.drawTile(g,x,y,w,h,kind);
 }
-function smallPiece(kind,x,y,w,h,role='next'){
+function smallPiece(kind,x,y,w,h,role='next',targetCell=null){
  if(!kind)return;
  // Preview I is a single gravel-textured strip; other pieces repeat the
  // exact approved 12-pixel motif once per occupied square.
- vectorTiles.drawPiece(g,fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role),kind);
+ vectorTiles.drawPiece(g,fitPreviewCells(Core.SHAPES[kind],x,y,w,h,role,targetCell),kind);
 }
 function cell(x,y,col,row,size,kind,isGhost=false){
  if(!kind||col<0||row<0||col>=10||row>=20)return;

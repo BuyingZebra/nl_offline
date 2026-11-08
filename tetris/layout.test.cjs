@@ -65,7 +65,7 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
  assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
  assert.equal(r.dy+r.deckPad,677,'old first button y');
  assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
- assert.equal(r.nextPanel.y,r.boardY,'NEXT top aligned with board');
+ assert.equal(r.nextPanel.y-r.previewLabelSpace,r.boardY,'NEXT outside label aligned to board top');
  assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH,
   'HOLD bottom aligned with board');
  assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
@@ -84,8 +84,8 @@ test('portrait board and entire sidebar are vertically centered between header a
   const r=computeLayout(w,h,safe,ui);
   const above=r.boardY-(r.hy+r.hh),below=r.dy-(r.boardY+r.boardH);
   assert.ok(Math.abs(above-below)<.01,name+' symmetric header-to-controls whitespace');
-  assert.ok(Math.abs(r.nextPanel.y-r.boardY)<.01,
-   name+' NEXT top aligns with board');
+  assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01,
+   name+' NEXT outside label aligns to board top');
   assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
    name+' HOLD bottom aligns with board');
   assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
@@ -103,7 +103,7 @@ test('portrait board and entire sidebar are vertically centered between header a
 test('landscape anchors sidebar previews to board edges without collisions',()=>{
  for(const [name,w,h,safe] of phones.filter(x=>x[1]>x[2])){
   const r=computeLayout(w,h,safe,ui);
-  assert.ok(Math.abs(r.nextPanel.y-r.boardY)<.01,name+' NEXT aligned');
+  assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01,name+' NEXT label aligned');
   assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
    name+' HOLD aligned');
   assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
@@ -125,4 +125,27 @@ test('HTML loads layout ahead of the Three.js module',()=>{
  assert.ok(html.indexOf('layout.js?three=v113-r1')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
+});
+
+test('sidebar panels share a compact right edge and retain room for external labels',()=>{
+ for(const [name,w,h,safe] of phones){
+  const r=computeLayout(w,h,safe,ui);
+  const boxes=[r.nextPanel,r.statsPanel,r.holdPanel];
+  const right=r.sideX+r.sideW;
+  for(const box of boxes){
+   assert.ok(Math.abs(box.x+box.w-right)<.00001,name+' panel right-aligned');
+   assert.ok(box.w<=r.sideW+.00001,name+' compact width');
+  }
+  assert.ok(r.nextPanel.y-r.previewLabelSpace>=r.boardY-.001,
+   name+' NEXT label stays inside game area');
+  assert.ok(r.holdPanel.y-r.previewLabelSpace>=r.statsPanel.y+r.statsPanel.h-.01,
+   name+' HOLD label does not overlap score');
+  assert.ok(r.nextPanel.y+r.nextPanel.h<=r.statsPanel.y+.001,
+   name+' NEXT and score stay separate');
+  assert.ok(r.statsPanel.y+r.statsPanel.h<=r.holdPanel.y-r.previewLabelSpace+.001,
+   name+' score and HOLD label stay separate');
+  const cell=(r.boardW-4)/10;
+  assert.ok(Math.abs(r.previewCell-cell*.75)<.00001);
+  assert.ok(r.previewLabelSpace>=14);
+ }
 });
