@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
 import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
-import {collectPieceShadowGroups,createPieceShadowRenderer} from './piece-drop-shadow.js?v162';
+import {collectPieceShadowGroups,createPieceShadowRenderer} from './piece-drop-shadow.js?v163';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v157';
