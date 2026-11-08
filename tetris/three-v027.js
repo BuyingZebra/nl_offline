@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import {createCompositor} from './compositor.js?v107';
 import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
+import {pieceShadowOccupancy,drawPieceShadowGradients} from './piece-drop-shadow.js?v159';
 import {collectIFragments} from './i-piece-fragments.js?v119';
 import {createButtonFeedback} from './button-feedback.js?v107';
 import {createCanvasUI} from './canvas-ui.js?v157';
@@ -403,48 +404,14 @@ function stage(r,drawPieces=true,recordRegion=true){
  const iRuns=collectIFragments(displayBoard,displayMeta,{
   hiddenRows:clearIsEmpty?lineClearFX.rows:null
  });
- // Cast stronger shadows ONTO the board behind each tetromino silhouette.
- // A wider offset and soft penumbra make the raised-piece effect visible,
- // while the same original SVG tile textures are painted sharply on top.
- g.save();
- g.beginPath();
- const shadowRect=(sx,sy,sw,sh)=>{
-  if(sw>2&&sh>2)g.rect(sx+1,sy+1,sw-2,sh-2);
- };
- displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
-  if(!kind||kind==='I'||(clearIsEmpty&&lineClearFX.rows.has(ry)))return;
-  shadowRect(offX+rx*tile,offY+ry*tile,tile,tile);
- }));
- for(const run of iRuns){
-  const vertical=(run.rotation&1)===1;
-  shadowRect(offX+run.x*tile,offY+run.y*tile,
-   (vertical?1:run.length)*tile,(vertical?run.length:1)*tile);
- }
- if(!lineClearFX&&game.current&&game.status!=='over'){
-  const p=game.current;
-  if(p.kind==='I'){
-   let lowX=Infinity,lowY=Infinity,highX=-Infinity,highY=-Infinity;
-   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
-    if(!kind)return;
-    lowX=Math.min(lowX,p.x+rx);lowY=Math.min(lowY,p.y+ry);
-    highX=Math.max(highX,p.x+rx+1);highY=Math.max(highY,p.y+ry+1);
-   }));
-   if(Number.isFinite(lowX))shadowRect(offX+lowX*tile,offY+lowY*tile,
-    (highX-lowX)*tile,(highY-lowY)*tile);
-  }else{
-   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
-    if(kind&&p.x+rx>=0&&p.x+rx<10&&p.y+ry>=0&&p.y+ry<20)
-     shadowRect(offX+(p.x+rx)*tile,offY+(p.y+ry)*tile,tile,tile);
-   }));
-  }
- }
- g.fillStyle='#080808';
- g.shadowColor='rgba(0,0,0,.95)';
- g.shadowBlur=5.5;
- g.shadowOffsetX=3;
- g.shadowOffsetY=4.5;
- g.fill();
- g.restore();
+ // V159: the tiles sit above a shadow-box floor. Each exposed edge uses
+ // a piece-shaped gradient with the SAME 8-20px depth and .58/.42/.24
+ // black stops as the existing board inset shadow. Paint AFTER the grid
+ // but BEFORE the SVG tile faces, letting shadows slowly hide grid lines.
+ const shadowCells=pieceShadowOccupancy(displayBoard,
+  !lineClearFX&&game.status!=='over'?game.current:null,
+  clearIsEmpty?lineClearFX.rows:null);
+ drawPieceShadowGradients(g,shadowCells,offX,offY,tile);
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
