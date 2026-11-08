@@ -103,7 +103,9 @@ function computeLayout(W,H,safe,ui){
   const panelWidth=Math.min(swSide,Math.max(Math.min(swSide,52),desiredWidth));
   const panelX=sxSide+swSide-panelWidth;
   const previewTarget=panelWidth;
-  const statsTarget=Math.min(112,Math.max(72,bh*.24));
+  // V138: three separate SCORE / LEVEL / LINES readouts need room for
+  // labels above flat, equal-width displays. Keep the center alignment.
+  const statsTarget=Math.min(150,Math.max(104,bh*.32));
   const usablePanelHeight=Math.max(0,bh-2*previewLabelSpace-2*panelGap);
   const targetTotal=2*previewTarget+statsTarget;
   const fit=targetTotal>0?Math.min(1,usablePanelHeight/targetTotal):0;

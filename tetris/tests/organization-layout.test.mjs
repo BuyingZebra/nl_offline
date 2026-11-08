@@ -35,40 +35,51 @@ test('NEXT, score and HOLD are compact right-aligned single panels',()=>{
  assert.deepEqual(painted.text.map(t=>t[0]),
   ['NEXT','SCORE','000684','LEVEL','03','LINES','12','HOLD']);
  assert.deepEqual(painted.pieces.map(p=>[p[0],p[5]]),[['T','next'],['S','hold']]);
- assert.equal(painted.panels.length,3,'no interior preview containers');
- assert.deepEqual(painted.panels.map(x=>x[4]),[0,0,0],'no beveled corners');
- for(let i=0;i<3;i++){
-  const [x,y,w,h]=painted.panels[i];
-  assert.ok(w<r.sideW,'all three panels save sidebar width');
-  assert.ok(Math.abs(x+w-r.sideX-r.sideW)<.00001,'all panel right edges aligned');
-  assert.ok(Math.abs(x+w-r.hx-r.hw)<.00001,'panels right-aligned with header');
-  assert.ok(Math.abs(x+w-(r.off+r.width-r.pad))<.00001,
-   'panels align with footer right edge');
+ assert.equal(painted.panels.length,5,'NEXT, three flat readouts, HOLD');
+ assert.deepEqual(painted.panels.map(p=>p[4]),[0,0,0,0,0],
+  'score modules, like the previews, have square corners and no bevel');
+ const [next,scoreBox,levelBox,linesBox,hold]=painted.panels;
+ const panels=painted.panels;
+ for(const [x,y,w,h] of panels){
+  assert.ok(Math.abs(w-r.nextPanel.w)<.00001,'ALL five boxes have equal width');
+  assert.ok(Math.abs(x+w-r.sideX-r.sideW)<.00001,
+   'all five boxes share the header/footer right alignment');
+  assert.ok(Math.abs(x+w-r.hx-r.hw)<.00001,
+   'portrait boxes end at header right edge');
  }
- const [next,stats,hold]=painted.panels;
- assert.deepEqual(next.slice(0,4),[r.nextPanel.x,r.nextPanel.y,r.nextPanel.w,r.nextPanel.h]);
- assert.deepEqual(stats.slice(0,4),[r.statsPanel.x,r.statsPanel.y,r.statsPanel.w,r.statsPanel.h]);
- assert.deepEqual(hold.slice(0,4),[r.holdPanel.x,r.holdPanel.y,r.holdPanel.w,r.holdPanel.h]);
+ assert.deepEqual(next.slice(0,4),[
+  r.nextPanel.x,r.nextPanel.y,r.nextPanel.w,r.nextPanel.h]);
+ assert.deepEqual(hold.slice(0,4),[
+  r.holdPanel.x,r.holdPanel.y,r.holdPanel.w,r.holdPanel.h]);
  assert.equal(next[3],hold[3],'NEXT/HOLD same preview height');
  assert.equal(next[2],hold[2],'NEXT/HOLD same preview width');
+ assert.ok(Math.abs(scoreBox[3]-levelBox[3])<.00001,
+  'SCORE and LEVEL readouts have equal heights');
+ assert.ok(Math.abs(scoreBox[3]-linesBox[3])<.00001,
+  'SCORE and LINES readouts have equal heights');
+ assert.ok(scoreBox[1]>=r.statsPanel.y);
+ assert.ok(linesBox[1]+linesBox[3]<=r.statsPanel.y+r.statsPanel.h+.00001);
+ assert.ok(scoreBox[1]+scoreBox[3]<levelBox[1]);
+ assert.ok(levelBox[1]+levelBox[3]<linesBox[1]);
  assert.equal(painted.text[0][5],'left','NEXT outside label left aligned');
  assert.equal(painted.text.at(-1)[5],'left','HOLD outside label left aligned');
- assert.ok(Math.abs(painted.text[0][1]-(next[0]+Math.max(3,Math.min(6,stats[2]*.06))+1))<.00001,
-  'NEXT text begins near panel left edge');
- assert.ok(Math.abs(painted.text.at(-1)[1]-painted.text[0][1])<.00001,
-  'HOLD label shares NEXT label left edge');
- assert.ok(painted.text[0][2]<next[1],'NEXT label above its panel');
- assert.ok(painted.text.at(-1)[2]<hold[1],'HOLD label above its panel');
- assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01,
-  'NEXT label occupies original top alignment');
- assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01,
-  'HOLD panel bottom aligned with board');
- assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01,
-  'score remains centered between previews');
- assert.ok(r.statsPanel.h<=112.01,'score panel compacted');
- assert.equal(painted.rects.length,2,'score retains its two dividers');
- assert.ok(painted.rects.every(line=>line[4]==='#777'),
-  'score dividers retain approved luminance');
+ assert.ok(Math.abs(painted.text[0][1]-(next[0]+Math.max(3,Math.min(6,r.statsPanel.w*.06))+1))<.00001);
+ assert.ok(Math.abs(painted.text.at(-1)[1]-painted.text[0][1])<.00001);
+ for(const [index,boxIndex] of [[1,1],[3,2],[5,3]]){
+  const label=painted.text[index],number=painted.text[index+1],box=panels[boxIndex];
+  assert.equal(label[5],'left','readout label remains left-aligned');
+  assert.ok(label[2]<box[1],'readout label sits OUTSIDE the box');
+  assert.equal(number[5],'center','terminal number centered inside its box');
+  assert.equal(number[7],'terminal','retain approved terminal font');
+  assert.ok(Math.abs(number[1]-(box[0]+box[2]/2))<.00001);
+ }
+ assert.ok(Math.abs(r.nextPanel.y-r.previewLabelSpace-r.boardY)<.01);
+ assert.ok(Math.abs(r.holdPanel.y+r.holdPanel.h-r.boardY-r.boardH)<.01);
+ assert.ok(Math.abs(r.statsPanel.y+r.statsPanel.h/2-r.boardY-r.boardH/2)<.01);
+ assert.ok(r.statsPanel.h<=150.01,'three readouts remain compact');
+ assert.equal(painted.rects.length,0,'no separator lines or bevel details');
+ assert.ok(panels.slice(1,4).every(p=>p[5]==='#080808'&&p[6]==='#777'),
+  'flat, dark recessed readouts retain the approved palette');
  for(const piece of painted.pieces){
   assert.ok(piece[3]>0&&piece[4]>0);
   assert.ok(piece[3]<=r.nextPanel.w-10+.001);
@@ -158,4 +169,30 @@ test('official logo is an editable, rounded-cap SVG bundled locally',()=>{
  assert.ok(56-18<51-8&&142-104<152-109,'middle strokes are longest');
  assert.match(sw,/\.\/nomad-mark\.svg/);
  assert.match(html,/family=Roboto\+Condensed/);
+});
+
+test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=>{
+ for(const [w,h,safe] of [
+  [393,852,{top:59,bottom:34}],[430,932,{top:62,bottom:34}],
+  [375,812,{top:50,bottom:34}],[320,568,{top:20}],
+  [280,600,{top:20,bottom:20}],[844,390,{left:59,right:59,bottom:21}],
+  [667,375,{left:44,right:44}],[568,320,{left:44,right:44}]
+ ]){
+  const r=computeLayout(w,h,safe,ui),{hud,painted}=makeHUD();
+  hud.drawSidebar(r);
+  assert.equal(painted.panels.length,5);
+  const boxes=painted.panels;
+  assert.ok(boxes.every(box=>Math.abs(box[2]-r.nextPanel.w)<1e-7),
+   'NEXT/HOLD and all score modules keep identical widths');
+  assert.ok(boxes.every(box=>Math.abs(box[0]+box[2]-r.nextPanel.x-r.nextPanel.w)<1e-7),
+   'all readouts align with the same sidebar right edge');
+  assert.ok(boxes.slice(1,4).every(box=>box[4]===0&&box[3]>0),
+   'flat score frames have no bevel');
+  for(let i=1;i<4;i++){
+   const p=painted.text[2*i-1],value=painted.text[2*i];
+   assert.ok(p[2]<boxes[i][1],'label above its numbered panel');
+   assert.ok(Math.abs(value[1]-(boxes[i][0]+boxes[i][2]/2))<1e-7,
+    'number remains centered in its readout');
+  }
+ }
 });

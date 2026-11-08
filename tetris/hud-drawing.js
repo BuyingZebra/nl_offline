@@ -54,17 +54,23 @@ function drawSidebar(r){
    role,r.previewCell);
  };
  preview(next,game.queue[0],'next');
- panel(stats.x,stats.y,stats.w,stats.h,0,C.panel);
- const rows=[['SCORE',fmt(game.score)],['LEVEL',fmt(game.level,2)],['LINES',fmt(game.lines,2)]];
- const slot=Math.max(1,(stats.h-8)/3);
- rows.forEach(([title,value],i)=>{
-  const labelY=stats.y+6+i*slot+11;
-  const valueY=labelY+Math.max(12,Math.min(20,slot*.38));
-  text(title,stats.x+inset+1,labelY,9,C.weak,'left',Math.max(8,stats.w-2*inset));
-  text(value,stats.x+inset+1,valueY,Math.max(11,Math.min(15,stats.w*.15)),
-   C.ink,'left',Math.max(8,stats.w-2*inset),'terminal');
-  if(i<2)rect(stats.x+inset,stats.y+6+(i+1)*slot,
-   Math.max(0,stats.w-2*inset),1,C.border);
+ // Three independent flat LCD readouts, not one combined score panel.
+ // Labels live outside their boxes; every box has the SAME right-aligned
+ // width (also matching the NEXT and HOLD containers).
+ const readouts=[['SCORE',fmt(game.score)],['LEVEL',fmt(game.level,2)],['LINES',fmt(game.lines,2)]];
+ const slot=stats.h/3;
+ const titleSpace=Math.min(15,Math.max(8,slot*.31));
+ const bottomGap=Math.min(5,Math.max(2,slot*.10));
+ const readoutHeight=Math.max(1,slot-titleSpace-bottomGap);
+ readouts.forEach(([title,value],i)=>{
+  const top=stats.y+i*slot,boxY=top+titleSpace;
+  text(title,stats.x+inset+1,top+titleSpace*.50,9,C.weak,
+   'left',Math.max(8,stats.w-2*inset));
+  panel(stats.x,boxY,stats.w,readoutHeight,0,C.dark??C.bg,C.border);
+  // Centered fixed-width numbers read as terminal instrumentation.
+  const digitSize=Math.max(10,Math.min(16,stats.w*.175,readoutHeight*.54));
+  text(value,stats.x+stats.w/2,boxY+readoutHeight/2,digitSize,
+   C.ink,'center',Math.max(8,stats.w-2*inset),'terminal');
  });
  preview(hold,game.hold,'hold');
 }
