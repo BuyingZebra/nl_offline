@@ -45,7 +45,8 @@ function computeLayout(W,H,safe,ui){
     }
     hy=edges.top+8;hh=Math.min(64,Math.max(42,usableH-16));
     dy=edges.top+8+legacyStatsOffset;
-    dh=Math.max(0,usableH-16-legacyStatsOffset);
+    // Reserve an unframed terminal line below the landscape controls.
+    dh=Math.max(0,usableH-16-legacyStatsOffset-31);
     sy=edges.top+8;sh=Math.max(0,usableH-16);
     hx=off+8;hw=Math.max(0,left);
     sx=off+left+14;sw=Math.max(0,width-left-right-36);
