@@ -136,7 +136,8 @@ export function createTerminalLog({clock=()=>new Date(),typeMs=40,eraseMs=22,hol
 export function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  font='"Roboto Condensed",ui-monospace,Menlo,monospace'){
  const b=terminalLineBounds(r);
- const fontSize=b.w<320?16:17;
+ // Match the START GAME tagline (SURVIVE THE SOVIET CHALLENGE).
+ const fontSize=10;
  ctx.save();
  ctx.beginPath();ctx.rect(b.x,b.y,b.w,b.h);ctx.clip();
  // Match NOMAD/TETRIS SYSTEM title's Roboto Condensed Bold face.
