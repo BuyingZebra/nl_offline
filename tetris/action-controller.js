@@ -59,7 +59,9 @@ export function createActionController({
   if(ok){
    markLayers('board','controls');
    if(game.pieces!==pieces||game.hold!==held)markLayers('sidebar');
-   if(game.score!==score||game.lines!==lines)markLayers('controls');
+   // SCORE/LEVEL/LINES now live in the independent sidebar HUD.
+   // Updating a numeric readout must never invalidate the button artwork.
+   if(game.score!==score||game.lines!==lines)markLayers('sidebar');
    if(game.status!==was)markLayers('base');
    if(game.lines>lines)tone(610,.14);
    else if(game.pieces>pieces)tone(175);
