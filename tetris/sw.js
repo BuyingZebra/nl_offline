@@ -1,4 +1,4 @@
-/* NOMAD Tetris V165 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V166 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -8,7 +8,7 @@
  * it while idle; never promote a partially cached shell.
  */
 'use strict';
-const CACHE_VERSION='v165';
+const CACHE_VERSION='v166';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -25,7 +25,7 @@ const CORE_ASSETS=Object.freeze([
  './assets/frames/pixel/brick.svg','./assets/frames/vector/brick.svg',
  './core.js','./scores.js','./layout.js','./three-v027.js','./i-piece-fragments.js',
  './piece-luminance.js',
- './button-feedback.js','./phosphor-model.js','./phosphor-persistence.js',
+ './button-feedback.js','./button-layer-invalidation.js','./phosphor-model.js','./phosphor-persistence.js',
  './compositor.js','./tile-face.js','./vector-tile-renderer.js',
  './piece-drop-shadow.js',
  './assets/tiles/gravel-layout.mjs','./assets/tiles/smooth-geometry.mjs',
