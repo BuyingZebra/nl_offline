@@ -9,7 +9,7 @@ const {computeLayout}=require('./layout.js');
 const ui={
  unit:6,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,
  padX:11,stackGap:6,side:93,sideGap:6,headHeight:80,headIcons:46,
- headIconGap:6,headRightPad:6,headTitleInset:17,deckBottom:30,
+ headIconGap:6,headRightPad:6,headTitleInset:17,deckBottom:48,
  deckPad:6,scoreHeight:45,deckGap:6,padGap:6,padHeight:53,
  extrasHeight:44,extrasGap:6,holdHeight:88,nextHeight:162,statsHeight:92
 };
@@ -54,18 +54,18 @@ for(const [name,w,h,safe] of phones){
   }
  });
 }
-test('portrait moves statistics to sidebar without moving the control buttons',()=>{
+test('portrait preserves the board size while allocating scrolling terminal space',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.landscape,false);
  assert.equal(r.compactControls,false);
  assert.equal(r.boardW,234.5,'V108 portrait board width');
  assert.equal(r.boardH,469,'V108 portrait board height');
- assert.equal(r.boardY,170.5,'board remains centred vertically');
+ assert.equal(r.boardY,161.5,'board recentred above the reserved terminal rows');
  assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board begins at header/footer left edge');
  const topGap=r.boardY-(r.hy+r.hh),bottomGap=r.dy-(r.boardY+r.boardH);
  assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
- assert.equal(r.dy+r.deckPad,677,'old first button y');
- assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
+ assert.equal(r.dy+r.deckPad,659,'first button moves up to reserve terminal history');
+ assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,718,'hold/pause row keeps its internal spacing');
  assert.equal(r.nextPanel.y-r.previewLabelSpace,r.boardY,'NEXT outside label aligned to board top');
  assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH,
   'HOLD bottom aligned with board');
@@ -81,7 +81,7 @@ test('tall portrait makes a minimal width adjustment to fit the aligned brick fr
  assert.ok(Math.abs(r.boardY-(r.sy+(r.sh-r.boardH)/2))<1e-7,
   'board stays centered vertically');
  assert.ok(Math.abs(r.boardX-r.previewCell-r.brickGap-r.hx)<1e-7);
- assert.equal(r.dy+r.deckPad,757,'V109 button position stays unchanged');
+ assert.equal(r.dy+r.deckPad,739,'controls reserve 18px for terminal history');
 });
 test('portrait board and entire sidebar are vertically centered between header and controls',()=>{
  for(const [name,w,h,safe] of phones.filter(x=>x[1]<x[2])){
@@ -177,7 +177,7 @@ test('portrait framed board and panels align with both outer header/footer edges
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.boardW,234.5,'restored pre-brick board width unchanged');
  assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board left edge aligned');
- assert.equal(r.dy+r.deckPad,677,'controls unaffected');
+ assert.equal(r.dy+r.deckPad,659,'buttons remain aligned in their shifted container');
 });
 
 test('V141 portrait gutters and header alignment remain exact',()=>{
