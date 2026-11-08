@@ -88,19 +88,28 @@ function computeLayout(W,H,safe,ui){
   // V133: in portrait, align the complete sidebar's RIGHT edge with
   // the header and footer; do not right-align its text labels.
   // Landscape retains its existing three-column arrangement.
+  const boardCell=Math.max(0,(bw-4)/10);
+  const previewCell=boardCell*.75;
   const firstSideX=bx+bw+sideGap;
+  // V141 portrait: match the six-pixel gap on BOTH sides of the right rail.
+  // All five sidebar panels still terminate at the unchanged header edge.
+  // Landscape retains its previously approved three-column geometry.
+  const rightRailEnd=bx+bw+brickGap+previewCell;
+  const equalGutterX=rightRailEnd+brickGap;
   const sxSide=landscape?firstSideX:
-    Math.max(firstSideX,hx+hw-sideWidth);
-  const swSide=Math.max(0,Math.min(sideWidth,sx+sw-sxSide));
+    Math.min(hx+hw,Math.max(firstSideX,equalGutterX));
+  const swSide=landscape?Math.max(0,Math.min(sideWidth,sx+sw-sxSide)):
+    Math.max(0,hx+hw-sxSide);
   // V132: compact, equal-width panels share one right edge. NEXT/HOLD each
   // have just one visible preview frame, with a label above its border.
   // The game board and outer sidebar bounds remain untouched.
   const previewLabelSpace=16;
   const panelGap=ui.unit;
-  const boardCell=Math.max(0,(bw-4)/10);
-  const previewCell=boardCell*.75;
   const desiredWidth=previewCell*4+10; // max-size I piece + 5px edge inset
-  const panelWidth=Math.min(swSide,Math.max(Math.min(swSide,52),desiredWidth));
+  // Portrait boxes expand to the rail gutter, rather than leaving an
+  // uneven strip. Preserve the existing compact landscape sizing.
+  const panelWidth=landscape?
+    Math.min(swSide,Math.max(Math.min(swSide,52),desiredWidth)):swSide;
   const panelX=sxSide+swSide-panelWidth;
   const previewTarget=panelWidth;
   // V138: three separate SCORE / LEVEL / LINES readouts need room for
@@ -109,7 +118,16 @@ function computeLayout(W,H,safe,ui){
   const usablePanelHeight=Math.max(0,bh-2*previewLabelSpace-2*panelGap);
   const targetTotal=2*previewTarget+statsTarget;
   const fit=targetTotal>0?Math.min(1,usablePanelHeight/targetTotal):0;
-  const previewH=previewTarget*fit,statsH=statsTarget*fit;
+  let previewH=previewTarget*fit,statsH=statsTarget*fit;
+  // A very short portrait may have a wide sidebar but limited vertical
+  // height. Reserve legible score rows and let previews become shallower.
+  if(!landscape){
+    const minStatsH=Math.min(96,usablePanelHeight*.58);
+    if(statsH<minStatsH){
+      statsH=minStatsH;
+      previewH=Math.min(previewTarget,Math.max(0,(usablePanelHeight-statsH)/2));
+    }
+  }
   const nextPanel={x:panelX,y:by+previewLabelSpace,w:panelWidth,h:previewH};
   const statsPanel={x:panelX,y:by+(bh-statsH)/2,w:panelWidth,h:statsH};
   const holdPanel={x:panelX,y:by+bh-previewH,w:panelWidth,h:previewH};
