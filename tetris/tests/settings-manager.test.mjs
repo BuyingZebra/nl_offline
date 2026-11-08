@@ -157,23 +157,22 @@ test('a prior saved decay at 190ms is automatically clamped to 120ms',()=>{
  assert.equal(createSettingsManager(stored).effects.persistenceMs,120);
 });
 
-test('V160 cycles the existing phosphor overlay through green, amber and blue',()=>{
+test('V161 restores the original green/amber phosphor cycle',()=>{
  const storage=memoryStorage();
  const settings=createSettingsManager(storage);
  assert.equal(settings.theme,'green');
  assert.equal(settings.toggleTheme(),'amber');
- assert.equal(settings.toggleTheme(),'blue');
- assert.equal(storage.data.get(STORAGE_KEYS.theme),'blue');
- const reopened=createSettingsManager(storage);
- assert.equal(reopened.theme,'blue','blue survives reload');
- assert.equal(reopened.toggleTheme(),'green');
+ assert.equal(settings.toggleTheme(),'green');
+ assert.equal(storage.data.get(STORAGE_KEYS.theme),'green');
+ const savedBlue=memoryStorage({[STORAGE_KEYS.theme]:'blue'});
+ const reopened=createSettingsManager(savedBlue);
+ assert.equal(reopened.theme,'green','obsolete V160 blue falls back to green');
  assert.equal(reopened.toggleTheme(),'amber');
- const unknown=createSettingsManager(memoryStorage({[STORAGE_KEYS.theme]:'unexpected'}));
- assert.equal(unknown.theme,'green','unknown themes keep legacy fallback');
 });
-test('V160 blue is a fixed luminance tint, not saturation or piece colour',()=>{
+test('V161 removes the blue tint without changing original emissive ratios',()=>{
  const source=fs.readFileSync(new URL('../compositor.js',import.meta.url),'utf8');
- assert.match(source,/blue:new THREE\.Vector3\(\.22,\.40,1\)/);
- assert.match(source,/tint\.uniforms\.uTint\.value\.copy\(hues\[theme\]\|\|hues\.green\)/);
- assert.doesNotMatch(source,/saturationSlider|pieceTint|uSaturation/);
+ assert.match(source,/green:new THREE\\.Vector3\\(\\.2,1,\\.2\\)/);
+ assert.match(source,/amber:new THREE\\.Vector3\\(185\\/255,79\\/255,9\\/255\\)/);
+ assert.doesNotMatch(source,/blue:new THREE\\.Vector3/);
+ assert.match(source,/tint\\.uniforms\\.uTint\\.value\\.copy\\(hues\\[theme\\]\\|\\|hues\\.green\\)/);
 });
