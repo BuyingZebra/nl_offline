@@ -16,14 +16,14 @@ import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-li
 import {createInputController} from './input-controller.js?v096';
 import {createPerfMonitor} from './perf-monitor.js?v164';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v164';
-import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v154';
+import {croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v168';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v164';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v156';
 import {createRenderInvalidation} from './render-invalidation.js?v167';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v156';
-import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v155';
+import {createTerminalLog,drawTerminalLog,terminalLineBounds} from './terminal-log.js?v155';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
@@ -90,7 +90,7 @@ terminalLog.enqueue('BUILD: VERSION V'+THREE_BUILD_VERSION,
 let terminalTimer=null,lastTerminalCursorVisible=true;
 function queueTerminalMessage(full,short=full,priority=false){
  terminalLog.enqueue(full,short,priority);
- layers.mark('controls');invalidate('terminal-event');
+ layers.mark('terminal');invalidate('terminal-event');
 }
 // Small rolling history: no overlay, network, persistent storage, or console spam.
 const recentPerf=[];
@@ -111,12 +111,16 @@ const sidebarCanvas=document.createElement('canvas');
 const sidebarContext=sidebarCanvas.getContext('2d',{alpha:false});
 const controlsCanvas=document.createElement('canvas');
 const controlsContext=controlsCanvas.getContext('2d',{alpha:false});
+// The tiny operation log is independent of the deck's six control buttons.
+// It shares their grayscale source and all downstream CRT postprocessing.
+const terminalCanvas=document.createElement('canvas');
+const terminalContext=terminalCanvas.getContext('2d',{alpha:false});
 let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
 // Sharp board popup UI is a separate grayscale layer composed after GPU blur.
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
-if(!g||!boardContext||!sidebarContext||!controlsContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+if(!g||!boardContext||!sidebarContext||!controlsContext||!terminalContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const boardTexture=new THREE.CanvasTexture(boardCanvas);
@@ -125,7 +129,8 @@ boardTexture.minFilter=THREE.LinearFilter;boardTexture.magFilter=THREE.LinearFil
 boardTexture.generateMipmaps=false;
 const sidebarTexture=new THREE.CanvasTexture(sidebarCanvas);
 const controlsTexture=new THREE.CanvasTexture(controlsCanvas);
-for(const t of [sidebarTexture,controlsTexture]){
+const terminalTexture=new THREE.CanvasTexture(terminalCanvas);
+for(const t of [sidebarTexture,controlsTexture,terminalTexture]){
  t.colorSpace=THREE.SRGBColorSpace;
  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
  t.generateMipmaps=false;
@@ -162,6 +167,8 @@ function makeUILayer(texture,order,z){
 }
 const sidebarPlane=makeUILayer(sidebarTexture,.6,.011);
 const controlsPlane=makeUILayer(controlsTexture,.7,.012);
+// Same CRT scene and pass order, with one additional tiny opaque HUD crop.
+const terminalPlane=makeUILayer(terminalTexture,.8,.013);
 // Three.js composes stationary gameplay, a translucent modal scrim, and a
 // smaller transparent modal texture into ONE framebuffer before CRT shaders.
 // Dragging a menu no longer repaints or reuploads the fullscreen game texture.
@@ -214,10 +221,10 @@ const graphicsHealth=createGraphicsHealth({
    compositor.resize(W,H,DPR);
    compositor.resetPersistence();
    for(const source of [texture,boardTexture,sidebarTexture,controlsTexture,
-    modalTexture,boardPopupTexture])source.needsUpdate=true;
+    terminalTexture,modalTexture,boardPopupTexture])source.needsUpdate=true;
    lastPaintedBoardPopupStatus=null;cachedLayout=null;
    lastTime=performance.now();perf.resetPacing();
-   layers.mark('base','board','sidebar','controls');
+   layers.mark('base','board','sidebar','controls','terminal');
    invalidate('context-restored');
   }catch(error){
    fatal.hidden=false;
@@ -284,7 +291,7 @@ const screenManager=createScreenManager({
   if(previous==='options'||next==='options')layers.mark('modal');
   // Gameplay's base can remain untouched while the full-screen Options
   // view is in front. Refresh it exactly once when becoming visible again.
-  if(previous==='options'&&next!=='options')layers.mark('base','controls');
+  if(previous==='options'&&next!=='options')layers.mark('base','controls','terminal');
   if(next===null)regions=baseRegions;
   invalidate();
  }
@@ -345,7 +352,7 @@ if(document.fonts?.load){
  Promise.allSettled(specs.map(spec=>document.fonts.load(spec))).then(results=>{
   if(appLifecycle?.status==='disposed')return;
   if(!results.some(r=>r.status==='fulfilled'&&r.value.length))return;
-  layers.mark('base','board','sidebar','controls');
+  layers.mark('base','board','sidebar','controls','terminal');
   invalidate('font-ready');
  }).catch(()=>{});
 }
@@ -604,8 +611,15 @@ function paintSidebarLayer(){
 function paintControlsLayer(){
  const r=layoutInfo||layout();
  paintUIRegion(controlsCanvas,controlsContext,controlsPlane,controlsTexture,
-  controlsBounds(r,W,H,DPR),'controls',r=>{
-   drawControls(r);
+  controlsBounds(r,W,H,DPR),'controls',drawControls);
+}
+function paintTerminalLayer(){
+ const r=layoutInfo||layout();
+ // Keep the ORIGINAL terminal renderer: identical glyph metrics, clipping,
+ // cursor, history gradient, pixel coordinates and background luminance.
+ // Crop only its two unframed rows, leaving the game controls stationary.
+ paintUIRegion(terminalCanvas,terminalContext,terminalPlane,terminalTexture,
+  croppedBounds([terminalLineBounds(r)],W,H,DPR,1),'terminal',r=>{
    drawTerminalLog(g,terminalLog,r,performance.now(),C.ink,C.bg,FONT);
   });
 }
@@ -684,6 +698,11 @@ function paintGame(){
   paintControlsLayer();
   perf.recordDuration('controls',performance.now()-started);
  }
+ if(layers.consume('terminal')&&!screenManager.isOptions){
+  const started=performance.now();
+  paintTerminalLayer();
+  perf.recordDuration('terminal',performance.now()-started);
+ }
  if(screenManager.paintsModalLayer){
   // paintBaseGame resets hit regions to the base; repaint the modal too so
   // that its hitboxes still receive touch after a font/viewport refresh.
@@ -698,7 +717,8 @@ function paintGame(){
  }
  else{
   layers.consume('modal');
-  surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;controlsPlane.visible=true;
+  surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;
+  controlsPlane.visible=true;terminalPlane.visible=true;
   modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions;
  }
@@ -760,6 +780,7 @@ function paintModalOverlay(){
  const standaloneSettings=screenManager.isOptions;
  surface.visible=!standaloneSettings;boardPlane.visible=!standaloneSettings;
  sidebarPlane.visible=!standaloneSettings;controlsPlane.visible=!standaloneSettings;
+ terminalPlane.visible=!standaloneSettings;
  const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
@@ -855,8 +876,9 @@ function frame(now){
   const visualChanged=gameVisualStateChanged(prior,game);
   const terminalChanged=terminalLog.advance(now);
   const cursorVisible=terminalLog.cursorVisible(now);
-  if(terminalChanged||cursorVisible!==lastTerminalCursorVisible){
-   layers.mark('controls');layers.reason('terminal-log');
+  if((terminalChanged||cursorVisible!==lastTerminalCursorVisible)&&
+      !screenManager.isOptions){
+   layers.mark('terminal');layers.reason('terminal-log');
   }
   lastTerminalCursorVisible=cursorVisible;
   perf.recordDuration('logic',performance.now()-tickStarted);
@@ -928,7 +950,7 @@ function frame(now){
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
-   const canvasDirty=['base','board','sidebar','controls','modal'].some(layer=>layers.needs(layer));
+   const canvasDirty=['base','board','sidebar','controls','terminal','modal'].some(layer=>layers.needs(layer));
    if(canvasDirty||why.some(reason=>reason!=='phosphor-history'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
    surface.material.map=texture;
@@ -939,6 +961,7 @@ function frame(now){
    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
+   if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
    if((!screenManager.hasModal||screenManager.isScores)&&game.status!=='playing')
     textureUploads.upload(boardPopupTexture,'popup');
@@ -983,9 +1006,9 @@ function frame(now){
 const graphicsCleanup=createGraphicsCleanup({
  renderer,compositor,scene,
  textures:[texture,boardTexture,sidebarTexture,controlsTexture,
-  modalTexture,boardPopupTexture],
+  terminalTexture,modalTexture,boardPopupTexture],
  canvases:[input,boardCanvas,sidebarCanvas,controlsCanvas,
-  modalCanvas,boardPopupCanvas],
+  terminalCanvas,modalCanvas,boardPopupCanvas],
  getAudioContext:()=>audioCtx
 });
 appLifecycle=createAppLifecycle({
@@ -1060,7 +1083,7 @@ const platform=createPlatformManager({
    compositor.resetPersistence();
    perf.setViewport(W,H,DPR);
   }
-  layers.mark('base','board','sidebar','controls');
+  layers.mark('base','board','sidebar','controls','terminal');
   invalidate('resize');
  },
  onVisibility:hidden=>{
