@@ -17,7 +17,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
   'RAF interval = pacing between scheduled frames, not physical display refresh rate.',
   'PASS CPU = time inside each compositor pass; may include driver waits, NOT GPU shader timing.',
   'PRE-UPLOAD = CPU time for renderer.initTexture on changed canvases; not GPU execution time.',
-  'DIRTY B/D/S/C/P/M = canvas texture refresh requests: base / board / sidebar / controls / popup / modal.',
+  'DIRTY B/D/S/C/T/P/M = canvas texture refresh requests: base / board / sidebar / controls / terminal / popup / modal.',
   'PRE-UPLOAD counts = actual changed-texture initTexture calls; source MB assumes uncompressed RGBA8 (NOT VRAM).',
   'PEAK FRAME attributes the slowest JS frame in each sample; input and render causes may overlap.'
  ];
@@ -31,7 +31,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
    ' | slow '+value(s.slowRafTicks)+
    ' | CPU avg/max '+value(s.avgFrameCpuMs,'ms')+'/'+value(s.maxFrameCpuMs,'ms')+
    ' | submit '+value(s.avgRenderSubmitMs,'ms')+
-   ' | DIRTY B/D/S/C/P/M '+value(s.baseUploadRequests)+'/'+value(s.boardUploadRequests)+'/'+value(s.sidebarUploadRequests)+'/'+value(s.controlsUploadRequests)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
+   ' | DIRTY B/D/S/C/T/P/M '+value(s.baseUploadRequests)+'/'+value(s.boardUploadRequests)+'/'+value(s.sidebarUploadRequests)+'/'+value(s.controlsUploadRequests)+'/'+value(s.terminalUploadRequests??0)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
   if(s.basePaints!==undefined||s.avgLogicMs!==undefined){
    const reasons=Object.entries(s.redrawReasons||{}).map(([k,n])=>k+':'+n).join(', ')||'none';
    rows.push('  STAGES: logic '+value(s.avgLogicMs,'ms/RAF')+
@@ -39,6 +39,7 @@ export function formatDebugReport({version,createdAt,platform,viewport,game,disp
     ' | Canvas board '+value(s.avgBoardPaintMs,'ms')+' ('+value(s.boardPaints)+' paints)'+
     ' | Canvas sidebar '+value(s.avgSidebarPaintMs,'ms')+' ('+value(s.sidebarPaints)+' paints)'+
     ' | Canvas controls '+value(s.avgControlsPaintMs,'ms')+' ('+value(s.controlsPaints)+' paints)'+
+    ' | Canvas terminal '+value(s.avgTerminalPaintMs,'ms')+' ('+value(s.terminalPaints)+' paints)'+
     ' | Canvas modal '+value(s.avgModalPaintMs,'ms')+' ('+value(s.modalPaints)+' paints)'+
     ' | FX setup '+value(s.avgSyncMs,'ms'));
    const states=Object.entries(s.frameStates||{}).map(([k,n])=>k+':'+n).join(', ')||'unclassified';
