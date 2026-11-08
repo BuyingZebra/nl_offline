@@ -140,10 +140,11 @@ test('only exact hitbox matches excite a button; invalid geometry is rejected',(
 test('renderer keeps Canvas source at baseline and pushes excitation through uniforms',()=>{
  const src=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  assert.match(src,/controlsPlane\.material=controlLighting\.material/);
- assert.match(src,/g===controlsContext\?0:buttonSparks/);
+ assert.match(src,/g===controlsContext&&controlsGpuEnabled\)\?0:buttonSparks/);
  assert.match(src,/controlLighting\.configure\(regions,bounds\)/);
  assert.match(src,/controlLighting\.update\(buttonSparks\)/);
- assert.match(src,/canvasAffected=affected\.filter\(name=>name!=='controls'\)/);
+ assert.match(src,/canvasAffected=controlsGpuEnabled\?/);
+ assert.match(src,/affected\.filter\(name=>name!=='controls'\):affected/);
  assert.match(src,/if\(game\.score!==prior\.score\|\|game\.lines!==prior\.lines\|\|\s*game\.level!==prior\.level\)layers\.mark\('sidebar'\)/);
  assert.doesNotMatch(src,/if\(act\)layers\.mark\('controls'\)/);
  const action=src.slice(src.indexOf("markLayers:(...names)=>"),
