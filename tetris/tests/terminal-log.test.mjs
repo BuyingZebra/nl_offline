@@ -12,16 +12,16 @@ test('dot leaders remain right-aligned on small and large screens',()=>{
   assert.match(line,/START(?:ED)?$/);
  }
 });
-test('84 ms per character controls terminal typing cadence',()=>{
+test('24 characters per second controls terminal typing cadence',()=>{
  const log=createTerminalLog({clock:()=>at});
  log.setColumns(30);
  log.advance(0);
  assert.equal(log.snapshot().cursor,2);
  log.advance(10);
  assert.equal(log.snapshot().cursor,3);
- assert.equal(log.advance(93),false);
+ assert.equal(log.advance(51),false);
  assert.equal(log.snapshot().cursor,3);
- assert.equal(log.advance(94),true);
+ assert.equal(log.advance(52),true);
  assert.equal(log.snapshot().cursor,4);
 });
 test('snap-off 250ms, snap-down 250ms, then new top-row typing',()=>{
@@ -79,8 +79,8 @@ test('static prompts, top cursor and bottom-only gradient in the existing crop',
  const cursor=drawn.find(x=>x.type==='rect'&&x.w===11);
  assert.ok(cursor);
  assert.equal(cursor.h,16);
- assert.equal(cursor.y+cursor.h/2,terminalLineBounds(r).y+22);
- assert.equal(terminalLineBounds(r).h,43,'only the terminal drawing area grows');
+ assert.equal(cursor.y+cursor.h/2,terminalLineBounds(r).y+16);
+ assert.equal(terminalLineBounds(r).h,37,'only the terminal drawing area grows');
  assert.equal(gradients.length,1);
  assert.equal(gradients[0].stops[0][1],'rgba(8,8,8,0)');
  assert.equal(gradients[0].stops.at(-1)[1],'#080808');
