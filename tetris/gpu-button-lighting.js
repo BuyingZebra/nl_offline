@@ -134,6 +134,9 @@ export function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPAC
   }
   uniforms.uCount.value=geometry.length;
   uniforms.uExcited.value=0;
+  // Three.js ShaderMaterial does not always upload changed uniform arrays
+  // after its first draw unless this flag is explicitly raised.
+  material.uniformsNeedUpdate=true;
   layoutSignature=fingerprint;active=true;
   return true;
  }
@@ -160,6 +163,7 @@ export function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPAC
    uniforms.uExcited.value=any?1:0;
    updated=true;
   }
+  if(updated)material.uniformsNeedUpdate=true;
   return updated;
  }
  return Object.freeze({
