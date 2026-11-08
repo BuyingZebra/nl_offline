@@ -21,6 +21,7 @@ import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v141';
+import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v146';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
@@ -78,6 +79,12 @@ let queued=false,frameHandle=null,lastTime=performance.now(),audioCtx=null;
 let appLifecycle=null;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
+const terminalLog=createTerminalLog();
+let terminalTimer=null,lastTerminalCursorVisible=true;
+function queueTerminalMessage(full,short=full,priority=false){
+ terminalLog.enqueue(full,short,priority);
+ layers.mark('controls');invalidate('terminal-event');
+}
 // Small rolling history: no overlay, network, persistent storage, or console spam.
 const recentPerf=[];
 const perf=createPerfMonitor({enabled:true,intervalMs:2000,log:()=>{},
@@ -238,6 +245,14 @@ function invalidate(reason='input'){
 // includes the landed board BEFORE row removal, preserving the approved flash.
 // No core method is replaced or monkeypatched by rendering code.
 const unsubscribeGameEvents=game.onEvent(event=>{
+ if(event.type==='lines-cleared'){
+  const name=['','SINGLE','DOUBLE','TRIPLE','TETRIS'][event.count]||'LINE';
+  const points=[0,40,100,300,1200][event.count]*(event.level+1);
+  queueTerminalMessage(name+' CLEAR +'+points,'LINES X'+event.count+' +'+points);
+ }
+ if(event.type==='level-changed')queueTerminalMessage(
+  'LEVEL ADVANCED: '+fmt(event.to,2),'LEVEL: '+fmt(event.to,2));
+ if(event.type==='game-over')queueTerminalMessage('SESSION: GAME OVER','GAME OVER',true);
  if(event.type!=='lines-cleared'||event.status!=='playing')return;
  if(!event.board||!event.rows.length)return;
  lineClearFX={board:event.board,boardMeta:event.boardMeta,rows:new Set(event.rows),elapsed:0};
@@ -267,6 +282,7 @@ const actions=createActionController({
  tone:(freq,len)=>tone(freq,len),
  onCopyDebug:()=>copyDebugReport(),
  onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
+ onTerminalEvent:queueTerminalMessage,
  canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
@@ -307,7 +323,8 @@ function paintNomadMark(x,y,w,h){
 }
 // Do not block first paint on web fonts; redraw once either face loads.
 if(document.fonts?.load){
- const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"'];
+ const specs=['700 20px "Roboto Condensed"','400 20px "Share Tech Mono"',
+  '400 18px "VT323"'];
  Promise.allSettled(specs.map(spec=>document.fonts.load(spec))).then(results=>{
   if(appLifecycle?.status==='disposed')return;
   if(!results.some(r=>r.status==='fulfilled'&&r.value.length))return;
@@ -534,7 +551,10 @@ function paintSidebarLayer(){
 function paintControlsLayer(){
  const r=layoutInfo||layout();
  paintUIRegion(controlsCanvas,controlsContext,controlsPlane,controlsTexture,
-  controlsBounds(r,W,H,DPR),'controls',drawControls);
+  controlsBounds(r,W,H,DPR),'controls',r=>{
+   drawControls(r);
+   drawTerminalLog(g,terminalLog,r,performance.now(),C.ink,C.bg);
+  });
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
@@ -547,9 +567,7 @@ function paintBaseGame(){
  }
  g=baseContext;
  rect(0,0,W,H,C.bg);
- // V140: footer shares header and scoreboard housing fill.
- // Paint underneath UI so landscape controls remain unobscured.
- rect(r.off+11,r.footerY-12,Math.max(0,r.width-22),24,C.panel);
+ // The stray shaded sub-footer is removed; the log prints on bare black.
  panel(r.hx,r.hy,r.hw,r.hh,0,C.panel);
  // The logo, wordmark, and subtitle use the EXISTING font and luminance
  // palette. Only the title organization changes; header buttons stay put.
@@ -578,17 +596,6 @@ function paintBaseGame(){
  brickFrame.draw(g,r);
  drawSidebar(r);
  drawControls(r);
- const footerLeft='Program: Three.JS',footerRight='version: '+THREE_BUILD_VERSION;
- const footerX=r.off+11,footerEnd=r.off+r.width-11;
- text(footerLeft,footerX,r.footerY,9,C.weak,'left',r.inner*.63,'terminal');
- text(footerRight,footerEnd,r.footerY,9,C.weak,'right',r.inner*.34,'terminal');
- // One minimalist rule between the two existing footer labels.
- g.save();g.font='400 9px '+TERMINAL_FONT;
- const leftWidth=g.measureText(footerLeft).width+footerLeft.length*9*LETTER_SPACING_EM;
- const rightWidth=g.measureText(footerRight).width+footerRight.length*9*LETTER_SPACING_EM;
- g.restore();
- const ruleStart=footerX+leftWidth+12,ruleEnd=footerEnd-rightWidth-12;
- if(ruleEnd-ruleStart>10)rect(ruleStart,r.footerY-.5,ruleEnd-ruleStart,1,C.border);
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
@@ -783,6 +790,12 @@ function frame(now){
   const tickStarted=performance.now();
   const advanced=lineClearFX?false:game.tick(dt);
   const visualChanged=gameVisualStateChanged(prior,game);
+  const terminalChanged=terminalLog.advance(now);
+  const cursorVisible=terminalLog.cursorVisible(now);
+  if(terminalChanged||cursorVisible!==lastTerminalCursorVisible){
+   layers.mark('controls');layers.reason('terminal-log');
+  }
+  lastTerminalCursorVisible=cursorVisible;
   perf.recordDuration('logic',performance.now()-tickStarted);
   if(lineClearFX&&game.status==='playing'){
    const previousPhase=flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS);
@@ -869,6 +882,13 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
+  if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
+  if(game.status!=='playing'&&!document.hidden){
+   terminalTimer=window.setTimeout(()=>{
+    terminalTimer=null;
+    if(!document.hidden)requestFrame();
+   },terminalLog.nextDelay(now));
+  }
   if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||
    buttonSparks.length>0||phosphorOn)requestFrame();
  }catch(e){
@@ -901,6 +921,8 @@ appLifecycle=createAppLifecycle({
   }
   inputController?.cancel();scrollVelocity=0;
   buttonFeedback.clear();buttonSparks=[];
+  if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
+  queueTerminalMessage('GAME: PAUSED','PAUSED');
   compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
   if(audioCtx?.state==='running'){
@@ -916,6 +938,7 @@ appLifecycle=createAppLifecycle({
  },
  onDispose:()=>runCleanupTasks([
   ['animation',cancelPendingFrame],
+  ['terminal-timer',()=>{if(terminalTimer!==null)window.clearTimeout(terminalTimer);}],
   ['game-observer',unsubscribeGameEvents],
   ['input',()=>inputController?.dispose()],
   ['vector-tiles',()=>vectorTiles.dispose()],
