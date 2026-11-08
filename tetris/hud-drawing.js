@@ -67,6 +67,12 @@ function drawSidebar(r){
   text(title,stats.x+inset+1,top+titleSpace*.50,9,C.weak,
    'left',Math.max(8,stats.w-2*inset));
   panel(stats.x,boxY,stats.w,readoutHeight,0,C.dark??C.bg,C.border);
+  // V139: an inset, square second border gives each readout the approved
+  // double frame without beveling it or changing its outer dimensions.
+  const rim=2;
+  if(stats.w>rim*2+1&&readoutHeight>rim*2+1)
+   panel(stats.x+rim,boxY+rim,stats.w-rim*2,readoutHeight-rim*2,
+    0,null,C.subtleBorder);
   // Centered fixed-width numbers read as terminal instrumentation.
   const digitSize=Math.max(10,Math.min(16,stats.w*.175,readoutHeight*.54));
   text(value,stats.x+stats.w/2,boxY+readoutHeight/2,digitSize,
