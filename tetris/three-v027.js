@@ -290,19 +290,6 @@ nomadMark.onload=()=>{
 };
 nomadMark.onerror=()=>{nomadMarkReady=false;};
 nomadMark.src='./nomad-mark.svg?v110';
-// V142: the mascot is a local, resolution-independent vector decal.
-// Loading is opportunistic: no new dependency can block the game.
-const soldierSticker=new Image();
-let soldierStickerReady=false;
-soldierSticker.onload=()=>{
- soldierStickerReady=true;
- if(appLifecycle?.status!=='disposed'){
-  layers.mark('base','board');
-  invalidate('soldier-sticker-ready');
- }
-};
-soldierSticker.onerror=()=>{soldierStickerReady=false;};
-soldierSticker.src='./assets/mascot/nomad-field-soldier-head.svg?v142';
 function paintNomadMark(x,y,w,h){
  if(nomadMarkReady){g.drawImage(nomadMark,x,y,w,h);return;}
  g.save();
@@ -377,19 +364,6 @@ function stage(r,drawPieces=true,recordRegion=true){
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
  rect(offX,offY,w-4,h-4,'#101010');
- // V142: a faded soldier-head decal on the wall behind the playfield.
- // It stays below the grid, ghost piece, live pieces and popup controls.
- // The source is grayscale; the existing phosphor compositor colours it.
- if(soldierStickerReady){
-  const decalW=Math.min((w-4)*.57,170);
-  const decalH=decalW*(370/400);
-  g.save();
-  g.translate(offX+(w-4)*.52,offY+(h-4)*.18+decalH*.5);
-  g.rotate(-.08);
-  g.globalAlpha=.17;
-  g.drawImage(soldierSticker,-decalW/2,-decalH/2,decalW,decalH);
-  g.restore();
- }
  // V117: preserve the V114 grid and lift its line opacity another 9%.
  g.globalAlpha=.5356;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
