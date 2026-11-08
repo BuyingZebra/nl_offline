@@ -1,4 +1,4 @@
-/* NOMAD V136 — textured squares, full-tile rows between both board borders. */
+/* NOMAD V137 — approved staggered SVG artwork clipped to square-sided rails. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -21,28 +21,25 @@ const imagePath=style=>fileURLToPath(
  new URL('../assets/frames/'+style+'/brick.svg',import.meta.url));
 const get=(w,h,safe={})=>computeLayout(w,h,safe,ui);
 
-test('pixel and vector SVGs share a single aligned square tile with no stagger',()=>{
- assert.deepEqual(BRICK_UNIT,{width:12,height:12,courses:1});
+test('SVGs restore the archived staggered texture within a square repeat tile',()=>{
+ assert.deepEqual(BRICK_UNIT,{width:12,height:12,courses:2});
  for(const style of ['pixel','vector']){
   const svg=renderBrickSVG(style);
   assert.equal(svg,fs.readFileSync(imagePath(style),'utf8'));
   assert.match(svg,/viewBox="0 0 12 12"/);
   assert.match(svg,/width="12" height="12"/);
   assert.match(svg,new RegExp('data-style="'+style+'"'));
-  assert.equal((svg.match(/<rect /g)||[]).length,16);
+  assert.equal((svg.match(/<rect /g)||[]).length,15);
   assert.doesNotMatch(svg,/<image|<filter|<linearGradient|<radialGradient/);
   for(const match of svg.matchAll(/rgb\((\d+),(\d+),(\d+)\)/g)){
    assert.equal(match[1],match[2]);assert.equal(match[2],match[3]);
   }
-  const faces=brickShapes(style);
-  assert.deepEqual([faces[0].x,faces[0].y,faces[0].w,faces[0].h],[1,1,10,10],
-   'one full inset square per repeat, no staggered joints');
-  assert.deepEqual([faces[6].x,faces[6].y,faces[6].w,faces[6].h],[3,3,6,6],
-   'distinct recessed textured square face');
-  assert.ok(new Set(faces.map(x=>x.shade)).size>=12,
-   'multiple bevel and chisel luminance levels, not a flat solid bar');
-  assert.ok(faces.every(x=>x.x>=1&&x.y>=1&&x.x+x.w<=11&&x.y+x.h<=11),
-   'bevel and chisel marks remain inside a square tile');
+  const faces=brickShapes(style).filter((_,i)=>i%5===0);
+  assert.deepEqual(faces.map(x=>[x.x,x.y,x.w,x.h]),
+   [[1,1,10,4],[-4,7,9,4],[6,7,9,4]],
+   'original unmodified running bond: one full course plus two staggered edge bricks');
+  assert.ok(faces.some(x=>x.x<0)&&faces.some(x=>x.x+x.w>12),
+   'staggered artwork crosses the square asset edges for clean clipping');
  }
  assert.throws(()=>renderBrickSVG('invalid'),RangeError);
 });
@@ -181,4 +178,56 @@ test('all tested viewport rails have complete undistorted first and last tiles',
   }
   frame.dispose();
  }
+});
+
+test('browser uses the authored SVG asset after decoding, not a reconstructed stone',()=>{
+ const images=[],stamps=[];let readyCount=0;
+ const frame=createBrickFrame({
+  pixelRatio:()=>2,
+  createImage:()=>{
+   const img={onload:null,onerror:null,src:''};
+   images.push(img);return img;
+  },
+  createCanvas:()=>{
+   const drawn={fallback:0,svg:0,fillStyle:'',
+    fillRect(){this.fallback++;},drawImage(){this.svg++;}};
+   const canvas={width:0,height:0,getContext:()=>drawn,drawn};
+   stamps.push(canvas);return canvas;
+  },
+  onReady:style=>{assert.equal(style,'vector');readyCount++;}
+ });
+ const r=get(393,852,{top:59,bottom:34});
+ const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},drawImage(){}};
+ frame.draw(ctx,r);
+ assert.equal(images.length,1,'one SVG image per texture style');
+ assert.ok(images[0].src.endsWith('/vector/brick.svg?v137'));
+ assert.ok(stamps[0].drawn.fallback>0,'exact artwork fallback until decoded');
+ assert.equal(stamps[0].drawn.svg,0);
+ images[0].onload();
+ assert.equal(readyCount,1,'decode signals the base layer to redraw');
+ frame.draw(ctx,r);
+ assert.equal(stamps[1].drawn.fallback,0,'no procedural redraw after SVG ready');
+ assert.equal(stamps[1].drawn.svg,1,'authored SVG image is the tile source');
+ assert.equal(frame.cachedStamps,1);
+ frame.dispose();
+ assert.equal(frame.cachedStamps,0);
+ assert.equal(images[0].onload,null);
+});
+test('running bond keeps square exterior edges and the approved side margins',()=>{
+ const r=get(393,852,{top:59,bottom:34}),g=brickRailGeometry(r);
+ const clips=[];
+ const frame=createBrickFrame({
+  pixelRatio:()=>2,
+  createImage:()=>null,
+  createCanvas:()=>({width:0,height:0,getContext:()=>({fillRect(){}})})
+ });
+ frame.draw({save(){},restore(){},beginPath(){},clip(){},
+  rect(...v){clips.push(v);},drawImage(){}},r);
+ assert.equal(clips.length,2);
+ assert.deepEqual(clips[0],[g.leftVisible.x,r.boardY,g.leftVisible.w,r.boardH]);
+ assert.deepEqual(clips[1],[g.rightVisible.x,r.boardY,g.rightVisible.w,r.boardH]);
+ assert.ok(near(g.left.x,r.hx),'left outer edge follows the header/footer');
+ assert.ok(near(g.left.x+g.left.w+6,r.boardX));
+ assert.ok(near(g.right.x,r.boardX+r.boardW+6));
+ frame.dispose();
 });

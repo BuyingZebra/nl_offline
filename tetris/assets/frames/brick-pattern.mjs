@@ -1,43 +1,32 @@
-/* NOMAD V136 — textured, beveled square brick tiles in pixel and vector form.
+/* NOMAD V137 — original running-bond SVG tile with a square rail silhouette.
  * Grayscale geometry only; the existing CRT compositor supplies phosphor tint.
  * Rails sit 6px outside the board and use 75%-cell-sized square pattern tiles.
  */
-export const BRICK_UNIT=Object.freeze({width:12,height:12,courses:1});
+export const BRICK_UNIT=Object.freeze({width:12,height:12,courses:2});
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 const fmt=n=>Number(n.toFixed(3)).toString();
 const rgb=n=>'rgb('+n+','+n+','+n+')';
-// One inset 10x10 square brick per authored 12x12 texture cell.
-// Every repeat is aligned vertically: no half-bricks or running bond.
+// A single 12x12 texture tile matches one tetromino block, with two
+// staggered half-height brick courses contained within that single tile.
 const COURSES=Object.freeze([
- Object.freeze({y:1,bricks:Object.freeze([{x:1,w:10}])})
+ Object.freeze({y:1,bricks:Object.freeze([{x:1,w:10}])}),
+ Object.freeze({y:7,bricks:Object.freeze([{x:-4,w:9},{x:6,w:9}])})
 ]);
 export function brickShapes(style='vector'){
  if(style!=='pixel'&&style!=='vector')throw new RangeError('Unknown brick style');
  const pixel=style==='pixel',layers=[];
- const rim=pixel?1:.7,hair=pixel?1:.55;
- const add=(x,y,w,h,shade)=>{
-  if(w>0&&h>0)layers.push(Object.freeze({x,y,w,h,shade}));
- };
- // V136: a raised square masonry block, not a single solid bright strip.
- // Face/edge heights are restrained so CRT glow doesn't erase the detail.
- add(1,1,10,10,pixel?103:107);  // dark cut-stone outline
- add(2,2,8,8,pixel?159:163);    // beveled top surface
- add(2,2,8,rim,pixel?212:215);
- add(2,2,rim,8,pixel?189:196);
- add(2,10-rim,8,rim,pixel?67:74);
- add(10-rim,2,rim,8,pixel?81:88);
- add(3,3,6,6,pixel?134:140);   // recessed square stone face
- add(3,3,6,hair,pixel?174:180);
- add(3,3,hair,6,pixel?157:163);
- add(3,9-hair,6,hair,pixel?90:96);
- add(9-hair,3,hair,6,pixel?97:103);
- // Deterministic low-profile chisel marks, visible at 75% cell size.
- // Pixel coordinates stay integral in the pixel asset.
- add(4,4,3,1,pixel?158:161);
- add(5,6,2,1,pixel?92:98);
- add(4,7,1,1,pixel?104:110);
- add(7,5,1,2,pixel?107:113);
- add(6,8,2,1,pixel?155:159);
+ function add(x,y,w,h,shade){if(w>0&&h>0)layers.push(Object.freeze({x,y,w,h,shade}));}
+ for(const course of COURSES)for(const {x,w} of course.bricks){
+  const y=course.y,h=4;
+  // Face coordinates are identical in both artworks; only the bevel is finer
+  // in the vector version. No gradients, radius, texture noise or runtime RNG.
+  add(x,y,w,h,pixel?173:178);
+  const rim=pixel?1:.65;
+  add(x,y,w,rim,pixel?218:230);
+  add(x,y,rim,h,pixel?209:217);
+  add(x,y+h-rim,w,rim,pixel?77:81);
+  add(x+w-rim,y,rim,h,pixel?89:103);
+ }
  return layers;
 }
 export function renderBrickSVG(style='vector'){
@@ -47,8 +36,8 @@ export function renderBrickSVG(style='vector'){
  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" '+
   'width="12" height="12" shape-rendering="'+
   (style==='pixel'?'crispEdges':'geometricPrecision')+'" '+
-  'data-design="nomad-bricks-v136" data-style="'+style+'">\n'+
-  '<title>NOMAD aligned square '+style+' brick rail</title>\n'+
+  'data-design="nomad-bricks-v137" data-style="'+style+'">\n'+
+  '<title>NOMAD staggered '+style+' brick texture, square-edge rail</title>\n'+
   shapes.join('\n')+'\n</svg>\n';
 }
 // The entire authored 12x12 tile is 75% of a tetromino board cell.
@@ -87,9 +76,29 @@ export function brickRailGeometry(r){
 // Both image assets and live stamps come from brickShapes(), not separate art.
 export function createBrickFrame({
  createCanvas=()=>document.createElement('canvas'),
- pixelRatio=()=>1
+ createImage=()=>typeof Image==='function'?new Image():null,
+ pixelRatio=()=>1,
+ onReady=()=>{}
 }={}){
- const stamps=new Map();
+ const stamps=new Map(),images=new Map();
+ let disposed=false;
+ function sourceImage(style){
+  if(images.has(style))return images.get(style);
+  const img=createImage();
+  if(!img){images.set(style,null);return null;}
+  const entry={img,ready:false};
+  images.set(style,entry);
+  img.onload=()=>{
+   if(disposed)return;
+   entry.ready=true;
+   stamps.clear();
+   onReady(style);
+  };
+  img.onerror=()=>{entry.ready=false;};
+  // Load the archived artwork as an SVG asset rather than redrawing a substitute.
+  img.src=new URL('./'+style+'/brick.svg?v137',import.meta.url).href;
+  return entry;
+ }
  function stamp(width,style){
   const dpr=clamp(Number(pixelRatio())||1,1,4);
   const pixelW=Math.max(1,Math.round(width*dpr));
@@ -99,9 +108,16 @@ export function createBrickFrame({
   canvas.width=pixelW;canvas.height=pixelW;
   const c=canvas.getContext('2d');
   if(!c)return null;
-  const sx=canvas.width/BRICK_UNIT.width,sy=canvas.height/BRICK_UNIT.height;
-  for(const {x,y,w,h,shade} of brickShapes(style)){
-   c.fillStyle=rgb(shade);c.fillRect(x*sx,y*sy,w*sx,h*sy);
+  const asset=sourceImage(style);
+  if(asset?.ready){
+   // Uniformly scale the original authored SVG into the square tile.
+   c.drawImage(asset.img,0,0,canvas.width,canvas.height);
+  }else{
+   // Same SVG geometry as fallback while loading, or if decoding fails.
+   const sx=canvas.width/BRICK_UNIT.width,sy=canvas.height/BRICK_UNIT.height;
+   for(const {x,y,w,h,shade} of brickShapes(style)){
+    c.fillStyle=rgb(shade);c.fillRect(x*sx,y*sy,w*sx,h*sy);
+   }
   }
   if(stamps.size>=12)stamps.delete(stamps.keys().next().value);
   stamps.set(key,canvas);
@@ -132,5 +148,13 @@ export function createBrickFrame({
    ctx.restore();
   }
  }
- return Object.freeze({draw,dispose:()=>stamps.clear(),get cachedStamps(){return stamps.size;}});
+ return Object.freeze({
+  draw,
+  dispose:()=>{
+   disposed=true;
+   for(const entry of images.values())if(entry){entry.img.onload=null;entry.img.onerror=null;}
+   images.clear();stamps.clear();
+  },
+  get cachedStamps(){return stamps.size;}
+ });
 }

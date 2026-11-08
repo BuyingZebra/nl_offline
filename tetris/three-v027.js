@@ -21,7 +21,7 @@ import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v132';
-import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v136';
+import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v123';
@@ -326,7 +326,16 @@ const vectorTiles=createVectorTileRenderer({
  }
 });
 vectorTiles.preload();
-const brickFrame=createBrickFrame({pixelRatio:()=>DPR});
+const brickFrame=createBrickFrame({
+ pixelRatio:()=>DPR,
+ onReady:()=>{
+  if(appLifecycle?.status==='disposed')return;
+  // Once the original SVG is decoded, repaint the static rails from
+  // that image instead of keeping the exact-geometry fallback forever.
+  layers.mark('base');
+  invalidate('brick-svg-ready');
+ }
+});
 // Retain V027-inspired preview tile sizing but use a single uniform scale.
 // Tetrominoes are centred and contained in their square preview frames.
 // Fresh grayscale tile styling for both the board and miniature previews:
