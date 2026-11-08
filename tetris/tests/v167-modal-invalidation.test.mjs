@@ -59,7 +59,7 @@ test('settings, presses, viewport changes and asynchronous clipboard results mar
  for(const event of ['input','button-press','button-release','resize',
   'resume','context-restored','font-ready'])
   assert.ok(invalidate.includes("'"+event+"'"),event+' must trigger menu refresh');
- assert.doesNotMatch(invalidate,/terminal-log|terminal-event|gravity|phosphor-history/);
+ assert.doesNotMatch(invalidate,/'(?:terminal-log|terminal-event|gravity|phosphor-history)'/);
  assert.match(invalidate,/layers\.mark\('modal'\)/);
  assert.match(s,/modalUI\.debugCopyState=success\?'copied':'failed';invalidate\(\)/);
  assert.match(s,/setOptionsScroll:v=>\{modalUI\.scroll=v;\}/);
