@@ -14,14 +14,14 @@ import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-li
 import {createInputController} from './input-controller.js?v096';
 import {createPerfMonitor} from './perf-monitor.js?v062';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v060';
-import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v150';
+import {sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v153';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
 import {formatDebugReport} from './debug-report.js?v092';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v123';
 import {createRenderInvalidation} from './render-invalidation.js?v063';
 import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v141';
-import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v152';
+import {createTerminalLog,drawTerminalLog} from './terminal-log.js?v153';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
