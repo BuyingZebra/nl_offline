@@ -127,8 +127,8 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v141'));
- assert.ok(html.indexOf('layout.js?three=v141')<html.indexOf('<script type="module">'));
+ assert.ok(html.includes('layout.js?three=v149'));
+ assert.ok(html.indexOf('layout.js?three=v149')<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });
