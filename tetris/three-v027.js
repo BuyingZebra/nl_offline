@@ -19,7 +19,7 @@ import {createPerfMonitor} from './perf-monitor.js?v168';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v164';
 import {croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v168';
 import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v168';
+import {formatDebugReport} from './debug-report.js?v169';
 import {createDebugClipboard} from './debug-clipboard.js?v055';
 import {createModalUI} from './modal-ui.js?v156';
 import {createRenderInvalidation} from './render-invalidation.js?v168';
@@ -173,7 +173,11 @@ const controlsPlane=makeUILayer(controlsTexture,.7,.012);
 // Some WebGL1 implementations expose fewer than 32 fragment uniform
 // vectors. Keep the original supported Canvas2D material on those devices.
 const controlsFallbackMaterial=controlsPlane.material;
-const controlLighting=renderer.capabilities.maxFragmentUniforms>=32?
+// Explicit comparison switch for visual regression checks, without changing
+// any saved settings or the normal GPU rendering mode.
+const forceCanvasButtons=new URLSearchParams(window.location.search)
+ .get('buttonRenderer')==='canvas';
+const controlLighting=!forceCanvasButtons&&renderer.capabilities.maxFragmentUniforms>=32?
  createGpuButtonLighting({THREE,texture:controlsTexture}):null;
 let controlsGpuEnabled=Boolean(controlLighting);
 if(controlsGpuEnabled)controlsPlane.material=controlLighting.material;
@@ -780,6 +784,7 @@ function createDebugReport(){
   geometries:memory?.geometries,programs:renderer.info.programs?.length};
  return formatDebugReport({
   version:THREE_BUILD_VERSION,createdAt:new Date().toISOString(),
+  buttonRenderer:controlsGpuEnabled?'GPU uniforms':'Canvas2D fallback',
   platform:navigator.userAgent,
   viewport:{width:W,height:H,dpr:DPR,deviceDpr:Math.max(1,window.devicePixelRatio||1)},
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
