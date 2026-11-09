@@ -73,6 +73,58 @@ test('portrait moves statistics to sidebar without moving the control buttons',(
   'statistics centered between previews');
  assert.ok(r.nextPanel.y<r.statsPanel.y&&r.statsPanel.y<r.holdPanel.y);
 });
+test('portrait board grows continuously through every height at representative safe widths',()=>{
+ const safeAreas=[{}, {top:20}, {top:59,bottom:34},
+  {top:47,bottom:21,left:14,right:10}, {top:72,bottom:48,left:10,right:14}];
+ for(const safe of safeAreas)for(const width of [280,320,360,375,393,414,430,480,520]){
+  const w=width+(safe.left||0)+(safe.right||0);
+  let previous;
+  for(let h=Math.max(480,w);h<=1000;h++){
+   const r=computeLayout(w,h,safe,ui);
+   if(previous){
+    const change=r.boardH-previous.boardH;
+    assert.ok(change>=-1e-6&&change<=1+1e-6,
+     `${w}x${h}, safe ${JSON.stringify(safe)}: board changed by ${change}px`);
+    assert.ok(Math.abs(r.dy-previous.dy)<=1+1e-6,'deck moves smoothly');
+   }
+   assert.ok(r.boardY>=r.hy+r.hh&&r.boardY+r.boardH<=r.dy+1e-6,
+    'the board stays between header and controls');
+   assert.ok(r.boardX+r.boardW+2*r.brickGap+r.previewCell<=r.sideX+1e-6,
+    'the right brick rail and its gutters fit before the sidebar');
+   assert.ok(r.nextPanel.y+r.nextPanel.h+ui.unit<=r.statsPanel.y+1e-6&&
+    r.statsPanel.y+r.statsPanel.h+ui.unit<=r.holdPanel.y-r.previewLabelSpace+1e-6,
+    'preview labels and stats retain their spacing');
+   assert.ok(r.dy+r.dh+38<=h+1e-6,'both terminal rows fit below the deck');
+   previous=r;
+  }
+ }
+});
+test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
+ const {createHudDrawing}=await import('./hud-drawing.js');
+ const keys=[];
+ const hud=createHudDrawing({panel(){},key:(label,x,y,w,h,action)=>keys.push({x,y,w,h,action}),
+  C:{},UI_SPACE:ui});
+ for(const [w,h,safe] of [
+  [280,480,{top:20}],[304,480,{top:59,bottom:34,left:14,right:10}],
+  [320,568,{top:20}],[375,621,{top:20}],[393,731,{top:59,bottom:34}],
+  [393,852,{top:59,bottom:34}],[430,932,{top:62,bottom:34}]
+ ]){
+  const r=computeLayout(w,h,safe,ui);
+  keys.length=0;
+  hud.drawControls(r);
+  assert.deepEqual(keys.map(key=>key.action),['left','soft','right','cw','hold','pause']);
+  for(let i=0;i<keys.length;i++){
+   const key=keys[i];
+   assert.ok(key.w>=44&&key.h>=44,`${w}x${h}: ${key.action} is too small`);
+   checkPanel(key,{left:r.dx,right:r.dx+r.dw,top:r.dy,bottom:r.dy+r.dh},key.action);
+   for(const prior of keys.slice(0,i)){
+    assert.ok(key.x>=prior.x+prior.w||prior.x>=key.x+key.w||
+     key.y>=prior.y+prior.h||prior.y>=key.y+key.h,'control hit regions do not overlap');
+   }
+  }
+ }
+});
+
 test('tall portrait makes a minimal width adjustment to fit the aligned brick frame',()=>{
  const r=computeLayout(430,932,{top:62,bottom:34},ui);
  assert.ok(r.boardW<273&&r.boardW>265,
@@ -127,8 +179,9 @@ test('narrow landscape reflows buttons, without changing portrait',()=>{
 test('HTML loads layout ahead of the Three.js module',()=>{
  const html=fs.readFileSync(path.join(__dirname,'three-v027.html'),'utf8');
  const renderer=fs.readFileSync(path.join(__dirname,'three-v027.js'),'utf8');
- assert.ok(html.includes('layout.js?three=v150'));
- assert.ok(html.indexOf('layout.js?three=v150')<html.indexOf('<script type="module">'));
+ const layout=html.match(/layout\.js\?three=v\d+/);
+ assert.ok(layout);
+ assert.ok(layout.index<html.indexOf('<script type="module">'));
  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
 });

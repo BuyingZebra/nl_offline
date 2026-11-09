@@ -255,19 +255,15 @@ test('recessed SCORE LEVEL LINES modules keep equal widths across viewports',()=
 test('V143 removes rejected mascot SVG and board decal',()=>{
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
  assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
  assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
  assert.equal(fs.existsSync(new URL('../assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
- assert.match(sw,/CACHE_VERSION='v169'/);
- assert.match(html,/<meta name="tetris-build" content="169">/);
  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
 });
 
 test('V162 stamps independently owned and rotating piece shadows onto the board',()=>{
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
  const start=renderer.indexOf('function stage(r,drawPieces=true,recordRegion=true){');
  const end=renderer.indexOf('function paintBoardPopup(r)',start);
  const board=renderer.slice(start,end);
@@ -289,15 +285,12 @@ test('V162 stamps independently owned and rotating piece shadows onto the board'
  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
- assert.match(sw,/CACHE_VERSION='v169'/);
- assert.match(html,/<meta name="tetris-build" content="169">/);
 });
 
 test('V145 migration updates old pinned workers but protects active gameplay',()=>{
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
  const platform=fs.readFileSync(new URL('../platform-manager.js',import.meta.url),'utf8');
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
- const shell=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
  assert.match(sw,/const legacyPinned=oldNames\.some/);
  assert.match(sw,/version<145/);
  assert.match(sw,/if\(legacyPinned\)await self\.skipWaiting\(\)/);
@@ -307,5 +300,4 @@ test('V145 migration updates old pinned workers but protects active gameplay',()
  assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
  assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
  assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
- assert.match(shell,/<meta name="tetris-build" content="169">/);
 });

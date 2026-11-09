@@ -81,12 +81,12 @@ with sync_playwright() as p:
 
     # A genuine held input crosses multiple compositor frames. Instantaneous
     # synthetic down/up within one JS task never excites a physical raster.
-    page.mouse.move(265, 792)
+    page.mouse.move(265, 784)
     page.mouse.down()
     # Software-rasterized WebKit can return an older framebuffer at first.
     # Take several frames while actually holding the button, use the
     # strongest measured excitation, then wait for the visible tail to fade.
-    crop = (200, 770, 332, 817)
+    crop = (200, 762, 332, 809)
     frames = []
     for _ in range(6):
         page.wait_for_timeout(220)
@@ -100,7 +100,6 @@ with sync_playwright() as p:
     cold = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
     hot.save(out / f"{browser_name}-glow-hot.png")
     cold.save(out / f"{browser_name}-glow-cold.png")
-    crop = (200, 770, 332, 817)
     hot_pixels = list(hot.crop(crop).getdata())
     cold_pixels = list(cold.crop(crop).getdata())
     glow_delta = (sum(hot_pixels) - sum(cold_pixels)) / len(hot_pixels)
@@ -127,7 +126,7 @@ with sync_playwright() as p:
 
     # PAUSE transitions playing→paused during pointerdown. The pressed PAUSE
     # button must visibly brighten even though game status changes immediately.
-    page.mouse.move(265, 792)
+    page.mouse.move(265, 784)
     page.mouse.down()
     pause_means = []
     for _ in range(6):

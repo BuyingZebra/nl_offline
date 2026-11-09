@@ -21,17 +21,30 @@ function computeLayout(W,H,safe,ui){
   const pad=ui.padX,inner=Math.max(0,width-2*pad);
   const short=H<=730,compact=H<=620,gap=ui.stackGap;
   const deckPad=ui.deckPad,deckGap=ui.deckGap;
-  const buttonH=compact?42:short?45:ui.padHeight;
-  const headerButtonH=landscape?37:short?42:ui.headIcons;
-  const extraH=headerButtonH;
-  const overlaySecondaryH=compact?39:short?40:ui.extrasHeight;
-  const headerH=compact?50:short?58:ui.headHeight;
-  let hy=edges.top+(compact?4:short?9:0),hh=headerH;
+  // Preserve the established portrait sizes on either side of each range.
+  // Grow the header and deck together gradually, so their combined height
+  // grows more slowly than the viewport and cannot take height from the board.
+  const compactGrowth=clamp((H-604)/32,0,1);
+  const regularGrowth=clamp((H-702)/56,0,1);
+  const preferredButtonH=42+3*compactGrowth+(ui.padHeight-45)*regularGrowth;
+  const preferredExtraH=42+(ui.headIcons-42)*regularGrowth;
+  const buttonH=landscape?(compact?42:short?45:ui.padHeight):
+    Math.max(44,preferredButtonH);
+  const headerButtonH=landscape?37:preferredExtraH;
+  const extraH=landscape?headerButtonH:Math.max(44,preferredExtraH);
+  const overlaySecondaryH=landscape?(compact?39:short?40:ui.extrasHeight):
+    39+compactGrowth+(ui.extrasHeight-40)*regularGrowth;
+  let hy=edges.top+4+5*compactGrowth-9*regularGrowth;
+  let hh=50+8*compactGrowth+(ui.headHeight-58)*regularGrowth;
   // V109 moved statistics to the sidebar, keeping portrait button hitboxes.
   // The recovered score-row space is reserved, not added to the game board.
   const legacyStatsOffset=ui.scoreHeight+deckGap;
   const dhDefault=2*deckPad+deckGap+buttonH+extraH;
-  const bottomMargin=H>=550?ui.deckBottom:Math.max(ui.unit,Math.min(ui.deckBottom,usableH*.055));
+  // Ease into the full bottom margin. The terminal needs 37 CSS pixels
+  // plus its 1px deck gap, including room below the usable area if present.
+  const preferredMargin=Math.min(ui.deckBottom,
+    Math.max(ui.unit,usableH*.055,ui.deckBottom+(H-550)*.25));
+  const bottomMargin=Math.max(preferredMargin,38-edges.bottom);
   let dh=dhDefault,dy=H-edges.bottom-bottomMargin-dh;
   let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
   let hx=off+pad,hw=inner,sx=off+pad,sw=inner,dx=off+pad,dw=inner;
@@ -54,9 +67,12 @@ function computeLayout(W,H,safe,ui){
   }
   const sideGap=Math.min(ui.sideGap,Math.max(0,sw*.025));
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
-  // Preserve V108 playfield size and placement; statistics stay in sidebar.
-  // The landscape playfield never used the old portrait score row.
-  const boardRegionH=landscape?sh:Math.max(0,sh-legacyStatsOffset);
+  // Spend the existing portrait whitespace on larger touch targets and a
+  // fully visible terminal first. Only reduce the board if it runs out.
+  const protectedSpace=buttonH-preferredButtonH+extraH-preferredExtraH+
+    bottomMargin-preferredMargin;
+  const boardSpacing=Math.max(0,legacyStatsOffset-protectedSpace);
+  const boardRegionH=landscape?sh:Math.max(0,sh-boardSpacing);
   const brickGap=ui.padGap; // Identical to the horizontal control gap.
   let bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   if(!landscape&&bw>4){
