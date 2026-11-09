@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "design": "NOMAD approved tile motifs with V119 organic gravel",
-  "source": "tetris/tile-face.js + tetris/assets/tiles/gravel-layout.mjs",
+  "source": "tetris/art.js + tetris/assets/tiles/gravel-layout.mjs",
   "source_kind": "deterministic grayscale masks",
   "version": "2.2",
   "note": "Pixel SVG masters preserve the approved V119 motifs, unchanged. V121 strengthens highlight/shadow luminance in the smooth SVGs without altering the shapes, scatter, piece identity or I-fragment positions. T remains an unadorned uniform face. The CRT compositor controls tint and glow.",

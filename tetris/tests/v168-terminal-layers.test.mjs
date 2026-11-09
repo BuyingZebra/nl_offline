@@ -4,11 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {createRenderInvalidation} from '../render-invalidation.js';
-import {croppedBounds,controlsBounds,drawCroppedCanvas} from '../cropped-ui-layers.js';
-import {terminalLineBounds} from '../terminal-log.js';
-import {createPerfMonitor} from '../perf-monitor.js';
-import {formatDebugReport} from '../debug-report.js';
+import {createRenderInvalidation} from '../crt.js';
+import {croppedBounds,controlsBounds,drawCroppedCanvas} from '../crt.js';
+import {terminalLineBounds} from '../ui.js';
+import {createPerfMonitor} from '../diagnostics.js';
+import {formatDebugReport} from '../diagnostics.js';
 import '../layout.js'; // layout.js preserves its existing browser/CommonJS global API
 const {computeLayout}=globalThis.FieldAtlasTetrisLayout;
 
@@ -80,7 +80,7 @@ test('terminal-only type and cursor events do not request controls, base or moda
 
 test('standalone terminal plane uses the original text painter and CRT compositor',()=>{
  const renderer=source('three-v027.js');
- const cropped=source('cropped-ui-layers.js');
+ const cropped=source('crt.js');
  assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
  assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
  assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);

@@ -1,4 +1,4 @@
-/* NOMAD Tetris V179 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V180 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v179';
+const CACHE_VERSION='v180';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -20,10 +20,8 @@ const FONT_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com']);
 // Explicit allowlist; no runtime network crawling, broad caches or map assets.
 const CORE_ASSETS=Object.freeze([
  './',
- './action-controller.js',
- './app-lifecycle.js',
+ './art.js',
  './assets/frames/brick-pattern.mjs',
- './assets/frames/pixel/brick.svg',
  './assets/frames/vector/brick.svg',
  './assets/tiles/gravel-layout.mjs',
  './assets/tiles/smooth-geometry.mjs',
@@ -34,61 +32,24 @@ const CORE_ASSETS=Object.freeze([
  './assets/tiles/vector/S.svg',
  './assets/tiles/vector/T.svg',
  './assets/tiles/vector/Z.svg',
- './build-version.js',
- './button-feedback.js',
- './button-layer-invalidation.js',
- './canvas-ui.js',
- './compositor-pass-profiler.js',
- './compositor.js',
  './core.js',
- './cropped-ui-layers.js',
- './debug-clipboard.js',
- './debug-report.js',
- './display-settings-catalog.js',
- './game-visual-state.js',
- './gpu-button-lighting.js',
- './graphics-health.js',
- './hud-drawing.js',
- './i-piece-fragments.js',
+ './crt.js',
+ './diagnostics.js',
  './icon-192.png',
  './icon-512.png',
  './icon.svg',
  './index.html',
- './input-controller.js',
+ './input.js',
  './layout.js',
  './manifest.webmanifest',
- './modal-ui.js',
  './nomad-mark.svg',
- './perf-monitor.js',
- './phosphor-model.js',
- './phosphor-persistence.js',
- './piece-drop-shadow.js',
- './piece-luminance.js',
- './platform-manager.js',
- './render-invalidation.js',
+ './platform.js',
  './scores.js',
- './screen-manager.js',
- './settings-manager.js',
- './terminal-engine.js',
- './terminal-log.js',
- './texture-upload-profiler.js',
+ './session.js',
  './three-v027.html',
  './three-v027.js',
- './tile-face.js',
- './ui-controls.js',
- './vector-tile-renderer.js',
- './vendor/three/addons/postprocessing/EffectComposer.js',
- './vendor/three/addons/postprocessing/MaskPass.js',
- './vendor/three/addons/postprocessing/OutputPass.js',
- './vendor/three/addons/postprocessing/Pass.js',
- './vendor/three/addons/postprocessing/RenderPass.js',
- './vendor/three/addons/postprocessing/ShaderPass.js',
- './vendor/three/addons/postprocessing/UnrealBloomPass.js',
- './vendor/three/addons/shaders/CopyShader.js',
- './vendor/three/addons/shaders/LuminosityHighPassShader.js',
- './vendor/three/addons/shaders/OutputShader.js',
- './vendor/three/three.core.js',
- './vendor/three/three.module.js',
+ './ui.js',
+ './vendor/three/three.bundle.js',
 ]);
 const ALLOWED_PATHS=new Set(CORE_ASSETS.map(asset=>new URL(asset,SCOPE).pathname));
 
@@ -154,7 +115,7 @@ function assetPath(url){
  return url.pathname===CLEAN_SHELL_PATH?SHELL_URL.pathname:url.pathname;
 }
 function canonicalAsset(url){
- // Cache identity ignores ephemeral ?live= and ?update-check= parameters.
+ // Cache identity ignores script version queries.
  // Normalizing prevents an unbounded cache entry per app launch.
  return new Request(url.origin+assetPath(url),{credentials:'same-origin'});
 }

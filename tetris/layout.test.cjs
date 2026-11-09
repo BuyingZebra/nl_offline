@@ -115,7 +115,7 @@ test('short portrait fills the stage and width-limited portrait keeps surplus ou
  }
 });
 test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
- const {createHudDrawing}=await import('./hud-drawing.js');
+ const {createHudDrawing}=await import('./ui.js');
  const keys=[];
  const hud=createHudDrawing({panel(){},key:(label,x,y,w,h,action)=>keys.push({x,y,w,h,action}),
   C:{},UI_SPACE:ui});

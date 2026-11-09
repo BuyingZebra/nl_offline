@@ -3,9 +3,9 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPerfMonitor} from '../perf-monitor.js';
-import {createTextureUploadProfiler} from '../texture-upload-profiler.js';
-import {formatDebugReport} from '../debug-report.js';
+import {createPerfMonitor} from '../diagnostics.js';
+import {createTextureUploadProfiler} from '../diagnostics.js';
+import {formatDebugReport} from '../diagnostics.js';
 
 test('known terminal and button redraw causes remain distinct from unknown',()=>{
  let time=0;

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import {collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}
- from '../piece-drop-shadow.js';
+ from '../art.js';
 const require=createRequire(import.meta.url);
 const Core=require('../core.js');
 const board=()=>Array.from({length:20},()=>Array(10).fill(0));

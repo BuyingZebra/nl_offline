@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from '../app-lifecycle.js';
-import {createPlatformManager} from '../platform-manager.js';
+import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from '../platform.js';
+import {createPlatformManager} from '../platform.js';
 
 test('visibility suspension preserves the session and can be resumed once',()=>{
  const events=[];

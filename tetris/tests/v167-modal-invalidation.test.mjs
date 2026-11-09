@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {createRenderInvalidation} from '../render-invalidation.js';
+import {createRenderInvalidation} from '../crt.js';
 
 const source=()=>fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
 

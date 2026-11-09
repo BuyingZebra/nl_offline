@@ -7,6 +7,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 
+const source=fs.readFileSync(path.join(__dirname,'crt.js'),'utf8');
+const compositor=source.slice(source.indexOf('const MENU_BLUR_PERCENT='),source.indexOf('export const MAX_BUTTON_FLASHES='));
+
 function setup(){
  const instances=[],textures=[];
  class Vec2{constructor(x,y){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
@@ -50,13 +53,9 @@ function setup(){
   width:0,height:0,
   getContext:()=>({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),putImageData(){}})
  })};
- const file=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
- const profilerSource=fs.readFileSync(path.join(__dirname,'compositor-pass-profiler.js'),'utf8');
- const instrumentCompositorPasses=new Function(
-  profilerSource.replace('export function ','function ')+
-  '\nreturn instrumentCompositorPasses;')();
- const standalone=file.replace(/^import .*;\s*$/gm,'').replace('export function createCompositor','function createCompositor');
- assert.ok(!/\bimport\s+/.test(standalone),'Unexpected import syntax');
+ const {instrumentCompositorPasses}=require('./diagnostics.js');
+ const clamp=source.match(/^const clamp=.*;$/m)[0];
+ const standalone=clamp+'\n'+compositor.replace('export function createCompositor','function createCompositor');
  const factory=new Function('THREE','EffectComposer','RenderPass','UnrealBloomPass','ShaderPass','OutputPass','document','instrumentCompositorPasses',
   'createPhosphorPersistencePass',
   standalone+'\nreturn createCompositor;')
@@ -233,7 +232,6 @@ test('button presses are source owned; no compositor brightening overlay exists'
  assert.ok(composer.passes.every(p=>p.label!=='BUTTON RESPONSE'));
  assert.equal(typeof pipeline.syncButtonFeedback,'undefined');
  assert.equal(composer.passes[3].label,'HISTORY');
- const source=fs.readFileSync(path.join(__dirname,'compositor.js'),'utf8');
- assert.doesNotMatch(source,/BUTTON_FEEDBACK|buttonPulsePass|uRects\[/);
+ assert.doesNotMatch(compositor,/BUTTON_FEEDBACK|buttonPulsePass|uRects\[/);
  pipeline.dispose();
 });

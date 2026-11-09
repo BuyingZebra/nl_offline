@@ -1,7 +1,7 @@
 /* NOMAD V123: personal-best actions and gameplay regressions. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createActionController,GAME_ACTIONS} from '../action-controller.js';
+import {createActionController,GAME_ACTIONS} from '../session.js';
 
 function harness(initialStatus='ready',canInteract=()=>true){
  const events=[],storage=new Map();

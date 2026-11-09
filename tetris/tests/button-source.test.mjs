@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {createCanvasUI} from '../canvas-ui.js';
+import {createCanvasUI} from '../ui.js';
 
 function drawKey(light=false,power=0,arrow=false){
  const calls=[],regions=[];
@@ -50,7 +50,7 @@ test('other screen buttons use the same source brightness helper',()=>{
  assert.equal(ui.buttonLight(20,40,90,45),206);
  const {ui:hot}=drawKey(false,1);
  assert.equal(hot.buttonLight(20,40,90,45),255);
- const modal=fs.readFileSync(new URL('../modal-ui.js',import.meta.url),'utf8');
+ const modal=fs.readFileSync(new URL('../ui.js',import.meta.url),'utf8');
  for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
   assert.ok(modal.includes(control),'modal control missing brightness: '+control);
  const game=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');

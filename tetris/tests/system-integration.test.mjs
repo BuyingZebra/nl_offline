@@ -2,11 +2,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {createActionController} from '../action-controller.js';
-import {createScreenManager} from '../screen-manager.js';
-import {createSettingsManager,STORAGE_KEYS} from '../settings-manager.js';
-import {createAppLifecycle,runCleanupTasks} from '../app-lifecycle.js';
-import {createGraphicsHealth} from '../graphics-health.js';
+import {createActionController} from '../session.js';
+import {createScreenManager} from '../session.js';
+import {createSettingsManager,STORAGE_KEYS} from '../session.js';
+import {createAppLifecycle,runCleanupTasks} from '../platform.js';
+import {createGraphicsHealth} from '../platform.js';
 const require=createRequire(import.meta.url);
 const Core=require('../core.js');
 const Scores=require('../scores.js');

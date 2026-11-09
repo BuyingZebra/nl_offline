@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {drawTileFace,drawIBar,PIECE_PATTERNS} from '../tile-face.js';
+import {drawTileFace,drawIBar,PIECE_PATTERNS} from '../art.js';
 import {
  renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,
  originalIDotCenters,originalJDotCenters

@@ -1,36 +1,18 @@
+import * as THREE from './vendor/three/three.bundle.js';
+import {createCompositor,createButtonFeedback,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation} from './crt.js?v180';
+import {createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments} from './art.js?v180';
+import {createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds} from './ui.js?v180';
+import {getBuildVersion,createPlatformManager,createAppLifecycle,createGraphicsCleanup,runCleanupTasks,createGraphicsHealth} from './platform.js?v180';
+import {createInputController} from './input.js?v180';
+import {createPerfMonitor,createTextureUploadProfiler,formatDebugReport,createDebugClipboard} from './diagnostics.js?v180';
+import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './session.js?v180';
+
 /* NOMAD TETRIS — Canvas2D source, Three.js CRT compositor.
  * Gameplay belongs to core.js; rendering observes immutable game events.
  * Preserve the approved grayscale source, display pipeline and controls.
  */
-import * as THREE from 'three';
-import {createCompositor} from './compositor.js?v107';
-import {createVectorTileRenderer} from './vector-tile-renderer.js?v126';
-import {collectPieceShadowGroups,createPieceShadowRenderer} from './piece-drop-shadow.js?v163';
-import {collectIFragments} from './i-piece-fragments.js?v119';
-import {createButtonFeedback} from './button-feedback.js?v107';
-import {buttonFeedbackLayers} from './button-layer-invalidation.js?v166';
-import {createGpuButtonLighting} from './gpu-button-lighting.js?v169';
-import {createCanvasUI} from './canvas-ui.js?v165';
-import {getBuildVersion} from './build-version.js?v066';
-import {createPlatformManager} from './platform-manager.js?v176';
-import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
-import {createInputController} from './input-controller.js?v179';
-import {createPerfMonitor} from './perf-monitor.js?v168';
-import {createTextureUploadProfiler} from './texture-upload-profiler.js?v164';
-import {croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v168';
-import {captureGameVisualState,gameVisualStateChanged,flashPhase} from './game-visual-state.js?v058';
-import {formatDebugReport} from './debug-report.js?v169';
-import {createDebugClipboard} from './debug-clipboard.js?v055';
-import {createModalUI} from './modal-ui.js?v156';
-import {createRenderInvalidation} from './render-invalidation.js?v168';
-import {createHudDrawing,fitPreviewCells} from './hud-drawing.js?v156';
-import {createTerminalLog,drawTerminalLog,terminalLineBounds} from './terminal-log.js?v155';
-import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
-import {createSettingsManager} from './settings-manager.js?v103';
-import {createScreenManager} from './screen-manager.js?v156';
-import {createActionController} from './action-controller.js?v175';
-import {createGraphicsHealth} from './graphics-health.js?v089';
+
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea');
@@ -1165,4 +1147,3 @@ syncAvailability(portraitGate.matches?'orientation':'visibility');
 requestFrame();
 // One check after initialization also covers standalone cold launches.
 void platform.checkForNewBuild();
-

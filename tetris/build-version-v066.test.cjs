@@ -5,11 +5,11 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=n=>fs.readFileSync(path.join(__dirname,n),'utf8');
-const versionFns=new Function(read('build-version.js')
+const versionFns=new Function(read('platform.js')
  .replace(/export const /g,'const ').replace(/export function /g,'function ')+
  '\nreturn {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild};')();
 const {getBuildVersion,parsePublishedBuild,shouldReloadBuild}=versionFns;
-const html=read('three-v027.html'),main=read('three-v027.js'),platform=read('platform-manager.js');
+const html=read('three-v027.html'),main=read('three-v027.js'),platform=read('platform.js');
 const documentWithVersion=v=>({querySelector:s=>s==='meta[name="tetris-build"]'&&v!==null?
  {getAttribute:attr=>attr==='content'?v:null}:null});
 test('single metadata marker determines build number without a hard-coded JS constant',()=>{
@@ -68,9 +68,9 @@ test('live update polling belongs to Platform Manager and fetches only uncached 
  assert.ok(platform.includes("getGameStatus()!=='ready')return false;"));
  assert.ok(!platform.includes("new URL('./three-v027.js?update-check="));
 });
-test('release keeps permanent link and always imports main module freshly',()=>{
+test('release keeps permanent link and uses a renderer URL keyed to the shell build',()=>{
  const index=read('index.html');
  assert.ok(index.includes("location.replace(new URL('./three-v027.html'"));
- assert.ok(html.includes("const freshModule='./three-v027.js?live='+Date.now()"));
- assert.ok(main.includes("from './build-version.js?v066'"));
+ assert.ok(html.includes("const freshModule='./three-v027.js?build='+build"));
+ assert.ok(main.includes("from './platform.js?v180'"));
 });

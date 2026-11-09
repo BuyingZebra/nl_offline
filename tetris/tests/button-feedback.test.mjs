@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,
  BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,
  buttonLevel,buttonInkLevel}
- from '../button-feedback.js';
+ from '../crt.js';
 
 const solid={x:20,y:40,w:83,h:44,kind:'button',light:true};
 const outline={x:150,y:40,w:83,h:44,kind:'button',light:false};

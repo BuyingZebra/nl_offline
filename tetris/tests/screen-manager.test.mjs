@@ -3,7 +3,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createScreenManager,SCREENS} from '../screen-manager.js';
+import {createScreenManager,SCREENS} from '../session.js';
 
 function harness(initial='ready'){
  let status=initial,pauses=0;

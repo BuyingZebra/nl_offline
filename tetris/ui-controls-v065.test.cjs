@@ -7,7 +7,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=n=>fs.readFileSync(path.join(__dirname,n),'utf8');
-const ui=new Function(read('ui-controls.js').replace(/export function /g,'function ')+
+const ui=new Function(read('input.js').replace(/export function /g,'function ')+
  '\nreturn {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};')();
 test('button descriptor uses exactly the same bounds for drawing and hits',()=>{
  for(const [label,x,y,w,h,action,opts] of [
@@ -89,15 +89,14 @@ test('options controls are vertically clipped to scroll viewport',()=>{
 });
 test('modules depend on the same helper without changing CRT compositor',()=>{
  const source=read('three-v027.js');
- const canvas=read('canvas-ui.js'),input=read('input-controller.js'),modal=read('modal-ui.js');
- assert.ok(canvas.includes("from './ui-controls.js?v065'"));
- assert.ok(input.includes("from './ui-controls.js?v065'"));
- assert.ok(modal.includes("from './ui-controls.js?v065'"));
+ const canvas=read('ui.js'),input=read('input.js');
+ assert.ok(canvas.includes("from './input.js?v180'"));
+ assert.ok(input.includes('export function findRegionAt('));
  assert.ok(canvas.includes('makeButtonControl(label,x,y,w,h,act,opts)'));
  assert.ok(input.includes('findRegionAt(getRegions(),p,getModal(),getModalView())'));
  assert.ok(input.includes('sliderValueAt(r,x)'));
- assert.ok(modal.includes('makeSliderControl(x,y,w,setting,Number(settingValue(setting[1]))'));
+ assert.ok(canvas.includes('makeSliderControl(x,y,w,setting,Number(settingValue(setting[1]))'));
  assert.ok(source.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
- assert.ok(read('compositor.js').includes('composer.addPass(new OutputPass())'));
+ assert.ok(read('crt.js').includes('composer.addPass(new OutputPass())'));
  assert.ok(read('three-v027.html').match(/<meta name="tetris-build" content="[0-9]{3}">/));
 });

@@ -6,14 +6,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const modulePaths=[
- 'three-v027.js','build-version.js','canvas-ui.js','input-controller.js',
- 'ui-controls.js','modal-ui.js','hud-drawing.js','display-settings-catalog.js',
- 'cropped-ui-layers.js','render-invalidation.js','game-visual-state.js',
- 'settings-manager.js','screen-manager.js','platform-manager.js','app-lifecycle.js','action-controller.js','graphics-health.js','tile-face.js',
- 'compositor.js','perf-monitor.js','debug-report.js',
- 'debug-clipboard.js','texture-upload-profiler.js','compositor-pass-profiler.js'
-];
+const modulePaths=fs.readdirSync(__dirname).filter(file=>file.endsWith('.js'));
 const source=filename=>fs.readFileSync(path.join(__dirname,filename),'utf8');
 const dependencies=filename=>[...source(filename).matchAll(
  /^import\s+[^\n]+?\s+from\s+['"]([^'"]+)['"];?\s*$/gm
@@ -41,14 +34,14 @@ test('entrypoint remains single-screen Three.js with no redundant framework',()=
  const s=source('three-v027.js'),html=source('three-v027.html');
  assert.ok(s.includes('compositor.render('));
  assert.ok(s.includes("const THREE_BUILD_VERSION=getBuildVersion(document);"));
- assert.ok(s.includes("import {getBuildVersion} from './build-version.js?v066'"));
- assert.ok(source('platform-manager.js').includes("import {parsePublishedBuild,shouldReloadBuild} from './build-version.js?v066'"));
+ assert.match(s,/import \{getBuildVersion,.*from '\.\/platform\.js/);
+ assert.ok(source('platform.js').includes('parsePublishedBuild(await reply.text())'));
  assert.ok(s.includes('paintGame();'));
  assert.ok(html.includes('canvas id="screen"'));
  assert.ok(html.includes('const freshModule='));
  assert.ok(!html.includes('pixi.js'));
 });
-test('V066 release is metadata-only for next version bump',()=>{
+test('release reads its version from a single metadata marker',()=>{
  const html=source('three-v027.html');
  assert.equal((html.match(/<meta name="tetris-build" content="[0-9]{3}">/g)||[]).length,1);
  assert.ok(!source('three-v027.js').includes("const THREE_BUILD_VERSION='066'"));
