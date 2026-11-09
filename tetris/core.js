@@ -40,9 +40,11 @@
     '3>0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
     '0>3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]]
   };
-  // Original Nintendo 1989 line-clear base scores; displayed Level 01 is classic Level 00.
+  // North American NES gravity in frames per row, and Nintendo line-clear base scores.
+  const GRAVITY_FRAMES = [48,43,38,33,28,23,18,13,8,6,5,5,5,4,4,4,3,3,3,2,2,2,2,2,2,2,2,2,2,1];
+  const NES_FRAME_MS = 1000/60.0988;
   const CLEAR_POINTS = [0,40,100,300,1200];
-  const MAX_LEVEL = 20;
+  const MAX_LEVEL = 89, LOCK_MS = 500;
   const blankBoard = () => Array.from({length:ROWS}, () => Array(COLS).fill(0));
   // A stable source index follows each of the four I cells through rotation.
   // The index belongs to the original spawned strip, never its board position.
@@ -54,6 +56,10 @@
     return null;
   }
   const copyMatrix = m => m.map(row => row.slice());
+  function bottomRow(piece) {
+    for(let y=piece.matrix.length-1;y>=0;y--)
+      if(piece.matrix[y].some(Boolean))return piece.y+y;
+  }
   function turn(matrix, dir) {
     const N = matrix.length;
     const out = Array.from({length:N},()=>Array(N).fill(0));
@@ -112,7 +118,6 @@
       this.elapsed=0;
       this.gravityClock=0;
       this.lockClock=0;
-      this.lockMoves=0;
       this.fillQueue();
       this.current=null;
       this.spawn();
@@ -131,7 +136,7 @@
       this.current=this.piece(kind);
       this.gravityClock=0;
       this.lockClock=0;
-      this.lockMoves=0;
+      this.lowestRow=bottomRow(this.current);
       if(this.collides(this.current)) {
         this.status='over';
         this.lastEvent='GAME OVER';
@@ -174,7 +179,10 @@
       const p=this.current;
       if(this.collides(p,p.x+dx,p.y+dy))return false;
       p.x+=dx;p.y+=dy;
-      if(dx&&this.lockMoves<15){this.lockClock=0;this.lockMoves++;}
+      if(dy>0){
+        const row=bottomRow(p);
+        if(row>this.lowestRow){this.lowestRow=row;this.lockClock=0;}
+      }
       return true;
     }
     move(dx) {return this.tryMove(Math.sign(dx),0);}
@@ -182,7 +190,6 @@
       if(!this.tryMove(0,1))return false;
       this.score++;
       this.gravityClock=0;
-      this.lockClock=0;
       return true;
     }
     rotate(dir=1) {
@@ -195,7 +202,7 @@
       for(const [kx,ky] of kicks){
         if(!this.collides(p,p.x+kx,p.y+ky,matrix)) {
           p.x+=kx;p.y+=ky;p.rotation=nextRotation;p.matrix=matrix;
-          if(this.lockMoves<15){this.lockClock=0;this.lockMoves++;}
+          this.lowestRow=Math.max(this.lowestRow,bottomRow(p));
           return true;
         }
       }
@@ -224,25 +231,21 @@
       const p=this.current;
       if(!p||this.status!=='playing')return;
       if(!Number.isSafeInteger(p.id))p.id=this._nextPieceId++;
-      let above=false;
+      const overhang=[];
       for(let iy=0;iy<p.matrix.length;iy++)for(let ix=0;ix<p.matrix[iy].length;ix++){
         const kind=p.matrix[iy][ix];
         if(!kind)continue;
         const x=p.x+ix,y=p.y+iy;
-        if(y<0)above=true;
-        else if(y<ROWS&&x>=0&&x<COLS){
+        if(y>=ROWS||x<0||x>=COLS)continue;
+        const meta=Object.freeze({
+          kind,pieceId:p.id,rotation:p.rotation,
+          sourceIndex:kind==='I'?iSourceIndex(p.rotation,ix,iy):null
+        });
+        if(y<0)overhang.push({x,y,meta});
+        else{
           this.board[y][x]=kind;
-          this.boardMeta[y][x]=Object.freeze({
-            kind,pieceId:p.id,rotation:p.rotation,
-            sourceIndex:kind==='I'?iSourceIndex(p.rotation,ix,iy):null
-          });
+          this.boardMeta[y][x]=meta;
         }
-      }
-      if(above){
-        this.status='over';this.lastEvent='GAME OVER';
-        this._emit({type:'game-over',reason:'top-out',
-          score:this.score,lines:this.lines,level:this.level,status:this.status});
-        return;
       }
       const remaining=[],remainingMeta=[],completed=[];
       for(let y=0;y<ROWS;y++){
@@ -264,28 +267,39 @@
         remaining.unshift(Array(COLS).fill(0));
         remainingMeta.unshift(Array(COLS).fill(0));
       }
+      // Every cleared visible row is below every overhanging cell.
+      let topOut=false;
+      for(const {x,y,meta} of overhang){
+        const row=y+cleared;
+        if(row<0)topOut=true;
+        else{
+          remaining[row][x]=meta.kind;
+          remainingMeta[row][x]=meta;
+        }
+      }
       this.board=remaining;
       this.boardMeta=remainingMeta;
       this.lastClear=cleared;
       const priorLevel=this.level;
       this.lines+=cleared;
-      // Match the classic level numbering: 00 through 20, advancing every
-      // ten cleared lines. Preserve Nintendo's 1989 level-up scoring order.
+      // Nintendo scores the clear at the level reached by that clear.
       this.level=Math.min(MAX_LEVEL,Math.floor(this.lines/10));
-      this.score+=CLEAR_POINTS[cleared]*(this.level+1);
-      this.pieces++;
-      this.canHold=true;
+      const points=CLEAR_POINTS[cleared]*(this.level+1);
+      this.score+=points;
+      const locked=!topOut||cleared>0;
+      if(locked)this.pieces++;
       this.lastEvent=cleared===4?'TETRIS!':cleared?cleared+' LINE'+(cleared!==1?'S':''):'LOCK';
       // Suppress early game-over notification until the lock and clear events
       // have been delivered in game-rule order.
-      const spawned=this.spawn(undefined,false);
-      if(!spawned)this.lastEvent='GAME OVER';
-      this._emit({
+      const spawned=!topOut&&this.spawn(undefined,false);
+      if(!spawned){this.status='over';this.lastEvent='GAME OVER';}
+      else this.canHold=true;
+      if(locked)this._emit({
         type:'piece-locked',kind:p.kind,x:p.x,y:p.y,rotation:p.rotation,
         cleared,score:this.score,lines:this.lines,level:this.level,status:this.status
       });
       if(cleared)this._emit({
-        type:'lines-cleared',count:cleared,rows:Object.freeze(completed),
+        type:'lines-cleared',count:cleared,points,rows:Object.freeze(completed),
         board:beforeClear,boardMeta:beforeClearMeta,
         score:this.score,lines:this.lines,level:this.level,status:this.status
       });
@@ -294,28 +308,35 @@
         score:this.score,lines:this.lines,status:this.status
       });
       if(!spawned)this._emit({
-        type:'game-over',reason:'spawn-blocked',
+        type:'game-over',reason:topOut?'top-out':'spawn-blocked',
         score:this.score,lines:this.lines,level:this.level,status:this.status
       });
     }
     get dropMs() {
-      return Math.max(65,Math.round(850*Math.pow(.78,this.level)));
+      return GRAVITY_FRAMES[Math.min(this.level,29)]*NES_FRAME_MS;
     }
     tick(dt) {
       if(this.status!=='playing'||!this.current)return false;
       const elapsed=Math.min(100,Math.max(0,Number(dt)||0));
       this.elapsed+=elapsed;
-      this.gravityClock+=elapsed;
+      let remaining=elapsed;
       let changed=false;
-      while(this.gravityClock>=this.dropMs){
-        this.gravityClock-=this.dropMs;
-        if(!this.tryMove(0,1))break;
-        changed=true;
+      // Split elapsed time at gravity and lock boundaries. Time spent falling
+      // before a landing never counts against that piece's grounded timer.
+      while(remaining>0){
+        const grounded=this.isGrounded();
+        const gravityLeft=this.dropMs-this.gravityClock;
+        const lockLeft=grounded?LOCK_MS-this.lockClock:Infinity;
+        const step=Math.min(remaining,gravityLeft,lockLeft);
+        this.gravityClock+=step;
+        if(grounded)this.lockClock+=step;
+        remaining-=step;
+        if(step===lockLeft){this.lockPiece();return true;}
+        if(step===gravityLeft){
+          this.gravityClock=0;
+          if(!grounded&&this.tryMove(0,1))changed=true;
+        }
       }
-      if(this.isGrounded()){
-        this.lockClock+=elapsed;
-        if(this.lockClock>=450){this.lockPiece();changed=true;}
-      }else this.lockClock=0;
       return changed;
     }
     cells() {

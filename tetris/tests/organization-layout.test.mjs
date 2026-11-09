@@ -170,7 +170,7 @@ test('V155 stream-backed two-row operation log replaces the old shaded version s
  const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
  assert.match(source,/text\('NOMAD'/);
  assert.match(source,/text\('TETRIS SYSTEM'/);
- assert.match(source,/function stage\(r,drawPieces=true,recordRegion=true\)/);
+ assert.match(source,/function stage\(r,drawPieces=true\)/);
  assert.match(source,/const FONT='"Roboto Condensed"/);
  assert.match(source,/const TERMINAL_FONT='"Share Tech Mono"/);
  assert.doesNotMatch(source,/const footerLeft=|ruleStart,r\.footerY|rect\(r\.off\+11,r\.footerY-12/);
@@ -264,7 +264,7 @@ test('V143 removes rejected mascot SVG and board decal',()=>{
 test('V162 stamps independently owned and rotating piece shadows onto the board',()=>{
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- const start=renderer.indexOf('function stage(r,drawPieces=true,recordRegion=true){');
+ const start=renderer.indexOf('function stage(r,drawPieces=true){');
  const end=renderer.indexOf('function paintBoardPopup(r)',start);
  const board=renderer.slice(start,end);
  assert.ok(start>=0&&end>start,'inset shadow belongs to board renderer');

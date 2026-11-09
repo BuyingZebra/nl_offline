@@ -49,6 +49,7 @@ listen(screen,'pointerdown',e=>{
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
  const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
+ if(!r&&!getModal())return;
  if(isVisualButton(r))onButtonPress(r,performance.now(),true);
  stopRepeat();setScrollVelocity(0);
  pressed={
@@ -58,7 +59,7 @@ listen(screen,'pointerdown',e=>{
  };
  try{screen.setPointerCapture(e.pointerId)}catch(err){}
  // Game buttons stay immediate, including auto-repeat movement.
- if(!getModal()&&r&&!r.board){
+ if(!getModal()&&r){
   setBaseDirty(r.act);
   handleAction(r.act);
   if(r.repeat){
@@ -124,14 +125,6 @@ function releaseTouch(e){
     setSlider(touch.region,p.x);
    }
   }
- }else if(touch.action==='board'&&e.type==='pointerup'){
-  setBaseDirty('board');
-  const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
-  if(Math.abs(dx)<16&&Math.abs(dy)<16)perform('cw');
-  else if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>18){
-   for(let i=0;i<clamp(Math.round(Math.abs(dx)/32),1,5);i++)
-    perform(dx>0?'right':'left');
-  }else if(dy>25)perform('soft');
  }
  invalidate();
 }

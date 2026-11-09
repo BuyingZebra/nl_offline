@@ -2,7 +2,7 @@ name: NOMAD Tetris — technical quality gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, nomad-v179-verify]
     paths:
       - 'tetris/**'
       - 'tests/test_tetris_browser.py'
