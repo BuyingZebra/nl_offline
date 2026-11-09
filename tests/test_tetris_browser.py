@@ -77,7 +77,10 @@ def check_worker_handoff(browser):
                 read_best = "() => window.FieldAtlasScores.read(localStorage)?.score ?? 0"
                 canvas_ready = "() => document.querySelector('#screen')?.height >= 700"
                 observer = context.new_page()
-                observer.goto(origin)
+                observer_url = f"{origin}/__worker_observer__"
+                observer.route(observer_url, lambda route: route.fulfill(
+                    content_type="text/html", body="<title>Worker observer</title>"))
+                observer.goto(observer_url)
                 idle = context.new_page()
                 idle.goto(game_url, wait_until="domcontentloaded")
                 idle.wait_for_function("() => !!navigator.serviceWorker.controller", timeout=45000)
