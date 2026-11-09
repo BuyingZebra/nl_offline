@@ -2,9 +2,9 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import Layout from '../tetris/layout.js';
+import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
-import {createHudDrawing,fitPreviewCells} from '../tetris/ui.js';
+import {createHudDrawing,fitPreviewCells} from '../tetris/render.js';
 import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt,createInputController} from '../tetris/input.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
@@ -121,7 +121,7 @@ describe('Responsive geometry',()=>{
   }
  });
  test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
-  const {createHudDrawing}=await import('../tetris/ui.js');
+  const {createHudDrawing}=await import('../tetris/render.js');
   const keys=[];
   const hud=createHudDrawing({panel(){},key:(label,x,y,w,h,action)=>keys.push({x,y,w,h,action}),
    C:{},UI_SPACE:ui});
@@ -425,8 +425,8 @@ describe('HUD layout and viewport rules',()=>{
  });
  test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
   const source=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
-  const cropped=fs.readFileSync(new URL('../tetris/crt.js',import.meta.url),'utf8');
-  const terminal=fs.readFileSync(new URL('../tetris/ui.js',import.meta.url),'utf8');
+  const cropped=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const terminal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const html=fs.readFileSync(new URL('../tetris/three-v027.html',import.meta.url),'utf8');
   assert.match(source,/text\('NOMAD'/);
   assert.match(source,/text\('TETRIS SYSTEM'/);

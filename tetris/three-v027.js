@@ -1,7 +1,5 @@
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds} from './render.js?v182';
 import * as THREE from './vendor/three/three.bundle.js';
-import {createCompositor,createButtonFeedback,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation} from './crt.js?v180';
-import {createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments} from './art.js?v180';
-import {createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds} from './ui.js?v180';
 import {getBuildVersion,createPlatformManager,createAppLifecycle,createGraphicsCleanup,runCleanupTasks,createGraphicsHealth} from './platform.js?v180';
 import {createInputController} from './input.js?v180';
 import {createPerfMonitor,createTextureUploadProfiler,formatDebugReport,createDebugClipboard} from './diagnostics.js?v180';
@@ -19,7 +17,7 @@ const safeProbe=document.getElementById('safeArea');
 const fatal=document.getElementById('error');
 const portraitGate=window.matchMedia(document.getElementById('portraitGate')?.media||'not all');
 if(!Core?.Game||!Scores){fatal.hidden=false;fatal.textContent='Tetris core missing';throw Error('Tetris core missing');}
-const ScreenLayout=window.FieldAtlasTetrisLayout;
+const ScreenLayout=Layout;
 if(!ScreenLayout?.computeLayout){fatal.hidden=false;fatal.textContent='Tetris layout module missing';throw Error('Tetris layout module missing');}
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v)),fmt=(n,k=6)=>String(Math.max(0,Math.floor(n))).padStart(k,'0');
 const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')'};

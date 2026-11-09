@@ -4,17 +4,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/crt.js';
+import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/render.js';
 import {makeSliderControl,sliderValueAt} from '../tetris/input.js';
 import {DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/game.js';
-import {createCanvasUI,createHudDrawing} from '../tetris/ui.js';
-import Layout from '../tetris/layout.js';
+import {createCanvasUI,createHudDrawing} from '../tetris/render.js';
+import Layout from '../tetris/render.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
 describe('CRT composition',()=>{
- const source=fs.readFileSync(path.join(appDir,'crt.js'),'utf8');
- const compositor=source.slice(source.indexOf('const MENU_BLUR_PERCENT='),source.indexOf('export const MAX_BUTTON_FLASHES='));
+ const source=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
+ const compositor=source.slice(source.indexOf('const MENU_BLUR_PERCENT='),source.indexOf('const MAX_BUTTON_FLASHES='));
 
  function setup(){
   const instances=[],textures=[];
@@ -284,7 +284,7 @@ describe('Phosphor persistence',()=>{
    source.indexOf("layers.reason('gravity')"));
   assert.ok(!status.includes('resetPersistence'), 'game status changes must preserve glow');
  });
- const pipeline=fs.readFileSync(new URL('../tetris/crt.js',import.meta.url),'utf8');
+ const pipeline=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
  const pass=pipeline.slice(pipeline.indexOf('const vertex='),pipeline.indexOf('const MENU_BLUR_PERCENT='));
 
  test('postcomposition luminance response has no scanning logic',()=>{
@@ -468,7 +468,7 @@ describe('Canvas button drawing',()=>{
   assert.equal(ui.buttonLight(20,40,90,45),206);
   const {ui:hot}=drawKey(false,1);
   assert.equal(hot.buttonLight(20,40,90,45),255);
-  const modal=fs.readFileSync(new URL('../tetris/ui.js',import.meta.url),'utf8');
+  const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
    assert.ok(modal.includes(control),'modal control missing brightness: '+control);
   const game=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
@@ -547,8 +547,8 @@ describe('Menus and visual controls',()=>{
  });
  test('blur has its own sharp overlaid inset shadow; no old dialog remains',()=>{
   const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
-  const modal=fs.readFileSync(new URL('../tetris/ui.js',import.meta.url),'utf8');
-  const hud=fs.readFileSync(new URL('../tetris/ui.js',import.meta.url),'utf8');
+  const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const hud=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(renderer,/function drawSharpBoardInsetShadow\(r\)/);
   assert.match(renderer,/if\(!screenManager\.isScores\)drawSharpBoardInsetShadow\(r\)/);
   assert.match(renderer,/g=boardPopupContext;/);

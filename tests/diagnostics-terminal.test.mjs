@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createTerminalEngine,composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../tetris/ui.js';
-import {createRenderInvalidation,croppedBounds,controlsBounds,drawCroppedCanvas} from '../tetris/crt.js';
-import Layout from '../tetris/layout.js';
+import {createTerminalEngine,composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../tetris/render.js';
+import {createRenderInvalidation,croppedBounds,controlsBounds,drawCroppedCanvas} from '../tetris/render.js';
+import Layout from '../tetris/render.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
@@ -490,7 +490,7 @@ describe('Terminal repaint regions',()=>{
 
  test('standalone terminal plane uses the original text painter and CRT compositor',()=>{
   const renderer=source('three-v027.js');
-  const cropped=source('crt.js');
+  const cropped=source('render.js');
   assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
   assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
   assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);

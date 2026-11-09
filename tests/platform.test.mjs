@@ -788,7 +788,7 @@ describe('Offline installation and release switching',()=>{
  test('offline HTML and cache-busted scripts load with no unbounded cache growth',async()=>{
   const h=workerHarness();await h.emit('install');h.setOnline(false);
   for(const asset of ['three-v027.html','three-v027.js',
-   'vendor/three/three.bundle.js','crt.js']){
+   'vendor/three/three.bundle.js','render.js']){
    const url=new URL(asset+'?live=9999',scope);
    const item=await h.emit('fetch',{request:new Request(url)});
    assert.equal(item.handled,true,asset);

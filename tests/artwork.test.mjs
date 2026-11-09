@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs,{readFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer} from '../tetris/art.js';
+import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer} from '../tetris/render.js';
 import {renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,originalIDotCenters,originalJDotCenters} from '../tetris/assets/tiles/smooth-geometry.mjs';
 import Core from '../tetris/game.js';
 import {BRICK_UNIT,brickShapes,renderBrickSVG,brickRailGeometry,createBrickFrame} from '../tetris/assets/frames/brick-pattern.mjs';
-import Layout from '../tetris/layout.js';
+import Layout from '../tetris/render.js';
 
 describe('Sprite masters and SVG artwork',()=>{
  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../tetris/assets/tiles');
