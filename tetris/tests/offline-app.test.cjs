@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
+const {execFileSync}=require('node:child_process');
 
 const dir=path.resolve(__dirname,'..');
 const swCode=fs.readFileSync(path.join(dir,'sw.js'),'utf8');
@@ -292,4 +293,5 @@ test('release marker, pinned cache name, and no-mixing policy stay in lockstep',
  assert.equal(worker,current);
  assert.ok(swCode.includes('fromPinnedCache(url)'));
  assert.ok(!swCode.includes('networkFirst('));
+ execFileSync(process.execPath,[path.resolve(dir,'../tools/build-tetris-release.mjs'),'--check']);
 });

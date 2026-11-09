@@ -1,14 +1,14 @@
-/* NOMAD Tetris V174 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V175 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
- * Upgrade rule: bump CACHE_VERSION and review CORE_ASSETS with each release.
+ * Regenerate the build marker and precache list with tools/build-tetris-release.mjs.
  * V145 migrates legacy pinned V142–V144 workers after the complete new cache
  * is installed. Later updates activate only when the app explicitly requests
  * it while idle; never promote a partially cached shell.
  */
 'use strict';
-const CACHE_VERSION='v174';
+const CACHE_VERSION='v175';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -20,40 +20,76 @@ const FONT_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com']);
 
 // Explicit allowlist; no runtime network crawling, broad caches or map assets.
 const CORE_ASSETS=Object.freeze([
- './','./index.html','./three-v027.html','./manifest.webmanifest',
- './icon.svg','./icon-192.png','./icon-512.png',
- './nomad-mark.svg',
+ './',
+ './action-controller.js',
+ './app-lifecycle.js',
  './assets/frames/brick-pattern.mjs',
- './assets/frames/pixel/brick.svg','./assets/frames/vector/brick.svg',
- './core.js','./scores.js','./layout.js','./three-v027.js','./i-piece-fragments.js',
- './piece-luminance.js',
- './button-feedback.js','./gpu-button-lighting.js','./button-layer-invalidation.js','./phosphor-model.js','./phosphor-persistence.js',
- './compositor.js','./tile-face.js','./vector-tile-renderer.js',
+ './assets/frames/pixel/brick.svg',
+ './assets/frames/vector/brick.svg',
+ './assets/tiles/gravel-layout.mjs',
+ './assets/tiles/smooth-geometry.mjs',
+ './assets/tiles/vector/I.svg',
+ './assets/tiles/vector/J.svg',
+ './assets/tiles/vector/L.svg',
+ './assets/tiles/vector/O.svg',
+ './assets/tiles/vector/S.svg',
+ './assets/tiles/vector/T.svg',
+ './assets/tiles/vector/Z.svg',
+ './build-version.js',
+ './button-feedback.js',
+ './button-layer-invalidation.js',
+ './canvas-ui.js',
+ './compositor-pass-profiler.js',
+ './compositor.js',
+ './core.js',
+ './cropped-ui-layers.js',
+ './debug-clipboard.js',
+ './debug-report.js',
+ './display-settings-catalog.js',
+ './game-visual-state.js',
+ './gpu-button-lighting.js',
+ './graphics-health.js',
+ './hud-drawing.js',
+ './i-piece-fragments.js',
+ './icon-192.png',
+ './icon-512.png',
+ './icon.svg',
+ './index.html',
+ './input-controller.js',
+ './layout.js',
+ './manifest.webmanifest',
+ './modal-ui.js',
+ './nomad-mark.svg',
+ './perf-monitor.js',
+ './phosphor-model.js',
+ './phosphor-persistence.js',
  './piece-drop-shadow.js',
- './assets/tiles/gravel-layout.mjs','./assets/tiles/smooth-geometry.mjs',
- './assets/tiles/vector/I.svg','./assets/tiles/vector/J.svg',
- './assets/tiles/vector/L.svg','./assets/tiles/vector/O.svg',
- './assets/tiles/vector/S.svg','./assets/tiles/vector/T.svg',
- './assets/tiles/vector/Z.svg','./canvas-ui.js','./build-version.js',
- './platform-manager.js','./app-lifecycle.js','./input-controller.js',
- './perf-monitor.js','./texture-upload-profiler.js',
- './cropped-ui-layers.js','./game-visual-state.js',
- './debug-report.js','./debug-clipboard.js','./modal-ui.js',
- './render-invalidation.js','./hud-drawing.js','./terminal-engine.js','./terminal-log.js',
- './display-settings-catalog.js','./settings-manager.js',
- './screen-manager.js','./action-controller.js','./graphics-health.js',
- './compositor-pass-profiler.js','./ui-controls.js',
- './vendor/three/three.module.js','./vendor/three/three.core.js',
+ './piece-luminance.js',
+ './platform-manager.js',
+ './render-invalidation.js',
+ './scores.js',
+ './screen-manager.js',
+ './settings-manager.js',
+ './terminal-engine.js',
+ './terminal-log.js',
+ './texture-upload-profiler.js',
+ './three-v027.html',
+ './three-v027.js',
+ './tile-face.js',
+ './ui-controls.js',
+ './vector-tile-renderer.js',
  './vendor/three/addons/postprocessing/EffectComposer.js',
- './vendor/three/addons/postprocessing/RenderPass.js',
- './vendor/three/addons/postprocessing/UnrealBloomPass.js',
- './vendor/three/addons/postprocessing/ShaderPass.js',
- './vendor/three/addons/postprocessing/OutputPass.js',
  './vendor/three/addons/postprocessing/MaskPass.js',
+ './vendor/three/addons/postprocessing/OutputPass.js',
  './vendor/three/addons/postprocessing/Pass.js',
+ './vendor/three/addons/postprocessing/RenderPass.js',
+ './vendor/three/addons/postprocessing/ShaderPass.js',
+ './vendor/three/addons/postprocessing/UnrealBloomPass.js',
  './vendor/three/addons/shaders/CopyShader.js',
  './vendor/three/addons/shaders/LuminosityHighPassShader.js',
- './vendor/three/addons/shaders/OutputShader.js'
+ './vendor/three/addons/shaders/OutputShader.js',
+ './vendor/three/three.core.js',
+ './vendor/three/three.module.js',
 ]);
 const ALLOWED_PATHS=new Set(CORE_ASSETS.map(asset=>new URL(asset,SCOPE).pathname));
 
