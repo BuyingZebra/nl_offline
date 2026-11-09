@@ -276,9 +276,16 @@ with sync_playwright() as p:
                 FieldAtlasScores.update(localStorage, window.oldBest, {score}, navigator.locks);
             }""", score)
         assert low.evaluate("() => FieldAtlasScores.read(localStorage)") is None
+        high.wait_for_function("""async () => (await navigator.locks.query()).pending
+            .filter(lock => lock.name === FieldAtlasScores.KEY).length === 2""")
         high.evaluate("() => window.releaseScoreWrites()")
-        assert low.evaluate("""() => navigator.locks.request(FieldAtlasScores.KEY,
-            () => FieldAtlasScores.read(localStorage)?.score)""") == 1200
+        low.evaluate("() => navigator.locks.request(FieldAtlasScores.KEY, () => {})")
+        reopened = score_context.new_page()
+        reopened.goto("http://127.0.0.1:8765/tetris/__score_smoke__")
+        observed = [tab.evaluate("() => FieldAtlasScores.read(localStorage)?.score")
+                    for tab in [high, low, reopened]]
+        print(f"{browser_name}: two-tab scores after both writes: {observed}")
+        assert observed[-1] == 1200, f"Reopened tab read the wrong personal best: {observed}"
         print(f"{browser_name}: two-tab personal-best check passed")
     browser.close()
 
