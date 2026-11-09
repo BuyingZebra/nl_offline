@@ -14,7 +14,7 @@ import {createCanvasUI} from './canvas-ui.js?v165';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v176';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
-import {createInputController} from './input-controller.js?v178';
+import {createInputController} from './input-controller.js?v179';
 import {createPerfMonitor} from './perf-monitor.js?v168';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v164';
 import {croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v168';
@@ -110,6 +110,7 @@ let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
 let lineClearFX=null,lastPaintedBoardPopupStatus=null;
+const presentedBoardStatus=()=>lineClearFX?.finalPoints?'playing':game.status;
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
 const boardCanvas=document.createElement('canvas');
 const boardContext=boardCanvas.getContext('2d',{alpha:false});
@@ -291,15 +292,17 @@ function invalidate(reason='input'){
 const unsubscribeGameEvents=game.onEvent(event=>{
  if(event.type==='lines-cleared'){
   const name=['','SINGLE','DOUBLE','TRIPLE','TETRIS'][event.count]||'LINE';
-  const points=[0,40,100,300,1200][event.count]*(event.level+1);
+  const points=event.points;
   queueTerminalMessage('CLEAR: '+name+' +'+points,'CLR: '+event.count+'L+'+points);
  }
  if(event.type==='level-changed')queueTerminalMessage(
   'LEVEL: ADVANCED '+fmt(event.to,2),'LVL: '+fmt(event.to,2));
- if(event.type==='game-over')queueTerminalMessage('SESSION: GAME OVER','GM: OVER',true);
- if(event.type!=='lines-cleared'||event.status!=='playing')return;
+ if(event.type==='game-over'&&!lineClearFX?.finalPoints)
+  queueTerminalMessage('SESSION: GAME OVER','GM: OVER',true);
+ if(event.type!=='lines-cleared')return;
  if(!event.board||!event.rows.length)return;
  lineClearFX={board:event.board,boardMeta:event.boardMeta,rows:new Set(event.rows),elapsed:0};
+ if(event.status==='over')lineClearFX.finalPoints=event.points;
  layers.mark('board');layers.mark('sidebar');invalidate();
 });
 const screenManager=createScreenManager({
@@ -340,9 +343,9 @@ const actions=createActionController({
  onCopyDebug:()=>copyDebugReport(),
  onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
  onTerminalEvent:queueTerminalMessage,
- canInteract:()=>!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
+ canInteract:()=>!lineClearFX?.finalPoints&&!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
-const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
+const {panel,wrapText,text,rect,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
  getButtonPower:r=>(g===controlsContext&&controlsGpuEnabled)?0:buttonSparks.find(
   s=>s.x===r.x&&s.y===r.y&&s.w===r.w&&s.h===r.h)?.power??0,
@@ -432,7 +435,7 @@ function cell(x,y,col,row,size,kind,isGhost=false){
  }
  tileFace(px,py,size,size,kind);
 }
-function stage(r,drawPieces=true,recordRegion=true){
+function stage(r,drawPieces=true){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  panel(x,y,w,h,7,C.panel);
  const offX=x+2,offY=y+2,tile=(w-4)/10;
@@ -494,6 +497,11 @@ function stage(r,drawPieces=true,recordRegion=true){
   }));
   if(p.kind==='I')vectorTiles.drawPiece(g,activeTiles,'I',{rotation:p.rotation});
  }
+ if(lineClearFX?.finalPoints){
+  const label='+'+lineClearFX.finalPoints;
+  rect(x+w*.17,y+h*.45,w*.66,h*.10,C.bg);
+  text(label,x+w/2,y+h/2,Math.min(21,w*.1),C.bright,'center',w*.60);
+ }
  }
  // V144: a soft, clipped inner drop shadow makes the playfield feel inset.
  // Overlay only the inside edges; board shape, grid geometry and pieces stay put.
@@ -517,8 +525,6 @@ function stage(r,drawPieces=true,recordRegion=true){
   offX+innerW-depth,offY,depth,innerH,.24);
  g.restore();
  g.restore();
- if(recordRegion)region(x,y,w,h,'board',{board:true});
-
 }
 // The stage's inset shadow is blurred along with gameplay. Redraw a
 // restrained copy on the separate popup layer, composed AFTER Gaussian blur.
@@ -546,7 +552,7 @@ function drawSharpBoardInsetShadow(r){
 function paintBoardPopup(r){
  // A freshly rendered status snapshot prevents START GAME from persisting
  // when the engine transitions to PAUSED or GAME OVER.
- const status=game.status;
+ const status=presentedBoardStatus();
  lastPaintedBoardPopupStatus=status;
  if(status==='playing')return;
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
@@ -609,7 +615,7 @@ function paintBoardLayer(){
  const previous=g;g=boardContext;
  try{
   rect(x,y,w,h,C.bg);
-  stage(r,true,false);
+  stage(r);
  }finally{g=previous;}
  boardPlane.scale.set(w/W,h/H,1);
  boardPlane.position.set(-1+(2*x+w)/W,1-(2*y+h)/H,.01);
@@ -668,7 +674,7 @@ function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
  // The popup isn't sampled while playing. Avoid clearing and uploading
  // an entire full-resolution transparent texture for every falling piece.
- if(game.status!=='playing'){
+ if(presentedBoardStatus()!=='playing'){
   boardPopupContext.setTransform(1,0,0,1,0,0);
   boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
   boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
@@ -698,7 +704,7 @@ function paintBaseGame(){
   10,C.weak,'left',titleWidth);
  key('◐',tx,ty,th,th,'theme');
  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
- stage(r,false,true);
+ stage(r,false);
  // Static 75%-cell brick rails, exactly one control-gap outside either edge.
  // Draw on the base layer, not inside the cropped board texture.
  brickFrame.draw(g,r);
@@ -710,13 +716,13 @@ function paintBaseGame(){
  baseRegions=regions;
  texture.needsUpdate=true;
  perf.textureChanged('base');
- if(game.status!=='playing'){
+ if(presentedBoardStatus()!=='playing'){
   boardPopupTexture.needsUpdate=true;
   perf.textureChanged('popup');
  }
 }
 function paintGame(){
- if(game.status!==lastPaintedBoardPopupStatus)layers.mark('base');
+ if(presentedBoardStatus()!==lastPaintedBoardPopupStatus)layers.mark('base');
  let paintedBase=false;
  if(layers.consume('base')){
   const started=performance.now();
@@ -891,7 +897,7 @@ function syncFX(){
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
  compositor.syncFX({fx:settings.effects,theme:settings.theme,width:W,height:H,dpr:DPR,
-  boardStatus:game.status,modalOpen:screenManager.hasModal,
+ boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
 }
@@ -926,11 +932,15 @@ function frame(now){
   }
   lastTerminalCursorVisible=cursorVisible;
   perf.recordDuration('logic',performance.now()-tickStarted);
-  if(lineClearFX&&game.status==='playing'){
+  if(lineClearFX&&(game.status==='playing'||lineClearFX.finalPoints)){
    const previousPhase=flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS);
    lineClearFX.elapsed+=dt;
    const finished=lineClearFX.elapsed>=LINE_FLASH_MS;
-   if(finished)lineClearFX=null;
+   if(finished){
+    const finalClear=lineClearFX.finalPoints;
+    lineClearFX=null;
+    if(finalClear)queueTerminalMessage('SESSION: GAME OVER','GM: OVER',true);
+   }
    if(finished||flashPhase(lineClearFX.elapsed,LINE_FLASH_TOGGLE_MS)!==previousPhase){
     layers.mark('board');layers.reason('flash');
    }
@@ -1015,7 +1025,7 @@ function frame(now){
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if((!screenManager.hasModal||screenManager.isScores)&&game.status!=='playing')
+   if((!screenManager.hasModal||screenManager.isScores)&&presentedBoardStatus()!=='playing')
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
@@ -1041,7 +1051,7 @@ function frame(now){
     if(!document.hidden)requestFrame();
    },terminalLog.nextDelay(now));
   }
-  if(game.status==='playing'||layers.needsRender()||Math.abs(scrollVelocity)>.015||
+  if(game.status==='playing'||lineClearFX?.finalPoints||layers.needsRender()||Math.abs(scrollVelocity)>.015||
    buttonSparks.length>0||phosphorOn)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
