@@ -7,7 +7,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Generated with the offline asset list by tools/build-tetris-release.mjs. -->
-<meta name="tetris-build" content="176">
+<meta name="tetris-build" content="177">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -53,6 +53,16 @@ html.ios-standalone #display{height:100vh}
 #error{position:fixed;inset:25px;color:#e9e9e9;background:#080808;
  font:13px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;z-index:30}
 #error[hidden]{display:none}
+#rotateNotice{display:none;position:fixed;inset:0;place-content:center;text-align:center;
+ padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right))
+         max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+ color:#e3e3e3;font:16px/1.5 "Roboto Condensed",ui-monospace,monospace}
+#rotateNotice strong{font-size:18px;letter-spacing:.13em}
+</style>
+<!-- The renderer also uses this media condition to suspend the game. -->
+<style id="portraitGate" media="(orientation: landscape) and (max-height: 600px) and (pointer: coarse)">
+#display{visibility:hidden}
+#rotateNotice{display:grid}
 </style>
 <script type="importmap">
 {"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}
@@ -61,6 +71,10 @@ html.ios-standalone #display{height:100vh}
 <body>
 <div id="display" role="application" aria-label="Tetris System — Three.js">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT compositor"></canvas>
+</div>
+<div id="rotateNotice" role="status">
+ <strong>NOMAD TETRIS</strong>
+ <span>Rotate to portrait to continue.</span>
 </div>
 <div id="safeArea" aria-hidden="true"></div>
 <div id="error" role="alert" hidden></div>

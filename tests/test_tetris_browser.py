@@ -305,16 +305,40 @@ with sync_playwright() as p:
         "A suspended game did not visibly transition to its paused interface"
     )
 
+    # Short and tall portrait layouts share the same canvas-to-viewport mapping.
+    for width, height in [(376, 583), (398, 758), (393, 852)]:
+        page.set_viewport_size({"width": width, "height": height})
+        page.wait_for_function("""([width, height]) => {
+            const c = document.querySelector('#screen');
+            const r = c.getBoundingClientRect();
+            return Math.round(r.width) === width && Math.round(r.height) === height &&
+                c.width === 2 * width && c.height === 2 * height;
+        }""", arg=[width, height])
+
+    # Rotation must preserve the open run, pause it, and require explicit resume.
+    best_before_rotation = page.evaluate(read_best)
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowDown")
+    page.wait_for_function(f"score => ({read_best})() > score", arg=best_before_rotation)
+    best_before_rotation = page.evaluate(read_best)
     page.set_viewport_size({"width": 844, "height": 390})
-    page.wait_for_function(
-        "() => { const c=document.querySelector('#screen');"
-        " return !!c && c.width >= 700 && c.height >= 300; }",
-        timeout=15000,
-    )
-    page.wait_for_timeout(250)
+    page.locator("#rotateNotice").wait_for(state="visible")
+    assert page.locator("#screen").is_hidden()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowDown")
+    assert page.evaluate(read_best) == best_before_rotation
+    page.screenshot(path=str(out / f"{browser_name}-landscape.png"))
+    page.set_viewport_size({"width": 393, "height": 852})
+    page.locator("#rotateNotice").wait_for(state="hidden")
+    page.locator("#screen").wait_for(state="visible")
+    page.keyboard.press("ArrowDown")
+    assert page.evaluate(read_best) == best_before_rotation
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowDown")
+    page.wait_for_function(f"score => ({read_best})() > score", arg=best_before_rotation)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
-    page.screenshot(path=str(out / f"{browser_name}-landscape.png"))
+    print(f"{browser_name}: portrait sizing and rotation pause/resume passed")
 
     # Real offline launch test. A successful service-worker install must cache
     # the entire local app before the page is taken offline. On Chromium this
@@ -340,7 +364,7 @@ with sync_playwright() as p:
             page.reload(wait_until="domcontentloaded", timeout=30000)
             page.wait_for_function(
                 "() => {const c=document.querySelector('#screen');"
-                "return c && c.width >= 700 && c.height >= 300;}",
+                "return c && c.width >= 700 && c.height >= 1400;}",
                 timeout=30000,
             )
             page.wait_for_timeout(600)
