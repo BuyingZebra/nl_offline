@@ -137,6 +137,7 @@ function releaseTouch(e){
 }
 listen(screen,'pointerup',releaseTouch);
 listen(screen,'pointercancel',releaseTouch);
+listen(screen,'lostpointercapture',releaseTouch);
 listen(window,'blur',cancel);
 listen(screen,'wheel',e=>{
  if(disposed||!canInteract())return;
