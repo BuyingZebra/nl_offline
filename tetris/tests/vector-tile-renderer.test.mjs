@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS} from '../vector-tile-renderer.js';
+import {createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS} from '../art.js';
 import {renderIFragmentSVG,renderSmoothTileSVG} from '../assets/tiles/smooth-geometry.mjs';
 
 function mock(){

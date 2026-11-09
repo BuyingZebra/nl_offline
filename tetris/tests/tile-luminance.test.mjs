@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {PIECE_LUMINANCE,PIECE_PATTERNS,drawTileFace,drawIBar,drawPieceTiles} from '../tile-face.js';
+import {PIECE_LUMINANCE,PIECE_PATTERNS,drawTileFace,drawIBar,drawPieceTiles} from '../art.js';
 
 const kinds=['I','J','L','O','S','T','Z'];
 function capture(draw){

@@ -3,7 +3,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPlatformManager,measureDisplayViewport} from '../platform-manager.js';
+import {createPlatformManager,measureDisplayViewport} from '../platform.js';
 
 function createHarness(){
  let bounds={width:393,height:852};

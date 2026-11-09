@@ -11,9 +11,9 @@ function load(filename,symbol){
   .replace(/export function /g,'function ');
  return new Function(source+'\nreturn '+symbol+';')();
 }
-const format=load('debug-report.js','formatDebugReport');
-const createClipboard=load('debug-clipboard.js','createDebugClipboard');
-const createPerfMonitor=load('perf-monitor.js','createPerfMonitor');
+const format=load('diagnostics.js','formatDebugReport');
+const createClipboard=load('diagnostics.js','createDebugClipboard');
+const createPerfMonitor=load('diagnostics.js','createPerfMonitor');
 
 test('report includes device, game state, effect settings, and recent performance',()=>{
  const report=format({version:'055',createdAt:'2026-10-21T20:00:00Z',

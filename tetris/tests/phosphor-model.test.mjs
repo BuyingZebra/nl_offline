@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse}
- from '../phosphor-model.js';
-import {makeSliderControl,sliderValueAt} from '../ui-controls.js';
-import {DISPLAY_EFFECTS} from '../display-settings-catalog.js';
+ from '../crt.js';
+import {makeSliderControl,sliderValueAt} from '../input.js';
+import {DISPLAY_EFFECTS} from '../session.js';
 
 test('phosphor decay is continuous and the sole display-light slider',()=>{
  const effect=DISPLAY_EFFECTS.find(e=>e.id==='persistence');
@@ -47,9 +47,10 @@ test('no game pause or menu action resets GPU persistence history',()=>{
   source.indexOf("layers.reason('gravity')"));
  assert.ok(!status.includes('resetPersistence'), 'game status changes must preserve glow');
 });
+const pipeline=fs.readFileSync(new URL('../crt.js',import.meta.url),'utf8');
+const pass=pipeline.slice(pipeline.indexOf('const vertex='),pipeline.indexOf('const MENU_BLUR_PERCENT='));
+
 test('postcomposition luminance response has no scanning logic',()=>{
- const pass=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
- const pipeline=fs.readFileSync(new URL('../compositor.js',import.meta.url),'utf8');
  assert.match(pass,/tSource/);
  assert.match(pass,/tPrevious/);
  assert.match(pass,/uDecayTau/);
@@ -69,7 +70,6 @@ test('postcomposition luminance response has no scanning logic',()=>{
 });
 
 test('temporal phosphor does not spread or add light between neighbouring pixels',()=>{
- const pass=fs.readFileSync(new URL('../phosphor-persistence.js',import.meta.url),'utf8');
  // No spatial filter, synthetic broadening, channel interpolation,
  // optical render targets or user-independent glow from persistence.
  for(const removed of ['W_CENTER','W_AXIS','W_OUTER','W_DIAGONAL',

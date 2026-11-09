@@ -30,7 +30,8 @@ function files(directory, pattern, recursive = false) {
 const assets = ['./', ...[
   'index.html', 'three-v027.html', 'manifest.webmanifest',
   ...files('', /^(?!sw\.js$)[^.]+\.(?:js|png|svg)$/),
-  ...files('assets/frames', /\.(?:mjs|svg)$/, true),
+  ...files('assets/frames', /\.mjs$/),
+  'assets/frames/vector/brick.svg',
   ...files('assets/tiles', /\.mjs$/),
   ...files('assets/tiles/vector', /\.svg$/),
   ...files('vendor/three', /\.js$/, true),

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
-import {collectIFragments} from '../i-piece-fragments.js';
-import {drawIFragment,drawIBar} from '../tile-face.js';
+import {collectIFragments} from '../art.js';
+import {drawIFragment,drawIBar} from '../art.js';
 const require=createRequire(import.meta.url);
 const Core=require('../core.js');
 

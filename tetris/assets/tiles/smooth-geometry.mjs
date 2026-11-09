@@ -4,9 +4,21 @@
  * triangular highlight. Dot positions are deterministic and anchored in the
  * source 4-cell I-piece coordinate system, even after fragmentation.
  */
-import {PIECE_LUMINANCE} from '../../piece-luminance.js';
 import {I_GRAVEL_BITS,J_GRAVEL_BITS,smoothGravelCenters} from './gravel-layout.mjs';
 
+/* NOMAD V106 — balanced monochrome tetromino brightness.
+ * Hand-tuned 8-bit grayscale, equal 18-unit steps between 129 and 237.
+ * Preserves the existing brightness order and independent green/amber tint.
+ */
+export const PIECE_LUMINANCE=Object.freeze({
+ I:219,
+ J:129,
+ L:183,
+ O:237,
+ S:201,
+ T:147,
+ Z:165
+});
 const SIGNATURES=Object.freeze({
  I:'1a176e7d',O:'07a1e19f',T:'99c7a755',S:'8e460bc0',
  Z:'daa7d6f1',J:'ad78ec51',L:'6134c0ae'

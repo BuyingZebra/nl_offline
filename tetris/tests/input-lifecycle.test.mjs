@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createInputController} from '../input-controller.js';
+import {createInputController} from '../input.js';
 
 function target(){
  const listeners=new Map();

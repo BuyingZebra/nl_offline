@@ -143,7 +143,6 @@ test('bricks are painted on the static base, never on the playfield texture',()=
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
  for(const item of [
   './assets/frames/brick-pattern.mjs',
-  './assets/frames/pixel/brick.svg',
   './assets/frames/vector/brick.svg'
  ])assert.ok(sw.includes(item),'offline asset: '+item);
 });

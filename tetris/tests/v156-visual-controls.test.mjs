@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {createCanvasUI} from '../canvas-ui.js';
-import {createActionController} from '../action-controller.js';
-import {createScreenManager,SCREENS} from '../screen-manager.js';
+import {createCanvasUI} from '../ui.js';
+import {createActionController} from '../session.js';
+import {createScreenManager,SCREENS} from '../session.js';
 
 test('V165 solid buttons use flat original luminance, not a gradient',()=>{
  const gradients=[],fills=[],borders=[],regions=[];
@@ -63,8 +63,8 @@ test('Restart is immediate and preserves old score before reset',()=>{
 });
 test('blur has its own sharp overlaid inset shadow; no old dialog remains',()=>{
  const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
- const modal=fs.readFileSync(new URL('../modal-ui.js',import.meta.url),'utf8');
- const hud=fs.readFileSync(new URL('../hud-drawing.js',import.meta.url),'utf8');
+ const modal=fs.readFileSync(new URL('../ui.js',import.meta.url),'utf8');
+ const hud=fs.readFileSync(new URL('../ui.js',import.meta.url),'utf8');
  assert.match(renderer,/function drawSharpBoardInsetShadow\(r\)/);
  assert.match(renderer,/if\(!screenManager\.isScores\)drawSharpBoardInsetShadow\(r\)/);
  assert.match(renderer,/g=boardPopupContext;/);

@@ -4,11 +4,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY} from '../gpu-button-lighting.js';
-import {createHudDrawing} from '../hud-drawing.js';
-import {buttonLevel,buttonInkLevel} from '../button-feedback.js';
-import {controlsBounds} from '../cropped-ui-layers.js';
-import {createActionController} from '../action-controller.js';
+import {createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY} from '../crt.js';
+import {createHudDrawing} from '../ui.js';
+import {buttonLevel,buttonInkLevel} from '../crt.js';
+import {controlsBounds} from '../crt.js';
+import {createActionController} from '../session.js';
 import '../layout.js';
 
 class Vector4{

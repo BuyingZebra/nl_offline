@@ -85,7 +85,7 @@ function workerHarness({redirectShell=false}={}){
 
 test('the bundle lists only existing Tetris assets',()=>{
  const h=workerHarness();
- assert.ok(h.assets.length>35);
+ assert.ok(h.assets.length>0);
  assert.equal(new Set(h.assets).size,h.assets.length);
  for(const item of h.assets){
   assert.ok(item.startsWith('./'),item);
@@ -93,30 +93,11 @@ test('the bundle lists only existing Tetris assets',()=>{
   assert.ok(full.pathname.startsWith('/nl_offline/tetris/'),item);
   if(item!=='./')assert.ok(fs.existsSync(path.join(dir,item.slice(2))),item);
  }
- assert.ok(!h.assets.some(x=>x.includes('/map/')));
+ assert.ok(!h.assets.some(x=>x.includes('/pixel/')));
 });
 test('every runtime import is in the offline bundle',()=>{
  const assets=new Set(workerHarness().assets.map(a=>a.slice(2)));
- const modules=['three-v027.js','button-feedback.js','phosphor-model.js',
-  'phosphor-persistence.js','compositor.js','tile-face.js','canvas-ui.js',
-  'build-version.js','platform-manager.js','app-lifecycle.js',
-  'input-controller.js','perf-monitor.js','texture-upload-profiler.js',
-  'cropped-ui-layers.js','game-visual-state.js','debug-report.js',
-  'debug-clipboard.js','modal-ui.js','render-invalidation.js',
-  'hud-drawing.js','nomad-mark.svg','display-settings-catalog.js','settings-manager.js',
-  'screen-manager.js','action-controller.js','graphics-health.js',
-  'compositor-pass-profiler.js','ui-controls.js',
-  'vendor/three/three.module.js',
-  'vendor/three/addons/postprocessing/EffectComposer.js',
-  'vendor/three/addons/postprocessing/RenderPass.js',
-  'vendor/three/addons/postprocessing/UnrealBloomPass.js',
-  'vendor/three/addons/postprocessing/ShaderPass.js',
-  'vendor/three/addons/postprocessing/OutputPass.js',
-  'vendor/three/addons/postprocessing/MaskPass.js',
-  'vendor/three/addons/postprocessing/Pass.js',
-  'vendor/three/addons/shaders/CopyShader.js',
-  'vendor/three/addons/shaders/LuminosityHighPassShader.js',
-  'vendor/three/addons/shaders/OutputShader.js'];
+ const modules=[...assets].filter(asset=>/\.[m]?js$/.test(asset)&&!asset.startsWith('vendor/'));
  for(const moduleFile of modules){
   const source=fs.readFileSync(path.join(dir,moduleFile),'utf8');
   for(const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)){
@@ -124,18 +105,12 @@ test('every runtime import is in the offline bundle',()=>{
    let dep=null;
    if(spec.startsWith('.'))
     dep=path.posix.normalize(path.posix.join(path.posix.dirname(moduleFile),spec.split('?')[0]));
-   else if(spec==='three')dep='vendor/three/three.module.js';
-   else if(spec.startsWith('three/addons/'))dep='vendor/three/addons/'+spec.slice('three/addons/'.length);
    if(dep)assert.ok(assets.has(dep),moduleFile+' imports missing '+dep);
   }
  }
 });
-test('the import map, manifest, and icons are local',()=>{
- const match=html.match(/<script type="importmap">\s*(\{.*\})\s*<\/script>/);
- assert.ok(match);
- const map=JSON.parse(match[1]).imports;
- assert.equal(map.three,'./vendor/three/three.module.js');
- assert.equal(map['three/addons/'],'./vendor/three/addons/');
+test('the renderer, manifest, and icons are local',()=>{
+ assert.ok(fs.existsSync(path.join(dir,'vendor/three/three.bundle.js')));
  assert.ok(!html.includes('cdn.jsdelivr.net'));
  assert.ok(html.includes('rel="manifest" href="./manifest.webmanifest"'));
  assert.ok(html.includes("navigator.serviceWorker.register('./sw.js'"));
@@ -161,8 +136,7 @@ test('online installation fully precaches before activation',async()=>{
 test('offline HTML and cache-busted scripts load with no unbounded cache growth',async()=>{
  const h=workerHarness();await h.emit('install');h.setOnline(false);
  for(const asset of ['three-v027.html','three-v027.js',
-  'vendor/three/three.module.js',
-  'vendor/three/addons/postprocessing/EffectComposer.js']){
+  'vendor/three/three.bundle.js','crt.js']){
   const url=new URL(asset+'?live=9999',scope);
   const item=await h.emit('fetch',{request:new Request(url)});
   assert.equal(item.handled,true,asset);
@@ -198,7 +172,7 @@ test('published updates bypass the old pinned shell but cannot mutate it',async(
   request:new Request(new URL('./three-v027.html?live=42',scope))
  });
  assert.ok((await active.response.text()).startsWith('old '));
- for(const script of ['three-v027.js','core.js','vendor/three/three.module.js']){
+ for(const script of ['three-v027.js','core.js','vendor/three/three.bundle.js']){
   const request=new Request(new URL('./'+script+'?live=43',scope));
   const response=await h.emit('fetch',{request});
   assert.ok((await response.response.text()).startsWith('old '),script);

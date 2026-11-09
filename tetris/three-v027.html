@@ -7,7 +7,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Generated with the offline asset list by tools/build-tetris-release.mjs. -->
-<meta name="tetris-build" content="179">
+<meta name="tetris-build" content="180">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -64,9 +64,6 @@ html.ios-standalone #display{height:100vh}
 #display{visibility:hidden}
 #rotateNotice{display:grid}
 </style>
-<script type="importmap">
-{"imports":{"three":"./vendor/three/three.module.js","three/addons/":"./vendor/three/addons/"}}
-</script>
 </head>
 <body>
 <div id="display" role="application" aria-label="Tetris System — Three.js">
@@ -93,10 +90,9 @@ if('serviceWorker' in navigator){
 }
 </script>
 <script type="module">
-// Permanent bookmarkable URL: reload always requests the latest committed
-// renderer module rather than reusing an old browser module-cache entry.
-// This is a development-only cache buster; no new link per build is needed.
-const freshModule='./three-v027.js?live='+Date.now();
+// Pin the renderer to the shell build so repeat visits can reuse its HTTP cache.
+const build=document.querySelector('meta[name="tetris-build"]').content;
+const freshModule='./three-v027.js?build='+build;
 import(freshModule).catch(error=>{
  const banner=document.getElementById('error');
  banner.hidden=false;

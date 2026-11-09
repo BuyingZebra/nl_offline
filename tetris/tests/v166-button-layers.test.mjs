@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {buttonFeedbackLayers} from '../button-layer-invalidation.js';
+import {buttonFeedbackLayers} from '../crt.js';
 import {createButtonFeedback,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL}
- from '../button-feedback.js';
+ from '../crt.js';
 
 const bounds={dx:30,dy:630,dw:333,dh:140};
 const box=(x,y,w=58,h=34)=>({x,y,w,h});

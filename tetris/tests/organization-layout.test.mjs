@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
-import {createHudDrawing,fitPreviewCells} from '../hud-drawing.js';
+import {createHudDrawing,fitPreviewCells} from '../ui.js';
 const require=createRequire(import.meta.url);
 const {computeLayout}=require('../layout.js');
 
@@ -165,8 +165,8 @@ test('approved 6 game controls retain button arrangement and positions',()=>{
 });
 test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
  const source=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
- const cropped=fs.readFileSync(new URL('../cropped-ui-layers.js',import.meta.url),'utf8');
- const terminal=fs.readFileSync(new URL('../terminal-log.js',import.meta.url),'utf8');
+ const cropped=fs.readFileSync(new URL('../crt.js',import.meta.url),'utf8');
+ const terminal=fs.readFileSync(new URL('../ui.js',import.meta.url),'utf8');
  const html=fs.readFileSync(new URL('../three-v027.html',import.meta.url),'utf8');
  assert.match(source,/text\('NOMAD'/);
  assert.match(source,/text\('TETRIS SYSTEM'/);
@@ -275,7 +275,7 @@ test('V162 stamps independently owned and rotating piece shadows onto the board'
  assert.match(board,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
  assert.match(board,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
  assert.doesNotMatch(board,/g\.shadowBlur=5\.5|g\.shadowOffsetY=4\.5/);
- assert.match(sw,/\.\/piece-drop-shadow\.js/);
+ assert.match(sw,/\.\/art\.js/);
  assert.match(renderer,/terminalLog\.enqueue\('BUILD: VERSION V'\+THREE_BUILD_VERSION,/);
  assert.match(board,/for\(const run of iRuns\)/);
  assert.match(board,/const depth=Math\.min\(20,Math\.max\(8,tile\*\.8\)\)/);

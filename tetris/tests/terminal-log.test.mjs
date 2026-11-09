@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../terminal-log.js';
+import {composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../ui.js';
 const at=new Date(2026,10,8,10,43,0);
 
 test('dot leaders remain right-aligned on small and large screens',()=>{

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGraphicsHealth} from '../graphics-health.js';
+import {createGraphicsHealth} from '../platform.js';
 
 function harness(){
  const handlers=new Map(),events=[];

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createTerminalEngine} from '../terminal-engine.js';
+import {createTerminalEngine} from '../ui.js';
 
 test('prompt and fixed cells accept characters without rewriting the prompt',()=>{
  const term=createTerminalEngine({columns:20});
