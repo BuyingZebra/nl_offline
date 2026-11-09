@@ -263,27 +263,16 @@ test('a missing critical asset fails installation instead of leaving a partial c
  await assert.rejects(h.emit('install'));
  assert.equal(h.cache,undefined);
 });
-test('a staged worker waits for the app activation message after a modern release',async()=>{
- const h=workerHarness();
- await h.caches.open('nomad-tetris-offline-v'+(Number(currentBuild)-1));
- await h.emit('install');
- await h.emit('message',{data:{type:'unrelated'}});
- assert.deepEqual(h.promotions,[]);
- await h.emit('message',{data:{type:'NOMAD_ACTIVATE_UPDATE'}});
- assert.deepEqual(h.promotions,[h.assets.length]);
- assert.ok(!swCode.includes('registration.unregister('));
- assert.ok(!swCode.includes('localStorage.clear'));
-});
-
-test('legacy migration promotes only a verified and complete release',async()=>{
- const h=workerHarness();
- await h.caches.open('nomad-tetris-offline-v144');
- h.setShellBuild('144');
- await assert.rejects(h.emit('install'),/version mismatch/);
- assert.deepEqual(h.promotions,[]);
- h.setShellBuild(currentBuild);
- await h.emit('install');
- assert.deepEqual(h.promotions,[h.assets.length]);
+test('older pages and legacy caches cannot force a waiting worker to activate',async()=>{
+ for(const oldBuild of ['144',String(Number(currentBuild)-1)]){
+  const h=workerHarness();
+  await h.caches.open('nomad-tetris-offline-v'+oldBuild);
+  await h.emit('install');
+  await h.emit('message',{data:{type:'NOMAD_ACTIVATE_UPDATE'}});
+  assert.deepEqual(h.promotions,[]);
+  assert.deepEqual(h.claims,[]);
+  assert.ok((await h.caches.keys()).includes('nomad-tetris-offline-v'+oldBuild));
+ }
 });
 
 test('release marker, pinned cache name, and no-mixing policy stay in lockstep',()=>{

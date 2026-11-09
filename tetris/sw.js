@@ -1,4 +1,4 @@
-/* NOMAD Tetris V175 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V176 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -8,7 +8,7 @@
  * it while idle; never promote a partially cached shell.
  */
 'use strict';
-const CACHE_VERSION='v175';
+const CACHE_VERSION='v176';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -113,15 +113,7 @@ async function warmOptionalFonts(cache){
 
 self.addEventListener('install',event=>{
  event.waitUntil((async()=>{
-  // A previously installed V142–V144 worker can remain waiting forever on
-  // iOS because an installed PWA keeps a live hidden client. Bootstrap this
-  // one migration only; future releases wait for the app's idle approval.
-  const oldNames=await caches.keys();
-  const legacyPinned=oldNames.some(name=>{
-   if(!name.startsWith(CACHE_PREFIX))return false;
-   const version=Number(name.slice(CACHE_PREFIX.length).replace(/^v/,''));
-   return Number.isInteger(version)&&version>0&&version<145;
-  });
+  // Let the browser wait for all clients of the old worker to close.
   const cache=await caches.open(CACHE_NAME);
   try{
    // All essential resources must arrive together, before this worker is usable.
@@ -145,15 +137,7 @@ self.addEventListener('install',event=>{
    await caches.delete(CACHE_NAME);
    throw error;
   }
-  // Only after all required modules and exact build metadata were verified.
-  if(legacyPinned)await self.skipWaiting();
  })());
-});
-
-// Newer workers can be promoted only from the app's idle update path.
-self.addEventListener('message',event=>{
- if(event.data?.type!=='NOMAD_ACTIVATE_UPDATE')return;
- event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate',event=>{
