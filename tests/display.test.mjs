@@ -6,7 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/crt.js';
 import {makeSliderControl,sliderValueAt} from '../tetris/input.js';
-import {DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/session.js';
+import {DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/game.js';
 import {createCanvasUI,createHudDrawing} from '../tetris/ui.js';
 import Layout from '../tetris/layout.js';
 

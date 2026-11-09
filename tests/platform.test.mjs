@@ -824,7 +824,7 @@ describe('Offline installation and release switching',()=>{
    request:new Request(new URL('./three-v027.html?live=42',scope))
   });
   assert.ok((await active.response.text()).startsWith('old '));
-  for(const script of ['three-v027.js','core.js','vendor/three/three.bundle.js']){
+  for(const script of ['three-v027.js','game.js','vendor/three/three.bundle.js']){
    const request=new Request(new URL('./'+script+'?live=43',scope));
    const response=await h.emit('fetch',{request});
    assert.ok((await response.response.text()).startsWith('old '),script);
@@ -856,10 +856,10 @@ describe('Offline installation and release switching',()=>{
   const h=workerHarness();
   const previousName='nomad-tetris-offline-v'+(Number(currentBuild)-1);
   const previous=await h.caches.open(previousName);
-  await previous.put(new URL('./core.js',scope),new Response('previous core'));
+  await previous.put(new URL('./game.js',scope),new Response('previous core'));
   await h.emit('install');
   assert.ok((await h.caches.keys()).includes(previousName));
-  assert.equal((await (await previous.match(new URL('./core.js',scope))).text()),'previous core');
+  assert.equal((await (await previous.match(new URL('./game.js',scope))).text()),'previous core');
   assert.deepEqual(h.promotions,[]);
   await h.emit('activate');
   assert.ok(!(await h.caches.keys()).includes(previousName));
@@ -886,7 +886,7 @@ describe('Offline installation and release switching',()=>{
   assert.equal(h.claims.length,1);
  });
  test('a missing critical asset fails installation instead of leaving a partial cache',async()=>{
-  const h=workerHarness();h.setFailPath('/nl_offline/tetris/scores.js');
+  const h=workerHarness();h.setFailPath('/nl_offline/tetris/game.js');
   await assert.rejects(h.emit('install'));
   assert.equal(h.cache,undefined);
  });

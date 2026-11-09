@@ -2,10 +2,8 @@
 
 | Script | Owns |
 | --- | --- |
-| `core.js` | Board, movement, gravity, scoring rules and game events |
-| `scores.js` | High-score ranking, migration and persistence |
+| `game.js` | Board, movement, gravity, scoring, sessions, settings, action dispatch and personal-best logic |
 | `layout.js` | Responsive layout in CSS pixels |
-| `session.js` | Screens, gameplay commands and display settings |
 | `input.js` | Control geometry, keyboard and pointer dispatch |
 | `ui.js` | Canvas controls, overlays, sidebar and terminal |
 | `art.js` | Piece sprites, tile fallback, fragments and shadows |
@@ -28,6 +26,8 @@ The worker activates a complete generation after the previous generation's clien
 `vendor/three/three.bundle.js` packages the required Three.js r180 exports and postprocessing passes. Rebuild it with `node tools/build-tetris-vendor.mjs`. The generated bundle and MIT license ship together. Pixel artwork and the tile comparison page are development references. The game keeps its procedural pixel fallback.
 
 ## Checks
+
+The gameplay rules, session controller and personal-best system now share one internally compartmentalized `game.js`. Runtime imports the game module directly; the legacy global integration hooks remain available for diagnostic tests.
 
 Run `node --test tests/*.test.mjs` from the repository root.
 

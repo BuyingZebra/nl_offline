@@ -6,7 +6,7 @@ import {getBuildVersion,createPlatformManager,createAppLifecycle,createGraphicsC
 import {createInputController} from './input.js?v180';
 import {createPerfMonitor,createTextureUploadProfiler,formatDebugReport,createDebugClipboard} from './diagnostics.js?v180';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './session.js?v180';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v181';
 
 /* NOMAD TETRIS — Canvas2D source, Three.js CRT compositor.
  * Gameplay belongs to core.js; rendering observes immutable game events.

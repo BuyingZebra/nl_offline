@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer} from '../tetris/art.js';
 import {renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,originalIDotCenters,originalJDotCenters} from '../tetris/assets/tiles/smooth-geometry.mjs';
-import Core from '../tetris/core.js';
+import Core from '../tetris/game.js';
 import {BRICK_UNIT,brickShapes,renderBrickSVG,brickRailGeometry,createBrickFrame} from '../tetris/assets/frames/brick-pattern.mjs';
 import Layout from '../tetris/layout.js';
 

@@ -7,7 +7,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Generated with the offline asset list by tools/build-tetris-release.mjs. -->
-<meta name="tetris-build" content="180">
+<meta name="tetris-build" content="181">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -75,9 +75,6 @@ html.ios-standalone #display{height:100vh}
 </div>
 <div id="safeArea" aria-hidden="true"></div>
 <div id="error" role="alert" hidden></div>
-<script src="./core.js?three=v179"></script>
-<script src="./scores.js?three=v175"></script>
-<script src="./layout.js?three=v173"></script>
 <script>
 // Install the scoped offline cache. Registration is asynchronous and never
 // interrupts an active game. A successful online install is needed before the

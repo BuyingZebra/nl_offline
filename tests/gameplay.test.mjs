@@ -1,8 +1,6 @@
 import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
-import Core from '../tetris/core.js';
-import Scores from '../tetris/scores.js';
-import {createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS} from '../tetris/session.js';
+import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS} from '../tetris/game.js';
 import fs from 'node:fs';
 import {createAppLifecycle,runCleanupTasks,createGraphicsHealth} from '../tetris/platform.js';
 
