@@ -74,7 +74,7 @@ describe('Build markers and reload safety',()=>{
   const index=read('index.html');
   assert.ok(index.includes("location.replace(new URL('./three-v027.html'"));
   assert.ok(html.includes("const freshModule='./three-v027.js?build='+build"));
-  assert.match(main,/from '\.\/platform\.js(?:\?[^']*)?'/);
+  assert.match(read('three-v027.js'),/from '\.\/platform\.js(?:\?[^']*)?'/);
  });
 });
 

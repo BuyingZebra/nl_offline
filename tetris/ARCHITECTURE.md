@@ -5,13 +5,12 @@
 | `game.js` | Board, movement, gravity, scoring, sessions, settings, action dispatch and personal-best logic |
 | `input.js` | Control geometry, keyboard and pointer dispatch |
 | `render.js` | Visual layout, UI, art, shadows, CRT compositor, lighting and render invalidation |
-| `platform.js` | Shared viewport, build updates and WebGL/page lifecycle; selects the platform adapter |
+| `platform.js` | Application coordinator, frame scheduling, shared viewport, browser lifecycle, WebGL ownership and device-adapter selection |
 | `platform/ios.js` | Home Screen sizing mode and visual viewport events on Apple devices |
 | `platform/android.js` | Android standalone mode and visual viewport events |
 | `platform/generic.js` | Standards-first browser fallback |
 | `diagnostics.js` | Timing, debug reports and clipboard |
 | `three-v027.js` | Tiny stable browser entry that starts the platform coordinator |
-| `platform.js` runtime | Application orchestration: frame scheduling, scene ownership and shared browser lifecycle |
 | `sw.js` | Versioned offline installation |
 
 Rendering observes read-only game events. The engine scores line clears before checking whether a locking piece ends the run. The renderer owns the visible line flash and delays presenting game over until that flash completes.
