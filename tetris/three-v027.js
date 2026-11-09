@@ -29,7 +29,7 @@ import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v156';
-import {createActionController} from './action-controller.js?v174';
+import {createActionController} from './action-controller.js?v175';
 import {createGraphicsHealth} from './graphics-health.js?v089';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
@@ -73,8 +73,9 @@ const UI_SPACE=Object.freeze({
  padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
  holdHeight:88,nextHeight:162,statsHeight:92
 });
-let storage;
+let storage,scoreDatabase;
 try{storage=window.localStorage;}catch(error){/* The storage getter can be disabled. */}
+try{scoreDatabase=window.indexedDB;}catch(error){/* Fall back to local storage. */}
 const settings=createSettingsManager(storage);
 const game=new Core.Game();
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
@@ -321,7 +322,8 @@ const screenManager=createScreenManager({
 // All game commands, menu actions and personal-best updates are delegated.
 // UI and render adapters remain here; the controller never paints.
 const actions=createActionController({
- game,scores:Scores,storage,scoreLocks:navigator.locks,settings,screens:screenManager,
+ game,scores:Scores,storage,settings,screens:screenManager,
+ persistScore:Scores.createPersistence(storage,scoreDatabase),
  getLineClearActive:()=>Boolean(lineClearFX),
  clearLineClear:()=>{lineClearFX=null;},
  // Score, lines and preview content already belong to sidebar/board.

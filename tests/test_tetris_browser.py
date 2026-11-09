@@ -252,8 +252,8 @@ with sync_playwright() as p:
     else:
         print(f"{browser_name}: WEBGL_lose_context unavailable; stress check skipped")
 
-    # Use two browser tabs on the same origin with real storage and Web Locks.
-    # An exclusive barrier keeps both tabs' writes queued before either can save.
+    # Use distinct same-origin tabs and real IndexedDB transactions. Each tab
+    # submits its independently selected score, then a new tab reads the winner.
     with browser.new_context() as score_context:
         score_context.route(
             "**/__score_smoke__",
@@ -263,29 +263,22 @@ with sync_playwright() as p:
         score_tabs = [score_context.new_page(), score_context.new_page()]
         for tab in score_tabs:
             tab.goto("http://127.0.0.1:8765/tetris/__score_smoke__")
-            tab.evaluate("() => { window.oldBest = FieldAtlasScores.read(localStorage); }")
+            assert tab.evaluate("() => FieldAtlasScores.read(localStorage)") is None
         high, low = score_tabs
-        high.evaluate("""() => new Promise((ready, reject) => {
-            navigator.locks.request(FieldAtlasScores.KEY, () => new Promise(release => {
-                window.releaseScoreWrites = release;
-                ready();
-            })).catch(reject);
-        })""")
         for tab, score in [(high, 1200), (low, 300)]:
             tab.evaluate("""score => {
-                FieldAtlasScores.update(localStorage, window.oldBest, {score}, navigator.locks);
+                const persist = FieldAtlasScores.createPersistence(null, indexedDB);
+                window.scoreWrite = persist({score});
             }""", score)
-        assert low.evaluate("() => FieldAtlasScores.read(localStorage)") is None
-        high.wait_for_function("""async () => (await navigator.locks.query()).pending
-            .filter(lock => lock.name === FieldAtlasScores.KEY).length === 2""")
-        high.evaluate("() => window.releaseScoreWrites()")
-        low.evaluate("() => navigator.locks.request(FieldAtlasScores.KEY, () => {})")
+        for tab in score_tabs:
+            tab.evaluate("() => window.scoreWrite")
         reopened = score_context.new_page()
         reopened.goto("http://127.0.0.1:8765/tetris/__score_smoke__")
-        observed = [tab.evaluate("() => FieldAtlasScores.read(localStorage)?.score")
-                    for tab in [high, low, reopened]]
-        print(f"{browser_name}: two-tab scores after both writes: {observed}")
-        assert observed[-1] == 1200, f"Reopened tab read the wrong personal best: {observed}"
+        best = reopened.evaluate("""async () => {
+            const persist = FieldAtlasScores.createPersistence(null, indexedDB);
+            return (await persist(null))?.score;
+        }""")
+        assert best == 1200, f"Reopened tab read the wrong personal best: {best}"
         print(f"{browser_name}: two-tab personal-best check passed")
     browser.close()
 
