@@ -458,7 +458,6 @@ export function normalizePersistenceMs(value){
   PHOSPHOR_BOUNDS.defaultPersistenceMs;
 }
 /* Screen transitions, settings and game actions. */
-import {normalizePersistenceMs} from './crt.js?v180';
 
 /* V073 — user-approved display defaults taken from the October 26 screenshot.
  * The settings schema and slider ranges are unchanged.
