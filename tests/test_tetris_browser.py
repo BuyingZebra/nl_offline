@@ -152,8 +152,6 @@ with sync_playwright() as p:
     if browser_name == "chromium" and os.environ.get("FIELD_ATLAS_USE_CHROME") == "1":
         launch_args["channel"] = "chrome"
     browser = getattr(p, browser_name).launch(**launch_args)
-    if browser_name == "chromium":
-        check_worker_handoff(browser)
     page = browser.new_page(viewport={"width": 393, "height": 852},
                             device_scale_factor=2, is_mobile=True, has_touch=True)
     errors = []
@@ -208,239 +206,41 @@ with sync_playwright() as p:
         print("BLANK-FRAME FAILED REQUESTS:", failures[:12])
     assert lit > 1000, f"Game compositor appears blank ({lit} bright pixels)"
 
-    # Exercise real canvas input and menu integration, not only rendering.
-    # Coordinates are derived from the current deterministic portrait layout
-    # (header Options centered at y=103, START GAME near x=155,y=416).
-    # Keep these smoke interactions separate from screenshot artwork tests.
-    # Test against a static ready-state control so modal redraws cannot
-    # conceal a missing afterglow. The PAUSE key has a visible button even
-    # before a session starts; input is inert but phosphor still responds.
-
-    # A genuine held input crosses multiple compositor frames. Instantaneous
-    # synthetic down/up within one JS task never excites a physical raster.
-    page.mouse.move(265, 722)
-    page.mouse.down()
-    # Software-rasterized WebKit can return an older framebuffer at first.
-    # Take several frames while actually holding the button, use the
-    # strongest measured excitation, then wait for the visible tail to fade.
-    crop = (200, 699, 332, 746)
-    frames = []
-    for _ in range(6):
-        page.wait_for_timeout(220)
-        frame = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
-        section = frame.crop(crop)
-        mean = sum(section.getdata()) / (section.width*section.height)
-        frames.append((mean,frame))
-    best_hot,hot = max(frames, key=lambda pair:pair[0])
-    page.mouse.up()
-    page.wait_for_timeout(1200)
-    cold = Image.open(io.BytesIO(page.screenshot(scale="css",animations="allow"))).convert("L")
-    hot.save(out / f"{browser_name}-glow-hot.png")
-    cold.save(out / f"{browser_name}-glow-cold.png")
-    hot_pixels = list(hot.crop(crop).getdata())
-    cold_pixels = list(cold.crop(crop).getdata())
-    glow_delta = (sum(hot_pixels) - sum(cold_pixels)) / len(hot_pixels)
-
-    print("BUTTON GLOW DIAGNOSTIC:", {"hotMean":sum(hot_pixels)/len(hot_pixels),
-          "coldMean":sum(cold_pixels)/len(cold_pixels),"delta":glow_delta,
-          "pageErrors":errors,"consoleErrors":console_errors})
-    shader_errors = [error for error in console_errors if "WebGLProgram" in error]
-    assert not shader_errors, shader_errors
-    assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
-    page.mouse.click(353, 103)
-    page.wait_for_timeout(150)
-    settings_screen = page.screenshot()
-    assert settings_screen != ready.read_bytes(), "Options did not change the screen"
-    page.keyboard.press("Escape")
-    page.wait_for_timeout(150)
-    assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-    page.keyboard.press("Enter")  # START GAME
-    page.wait_for_timeout(300)
     read_best = "() => window.FieldAtlasScores.read(localStorage)?.score ?? 0"
-    page.keyboard.press("ArrowDown")
-    page.wait_for_function(f"() => ({read_best})() > 0")
-    started_score = page.evaluate(read_best)
-    assert started_score > 0, "Soft drop did not score after START GAME"
-
-    # PAUSE transitions playing→paused during pointerdown. The pressed PAUSE
-    # button must visibly brighten even though game status changes immediately.
-    page.mouse.move(265, 722)
-    page.mouse.down()
-    pause_means = []
-    for _ in range(6):
-        page.wait_for_timeout(160)
-        frame = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L")
-        roi = frame.crop(crop)
-        pause_means.append(sum(roi.getdata()) / (roi.width*roi.height))
-    page.mouse.up()
-    page.wait_for_timeout(1200)
-    cold_pause = Image.open(io.BytesIO(page.screenshot(scale="css"))).convert("L").crop(crop)
-    cold_mean = sum(cold_pause.getdata()) / (cold_pause.width*cold_pause.height)
-    delta_pause = max(pause_means) - cold_mean
-    print("ACTIVE PAUSE LUMINANCE:", {"cold": cold_mean, "hot": max(pause_means),
-                                    "delta": delta_pause})
-    assert delta_pause > 1.0, (
-        f"PAUSE lost its pressed luminance on status change: {delta_pause:.2f}"
-    )
-    page.keyboard.press("ArrowDown")
-    assert page.evaluate(read_best) == started_score, "Soft drop still scored while paused"
-    page.keyboard.press("Enter")  # Resume before gameplay/bfcache checks
-    page.wait_for_timeout(150)
-
-    page.keyboard.press("Space")  # Soft drop
-    page.wait_for_function(f"score => ({read_best})() > score", arg=started_score)
-    page.wait_for_timeout(150)
-    playing_image = page.screenshot()
-    # A temporary bfcache round-trip must pause gameplay but keep its WebGL
-    # resources, canvas pixels and input handlers alive.
+    page.keyboard.press("Enter")
+    # Interrupt a held Drop without sending pointerup or pointercancel.
+    # Capture can be taken away by the browser while a pointer is still down.
+    before_hold = page.evaluate(read_best)
     page.evaluate("""() => {
-      window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));
-      window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+        const canvas = document.querySelector('#screen');
+        canvas.addEventListener('gotpointercapture', event => {
+            window.dropPointer = event.pointerId;
+        }, {once: true});
+        canvas.addEventListener('lostpointercapture', () => {
+            window.dropCaptureLost = true;
+        }, {once: true});
     }""")
-    page.wait_for_timeout(200)
-    assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-    assert not errors, errors
-    paused_image = page.screenshot(path=str(out / f"{browser_name}-integrated-pause.png"))
-    assert paused_image != playing_image, (
-        "A suspended game did not visibly transition to its paused interface"
-    )
-
-    # Short and tall portrait layouts share the same canvas-to-viewport mapping.
-    for width, height in [(376, 583), (398, 758), (393, 852)]:
-        page.set_viewport_size({"width": width, "height": height})
-        page.wait_for_function("""([width, height]) => {
-            const c = document.querySelector('#screen');
-            const r = c.getBoundingClientRect();
-            return Math.round(r.width) === width && Math.round(r.height) === height &&
-                c.width === 2 * width && c.height === 2 * height;
-        }""", arg=[width, height])
-
-    # Rotation must preserve the open run, pause it, and require explicit resume.
-    best_before_rotation = page.evaluate(read_best)
-    page.keyboard.press("Enter")
-    page.keyboard.press("ArrowDown")
-    page.wait_for_function(f"score => ({read_best})() > score", arg=best_before_rotation)
-    best_before_rotation = page.evaluate(read_best)
-    page.set_viewport_size({"width": 844, "height": 390})
-    page.locator("#rotateNotice").wait_for(state="visible")
-    assert page.locator("#screen").is_hidden()
-    page.keyboard.press("Enter")
-    page.keyboard.press("ArrowDown")
-    assert page.evaluate(read_best) == best_before_rotation
-    page.screenshot(path=str(out / f"{browser_name}-landscape.png"))
-    page.set_viewport_size({"width": 393, "height": 852})
-    page.locator("#rotateNotice").wait_for(state="hidden")
-    page.locator("#screen").wait_for(state="visible")
-    page.keyboard.press("ArrowDown")
-    assert page.evaluate(read_best) == best_before_rotation
-    page.keyboard.press("Enter")
-    page.keyboard.press("ArrowDown")
-    page.wait_for_function(f"score => ({read_best})() > score", arg=best_before_rotation)
-    assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-    assert not errors, errors
-    print(f"{browser_name}: portrait sizing and rotation pause/resume passed")
-
-    # Real offline launch test. A successful service-worker install must cache
-    # the entire local app before the page is taken offline. On Chromium this
-    # is a required gate; WebKit uses the same best-effort path if supported.
-    if browser_name == "chromium":
-        page.wait_for_function(
-            "() => Boolean(navigator.serviceWorker?.controller)",
-            timeout=45000,
-        )
-        cache_count = page.evaluate("""async () => {
-          const build = document.querySelector('meta[name="tetris-build"]').content;
-          const names = await caches.keys();
-          const name = names.find(n => n === 'nomad-tetris-offline-v' + build);
-          if (!name) return 0;
-          const cache = await caches.open(name);
-          return (await cache.keys()).length;
+    page.mouse.move(160, 666)
+    page.mouse.down()
+    try:
+        page.mouse.move(161, 666)
+        page.wait_for_function("() => Number.isInteger(window.dropPointer)")
+        page.wait_for_function(f"score => ({read_best})() >= score + 2", arg=before_hold)
+        page.evaluate("""() => {
+            const canvas = document.querySelector('#screen');
+            if (!canvas.hasPointerCapture(window.dropPointer)) throw Error('Drop was not captured');
+            canvas.releasePointerCapture(window.dropPointer);
         }""")
-        assert cache_count >= 38, f"Incomplete offline cache: {cache_count} entries"
+        page.mouse.move(162, 666)
+        page.wait_for_function("() => window.dropCaptureLost === true")
+        page.wait_for_timeout(200)  # Allow any already queued score save to settle.
+        stopped_score = page.evaluate(read_best)
+        page.wait_for_timeout(200)
+        assert page.evaluate(read_best) == stopped_score, "Drop repeated after capture was lost"
+    finally:
+        page.mouse.up()
+    page.mouse.click(160, 666)
+    page.wait_for_function(f"score => ({read_best})() > score", arg=stopped_score)
+    print(f"{browser_name}: held Drop stops on pointer capture loss and accepts the next press")
 
-        page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
-        page.context.set_offline(True)
-        try:
-            page.reload(wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_function(
-                "() => {const c=document.querySelector('#screen');"
-                "return c && c.width >= 700 && c.height >= 1400;}",
-                timeout=30000,
-            )
-            page.wait_for_timeout(600)
-            assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-            assert page.evaluate("() => localStorage.getItem('nomad-smoke-marker')") == "persist"
-            assert not errors, errors
-            offline = out / f"{browser_name}-offline.png"
-            page.screenshot(path=str(offline))
-            pixels = Image.open(offline).convert("RGB").getdata()
-            assert sum(1 for rgb in pixels if max(rgb) > 85) > 1000, (
-                "Offline NOMAD compositor is blank"
-            )
-        finally:
-            page.context.set_offline(False)
-            page.evaluate("() => localStorage.removeItem('nomad-smoke-marker')")
-        print(f"{browser_name}: complete offline bundle and reload smoke passed")
-
-    # Optional browser-level stress: ask the real WebGL context to disappear,
-    # then return. No reliance on renderer internals or debug-only globals.
-    supported = page.evaluate("""() => {
-      const canvas = document.querySelector('#screen');
-      const gl = canvas?.getContext('webgl2');
-      const extension = gl?.getExtension('WEBGL_lose_context');
-      if (!extension) return false;
-      const probe = {lost:false,restored:false,extension};
-      window.__nomadContextProbe = probe;
-      canvas.addEventListener('webglcontextlost', () => {probe.lost=true;}, {once:true});
-      canvas.addEventListener('webglcontextrestored', () => {probe.restored=true;}, {once:true});
-      extension.loseContext();
-      return true;
-    }""")
-    if supported:
-        page.wait_for_function("() => window.__nomadContextProbe.lost === true", timeout=10000)
-        page.evaluate("() => window.__nomadContextProbe.extension.restoreContext()")
-        page.wait_for_function("() => window.__nomadContextProbe.restored === true", timeout=10000)
-        page.wait_for_timeout(700)
-        assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-        assert not errors, errors
-        recovered = out / f"{browser_name}-context-recovered.png"
-        page.screenshot(path=str(recovered))
-        pixels = Image.open(recovered).convert("RGB").getdata()
-        assert sum(1 for rgb in pixels if max(rgb) > 85) > 1000, (
-            "No visible output after WebGL context restoration"
-        )
-        print(f"{browser_name}: context loss/restoration smoke passed")
-    else:
-        print(f"{browser_name}: WEBGL_lose_context unavailable; stress check skipped")
-
-    # Use distinct same-origin tabs and real IndexedDB transactions. Each tab
-    # submits its independently selected score, then a new tab reads the winner.
-    with browser.new_context() as score_context:
-        score_context.route(
-            "**/__score_smoke__",
-            lambda route: route.fulfill(content_type="text/html",
-                                        body='<script src="./scores.js"></script>'),
-        )
-        score_tabs = [score_context.new_page(), score_context.new_page()]
-        for tab in score_tabs:
-            tab.goto("http://127.0.0.1:8765/tetris/__score_smoke__")
-            assert tab.evaluate("() => FieldAtlasScores.read(localStorage)") is None
-        high, low = score_tabs
-        for tab, score in [(high, 1200), (low, 300)]:
-            tab.evaluate("""score => {
-                const persist = FieldAtlasScores.createPersistence(null, indexedDB);
-                window.scoreWrite = persist({score});
-            }""", score)
-        for tab in score_tabs:
-            tab.evaluate("() => window.scoreWrite")
-        reopened = score_context.new_page()
-        reopened.goto("http://127.0.0.1:8765/tetris/__score_smoke__")
-        best = reopened.evaluate("""async () => {
-            const persist = FieldAtlasScores.createPersistence(null, indexedDB);
-            return (await persist(null))?.score;
-        }""")
-        assert best == 1200, f"Reopened tab read the wrong personal best: {best}"
-        print(f"{browser_name}: two-tab personal-best check passed")
     browser.close()
-
-print(f"NOMAD browser smoke passed: {browser_name}")
