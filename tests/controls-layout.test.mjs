@@ -2,9 +2,9 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import Layout from '../tetris/layout.js';
+import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
-import {createHudDrawing,fitPreviewCells} from '../tetris/ui.js';
+import {createHudDrawing,fitPreviewCells} from '../tetris/render.js';
 import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt,createInputController} from '../tetris/input.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
@@ -121,7 +121,7 @@ describe('Responsive geometry',()=>{
   }
  });
  test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
-  const {createHudDrawing}=await import('../tetris/ui.js');
+  const {createHudDrawing}=await import('../tetris/render.js');
   const keys=[];
   const hud=createHudDrawing({panel(){},key:(label,x,y,w,h,action)=>keys.push({x,y,w,h,action}),
    C:{},UI_SPACE:ui});
@@ -197,12 +197,14 @@ describe('Responsive geometry',()=>{
   assert.equal(computeLayout(667,375,{left:44,right:44},ui).compactControls,true);
   assert.equal(computeLayout(375,667,{},ui).compactControls,false);
  });
- test('HTML loads layout ahead of the Three.js module',()=>{
+ test('render module owns layout without a separate HTML script',()=>{
   const html=fs.readFileSync(path.join(appDir,'three-v027.html'),'utf8');
-  const renderer=fs.readFileSync(path.join(appDir,'three-v027.js'),'utf8');
-  const layout=html.match(/layout\.js\?three=v\d+/);
-  assert.ok(layout);
-  assert.ok(layout.index<html.indexOf('<script type="module">'));
+  const renderer=fs.readFileSync(path.join(appDir,'platform.js'),'utf8');
+  const visual=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
+  assert.doesNotMatch(html,/src="\.\/layout\.js/);
+  assert.match(renderer,/import Layout, \{/);
+  assert.match(renderer,/const ScreenLayout=Layout;/);
+  assert.match(visual,/const Layout=\(\(\)=>\{/);
   assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
   assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
  });
@@ -424,9 +426,10 @@ describe('HUD layout and viewport rules',()=>{
   assert.deepEqual(painted.text,[],'level score lines no longer drawn above game buttons');
  });
  test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
-  const source=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
-  const cropped=fs.readFileSync(new URL('../tetris/crt.js',import.meta.url),'utf8');
-  const terminal=fs.readFileSync(new URL('../tetris/ui.js',import.meta.url),'utf8');
+  const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const merged=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
+  const terminal=merged.slice(merged.indexOf('// Canvas user interface, overlay'));
   const html=fs.readFileSync(new URL('../tetris/three-v027.html',import.meta.url),'utf8');
   assert.match(source,/text\('NOMAD'/);
   assert.match(source,/text\('TETRIS SYSTEM'/);
@@ -513,7 +516,7 @@ describe('HUD layout and viewport rules',()=>{
  });
 
  test('V143 removes rejected mascot SVG and board decal',()=>{
-  const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
   assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
@@ -522,7 +525,7 @@ describe('HUD layout and viewport rules',()=>{
  });
 
  test('V162 stamps independently owned and rotating piece shadows onto the board',()=>{
-  const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   const start=renderer.indexOf('function stage(r,drawPieces=true){');
   const end=renderer.indexOf('function paintBoardPopup(r)',start);
@@ -535,7 +538,7 @@ describe('HUD layout and viewport rules',()=>{
   assert.match(board,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
   assert.match(board,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
   assert.doesNotMatch(board,/g\.shadowBlur=5\.5|g\.shadowOffsetY=4\.5/);
-  assert.match(sw,/\.\/art\.js/);
+  assert.match(sw,/\.\/render\.js/);
   assert.match(renderer,/terminalLog\.enqueue\('BUILD: VERSION V'\+THREE_BUILD_VERSION,/);
   assert.match(board,/for\(const run of iRuns\)/);
   assert.match(board,/const depth=Math\.min\(20,Math\.max\(8,tile\*\.8\)\)/);

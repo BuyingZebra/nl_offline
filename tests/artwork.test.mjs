@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs,{readFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer} from '../tetris/art.js';
+import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer} from '../tetris/render.js';
 import {renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,originalIDotCenters,originalJDotCenters} from '../tetris/assets/tiles/smooth-geometry.mjs';
-import Core from '../tetris/core.js';
+import Core from '../tetris/game.js';
 import {BRICK_UNIT,brickShapes,renderBrickSVG,brickRailGeometry,createBrickFrame} from '../tetris/assets/frames/brick-pattern.mjs';
-import Layout from '../tetris/layout.js';
+import Layout from '../tetris/render.js';
 
 describe('Sprite masters and SVG artwork',()=>{
  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../tetris/assets/tiles');
@@ -309,7 +309,7 @@ describe('Monochrome tile patterns',()=>{
    'vertical bar has no internal borders');
  });
  test('gameboard, falling piece and NEXT/HOLD use the same approved renderer',()=>{
-  const code=readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const code=readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(code,/vectorTiles\.drawPiece\(g,fitPreviewCells\(/);
   assert.match(code,/if\(p.kind==='I'\)vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
   assert.match(code,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
@@ -429,7 +429,7 @@ describe('Piece identity and fragments',()=>{
    }
  });
  test('rendering selects piece-instance fragments, not same-type adjacency',()=>{
-  const js=readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const js=readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(js,/collectIFragments\(displayBoard,displayMeta,/);
   assert.match(js,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
   assert.match(js,/lineClearFX=\{board:event\.board,boardMeta:event\.boardMeta/);
@@ -555,7 +555,7 @@ describe('Vector rendering and pixel fallback',()=>{
  });
 
  test('the live app uses vector art everywhere and owns its offline fallback',()=>{
-  const js=readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const js=readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const sw=readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   const html=readFileSync(new URL('../tetris/three-v027.html',import.meta.url),'utf8');
   assert.match(js,/createVectorTileRenderer\(/);
@@ -702,7 +702,7 @@ describe('Brick rails',()=>{
   frame.dispose();assert.equal(frame.cachedStamps,0);
  });
  test('bricks are painted on the static base, never on the playfield texture',()=>{
-  const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const stage=renderer.slice(renderer.indexOf('function stage('),
    renderer.indexOf('function paintBoardPopup('));
   assert.doesNotMatch(stage,/brickFrame\.draw/);
@@ -917,7 +917,7 @@ describe('Piece shadows',()=>{
  });
 
  test('V162 shadows render after the grid, before SVG piece faces',()=>{
-  const src=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const section=src.slice(src.indexOf('function stage('),
    src.indexOf('function drawSharpBoardInsetShadow('));
   const grid=section.indexOf('g.stroke();g.globalAlpha=1;');

@@ -504,7 +504,7 @@ with sync_playwright() as p:
         score_context.route(
             "**/__score_smoke__",
             lambda route: route.fulfill(content_type="text/html",
-                                        body='<script src="./scores.js"></script>'),
+                                        body='<script type="module">import "./game.js";</script>'),
         )
         score_tabs = [score_context.new_page(), score_context.new_page()]
         for tab in score_tabs:

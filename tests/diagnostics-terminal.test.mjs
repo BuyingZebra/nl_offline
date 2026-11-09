@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createTerminalEngine,composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../tetris/ui.js';
-import {createRenderInvalidation,croppedBounds,controlsBounds,drawCroppedCanvas} from '../tetris/crt.js';
-import Layout from '../tetris/layout.js';
+import {createTerminalEngine,composeTerminalMessage,createTerminalLog,drawTerminalLog,terminalLineBounds} from '../tetris/render.js';
+import {createRenderInvalidation,croppedBounds,controlsBounds,drawCroppedCanvas} from '../tetris/render.js';
+import Layout from '../tetris/render.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
@@ -87,7 +87,7 @@ describe('Debug report and clipboard',()=>{
   assert.equal(await clipboard.copyText('report'),false);
  });
  test('diagnostics are collected quietly with a bounded sample history',()=>{
-  const code=fs.readFileSync(path.join(appDir,'three-v027.js'),'utf8');
+  const code=fs.readFileSync(path.join(appDir,'platform.js'),'utf8');
   assert.ok(code.includes('const recentPerf=[];'));
   assert.ok(code.includes('if(recentPerf.length>8)recentPerf.shift()'));
   assert.ok(code.includes('enabled:true,intervalMs:2000,log:()=>{}'));
@@ -489,8 +489,9 @@ describe('Terminal repaint regions',()=>{
  });
 
  test('standalone terminal plane uses the original text painter and CRT compositor',()=>{
-  const renderer=source('three-v027.js');
-  const cropped=source('crt.js');
+  const renderer=source('platform.js');
+  const merged=source('render.js');
+  const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
   assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
   assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
   assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);
@@ -534,7 +535,7 @@ describe('Terminal repaint regions',()=>{
  });
 
  test('web font loading, GPU recovery and resize refresh the terminal crop',()=>{
-  const renderer=source('three-v027.js');
+  const renderer=source('platform.js');
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('font-ready'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('context-restored'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('resize'\)/);

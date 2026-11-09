@@ -11,7 +11,7 @@ const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
 describe('Build markers and reload safety',()=>{
  const read=n=>fs.readFileSync(path.join(appDir,n),'utf8');
- const html=read('three-v027.html'),main=read('three-v027.js'),platform=read('platform.js');
+ const html=read('three-v027.html'),main=read('platform.js'),platform=read('platform.js');
  const documentWithVersion=v=>({querySelector:s=>s==='meta[name="tetris-build"]'&&v!==null?
   {getAttribute:attr=>attr==='content'?v:null}:null});
  test('single metadata marker determines build number without a hard-coded JS constant',()=>{
@@ -74,7 +74,7 @@ describe('Build markers and reload safety',()=>{
   const index=read('index.html');
   assert.ok(index.includes("location.replace(new URL('./three-v027.html'"));
   assert.ok(html.includes("const freshModule='./three-v027.js?build='+build"));
-  assert.match(main,/from '\.\/platform\.js(?:\?[^']*)?'/);
+  assert.match(read('three-v027.js'),/from '\.\/platform\.js(?:\?[^']*)?'/);
  });
 });
 
@@ -788,7 +788,7 @@ describe('Offline installation and release switching',()=>{
  test('offline HTML and cache-busted scripts load with no unbounded cache growth',async()=>{
   const h=workerHarness();await h.emit('install');h.setOnline(false);
   for(const asset of ['three-v027.html','three-v027.js',
-   'vendor/three/three.bundle.js','crt.js']){
+   'vendor/three/three.bundle.js','render.js']){
    const url=new URL(asset+'?live=9999',scope);
    const item=await h.emit('fetch',{request:new Request(url)});
    assert.equal(item.handled,true,asset);
@@ -824,7 +824,7 @@ describe('Offline installation and release switching',()=>{
    request:new Request(new URL('./three-v027.html?live=42',scope))
   });
   assert.ok((await active.response.text()).startsWith('old '));
-  for(const script of ['three-v027.js','core.js','vendor/three/three.bundle.js']){
+  for(const script of ['three-v027.js','game.js','vendor/three/three.bundle.js']){
    const request=new Request(new URL('./'+script+'?live=43',scope));
    const response=await h.emit('fetch',{request});
    assert.ok((await response.response.text()).startsWith('old '),script);
@@ -856,10 +856,10 @@ describe('Offline installation and release switching',()=>{
   const h=workerHarness();
   const previousName='nomad-tetris-offline-v'+(Number(currentBuild)-1);
   const previous=await h.caches.open(previousName);
-  await previous.put(new URL('./core.js',scope),new Response('previous core'));
+  await previous.put(new URL('./game.js',scope),new Response('previous core'));
   await h.emit('install');
   assert.ok((await h.caches.keys()).includes(previousName));
-  assert.equal((await (await previous.match(new URL('./core.js',scope))).text()),'previous core');
+  assert.equal((await (await previous.match(new URL('./game.js',scope))).text()),'previous core');
   assert.deepEqual(h.promotions,[]);
   await h.emit('activate');
   assert.ok(!(await h.caches.keys()).includes(previousName));
@@ -886,7 +886,7 @@ describe('Offline installation and release switching',()=>{
   assert.equal(h.claims.length,1);
  });
  test('a missing critical asset fails installation instead of leaving a partial cache',async()=>{
-  const h=workerHarness();h.setFailPath('/nl_offline/tetris/scores.js');
+  const h=workerHarness();h.setFailPath('/nl_offline/tetris/game.js');
   await assert.rejects(h.emit('install'));
   assert.equal(h.cache,undefined);
  });

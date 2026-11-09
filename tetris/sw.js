@@ -1,4 +1,4 @@
-/* NOMAD Tetris V180 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V183 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v180';
+const CACHE_VERSION='v183';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -20,7 +20,6 @@ const FONT_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com']);
 // Explicit allowlist; no runtime network crawling, broad caches or map assets.
 const CORE_ASSETS=Object.freeze([
  './',
- './art.js',
  './assets/frames/brick-pattern.mjs',
  './assets/frames/vector/brick.svg',
  './assets/tiles/gravel-layout.mjs',
@@ -32,23 +31,22 @@ const CORE_ASSETS=Object.freeze([
  './assets/tiles/vector/S.svg',
  './assets/tiles/vector/T.svg',
  './assets/tiles/vector/Z.svg',
- './core.js',
- './crt.js',
  './diagnostics.js',
+ './game.js',
  './icon-192.png',
  './icon-512.png',
  './icon.svg',
  './index.html',
  './input.js',
- './layout.js',
  './manifest.webmanifest',
  './nomad-mark.svg',
  './platform.js',
- './scores.js',
- './session.js',
+ './platform/android.js',
+ './platform/generic.js',
+ './platform/ios.js',
+ './render.js',
  './three-v027.html',
  './three-v027.js',
- './ui.js',
  './vendor/three/three.bundle.js',
 ]);
 const ALLOWED_PATHS=new Set(CORE_ASSETS.map(asset=>new URL(asset,SCOPE).pathname));
