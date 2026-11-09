@@ -251,6 +251,35 @@ with sync_playwright() as p:
         print(f"{browser_name}: context loss/restoration smoke passed")
     else:
         print(f"{browser_name}: WEBGL_lose_context unavailable; stress check skipped")
+
+    # Use two browser tabs on the same origin with real storage and Web Locks.
+    # An exclusive barrier keeps both tabs' writes queued before either can save.
+    with browser.new_context() as score_context:
+        score_context.route(
+            "**/__score_smoke__",
+            lambda route: route.fulfill(content_type="text/html",
+                                        body='<script src="./scores.js"></script>'),
+        )
+        score_tabs = [score_context.new_page(), score_context.new_page()]
+        for tab in score_tabs:
+            tab.goto("http://127.0.0.1:8765/tetris/__score_smoke__")
+            tab.evaluate("() => { window.oldBest = FieldAtlasScores.read(localStorage); }")
+        high, low = score_tabs
+        high.evaluate("""() => new Promise((ready, reject) => {
+            navigator.locks.request(FieldAtlasScores.KEY, () => new Promise(release => {
+                window.releaseScoreWrites = release;
+                ready();
+            })).catch(reject);
+        })""")
+        for tab, score in [(high, 1200), (low, 300)]:
+            tab.evaluate("""score => {
+                FieldAtlasScores.update(localStorage, window.oldBest, {score}, navigator.locks);
+            }""", score)
+        assert low.evaluate("() => FieldAtlasScores.read(localStorage)") is None
+        high.evaluate("() => window.releaseScoreWrites()")
+        assert low.evaluate("""() => navigator.locks.request(FieldAtlasScores.KEY,
+            () => FieldAtlasScores.read(localStorage)?.score)""") == 1200
+        print(f"{browser_name}: two-tab personal-best check passed")
     browser.close()
 
 print(f"NOMAD browser smoke passed: {browser_name}")
