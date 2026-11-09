@@ -340,6 +340,41 @@ with sync_playwright() as p:
     assert not errors, errors
     print(f"{browser_name}: portrait sizing and rotation pause/resume passed")
 
+    # Interrupt a held Drop without sending pointerup or pointercancel.
+    # Capture can be taken away by the browser while a pointer is still down.
+    before_hold = page.evaluate(read_best)
+    page.evaluate("""() => {
+        const canvas = document.querySelector('#screen');
+        canvas.addEventListener('gotpointercapture', event => {
+            window.dropPointer = event.pointerId;
+        }, {once: true});
+        canvas.addEventListener('lostpointercapture', () => {
+            window.dropCaptureLost = true;
+        }, {once: true});
+    }""")
+    page.mouse.move(160, 666)
+    page.mouse.down()
+    try:
+        page.mouse.move(161, 666)
+        page.wait_for_function("() => Number.isInteger(window.dropPointer)")
+        page.wait_for_function(f"score => ({read_best})() >= score + 2", arg=before_hold)
+        page.evaluate("""() => {
+            const canvas = document.querySelector('#screen');
+            if (!canvas.hasPointerCapture(window.dropPointer)) throw Error('Drop was not captured');
+            canvas.releasePointerCapture(window.dropPointer);
+        }""")
+        page.mouse.move(162, 666)
+        page.wait_for_function("() => window.dropCaptureLost === true")
+        page.wait_for_timeout(200)  # Allow any already queued score save to settle.
+        stopped_score = page.evaluate(read_best)
+        page.wait_for_timeout(200)
+        assert page.evaluate(read_best) == stopped_score, "Drop repeated after capture was lost"
+    finally:
+        page.mouse.up()
+    page.mouse.click(160, 666)
+    page.wait_for_function(f"score => ({read_best})() > score", arg=stopped_score)
+    print(f"{browser_name}: held Drop stops on pointer capture loss and accepts the next press")
+
     # Real offline launch test. A successful service-worker install must cache
     # the entire local app before the page is taken offline. On Chromium this
     # is a required gate; WebKit uses the same best-effort path if supported.

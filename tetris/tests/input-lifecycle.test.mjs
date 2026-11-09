@@ -22,6 +22,10 @@ function harness(repeating=false,canInteract=()=>true,regions=null){
  screen.setPointerCapture=id=>{captured=id};
  screen.hasPointerCapture=id=>captured===id;
  screen.releasePointerCapture=id=>{assert.equal(id,captured);captured=null;released++};
+ function loseCapture(id){
+  if(captured===id)captured=null;
+  screen.emit('lostpointercapture',{type:'lostpointercapture',pointerId:id});
+ }
  const controller=createInputController({
   screen,document,window,initialsInput:{},
   getViewport:()=>({width:100,height:60}),
@@ -41,7 +45,7 @@ function harness(repeating=false,canInteract=()=>true,regions=null){
    preventDefault(){}
   });
  }
- return {controller,screen,document,window,down,
+ return {controller,screen,document,window,down,loseCapture,
   get captured(){return captured},get released(){return released},
   get actions(){return actions},get invalidations(){return invalidations},
   get buttonPresses(){return buttonPresses},get buttonReleases(){return buttonReleases}
@@ -50,7 +54,7 @@ function harness(repeating=false,canInteract=()=>true,regions=null){
 test('input ownership registers one matching listener for each event',()=>{
  const h=harness();
  assert.deepEqual([...h.screen.listeners.keys()],
-  ['contextmenu','selectstart','pointerdown','pointermove','pointerup','pointercancel','wheel']);
+  ['contextmenu','selectstart','pointerdown','pointermove','pointerup','pointercancel','lostpointercapture','wheel']);
  assert.deepEqual([...h.window.listeners.keys()],['blur']);
  assert.deepEqual([...h.document.listeners.keys()],['keydown']);
  assert.deepEqual(h.screen.listeners.get('wheel').options,{passive:false});
@@ -82,11 +86,31 @@ test('temporary cancel retains listeners for browser restoration',()=>{
  const h=harness();
  h.down();h.controller.cancel();
  assert.equal(h.controller.pressed,null);
- assert.equal(h.screen.listeners.size,7);
+ assert.equal(h.screen.listeners.size,8);
  h.down(4);
  assert.equal(h.controller.pressed.id,4);
  assert.deepEqual(h.actions,['left','left']);
  h.controller.dispose();
+});
+test('losing pointer capture stops an active repeat and allows the next touch',t=>{
+ t.mock.timers.enable({apis:['setInterval']});
+ const hit={x:0,y:0,w:100,h:60,act:'soft',kind:'button',repeat:true};
+ const h=harness(false,()=>true,[hit]);
+ try{
+  h.down(3);
+  t.mock.timers.tick(50);
+  assert.deepEqual(h.actions,['soft','soft']);
+  h.loseCapture(4);
+  assert.equal(h.controller.pressed.id,3);
+  h.loseCapture(3);
+  assert.equal(h.controller.pressed,null);
+  assert.deepEqual(h.buttonReleases,[hit]);
+  t.mock.timers.tick(150);
+  assert.deepEqual(h.actions,['soft','soft']);
+  h.down(5);
+  assert.equal(h.controller.pressed.id,5);
+  assert.deepEqual(h.actions,['soft','soft','soft']);
+ }finally{h.controller.dispose();}
 });
 test('Enter and numpad Enter activate the primary game action once per press',()=>{
  const primary={x:0,y:0,w:100,h:60,act:'start',kind:'button'};
