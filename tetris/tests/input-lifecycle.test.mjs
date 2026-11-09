@@ -154,10 +154,15 @@ test('pointer holds and keyboard taps share button luminance model',()=>{
  assert.equal(h.buttonPresses[1].held,false);
  h.controller.dispose();
 });
-test('non-button gameplay gestures do not trigger button luminance',()=>{
- const hit={x:0,y:0,w:100,h:60,act:'board',board:true};
- const h=harness(false,()=>true,[hit]);
- h.down();
+test('tapping and swiping outside controls do not capture input or move a piece',()=>{
+ const h=harness(false,()=>true,[]);
+ for(const [clientX,clientY] of [[20,20],[85,20],[20,55]]){
+  h.down();
+  h.screen.emit('pointermove',{pointerId:3,clientX,clientY});
+  h.screen.emit('pointerup',{type:'pointerup',pointerId:3,clientX,clientY});
+ }
+ assert.equal(h.captured,null);
+ assert.deepEqual(h.actions,[]);
  assert.deepEqual(h.buttonPresses,[]);
  h.controller.dispose();
 });

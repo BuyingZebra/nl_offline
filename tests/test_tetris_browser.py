@@ -156,6 +156,16 @@ with sync_playwright() as p:
         check_worker_handoff(browser)
     page = browser.new_page(viewport={"width": 393, "height": 852},
                             device_scale_factor=2, is_mobile=True, has_touch=True)
+    # Capture the real game instance for a controlled board setup in this test only.
+    page.add_init_script("""Object.defineProperty(window, 'FieldAtlasBlocks', {
+        configurable: true,
+        set(core) {
+            const Game = class extends core.Game {
+                constructor(...args) { super(...args); window.testGame = this; }
+            };
+            Object.defineProperty(window, 'FieldAtlasBlocks', {value: {...core, Game}});
+        }
+    });""")
     errors = []
     failures = []
     console_errors = []
@@ -459,6 +469,31 @@ with sync_playwright() as p:
         print(f"{browser_name}: context loss/restoration smoke passed")
     else:
         print(f"{browser_name}: WEBGL_lose_context unavailable; stress check skipped")
+
+    page.evaluate("""() => {
+      const game = window.testGame;
+      game.reset();
+      const piece = game.piece('I');
+      piece.matrix = FieldAtlasBlocks.turn(piece.matrix, 1);
+      Object.assign(piece, {rotation: 1, x: -2, y: -2});
+      game.current = piece;
+      game.board[0].fill('J', 1);
+      game.board[2][0] = 'J';
+      game.lockClock = 499;
+      const text = window.finalClearText = [];
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function(label, ...args) {
+        if (label === '+40' || label === 'GAME OVER') text.push(label);
+        return fillText.call(this, label, ...args);
+      };
+    }""")
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => window.finalClearText.includes('GAME OVER')")
+    final_clear = page.evaluate("() => ({text: window.finalClearText, score: testGame.score})")
+    assert final_clear["text"][0] == "+40", final_clear
+    assert final_clear["score"] == 40, final_clear
+    assert not errors, errors
+    print(f"{browser_name}: final clear shows and counts points before Game Over")
 
     # Use distinct same-origin tabs and real IndexedDB transactions. Each tab
     # submits its independently selected score, then a new tab reads the winner.

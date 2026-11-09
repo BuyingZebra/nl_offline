@@ -138,7 +138,7 @@ test('bricks are painted on the static base, never on the playfield texture',()=
   renderer.indexOf('function paintBoardPopup('));
  assert.doesNotMatch(stage,/brickFrame\.draw/);
  assert.equal((renderer.match(/brickFrame\.draw\(g,r\)/g)||[]).length,1);
- assert.match(renderer,/stage\(r,false,true\);[\s\S]*brickFrame\.draw\(g,r\);/);
+ assert.match(renderer,/stage\(r,false\);[\s\S]*brickFrame\.draw\(g,r\);/);
  assert.match(renderer,/const offX=x\+2,offY=y\+2,tile=\(w-4\)\/10/);
  const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
  for(const item of [

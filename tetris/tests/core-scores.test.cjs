@@ -56,9 +56,40 @@ test('two completed rows score correctly and are removed',()=>{
 test('grounded pieces obey the lock delay',()=>{
  const g=fresh();g.start();g.current=g.piece('O');g.current.y=18;
  assert.equal(g.isGrounded(),true);
- g.tick(100);assert.equal(g.pieces,0);
- for(let i=0;i<5;i++)g.tick(100);
+ for(let i=0;i<4;i++)g.tick(100);
+ g.tick(99);assert.equal(g.pieces,0);
+ g.tick(1);
  assert.equal(g.pieces,1);
+});
+test('lock delay pauses off a ledge and only a new downward row resets it',()=>{
+ const g=fresh();g.start();g.spawn('O');
+ for(let i=0;i<8;i++)g.softDrop();
+ g.board[10][4]='Z';
+ g.tick(100);g.tick(100);
+ assert.equal(g.lockClock,200);
+ assert.equal(g.move(1),true);
+ g.tick(100);
+ assert.equal(g.lockClock,200,'airborne time leaves the timer intact');
+ assert.equal(g.move(-1),true);
+ g.tick(100);
+ assert.equal(g.lockClock,300,'returning at the same height keeps the timer');
+ g.move(1);
+ assert.equal(g.softDrop(),true);
+ assert.equal(g.lockClock,0);
+});
+test('a wall kick keeps the timer and gravity only counts time after landing',()=>{
+ const g=fresh();g.start();g.spawn('T');
+ for(let i=0;i<18;i++)g.softDrop();
+ g.tick(100);
+ assert.equal(g.rotate(),true);
+ assert.equal(g.lockClock,100);
+
+ g.spawn('O');
+ g.level=29;
+ for(let i=0;i<17;i++)g.softDrop();
+ g.tick(g.dropMs+8);
+ assert.equal(g.current.y,18);
+ assert.ok(Math.abs(g.lockClock-8)<1e-9);
 });
 test('spawn collision produces game over',()=>{
  const g=fresh();g.start();g.board[1][4]='Z';
@@ -247,6 +278,35 @@ test('a lock above the board reports top-out without a successful lock',()=>{
  assert.deepEqual(events.map(x=>x.type),['game-over']);
  assert.equal(events[0].reason,'top-out');
 });
+test('last-chance clears save overhangs or score before either kind of game over',()=>{
+ for(const [startY,rows,blocked,reason] of [
+  [-1,1,false,null],[-2,2,false,null],
+  [-2,1,false,'top-out'],[-1,1,true,'spawn-blocked']
+ ]){
+  const g=fresh(),events=[];
+  g.start();g.onEvent(event=>events.push(event));
+  const p=g.piece('I');
+  p.matrix=Core.turn(p.matrix,1);p.rotation=1;p.x=-2;p.y=startY;
+  g.current=p;g.queue=['T',...g.queue];
+  for(let y=0;y<rows;y++)g.board[y].fill('J',1);
+  if(blocked)g.board[1][4]='J';
+  g.board[startY+4][0]='J';
+  assert.equal(g.isGrounded(),true);
+  g.lockPiece();
+  assert.equal(g.lines,rows);
+  assert.equal(g.score,rows===1?40:100);
+  assert.equal(g.status,reason?'over':'playing');
+  assert.deepEqual(events.map(e=>e.type),reason?
+   ['piece-locked','lines-cleared','game-over']:['piece-locked','lines-cleared']);
+  assert.equal(events[1].points,g.score);
+  if(reason)assert.equal(events[2].reason,reason);
+  const firstSavedIndex=startY+rows<0?1:0;
+  assert.equal(g.board[0][0],'I');
+  assert.deepEqual(g.boardMeta[0][0],
+   {kind:'I',pieceId:p.id,rotation:1,sourceIndex:firstSavedIndex});
+  if(rows===2)assert.equal(g.boardMeta[1][0].sourceIndex,1);
+ }
+});
 test('reset emits a clean ready-state event and does not keep stale gameplay state',()=>{
  const g=fresh(),events=[];
  g.onEvent(event=>events.push(event));
@@ -274,29 +334,31 @@ test('1989 four-line clear awards 1200 at displayed level 00',()=>{
  lockNow(g);
  assert.equal(g.lines,4);assert.equal(g.score,1200);
 });
-test('level cap is 20, and crossing a threshold uses the 1989 score multiplier',()=>{
- const g=fresh();g.start();assert.equal(Core.MAX_LEVEL,20);
+test('crossing a threshold uses the 1989 score multiplier',()=>{
+ const g=fresh();g.start();
  g.lines=9;g.level=0;
  g.board=Array.from({length:20},()=>Array(10).fill(0));
  for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
  g.current=g.piece('O');g.current.y=18;lockNow(g);
  assert.equal(g.level,1);assert.equal(g.score,80);
- g.lines=400;g.level=20;
- g.current=g.piece('O');g.current.y=18;lockNow(g);
- assert.equal(g.level,20);
 });
 
-test('NOMAD retains Game Boy level numbering 00 through 20',()=>{
+test('NES gravity reaches maximum at 29 and level 89 continues until game over',()=>{
  const g=fresh();
  assert.equal(g.level,0);
- assert.equal(g.dropMs,850,'first level preserves approved starting gravity');
+ assert.equal(Core.MAX_LEVEL,89);
+ const frameMs=1000/60.0988;
+ for(const [level,frames] of [[0,48],[10,5],[12,5],[18,3],[28,2],[29,1],[89,1]]){
+  g.level=level;assert.equal(g.dropMs,frames*frameMs);
+ }
  g.start();
- g.lines=199;g.level=19;
- g.board=Array.from({length:20},()=>Array(10).fill(0));
- for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
- g.current=g.piece('O');g.current.y=18;lockNow(g);
- assert.equal(g.lines,200);
- assert.equal(g.level,20);
- assert.equal(g.score,840,'level 20 scoring uses a 21x multiplier');
- assert.equal(g.status,'playing','reaching level 20 does not end the game');
+ g.lines=889;g.level=88;
+ for(let i=0;i<2;i++){
+  for(let x=0;x<10;x++)g.board[19][x]=(x===4||x===5)?0:'Z';
+  g.current=g.piece('O');lockNow(g);
+  assert.equal(g.lines,890+i);
+  assert.equal(g.level,89);
+  assert.equal(g.score,3600*(i+1));
+  assert.equal(g.status,'playing');
+ }
 });
