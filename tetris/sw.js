@@ -1,4 +1,4 @@
-/* NOMAD Tetris V171 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V172 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -8,11 +8,13 @@
  * it while idle; never promote a partially cached shell.
  */
 'use strict';
-const CACHE_VERSION='v171';
+const CACHE_VERSION='v172';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
 const SCOPE=new URL(self.registration.scope);
+const SHELL_URL=new URL('./three-v027.html',SCOPE);
+const CLEAN_SHELL_PATH=SHELL_URL.pathname.slice(0,-'.html'.length);
 const FONT_STYLESHEET='https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&family=Share+Tech+Mono&display=swap';
 const FONT_HOSTS=new Set(['fonts.googleapis.com','fonts.gstatic.com']);
 
@@ -90,10 +92,18 @@ self.addEventListener('install',event=>{
    const sources=CORE_ASSETS.map(asset=>new Request(new URL(asset,SCOPE),{cache:'reload'}));
    await cache.addAll(sources);
    // Reject a partial deployment: the cached shell MUST be from this release.
-   const shell=await cache.match(new URL('./three-v027.html',SCOPE));
+   const shell=await cache.match(SHELL_URL);
    const html=shell?.ok?await shell.text():'';
    const build=html.match(/<meta\s+name=["']tetris-build["']\s+content=["']([0-9]{3})["']/i)?.[1];
    if(build!==CACHE_VERSION.slice(1))throw Error('NOMAD offline shell version mismatch');
+   // Clean-URL hosts redirect the .html request during precache. Store
+   // the validated body as a direct response for offline navigation.
+   if(shell.redirected){
+    const headers=new Headers(shell.headers);
+    headers.delete('content-encoding');
+    headers.delete('content-length');
+    await cache.put(SHELL_URL,new Response(html,{status:shell.status,headers}));
+   }
    await warmOptionalFonts(cache);
   }catch(error){
    await caches.delete(CACHE_NAME);
@@ -121,10 +131,13 @@ self.addEventListener('activate',event=>{
  })());
 });
 
+function assetPath(url){
+ return url.pathname===CLEAN_SHELL_PATH?SHELL_URL.pathname:url.pathname;
+}
 function canonicalAsset(url){
  // Cache identity ignores ephemeral ?live= and ?update-check= parameters.
  // Normalizing prevents an unbounded cache entry per app launch.
- return new Request(url.origin+url.pathname,{credentials:'same-origin'});
+ return new Request(url.origin+assetPath(url),{credentials:'same-origin'});
 }
 async function fromPinnedCache(url){
  // Never refresh individual runtime assets from the network: doing so could
@@ -152,10 +165,11 @@ self.addEventListener('fetch',event=>{
  if(FONT_HOSTS.has(url.hostname)&&url.protocol==='https:'){
   event.respondWith(fontsCacheFirst(request,event));return;
  }
- if(url.origin!==SCOPE.origin||!ALLOWED_PATHS.has(url.pathname))return;
+ const path=assetPath(url);
+ if(url.origin!==SCOPE.origin||!ALLOWED_PATHS.has(path))return;
  // A build check must see the published HTML even while a pinned older
  // worker controls the page. It never mutates the active shell cache.
- if(url.pathname===new URL('./three-v027.html',SCOPE).pathname&&
+ if(path===SHELL_URL.pathname&&
     url.searchParams.has('update-check')){
   event.respondWith(fetch(request));return;
  }

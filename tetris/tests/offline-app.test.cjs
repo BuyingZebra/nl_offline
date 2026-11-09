@@ -12,7 +12,7 @@ const html=fs.readFileSync(path.join(dir,'three-v027.html'),'utf8');
 const scope='https://buyingzebra.github.io/nl_offline/tetris/';
 const currentBuild=html.match(/name="tetris-build" content="([0-9]{3})"/)?.[1];
 
-function workerHarness(){
+function workerHarness({redirectShell=false}={}){
  const events=new Map(),storage=new Map(),deleted=[],claims=[],promotions=[];
  let online=true,failPath=null,version='old',shellBuild=currentBuild;
  const asURL=item=>typeof item==='string'?new URL(item,scope).href:
@@ -23,18 +23,28 @@ function workerHarness(){
   if(url.origin!==new URL(scope).origin)throw Error('Optional fonts unavailable');
   const html=url.pathname.endsWith('/three-v027.html')?
    '<meta name="tetris-build" content="'+shellBuild+'">':'';
-  return new Response(version+' '+url.pathname+' '+html,{status:200});
+  const response=new Response(version+' '+url.pathname+' '+html,{status:200});
+  if(redirectShell&&html){
+   // Model the final response to the host's .html -> clean URL redirect.
+   Object.defineProperty(response,'redirected',{value:true});
+  }
+  return response;
  }
+ const clone=response=>{
+  const copy=response.clone();
+  if(response.redirected)Object.defineProperty(copy,'redirected',{value:true});
+  return copy;
+ };
  class TestCache{
   entries=new Map();
-  async match(req){const response=this.entries.get(asURL(req));return response?.clone();}
-  async put(req,response){this.entries.set(asURL(req),response.clone());}
+  async match(req){const response=this.entries.get(asURL(req));return response&&clone(response);}
+  async put(req,response){this.entries.set(asURL(req),clone(response));}
   async addAll(requests){
    const staged=[];
    for(const request of requests){
     const response=await fetchMock(request);
     if(!response.ok)throw Error('Incomplete bundle');
-    staged.push([request,response.clone()]);
+    staged.push([request,response]);
    }
    for(const [request,response] of staged)await this.put(request,response);
   }
@@ -53,7 +63,7 @@ function workerHarness(){
   skipWaiting:async()=>promotions.push(storage.get('nomad-tetris-offline-v'+currentBuild)?.entries.size),
   addEventListener:(name,callback)=>events.set(name,callback)
  };
- const ctx={self,caches,fetch:fetchMock,URL,Request,Response,AbortController,
+ const ctx={self,caches,fetch:fetchMock,URL,Request,Response,Headers,AbortController,
   setTimeout,clearTimeout,console};
  const assets=vm.runInNewContext(swCode+'\nCORE_ASSETS;',ctx);
  async function emit(name,options={}){
@@ -158,6 +168,22 @@ test('offline HTML and cache-busted scripts load with no unbounded cache growth'
   assert.ok((await item.response.text()).startsWith('old '),asset);
  }
  assert.equal(h.cache.entries.size,h.assets.length);
+});
+test('clean game URLs use the same release-pinned shell as .html on redirecting hosts',async()=>{
+ const h=workerHarness({redirectShell:true});
+ await h.emit('install');
+ h.setVersion('new');
+ const published=await h.emit('fetch',{
+  request:new Request(new URL('./three-v027?update-check=10',scope))
+ });
+ assert.ok((await published.response.text()).startsWith('new '));
+ h.setOnline(false);
+ for(const url of ['./three-v027.html','./three-v027']){
+  const {handled,response}=await h.emit('fetch',{request:new Request(new URL(url,scope))});
+  assert.equal(handled,true);
+  assert.equal(response.redirected,false);
+  assert.match(await response.text(),/^old .*three-v027\.html/);
+ }
 });
 test('published updates bypass the old pinned shell but cannot mutate it',async()=>{
  const h=workerHarness();await h.emit('install');h.setVersion('new');

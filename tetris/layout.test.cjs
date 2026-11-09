@@ -111,6 +111,10 @@ test('short portrait viewports give up whitespace before reducing the reference 
  assert.equal(compact.boardH,334);
  assert.equal(compact.boardY-compact.hy-compact.hh,8);
  assert.equal(compact.dy-compact.boardY-compact.boardH,8);
+ const devTools=computeLayout(376,583,{},ui);
+ assert.equal(devTools.boardH,369);
+ assert.equal(devTools.boardY-devTools.hy-devTools.hh,8);
+ assert.equal(devTools.dy-devTools.boardY-devTools.boardH,8);
 });
 test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
  const {createHudDrawing}=await import('./hud-drawing.js');
