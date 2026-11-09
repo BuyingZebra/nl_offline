@@ -1,3 +1,14 @@
+import {appleAdapter} from './platform/ios.js';
+import {androidAdapter} from './platform/android.js';
+import {genericAdapter} from './platform/generic.js';
+
+export function selectDeviceAdapter(win={}){
+ const nav=win.navigator||{};
+ if(appleAdapter.matches(nav))return appleAdapter;
+ if(androidAdapter.matches(nav))return androidAdapter;
+ return genericAdapter;
+}
+
 /* Build updates, viewport, WebGL health and app lifecycle. */
 
 
@@ -43,7 +54,7 @@ export function createPlatformManager({
  window,document,display,safeProbe,baseModuleURL,buildVersion,
  getGameStatus,isScreenOpen,onViewport,onVisibility,
  onPageHide=()=>{},onPageShow=()=>{},canReloadNewBuild=()=>true,
- stageWorkerUpdate=()=>{},
+ stageWorkerUpdate=()=>{},deviceAdapter=null,
  now=()=>Date.now(),
  fetchPage=(url,options)=>window.fetch(url,options),
  reloadPage=()=>window.location.reload()
@@ -53,6 +64,8 @@ export function createPlatformManager({
     typeof onViewport!=='function'||typeof onVisibility!=='function')
   throw new TypeError('Platform Manager requires device and lifecycle adapters');
 
+ const adapter=deviceAdapter||selectDeviceAdapter(window);
+ let detachDevice=()=>{};
  let measured=null,cachedInsets=null,observer=null,interval=null,started=false;
  let checkingBuild=false,lastBuildCheck=0;
 
@@ -116,6 +129,8 @@ export function createPlatformManager({
  function start(){
   if(started)return false;
   started=true;
+  adapter.applyRootMode(window.navigator||{},window,document);
+  detachDevice=adapter.attach(window,()=>resize());
   observer=new window.ResizeObserver(()=>resize());
   observer.observe(display);
   window.addEventListener('orientationchange',onOrientation);
@@ -131,6 +146,7 @@ export function createPlatformManager({
   if(!started)return false;
   started=false;
   observer?.disconnect();observer=null;
+  detachDevice();detachDevice=()=>{};
   window.removeEventListener('orientationchange',onOrientation);
   document.removeEventListener('visibilitychange',onVisibilityChange);
   window.removeEventListener('pageshow',onWake);
@@ -141,6 +157,8 @@ export function createPlatformManager({
  }
  return Object.freeze({
   start,stop,resize,safeInsets,checkForNewBuild,
+  get adapterId(){return adapter.id;},
+  get standalone(){return adapter.standalone(window.navigator||{},window);},
   get viewport(){return measured;},
   get running(){return started;}
  });

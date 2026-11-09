@@ -8,12 +8,17 @@
 | `ui.js` | Canvas controls, overlays, sidebar and terminal |
 | `art.js` | Piece sprites, tile fallback, fragments and shadows |
 | `crt.js` | Compositor passes, button lighting and layer invalidation |
-| `platform.js` | Viewport, build updates and WebGL/page lifecycle |
+| `platform.js` | Shared viewport, build updates and WebGL/page lifecycle; selects the platform adapter |
+| `platform/ios.js` | Home Screen sizing mode and visual viewport events on Apple devices |
+| `platform/android.js` | Android standalone mode and visual viewport events |
+| `platform/generic.js` | Standards-first browser fallback |
 | `diagnostics.js` | Timing, debug reports and clipboard |
 | `three-v027.js` | Scene and canvas ownership, game loop and frame scheduling |
 | `sw.js` | Versioned offline installation |
 
 Rendering observes read-only game events. The engine scores line clears before checking whether a locking piece ends the run. The renderer owns the visible line flash and delays presenting game over until that flash completes.
+
+The gameplay is identical across devices. Apple Home Screen compatibility stays behind an iOS adapter; the Android adapter observes supported viewport resize events. Device detection does not determine game rules.
 
 The layout works in CSS pixels and caps render DPR at 2. The installed app requests portrait. Short landscape screens with a coarse pointer show the rotation prompt and pause an active run. Backgrounding also pauses active play and preserves graphics resources for a return from the browser's page cache. Final page exit releases owned resources. Resuming play requires explicit input.
 

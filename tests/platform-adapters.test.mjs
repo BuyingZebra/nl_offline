@@ -1,0 +1,34 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {selectDeviceAdapter} from '../tetris/platform.js';
+function fakeWindow(navigator,standalone=false){
+ const callbacks=new Map();
+ const visualViewport={addEventListener:(name,fn)=>callbacks.set(name,fn),removeEventListener:name=>callbacks.delete(name)};
+ return {navigator,visualViewport,matchMedia:()=>({matches:standalone}),callbacks};
+}
+test('iPhone and modern touch-enabled iPadOS select Apple adapter',()=>{
+ assert.equal(selectDeviceAdapter(fakeWindow({userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4)'})).id,'ios');
+ assert.equal(selectDeviceAdapter(fakeWindow({userAgent:'Macintosh',platform:'MacIntel',maxTouchPoints:5})).id,'ios');
+});
+test('Android and generic platforms remain independent of game rules',()=>{
+ assert.equal(selectDeviceAdapter(fakeWindow({userAgent:'Android 15; Pixel 9'})).id,'android');
+ assert.equal(selectDeviceAdapter(fakeWindow({userAgent:'Windows NT 10.0'})).id,'generic');
+});
+test('Apple Home Screen class is restored and resize observer detaches',()=>{
+ const added=[],win=fakeWindow({userAgent:'iPhone',standalone:true});
+ const adapter=selectDeviceAdapter(win);
+ adapter.applyRootMode(win.navigator,win,{documentElement:{classList:{add:s=>added.push(s)}}});
+ assert.deepEqual(added,['ios-standalone']);
+ const noop=()=>{},detach=adapter.attach(win,noop);
+ assert.equal(win.callbacks.get('resize'),noop);
+ detach();assert.equal(win.callbacks.has('resize'),false);
+});
+test('Android standalone mode and viewport resize are handled separately',()=>{
+ const added=[],win=fakeWindow({userAgent:'Android 15'},true);
+ const adapter=selectDeviceAdapter(win);
+ adapter.applyRootMode(win.navigator,win,{documentElement:{classList:{add:s=>added.push(s)}}});
+ assert.deepEqual(added,['android-standalone']);
+ const detach=adapter.attach(win,()=>{});
+ assert.equal(win.callbacks.has('resize'),true);
+ detach();assert.equal(win.callbacks.has('resize'),false);
+});
