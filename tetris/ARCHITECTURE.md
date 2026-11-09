@@ -29,4 +29,15 @@ The worker activates a complete generation after the previous generation's clien
 
 ## Checks
 
-Run `node --test tetris/tests/*.test.mjs tetris/tests/*.test.cjs tetris/*.test.cjs`. GitHub Actions also runs Chromium and WebKit on manual dispatch or when the commit message includes `[pwa-smoke]`. Browser emulation covers layout and offline release switching. Home Screen behavior on physical iPhones is a separate check.
+Run `node --test tests/*.test.mjs` from the repository root.
+
+| Test file | What it catches |
+| --- | --- |
+| `gameplay` | Broken movement, locks, line clears, scoring, menus, or saved data |
+| `controls-layout` | Misplaced controls, incorrect hitboxes, or layout breakage on small screens |
+| `artwork` | Missing sprites, broken piece fragments, or incorrect shadows |
+| `display` | Regressions in CRT effects, button lighting, or which layers redraw |
+| `platform` | Unsafe reloads, broken offline installs, or failed graphics recovery |
+| `diagnostics-terminal` | Missing performance data, broken Copy Debug, or terminal drawing errors |
+
+GitHub Actions also runs the browser smoke test in Chromium and WebKit on manual dispatch or with `[pwa-smoke]` in the commit message. It opens the game, plays inputs, changes the viewport, and exercises offline launch. Physical iPhone Home Screen behavior is a separate check.

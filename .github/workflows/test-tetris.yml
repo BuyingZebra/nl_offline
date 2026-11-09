@@ -5,8 +5,9 @@ on:
     branches: [main]
     paths:
       - 'tetris/**'
-      - 'tests/test_tetris_browser.py'
-      - '.github/workflows/test-field-atlas-tetris-browser.yml'
+      - 'tests/**'
+      - 'tools/build-tetris-*.mjs'
+      - '.github/workflows/test-tetris.yml'
   workflow_dispatch:
 
 permissions:
@@ -22,17 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check game rules, storage, module boundaries and hidden edge cases
-        run: |
-          node --test \
-            tetris/tests/*.test.mjs \
-            tetris/tests/*.test.cjs \
-            tetris/build-version-v066.test.cjs \
-            tetris/compositor.test.cjs \
-            tetris/debug-report.test.cjs \
-            tetris/layout.test.cjs \
-            tetris/module-contract-v066.test.cjs \
-            tetris/ui-controls-v065.test.cjs
+      - name: Run Tetris checks
+        run: node --test tests/*.test.mjs
 
   browser:
     name: Optional browser and offline launch smoke
