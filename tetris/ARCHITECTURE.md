@@ -77,6 +77,7 @@ A locking move emits these in game-rule order: piece locked, lines cleared (if a
 - Preserve saved settings and high-score keys; do not discard user preferences on releases.
 - Keep the CRT effect ordering and the 2x render-DPR cap; upload only changed source textures.
 - Preserve Safari `100dvh` and the `ios-standalone` `100vh` exception; safe-area insets come from CSS.
+- The installed app requests portrait. In short landscape viewports with a coarse primary pointer, the shell shows a rotation message and suspends the game until portrait returns. A live run stays paused for explicit resume.
 - Menu close and app foreground events must not silently resume gameplay.
 - Build checks fetch uncached HTML and must never reload active/paused/completed games or open menus.
 

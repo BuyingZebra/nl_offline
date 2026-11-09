@@ -144,6 +144,7 @@ test('the import map, manifest, and icons are local',()=>{
  assert.equal(manifest.start_url,'./three-v027.html');
  assert.equal(manifest.scope,'./');
  assert.equal(manifest.display,'standalone');
+ assert.equal(manifest.orientation,'portrait');
  for(const size of ['192x192','512x512'])
   assert.ok(manifest.icons.some(i=>i.sizes===size));
  for(const icon of manifest.icons)

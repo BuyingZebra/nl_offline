@@ -6,7 +6,7 @@
   "start_url": "./three-v027.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#080808",
   "theme_color": "#080808",
   "icons": [

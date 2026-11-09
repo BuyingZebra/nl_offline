@@ -35,6 +35,7 @@ const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
 const safeProbe=document.getElementById('safeArea');
 const fatal=document.getElementById('error');
+const portraitGate=window.matchMedia(document.getElementById('portraitGate')?.media||'not all');
 if(!Core?.Game||!Scores){fatal.hidden=false;fatal.textContent='Tetris core missing';throw Error('Tetris core missing');}
 const ScreenLayout=window.FieldAtlasTetrisLayout;
 if(!ScreenLayout?.computeLayout){fatal.hidden=false;fatal.textContent='Tetris layout module missing';throw Error('Tetris layout module missing');}
@@ -83,6 +84,7 @@ let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let queued=false,frameHandle=null,lastTime=performance.now(),audioCtx=null;
 let appLifecycle=null;
+let pageInCache=false;
 // One owner for layer invalidation, redraw attribution and pending work.
 const layers=createRenderInvalidation();
 const terminalLog=createTerminalLog();
@@ -338,7 +340,7 @@ const actions=createActionController({
  onCopyDebug:()=>copyDebugReport(),
  onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;},
  onTerminalEvent:queueTerminalMessage,
- canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
+ canInteract:()=>!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
@@ -878,7 +880,7 @@ inputController=createInputController({
  onButtonRelease:(hit,now)=>{
   if(buttonFeedback.release(hit,now))invalidate('button-release');
  },
- canInteract:()=>graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
+ canInteract:()=>!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 // Browser and installed-app lifecycle, viewport and update polling are delegated
 // to Platform Manager. The renderer retains only its drawing responsibilities.
@@ -1051,7 +1053,7 @@ function frame(now){
  }
 }
 // All GPU and input resources belong to this page. They remain allocated
-// during visibility suspension and Safari back/forward-cache navigation.
+// during rotation, visibility suspension and Safari back/forward-cache navigation.
 // Release only when the browser abandons the page without caching it.
 const graphicsCleanup=createGraphicsCleanup({
  renderer,compositor,scene,
@@ -1096,10 +1098,16 @@ appLifecycle=createAppLifecycle({
   ['brick-frame',()=>brickFrame.dispose()],
   ['gpu-button-fallback-material',()=>controlsFallbackMaterial.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],
+  ['portrait-gate',()=>portraitGate.removeEventListener('change',onPortraitGateChange)],
   ['platform',()=>platform.stop()],
   ['graphics',()=>graphicsCleanup.dispose()]
  ])
 });
+function syncAvailability(reason){
+ if(document.hidden||pageInCache||portraitGate.matches)appLifecycle.suspend(reason);
+ else appLifecycle.resume(reason);
+}
+function onPortraitGateChange(){syncAvailability('orientation');}
 const platform=createPlatformManager({
  window,document,display,safeProbe,baseModuleURL:import.meta.url,
  buildVersion:THREE_BUILD_VERSION,
@@ -1111,6 +1119,7 @@ const platform=createPlatformManager({
   if(registration)await registration.update();
  },
  onViewport:({width,height,dpr})=>{
+  if(portraitGate.matches)return;
   const unchanged=width===W&&height===H&&dpr===DPR;
   cachedLayout=null;
   if(!unchanged){
@@ -1128,15 +1137,21 @@ const platform=createPlatformManager({
   layers.mark('base','board','sidebar','controls','terminal');
   invalidate('resize');
  },
- onVisibility:hidden=>{
-  if(hidden)appLifecycle.suspend('visibility');
-  else appLifecycle.resume('visibility');
+ onVisibility:()=>syncAvailability('visibility'),
+ onPageHide:persisted=>{
+  pageInCache=persisted;
+  appLifecycle.pageHide(persisted);
  },
- onPageHide:persisted=>appLifecycle.pageHide(persisted),
- onPageShow:persisted=>appLifecycle.pageShow(persisted)
+ onPageShow:persisted=>{
+  if(!persisted)return;
+  pageInCache=false;
+  syncAvailability('bfcache');
+ }
 });
 graphicsHealth.attach();
 platform.start();
+portraitGate.addEventListener('change',onPortraitGateChange);
+syncAvailability(portraitGate.matches?'orientation':'visibility');
 requestFrame();
 // One check after initialization also covers standalone cold launches.
 void platform.checkForNewBuild();
