@@ -12,7 +12,7 @@ import {buttonFeedbackLayers} from './button-layer-invalidation.js?v166';
 import {createGpuButtonLighting} from './gpu-button-lighting.js?v169';
 import {createCanvasUI} from './canvas-ui.js?v165';
 import {getBuildVersion} from './build-version.js?v066';
-import {createPlatformManager} from './platform-manager.js?v093';
+import {createPlatformManager} from './platform-manager.js?v176';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
 import {createInputController} from './input-controller.js?v174';
 import {createPerfMonitor} from './perf-monitor.js?v168';
@@ -1100,24 +1100,15 @@ appLifecycle=createAppLifecycle({
   ['graphics',()=>graphicsCleanup.dispose()]
  ])
 });
-let refreshedWorkerController=false;
-let workerUpgradePending=false;
 const platform=createPlatformManager({
  window,document,display,safeProbe,baseModuleURL:import.meta.url,
  buildVersion:THREE_BUILD_VERSION,
  getGameStatus:()=>game.status,
  isScreenOpen:()=>screenManager.hasModal,
- // Reload only after a newer worker takes control, never against an old
- // pinned shell. A pending worker is promoted only while the game is idle.
- canReloadNewBuild:()=>!navigator.serviceWorker?.controller||refreshedWorkerController,
- requestWorkerUpgrade:async()=>{
+ canReloadNewBuild:()=>!navigator.serviceWorker?.controller,
+ stageWorkerUpdate:async()=>{
   const registration=await navigator.serviceWorker?.getRegistration?.('./');
-  if(!registration)return false;
-  await registration.update();
-  if(!registration.waiting)return false;
-  workerUpgradePending=true;
-  registration.waiting.postMessage({type:'NOMAD_ACTIVATE_UPDATE'});
-  return true;
+  if(registration)await registration.update();
  },
  onViewport:({width,height,dpr})=>{
   const unchanged=width===W&&height===H&&dpr===DPR;
@@ -1146,18 +1137,6 @@ const platform=createPlatformManager({
 });
 graphicsHealth.attach();
 platform.start();
-if(navigator.serviceWorker){
- navigator.serviceWorker.addEventListener('controllerchange',()=>{
-  refreshedWorkerController=true;
-  if(workerUpgradePending&&game.status==='ready'&&!screenManager.hasModal){
-   window.location.reload();
-  }else{
-   // First installation, or a mid-game change: verify the published build
-   // at the next eligible update check, without disrupting gameplay.
-   void platform.checkForNewBuild();
-  }
- });
-}
 requestFrame();
 // One check after initialization also covers standalone cold launches.
 void platform.checkForNewBuild();
