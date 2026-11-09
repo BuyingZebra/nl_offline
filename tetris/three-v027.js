@@ -14,7 +14,7 @@ import {createCanvasUI} from './canvas-ui.js?v165';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v176';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
-import {createInputController} from './input-controller.js?v174';
+import {createInputController} from './input-controller.js?v178';
 import {createPerfMonitor} from './perf-monitor.js?v168';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v164';
 import {croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v168';

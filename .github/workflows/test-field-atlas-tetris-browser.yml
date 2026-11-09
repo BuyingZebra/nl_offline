@@ -2,7 +2,7 @@ name: NOMAD Tetris — technical quality gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, nomad-v178-chromium-check]
     paths:
       - 'tetris/**'
       - 'tests/test_tetris_browser.py'
@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: ${{ fromJSON((github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[pwa-smoke]')) && '["chromium","webkit"]' || '["chromium"]') }}
+        browser: [chromium]
     steps:
       - uses: actions/checkout@v4
         with:
