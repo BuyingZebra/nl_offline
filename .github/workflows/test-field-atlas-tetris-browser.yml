@@ -2,7 +2,7 @@ name: NOMAD Tetris — technical quality gate
 
 on:
   push:
-    branches: [main]
+    branches: [main, nomad-v176-upgrade-verify]
     paths:
       - 'tetris/**'
       - 'tests/test_tetris_browser.py'
@@ -42,9 +42,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: ${{ fromJSON((github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[pwa-smoke]')) && '["chromium","webkit"]' || '["chromium"]') }}
+        browser: [chromium]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

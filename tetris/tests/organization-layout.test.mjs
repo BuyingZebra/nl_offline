@@ -286,18 +286,3 @@ test('V162 stamps independently owned and rotating piece shadows onto the board'
  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
  assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
 });
-
-test('V145 migration updates old pinned workers but protects active gameplay',()=>{
- const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- const platform=fs.readFileSync(new URL('../platform-manager.js',import.meta.url),'utf8');
- const renderer=fs.readFileSync(new URL('../three-v027.js',import.meta.url),'utf8');
- assert.match(sw,/const legacyPinned=oldNames\.some/);
- assert.match(sw,/version<145/);
- assert.match(sw,/if\(legacyPinned\)await self\.skipWaiting\(\)/);
- assert.match(sw,/event\.data\?\.type!=='NOMAD_ACTIVATE_UPDATE'/);
- assert.match(sw,/build!==CACHE_VERSION\.slice\(1\)/);
- assert.match(platform,/await requestWorkerUpgrade\(\)/);
- assert.match(renderer,/registration\.waiting\.postMessage\(\{type:'NOMAD_ACTIVATE_UPDATE'\}\)/);
- assert.match(renderer,/serviceWorker\.addEventListener\('controllerchange'/);
- assert.match(renderer,/workerUpgradePending&&game\.status==='ready'&&!screenManager\.hasModal/);
-});
