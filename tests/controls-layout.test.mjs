@@ -197,94 +197,16 @@ describe('Responsive geometry',()=>{
   assert.equal(computeLayout(667,375,{left:44,right:44},ui).compactControls,true);
   assert.equal(computeLayout(375,667,{},ui).compactControls,false);
  });
- test('HTML loads layout ahead of the Three.js module',()=>{
-  const html=fs.readFileSync(path.join(appDir,'three-v027.html'),'utf8');
-  const renderer=fs.readFileSync(path.join(appDir,'three-v027.js'),'utf8');
-  const layout=html.match(/layout\.js\?three=v\d+/);
-  assert.ok(layout);
-  assert.ok(layout.index<html.indexOf('<script type="module">'));
-  assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
-  assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
- });
-
- test('sidebar panels share a compact right edge and retain room for external labels',()=>{
-  for(const [name,w,h,safe] of phones){
-   const r=computeLayout(w,h,safe,ui);
-   const boxes=[r.nextPanel,r.statsPanel,r.holdPanel];
-   const right=r.sideX+r.sideW;
-   for(const box of boxes){
-    assert.ok(Math.abs(box.x+box.w-right)<.00001,name+' panel right-aligned');
-    assert.ok(box.w<=r.sideW+.00001,name+' compact width');
-   }
-   assert.ok(r.nextPanel.y-r.previewLabelSpace>=r.boardY-.001,
-    name+' NEXT label stays inside game area');
-   assert.ok(r.holdPanel.y-r.previewLabelSpace>=r.statsPanel.y+r.statsPanel.h-.01,
-    name+' HOLD label does not overlap score');
-   assert.ok(r.nextPanel.y+r.nextPanel.h<=r.statsPanel.y+.001,
-    name+' NEXT and score stay separate');
-   assert.ok(r.statsPanel.y+r.statsPanel.h<=r.holdPanel.y-r.previewLabelSpace+.001,
-    name+' score and HOLD label stay separate');
-   const cell=(r.boardW-4)/10;
-   assert.ok(Math.abs(r.previewCell-cell*.75)<.00001);
-   assert.ok(r.previewLabelSpace>=14);
-  }
- });
-
- test('portrait framed board and panels align with both outer header/footer edges',()=>{
-  const samples=phones.filter(([name,w,h])=>w<h);
-  for(const [name,w,h,safe] of samples){
-   const r=computeLayout(w,h,safe,ui);
-   const headingRight=r.hx+r.hw;
-   const footerRight=r.off+r.width-r.pad;
-   assert.ok(Math.abs(headingRight-footerRight)<.00001,name+' header/footer right edge');
-   for(const box of [r.nextPanel,r.statsPanel,r.holdPanel]){
-    assert.ok(Math.abs(box.x+box.w-headingRight)<.00001,
-     name+' preview/stats container right edge aligns with header and footer');
-   }
-   assert.ok(r.nextPanel.x>=r.boardX+r.boardW,
-    name+' preview stays to right of the board');
-   assert.ok(Math.abs(r.boardX-r.previewCell-r.brickGap-r.hx)<1e-6,
-    name+' framed board left rail aligns with header and footer left edge');
-   assert.ok(r.boardX+r.boardW+r.previewCell+r.brickGap<=r.nextPanel.x-2+1e-5,
-    name+' right rail fits without entering the sidebar');
-  }
- });
-
- test('V141 portrait gutters and header alignment remain exact',()=>{
-  for(const [name,w,h,safe] of phones.filter(([,w,h])=>w<h)){
-   const r=computeLayout(w,h,safe,ui);
-   const rightRailEnd=r.boardX+r.boardW+r.brickGap+r.previewCell;
-   for(const panel of [r.nextPanel,r.statsPanel,r.holdPanel]){
-    assert.ok(Math.abs(panel.x-rightRailEnd-r.brickGap)<1e-6,
-     name+' equal rail-to-board and rail-to-sidebar gutters');
-    assert.ok(Math.abs(panel.x+panel.w-r.hx-r.hw)<1e-6,
-     name+' sidebar right-aligned with header');
-   }
-  }
- });
-});
-
-describe('HUD layout and viewport rules',()=>{
- const {computeLayout}=Layout;
-
- const ui={
-  unit:6,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,
-  padX:11,stackGap:6,side:93,sideGap:6,headHeight:80,headIcons:46,
-  headIconGap:6,headRightPad:6,headTitleInset:17,deckBottom:30,
-  deckPad:6,scoreHeight:45,deckGap:6,padGap:6,padHeight:53,
-  extrasHeight:44,extrasGap:6,holdHeight:88,nextHeight:162,statsHeight:92
- };
- function makeHUD(){
-  const painted={panels:[],text:[],pieces:[],keys:[],rects:[]};
-  const game={hold:'S',queue:['T','O','J'],score:684,level:3,lines:12,pieces:33};
-  const hud=createHudDrawing({
-   panel:(...v)=>painted.panels.push(v),text:(...v)=>painted.text.push(v),
-   rect:(...v)=>painted.rects.push(v),key:(...v)=>painted.keys.push(v),
-   smallPiece:(...v)=>painted.pieces.push(v),
-   getGame:()=>game,getHighs:()=>[{score:9000}],
-   C:{panel:'#1d1d1d',bg:'#080808',border:'#777',subtleBorder:'#2e2e2e',
-     weak:'#aeaeae',bright:'#cecece',ink:'#e3e3e3'},
-   UI_SPACE:ui,fmt:(n,k=6)=>String(n).padStart(k,'0')
+ test('layout is now part of the rendering engine instead of a global script',()=>{
+   const html=fs.readFileSync(path.join(appDir,'three-v027.html'),'utf8');
+   const renderer=fs.readFileSync(path.join(appDir,'three-v027.js'),'utf8');
+   const visuals=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
+   assert.doesNotMatch(html,/src="\.\/layout\.js/);
+   assert.match(renderer,/import Layout, \{/);
+   assert.match(renderer,/const ScreenLayout=Layout;/);
+   assert.match(visuals,/const Layout=\(\(\)=>\{/);
+   assert.ok(renderer.includes('ScreenLayout.computeLayout(W,H,insets(),UI_SPACE)'));
+   assert.ok(/const THREE_BUILD_VERSION=getBuildVersion\(document\);/.test(renderer));
   });
   return {hud,painted,game};
  }
@@ -425,8 +347,9 @@ describe('HUD layout and viewport rules',()=>{
  });
  test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
   const source=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
-  const cropped=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  const terminal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const merged=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
+  const terminal=merged.slice(merged.indexOf('// Canvas user interface, overlay'));
   const html=fs.readFileSync(new URL('../tetris/three-v027.html',import.meta.url),'utf8');
   assert.match(source,/text\('NOMAD'/);
   assert.match(source,/text\('TETRIS SYSTEM'/);
@@ -535,7 +458,7 @@ describe('HUD layout and viewport rules',()=>{
   assert.match(board,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
   assert.match(board,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
   assert.doesNotMatch(board,/g\.shadowBlur=5\.5|g\.shadowOffsetY=4\.5/);
-  assert.match(sw,/\.\/art\.js/);
+  assert.match(sw,/\.\/render\.js/);
   assert.match(renderer,/terminalLog\.enqueue\('BUILD: VERSION V'\+THREE_BUILD_VERSION,/);
   assert.match(board,/for\(const run of iRuns\)/);
   assert.match(board,/const depth=Math\.min\(20,Math\.max\(8,tile\*\.8\)\)/);

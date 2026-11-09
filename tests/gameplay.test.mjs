@@ -803,7 +803,7 @@ describe('Saved preferences',()=>{
   assert.equal(reopened.toggleTheme(),'amber');
  });
  test('V161 removes the blue tint without changing original emissive ratios',()=>{
-  const source=fs.readFileSync(new URL('../tetris/crt.js',import.meta.url),'utf8');
+  const source=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(source,/green:new THREE\.Vector3\(\.2,1,\.2\)/);
   assert.match(source,/amber:new THREE\.Vector3\(185\/255,79\/255,9\/255\)/);
   assert.doesNotMatch(source,/blue:new THREE\.Vector3/);

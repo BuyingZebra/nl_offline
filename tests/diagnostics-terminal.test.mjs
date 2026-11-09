@@ -490,7 +490,8 @@ describe('Terminal repaint regions',()=>{
 
  test('standalone terminal plane uses the original text painter and CRT compositor',()=>{
   const renderer=source('three-v027.js');
-  const cropped=source('render.js');
+  const merged=source('render.js');
+  const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
   assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
   assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
   assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);
