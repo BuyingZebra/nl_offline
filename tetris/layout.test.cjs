@@ -54,18 +54,16 @@ for(const [name,w,h,safe] of phones){
   }
  });
 }
-test('portrait moves statistics to sidebar without moving the control buttons',()=>{
+test('portrait stacks the board and aligned sidebar between two 8px gaps',()=>{
  const r=computeLayout(393,852,{top:59,bottom:34},ui);
  assert.equal(r.landscape,false);
  assert.equal(r.compactControls,false);
- assert.equal(r.boardW,234.5,'V108 portrait board width');
- assert.equal(r.boardH,469,'V108 portrait board height');
- assert.equal(r.boardY,170.5,'board remains centred vertically');
- assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board begins at header/footer left edge');
+ assert.equal(r.boardH,2*r.boardW,'the board retains its 10:20 ratio');
+ assert.ok(Math.abs(r.boardY+r.boardH/2-405)<1e-8,'the board retains its vertical center');
+ assert.ok(Math.abs(r.boardX-r.previewCell-r.brickGap-r.hx)<1e-8,
+  'framed board begins at header/footer left edge');
  const topGap=r.boardY-(r.hy+r.hh),bottomGap=r.dy-(r.boardY+r.boardH);
- assert.ok(Math.abs(topGap-bottomGap)<.00001,'even header/controls spacing');
- assert.equal(r.dy+r.deckPad,677,'old first button y');
- assert.equal(r.dy+r.deckPad+r.buttonH+r.deckGap,736,'old hold/pause y');
+ assert.ok(Math.abs(topGap-8)<1e-8&&Math.abs(bottomGap-8)<1e-8);
  assert.equal(r.nextPanel.y-r.previewLabelSpace,r.boardY,'NEXT outside label aligned to board top');
  assert.equal(r.holdPanel.y+r.holdPanel.h,r.boardY+r.boardH,
   'HOLD bottom aligned with board');
@@ -87,8 +85,8 @@ test('portrait board grows continuously through every height at representative s
      `${w}x${h}, safe ${JSON.stringify(safe)}: board changed by ${change}px`);
     assert.ok(Math.abs(r.dy-previous.dy)<=1+1e-6,'deck moves smoothly');
    }
-   assert.ok(r.boardY>=r.hy+r.hh+8-1e-6&&r.boardY+r.boardH<=r.dy-8+1e-6,
-    'the board leaves at least 8px above and below');
+   assert.ok(Math.abs(r.boardY-r.hy-r.hh-8)<1e-6&&
+    Math.abs(r.dy-r.boardY-r.boardH-8)<1e-6,'the stack uses 8px internal gaps');
    assert.ok(r.boardX+r.boardW+2*r.brickGap+r.previewCell<=r.sideX+1e-6,
     'the right brick rail and its gutters fit before the sidebar');
    assert.ok(r.nextPanel.y+r.nextPanel.h+ui.unit<=r.statsPanel.y+1e-6&&
@@ -99,14 +97,7 @@ test('portrait board grows continuously through every height at representative s
   }
  }
 });
-test('short portrait viewports give up whitespace before reducing the reference board',()=>{
- const safe={top:59,bottom:34};
- for(const [h,boardH,gap] of [[852,469,31.5],[820,469,15.5],[805,469,8],[804,468,8]]){
-  const r=computeLayout(393,h,safe,ui);
-  assert.equal(r.boardH,boardH);
-  assert.equal(r.boardY-r.hy-r.hh,gap);
-  assert.equal(r.dy-r.boardY-r.boardH,gap);
- }
+test('short portrait fills the stage and width-limited portrait keeps surplus outside the stack',()=>{
  const compact=computeLayout(320,568,{top:20},ui);
  assert.equal(compact.boardH,334);
  assert.equal(compact.boardY-compact.hy-compact.hh,8);
@@ -115,6 +106,13 @@ test('short portrait viewports give up whitespace before reducing the reference 
  assert.equal(devTools.boardH,369);
  assert.equal(devTools.boardY-devTools.hy-devTools.hh,8);
  assert.equal(devTools.dy-devTools.boardY-devTools.boardH,8);
+ for(const [w,h] of [[398,758],[1908,945]]){
+  const r=computeLayout(w,h,{},ui);
+  assert.ok(r.hy>0,'surplus space moves outside the header');
+  assert.ok(r.dy+r.dh+38<h,'surplus space moves outside the footer');
+  assert.ok(Math.abs(r.boardY-r.hy-r.hh-8)<1e-8);
+  assert.ok(Math.abs(r.dy-r.boardY-r.boardH-8)<1e-8);
+ }
 });
 test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
  const {createHudDrawing}=await import('./hud-drawing.js');
@@ -144,13 +142,13 @@ test('portrait controls retain non-overlapping 44px targets at compact widths an
 
 test('tall portrait makes a minimal width adjustment to fit the aligned brick frame',()=>{
  const r=computeLayout(430,932,{top:62,bottom:34},ui);
- assert.ok(r.boardW<273&&r.boardW>265,
-  'slight reduction fits both full-width brick rails without overlap');
+ assert.ok(r.nextPanel.w>=4*r.previewCell+10-1e-7,
+  'the full four-cell preview fits beside the full-width brick rails');
  assert.ok(Math.abs(r.boardH-2*r.boardW)<1e-7);
  assert.ok(Math.abs(r.boardY-(r.sy+(r.sh-r.boardH)/2))<1e-7,
   'board stays centered vertically');
  assert.ok(Math.abs(r.boardX-r.previewCell-r.brickGap-r.hx)<1e-7);
- assert.equal(r.dy+r.deckPad,757,'V109 button position stays unchanged');
+ assert.ok(Math.abs(r.dy-r.boardY-r.boardH-8)<1e-8,'deck follows the board');
 });
 test('portrait board and entire sidebar are vertically centered between header and controls',()=>{
  for(const [name,w,h,safe] of phones.filter(x=>x[1]<x[2])){
@@ -244,10 +242,6 @@ test('portrait framed board and panels align with both outer header/footer edges
   assert.ok(r.boardX+r.boardW+r.previewCell+r.brickGap<=r.nextPanel.x-2+1e-5,
    name+' right rail fits without entering the sidebar');
  }
- const r=computeLayout(393,852,{top:59,bottom:34},ui);
- assert.equal(r.boardW,234.5,'restored pre-brick board width unchanged');
- assert.ok(Math.abs(r.boardX-34.2875)<1e-8,'framed board left edge aligned');
- assert.equal(r.dy+r.deckPad,677,'controls unaffected');
 });
 
 test('V141 portrait gutters and header alignment remain exact',()=>{

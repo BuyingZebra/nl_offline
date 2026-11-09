@@ -47,8 +47,6 @@ test('iPhone portrait rails repeat at 75% preview size and have exact 6px gap',(
  const r=get(393,852,{top:59,bottom:34});
  const g=brickRailGeometry(r);
  assert.ok(g);
- assert.ok(near(r.boardW,234.5),'V133 board width stays unchanged');
- assert.ok(near(r.boardX,34.2875),'playfield shifts slightly to align outer rail with header');
  assert.ok(near(r.boardX-g.width-g.gap,r.hx),'outer left brick edge aligns with header');
  assert.ok(near(r.boardX-g.width-g.gap,r.off+r.pad),'and footer left edge');
  assert.ok(near(g.width,(r.boardW-4)/10*.75));

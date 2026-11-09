@@ -73,7 +73,7 @@ with sync_playwright() as p:
 
     # Exercise real canvas input and menu integration, not only rendering.
     # Coordinates are derived from the current deterministic portrait layout
-    # (header Options at x=330..376, START GAME centered near x=155,y=416).
+    # (header Options centered at y=103, START GAME near x=155,y=416).
     # Keep these smoke interactions separate from screenshot artwork tests.
     # Test against a static ready-state control so modal redraws cannot
     # conceal a missing afterglow. The PAUSE key has a visible button even
@@ -81,12 +81,12 @@ with sync_playwright() as p:
 
     # A genuine held input crosses multiple compositor frames. Instantaneous
     # synthetic down/up within one JS task never excites a physical raster.
-    page.mouse.move(265, 784)
+    page.mouse.move(265, 722)
     page.mouse.down()
     # Software-rasterized WebKit can return an older framebuffer at first.
     # Take several frames while actually holding the button, use the
     # strongest measured excitation, then wait for the visible tail to fade.
-    crop = (200, 762, 332, 809)
+    crop = (200, 699, 332, 746)
     frames = []
     for _ in range(6):
         page.wait_for_timeout(220)
@@ -110,7 +110,7 @@ with sync_playwright() as p:
     shader_errors = [error for error in console_errors if "WebGLProgram" in error]
     assert not shader_errors, shader_errors
     assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
-    page.mouse.click(353, 40)
+    page.mouse.click(353, 103)
     page.wait_for_timeout(150)
     settings_screen = page.screenshot()
     assert settings_screen != ready.read_bytes(), "Options did not change the screen"
@@ -126,7 +126,7 @@ with sync_playwright() as p:
 
     # PAUSE transitions playing→paused during pointerdown. The pressed PAUSE
     # button must visibly brighten even though game status changes immediately.
-    page.mouse.move(265, 784)
+    page.mouse.move(265, 722)
     page.mouse.down()
     pause_means = []
     for _ in range(6):

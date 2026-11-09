@@ -6,7 +6,6 @@
 'use strict';
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const PORTRAIT_MIN_BOARD_GAP=8;
-const PORTRAIT_REFERENCE_BOARD_H=469; // Approved 393×852 layout with its safe insets.
 function computeLayout(W,H,safe,ui){
   W=Math.max(1,Number(W)||1);H=Math.max(1,Number(H)||1);
   const edges={
@@ -38,9 +37,6 @@ function computeLayout(W,H,safe,ui){
     39+compactGrowth+(ui.extrasHeight-40)*regularGrowth;
   let hy=edges.top+4+5*compactGrowth-9*regularGrowth;
   let hh=50+8*compactGrowth+(ui.headHeight-58)*regularGrowth;
-  // V109 moved statistics to the sidebar, keeping portrait button hitboxes.
-  // The recovered score-row space is reserved, not added to the game board.
-  const legacyStatsOffset=ui.scoreHeight+deckGap;
   const dhDefault=2*deckPad+deckGap+buttonH+extraH;
   // Ease into the full bottom margin. The terminal needs 37 CSS pixels
   // plus its 1px deck gap, including room below the usable area if present.
@@ -51,6 +47,7 @@ function computeLayout(W,H,safe,ui){
   let sy=hy+hh+gap,sh=Math.max(0,dy-gap-sy);
   let hx=off+pad,hw=inner,sx=off+pad,sw=inner,dx=off+pad,dw=inner;
   if(landscape){
+    const legacyStatsOffset=ui.scoreHeight+deckGap;
     let left=clamp(width*.24,100,205);
     let right=clamp(width*.30,166,260);
     const shortage=Math.max(0,124-(width-left-right-36));
@@ -69,15 +66,9 @@ function computeLayout(W,H,safe,ui){
   }
   const sideGap=Math.min(ui.sideGap,Math.max(0,sw*.025));
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
-  // Preserve the regular-size board while there is room. On shorter screens,
-  // spend the whitespace before reducing the board, down to 8px on each side.
   // The stage already excludes one stack gap at its top and bottom.
-  const protectedSpace=buttonH-preferredButtonH+extraH-preferredExtraH+
-    bottomMargin-preferredMargin;
-  const preferredBoardH=Math.max(PORTRAIT_REFERENCE_BOARD_H,
-    sh-Math.max(0,legacyStatsOffset-protectedSpace));
   const minimumBoardSpacing=2*Math.max(0,PORTRAIT_MIN_BOARD_GAP-gap);
-  const boardRegionH=landscape?sh:Math.max(0,Math.min(preferredBoardH,sh-minimumBoardSpacing));
+  const boardRegionH=landscape?sh:Math.max(0,sh-minimumBoardSpacing);
   const brickGap=ui.padGap; // Identical to the horizontal control gap.
   let bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   if(!landscape&&bw>4){
@@ -90,7 +81,8 @@ function computeLayout(W,H,safe,ui){
       const tile=Math.max(0,(boardWidth-4)/10)*.75;
       const sidebarPanelWidth=Math.min(sideWidth,
         Math.max(Math.min(sideWidth,52),tile*4+10));
-      return boardWidth+2*(tile+brickGap)+sidebarPanelWidth+2;
+      // Two board-to-rail gutters, plus the right rail-to-sidebar gutter.
+      return boardWidth+2*tile+3*brickGap+sidebarPanelWidth;
     };
     if(framedSpan(bw)>hw){
       let lo=4,hi=bw;
@@ -107,6 +99,13 @@ function computeLayout(W,H,safe,ui){
     hx+Math.max(0,(bw-4)/10)*.75+brickGap;
   // Keep the game board's 10:20 ratio while centering it vertically.
   const by=sy+Math.max(0,(sh-bh)/2);
+  // When width limits the board, move the header and deck inward equally.
+  // Keep the leftover space outside the centered stack.
+  const stackInset=landscape?0:Math.max(0,(sh-bh)/2+gap-PORTRAIT_MIN_BOARD_GAP);
+  hy+=stackInset;
+  dy-=stackInset;
+  sy+=stackInset;
+  sh-=2*stackInset;
   // V133: in portrait, align the complete sidebar's RIGHT edge with
   // the header and footer; do not right-align its text labels.
   // Landscape retains its existing three-column arrangement.
@@ -158,7 +157,7 @@ function computeLayout(W,H,safe,ui){
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
     sideX:sxSide,sideW:swSide,brickGap,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
     deckPad,deckGap,buttonH,headerButtonH,extraH,overlaySecondaryH,
-    footerY:H-edges.bottom-18};
+    footerY:H-edges.bottom-18-stackInset};
 }
 const api=Object.freeze({computeLayout});
 if(typeof module!=='undefined'&&module.exports)module.exports=api;

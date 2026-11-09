@@ -33,11 +33,11 @@ test('controls crop excludes the terminal without changing its original cell rec
   assert.equal(terminal.y,r.dy+r.dh+1);
   assert.equal(terminal.w,Math.max(1,r.dw-10));
   assert.equal(terminal.h,37);
-  assert.ok(c.y+c.h<=r.dy+r.dh+2.00001);
+  assert.ok(c.y+c.h<=r.dy+r.dh+2.50001,'2px crop pad plus DPR2 snapping');
   assert.deepEqual(c,croppedBounds([{x:r.dx,y:r.dy,w:r.dw,h:r.dh}],w,h,2),
    'the controls crop is exactly the original button deck plus pixel snapping');
   assert.ok(t.w<=r.dw+2.00001);
-  assert.ok(t.y>=r.dy+r.dh+.99999,'terminal cannot cover controls bottom edge');
+  assert.ok(t.y>=r.dy+r.dh+.49999,'terminal gap allows at most a DPR2 pixel of snapping');
   assert.ok(t.h<=39.00001);
   assert.ok(t.y>=0&&t.y+t.h<=h+0.001);
  }
