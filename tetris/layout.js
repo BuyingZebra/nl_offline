@@ -5,6 +5,8 @@
 (function(root){
 'use strict';
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+const PORTRAIT_MIN_BOARD_GAP=8;
+const PORTRAIT_REFERENCE_BOARD_H=469; // Approved 393×852 layout with its safe insets.
 function computeLayout(W,H,safe,ui){
   W=Math.max(1,Number(W)||1);H=Math.max(1,Number(H)||1);
   const edges={
@@ -67,12 +69,15 @@ function computeLayout(W,H,safe,ui){
   }
   const sideGap=Math.min(ui.sideGap,Math.max(0,sw*.025));
   const sideWidth=Math.min(ui.side,Math.max(0,sw*.36));
-  // Spend the existing portrait whitespace on larger touch targets and a
-  // fully visible terminal first. Only reduce the board if it runs out.
+  // Preserve the regular-size board while there is room. On shorter screens,
+  // spend the whitespace before reducing the board, down to 8px on each side.
+  // The stage already excludes one stack gap at its top and bottom.
   const protectedSpace=buttonH-preferredButtonH+extraH-preferredExtraH+
     bottomMargin-preferredMargin;
-  const boardSpacing=Math.max(0,legacyStatsOffset-protectedSpace);
-  const boardRegionH=landscape?sh:Math.max(0,sh-boardSpacing);
+  const preferredBoardH=Math.max(PORTRAIT_REFERENCE_BOARD_H,
+    sh-Math.max(0,legacyStatsOffset-protectedSpace));
+  const minimumBoardSpacing=2*Math.max(0,PORTRAIT_MIN_BOARD_GAP-gap);
+  const boardRegionH=landscape?sh:Math.max(0,Math.min(preferredBoardH,sh-minimumBoardSpacing));
   const brickGap=ui.padGap; // Identical to the horizontal control gap.
   let bw=Math.max(0,Math.min(305,sw-sideWidth-sideGap,boardRegionH/2));
   if(!landscape&&bw>4){

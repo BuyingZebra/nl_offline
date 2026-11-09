@@ -87,8 +87,8 @@ test('portrait board grows continuously through every height at representative s
      `${w}x${h}, safe ${JSON.stringify(safe)}: board changed by ${change}px`);
     assert.ok(Math.abs(r.dy-previous.dy)<=1+1e-6,'deck moves smoothly');
    }
-   assert.ok(r.boardY>=r.hy+r.hh&&r.boardY+r.boardH<=r.dy+1e-6,
-    'the board stays between header and controls');
+   assert.ok(r.boardY>=r.hy+r.hh+8-1e-6&&r.boardY+r.boardH<=r.dy-8+1e-6,
+    'the board leaves at least 8px above and below');
    assert.ok(r.boardX+r.boardW+2*r.brickGap+r.previewCell<=r.sideX+1e-6,
     'the right brick rail and its gutters fit before the sidebar');
    assert.ok(r.nextPanel.y+r.nextPanel.h+ui.unit<=r.statsPanel.y+1e-6&&
@@ -98,6 +98,19 @@ test('portrait board grows continuously through every height at representative s
    previous=r;
   }
  }
+});
+test('short portrait viewports give up whitespace before reducing the reference board',()=>{
+ const safe={top:59,bottom:34};
+ for(const [h,boardH,gap] of [[852,469,31.5],[820,469,15.5],[805,469,8],[804,468,8]]){
+  const r=computeLayout(393,h,safe,ui);
+  assert.equal(r.boardH,boardH);
+  assert.equal(r.boardY-r.hy-r.hh,gap);
+  assert.equal(r.dy-r.boardY-r.boardH,gap);
+ }
+ const compact=computeLayout(320,568,{top:20},ui);
+ assert.equal(compact.boardH,334);
+ assert.equal(compact.boardY-compact.hy-compact.hh,8);
+ assert.equal(compact.dy-compact.boardY-compact.boardH,8);
 });
 test('portrait controls retain non-overlapping 44px targets at compact widths and heights',async()=>{
  const {createHudDrawing}=await import('./hud-drawing.js');
