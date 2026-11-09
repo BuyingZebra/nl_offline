@@ -27,14 +27,14 @@
   if(!b)return a;
   return b.score>a.score?b:a;
  }
- function read(storage){
+ function parseRecord(raw){
+  try{return sanitize(JSON.parse(raw));}catch(error){return null;}
+ }
+ function read(storage,locks){
   if(!storage)return null;
   try{
-   let result=null;
    const raw=storage.getItem(KEY);
-   if(raw!==null){
-    try{result=sanitize(JSON.parse(raw));}catch(error){/* Legacy fallback below. */}
-   }
+   let result=parseRecord(raw);
    const old=storage.getItem(OLD_TOP_FIVE);
    if(old!==null){
     try{
@@ -46,24 +46,36 @@
    const legacy=positive(storage.getItem(LEGACY));
    result=better(result,legacy>0?sanitize({score:legacy}):null);
    // A successful migration has no effect on the former backup records.
-   if(result&&(!raw||raw!==JSON.stringify(result))){
-    try{storage.setItem(KEY,JSON.stringify(result));}
-    catch(error){/* Read-only/private storage remains usable in memory. */}
-   }
-   return result;
+   return result&&raw!==JSON.stringify(result)?save(storage,result,locks):result;
   }catch(error){return null;}
  }
- function save(storage,record){
+ function save(storage,record,locks){
   const best=sanitize(record);
-  if(best)try{storage?.setItem(KEY,JSON.stringify(best));}
-  catch(error){/* Storage disabled; keep the current-session best. */}
-  return best;
+  if(!best||!storage)return best;
+  function persist(){
+   let winner=best;
+   try{
+    const raw=storage.getItem(KEY);
+    winner=better(parseRecord(raw),best);
+    const serialized=JSON.stringify(winner);
+    if(raw!==serialized)storage.setItem(KEY,serialized);
+   }catch(error){/* Storage disabled; keep the current-session best. */}
+   return winner;
+  }
+  if(!locks?.request)return persist();
+  try{
+   const visibleBest=better(parseRecord(storage.getItem(KEY)),best);
+   // Serialize the shared read/compare/write across tabs without blocking
+   // gameplay or delaying the current tab's personal-best display.
+   void locks.request(KEY,persist).catch(persist);
+   return visibleBest;
+  }catch(error){return persist();}
  }
- function update(storage,current,candidate){
+ function update(storage,current,candidate,locks){
   const existing=sanitize(current);
   const incoming=sanitize(candidate);
   return incoming&&(!existing||incoming.score>existing.score)?
-   save(storage,incoming):(existing?current:null);
+   save(storage,incoming,locks):(existing?current:null);
  }
  return Object.freeze({KEY,OLD_TOP_FIVE,LEGACY,sanitize,read,save,update});
 });

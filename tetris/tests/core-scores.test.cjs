@@ -95,6 +95,31 @@ test('one local best replaces the leaderboard; ties preserve previous metadata',
  assert.equal(map.has(Scores.OLD_TOP_FIVE),false);
  assert.equal(map.has(Scores.LEGACY),false);
 });
+test('a stale tab cannot overwrite a higher saved score without Web Locks',()=>{
+ const map=new Map();
+ const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};
+ const firstTab=Scores.read(storage),secondTab=Scores.read(storage);
+ Scores.update(storage,firstTab,{score:1200,lines:20,level:2,at:20});
+ const visible=Scores.update(storage,secondTab,{score:300,lines:1,level:0,at:30});
+ assert.equal(visible.score,1200);
+ assert.deepEqual(Scores.read(storage),{score:1200,lines:20,level:2,at:20});
+});
+test('queued cross-tab saves compare inside the same exclusive lock',async()=>{
+ const map=new Map(),pending=[];
+ const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};
+ const locks={request(name,callback){
+  assert.equal(name,Scores.KEY);
+  return new Promise(resolve=>pending.push(()=>resolve(callback())));
+ }};
+ const firstTab=Scores.update(storage,null,{score:1200,lines:20,level:2,at:20},locks);
+ const secondTab=Scores.update(storage,null,{score:300,lines:1,level:0,at:30},locks);
+ assert.equal(firstTab.score,1200);
+ assert.equal(secondTab.score,300);
+ assert.equal(map.has(Scores.KEY),false,'both tabs queued writes before either could save');
+ pending.shift()();
+ pending.shift()();
+ assert.deepEqual(Scores.read(storage),{score:1200,lines:20,level:2,at:20});
+});
 test('legacy five-entry scores migrate highest result and keep their original backup',()=>{
  const backup=JSON.stringify([
   {name:'ABC',score:62,lines:4,level:1,at:5},

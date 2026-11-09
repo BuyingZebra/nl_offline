@@ -12,7 +12,7 @@ const BLOCKED_DURING_LINE_CLEAR=new Set([
 ]);
 
 export function createActionController({
- game,scores,storage,settings,screens,
+ game,scores,storage,scoreLocks,settings,screens,
  getLineClearActive,clearLineClear,markLayers,invalidate,tone,
  onCopyDebug,onResetSettingsUI,onTerminalEvent=()=>{},
  canInteract=()=>true,now=()=>Date.now()
@@ -24,7 +24,7 @@ export function createActionController({
     typeof onCopyDebug!=='function'||typeof onResetSettingsUI!=='function')
   throw new TypeError('Application Actions require game, screen and UI adapters');
 
- let best=scores.read(storage);
+ let best=scores.read(storage,scoreLocks);
 
  // Save new personal records as soon as the score improves, rather than
  // requiring initials or waiting for GAME OVER. Ties keep prior metadata.
@@ -32,7 +32,7 @@ export function createActionController({
   const previous=best;
   best=scores.update(storage,best,{
    score:game.score,lines:game.lines,level:game.level,at:now()
-  });
+  },scoreLocks);
   return best!==previous;
  }
  function onGameOver(){
@@ -101,7 +101,11 @@ export function createActionController({
   if(action==='close'){screens.close();return;}
   if(action==='copyDebug'){onCopyDebug();return;}
   if(action==='options'){screens.openOptions();return;}
-  if(action==='scores'){screens.openScores();return;}
+  if(action==='scores'){
+   const saved=scores.read(storage,scoreLocks);
+   if(saved&&(!best||saved.score>best.score))best=saved;
+   screens.openScores();return;
+  }
   if(action==='theme'){
    settings.toggleTheme();markLayers('base');invalidate();return;
   }

@@ -88,6 +88,16 @@ test('temporary cancel retains listeners for browser restoration',()=>{
  assert.deepEqual(h.actions,['left','left']);
  h.controller.dispose();
 });
+test('Enter and numpad Enter activate the primary game action once per press',()=>{
+ const primary={x:0,y:0,w:100,h:60,act:'start',kind:'button'};
+ const h=harness(false,()=>true,[primary]);
+ for(const [code,repeat] of [['Enter',false],['Enter',true],['NumpadEnter',false]]){
+  h.document.emit('keydown',{code,repeat,preventDefault(){}});
+ }
+ assert.deepEqual(h.actions,['start','start']);
+ assert.deepEqual(h.buttonPresses,[{hit:primary,held:false},{hit:primary,held:false}]);
+ h.controller.dispose();
+});
 
 test('suspended and recovering pages cannot receive hidden pointer or keyboard actions',()=>{
  let active=false;

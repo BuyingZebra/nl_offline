@@ -14,7 +14,7 @@ import {createCanvasUI} from './canvas-ui.js?v165';
 import {getBuildVersion} from './build-version.js?v066';
 import {createPlatformManager} from './platform-manager.js?v093';
 import {createAppLifecycle,createGraphicsCleanup,runCleanupTasks} from './app-lifecycle.js?v093';
-import {createInputController} from './input-controller.js?v096';
+import {createInputController} from './input-controller.js?v174';
 import {createPerfMonitor} from './perf-monitor.js?v168';
 import {createTextureUploadProfiler} from './texture-upload-profiler.js?v164';
 import {croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas} from './cropped-ui-layers.js?v168';
@@ -29,7 +29,7 @@ import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices} from './display-settings-catalog.js?v103';
 import {createSettingsManager} from './settings-manager.js?v103';
 import {createScreenManager} from './screen-manager.js?v156';
-import {createActionController} from './action-controller.js?v169';
+import {createActionController} from './action-controller.js?v174';
 import {createGraphicsHealth} from './graphics-health.js?v089';
 const Core=window.FieldAtlasBlocks,Scores=window.FieldAtlasScores;
 const screen=document.getElementById('screen'),display=document.getElementById('display');
@@ -73,7 +73,9 @@ const UI_SPACE=Object.freeze({
  padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
  holdHeight:88,nextHeight:162,statsHeight:92
 });
-const settings=createSettingsManager(window.localStorage);
+let storage;
+try{storage=window.localStorage;}catch(error){/* The storage getter can be disabled. */}
+const settings=createSettingsManager(storage);
 const game=new Core.Game();
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
 let inputController=null;
@@ -319,7 +321,7 @@ const screenManager=createScreenManager({
 // All game commands, menu actions and personal-best updates are delegated.
 // UI and render adapters remain here; the controller never paints.
 const actions=createActionController({
- game,scores:Scores,storage:window.localStorage,settings,screens:screenManager,
+ game,scores:Scores,storage,scoreLocks:navigator.locks,settings,screens:screenManager,
  getLineClearActive:()=>Boolean(lineClearFX),
  clearLineClear:()=>{lineClearFX=null;},
  // Score, lines and preview content already belong to sidebar/board.

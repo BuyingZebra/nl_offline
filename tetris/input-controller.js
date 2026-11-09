@@ -146,7 +146,7 @@ listen(screen,'wheel',e=>{
 },{passive:false});
 const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
  ArrowDown:'soft',Space:'soft',KeyC:'hold',ShiftLeft:'hold',
- KeyP:'pause',Escape:'pause'};
+ KeyP:'pause',Escape:'pause',Enter:'start',NumpadEnter:'start'};
 listen(document,'keydown',e=>{
  if(disposed||!canInteract())return;
  if(getModal()){

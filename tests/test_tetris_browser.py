@@ -117,10 +117,11 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     page.wait_for_timeout(150)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
-    page.mouse.click(155, 416)  # START GAME
+    page.keyboard.press("Enter")  # START GAME
     page.wait_for_timeout(300)
     read_best = "() => window.FieldAtlasScores.read(localStorage)?.score ?? 0"
     page.keyboard.press("ArrowDown")
+    page.wait_for_function(f"() => ({read_best})() > 0")
     started_score = page.evaluate(read_best)
     assert started_score > 0, "Soft drop did not score after START GAME"
 
@@ -146,11 +147,11 @@ with sync_playwright() as p:
     )
     page.keyboard.press("ArrowDown")
     assert page.evaluate(read_best) == started_score, "Soft drop still scored while paused"
-    page.keyboard.press("p")  # Resume before gameplay/bfcache checks
+    page.keyboard.press("Enter")  # Resume before gameplay/bfcache checks
     page.wait_for_timeout(150)
 
     page.keyboard.press("Space")  # Soft drop
-    assert page.evaluate(read_best) > started_score, "Soft drop did not score after resume"
+    page.wait_for_function(f"score => ({read_best})() > score", arg=started_score)
     page.wait_for_timeout(150)
     playing_image = page.screenshot()
     # A temporary bfcache round-trip must pause gameplay but keep its WebGL
