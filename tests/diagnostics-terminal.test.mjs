@@ -87,7 +87,7 @@ describe('Debug report and clipboard',()=>{
   assert.equal(await clipboard.copyText('report'),false);
  });
  test('diagnostics are collected quietly with a bounded sample history',()=>{
-  const code=fs.readFileSync(path.join(appDir,'three-v027.js'),'utf8');
+  const code=fs.readFileSync(path.join(appDir,'platform.js'),'utf8');
   assert.ok(code.includes('const recentPerf=[];'));
   assert.ok(code.includes('if(recentPerf.length>8)recentPerf.shift()'));
   assert.ok(code.includes('enabled:true,intervalMs:2000,log:()=>{}'));
@@ -489,7 +489,7 @@ describe('Terminal repaint regions',()=>{
  });
 
  test('standalone terminal plane uses the original text painter and CRT compositor',()=>{
-  const renderer=source('three-v027.js');
+  const renderer=source('platform.js');
   const merged=source('render.js');
   const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
   assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
@@ -535,7 +535,7 @@ describe('Terminal repaint regions',()=>{
  });
 
  test('web font loading, GPU recovery and resize refresh the terminal crop',()=>{
-  const renderer=source('three-v027.js');
+  const renderer=source('platform.js');
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('font-ready'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('context-restored'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('resize'\)/);

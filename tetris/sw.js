@@ -1,4 +1,4 @@
-/* NOMAD Tetris V182 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V183 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v182';
+const CACHE_VERSION='v183';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';

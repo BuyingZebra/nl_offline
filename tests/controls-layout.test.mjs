@@ -199,7 +199,7 @@ describe('Responsive geometry',()=>{
  });
  test('render module owns layout without a separate HTML script',()=>{
   const html=fs.readFileSync(path.join(appDir,'three-v027.html'),'utf8');
-  const renderer=fs.readFileSync(path.join(appDir,'three-v027.js'),'utf8');
+  const renderer=fs.readFileSync(path.join(appDir,'platform.js'),'utf8');
   const visual=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
   assert.doesNotMatch(html,/src="\.\/layout\.js/);
   assert.match(renderer,/import Layout, \{/);
@@ -426,7 +426,7 @@ describe('HUD layout and viewport rules',()=>{
   assert.deepEqual(painted.text,[],'level score lines no longer drawn above game buttons');
  });
  test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
-  const source=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const merged=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
   const terminal=merged.slice(merged.indexOf('// Canvas user interface, overlay'));
@@ -516,7 +516,7 @@ describe('HUD layout and viewport rules',()=>{
  });
 
  test('V143 removes rejected mascot SVG and board decal',()=>{
-  const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
   assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
@@ -525,7 +525,7 @@ describe('HUD layout and viewport rules',()=>{
  });
 
  test('V162 stamps independently owned and rotating piece shadows onto the board',()=>{
-  const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   const start=renderer.indexOf('function stage(r,drawPieces=true){');
   const end=renderer.indexOf('function paintBoardPopup(r)',start);

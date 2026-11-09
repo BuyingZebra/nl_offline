@@ -273,7 +273,7 @@ describe('Phosphor persistence',()=>{
   assert.ok(integratePhosphorResponse(.4,.4,.034,190)===.4);
  });
  test('no game pause or menu action resets GPU persistence history',()=>{
-  const source=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const menu=source.slice(source.indexOf('onChange:(previous,next)=>{'),
    source.indexOf('// All game commands'));
   assert.ok(!menu.includes('resetPersistence'), 'menu changes must not clear CRT glow');
@@ -471,13 +471,13 @@ describe('Canvas button drawing',()=>{
   const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
    assert.ok(modal.includes(control),'modal control missing brightness: '+control);
-  const game=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const game=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(game,/getButtonPower:r=>\(g===controlsContext&&controlsGpuEnabled\)\?0:buttonSparks\.find/);
   assert.doesNotMatch(game,/syncButtonFeedback/);
  });
 
  test('PAUSE keeps its pressed luminance through immediate gameplay status changes',()=>{
-  const game=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const game=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const actions=game.slice(game.indexOf('handleAction:act=>'),
    game.indexOf('setSetting:actions.setSetting'));
   // Both pointer controls and keyboard controls must preserve PAUSE even
@@ -546,7 +546,7 @@ describe('Menus and visual controls',()=>{
   assert.equal(SCREENS.RESTART,undefined);
  });
  test('blur has its own sharp overlaid inset shadow; no old dialog remains',()=>{
-  const renderer=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const hud=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(renderer,/function drawSharpBoardInsetShadow\(r\)/);
@@ -604,7 +604,7 @@ describe('Button repaint regions',()=>{
  });
 
  test('renderer asks for affected layers instead of always marking base',()=>{
-  const src=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const start=src.indexOf('const previousButtonSparks=buttonSparks;');
   const end=src.indexOf("if(layers.needsRender())",start);
   assert.ok(start>0&&end>start);
@@ -621,7 +621,7 @@ describe('Button repaint regions',()=>{
 });
 
 describe('Modal repaint regions',()=>{
- const source=()=>fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+ const source=()=>fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
 
  test('modal can be marked and consumed independently of terminal and controls',()=>{
   const layers=createRenderInvalidation([]);
@@ -842,7 +842,7 @@ describe('GPU button lighting',()=>{
  });
 
  test('renderer keeps Canvas source at baseline and pushes excitation through uniforms',()=>{
-  const src=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(src,/controlsPlane\.material=controlLighting\.material/);
   assert.match(src,/g===controlsContext&&controlsGpuEnabled\)\?0:buttonSparks/);
   assert.match(src,/controlLighting\.configure\(regions,bounds\)/);
@@ -872,7 +872,7 @@ describe('GPU button lighting',()=>{
   assert.deepEqual(marked,['board','sidebar']);
  });
  test('fallback is selectable and reports which button backend is active',()=>{
-  const src=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(src,/maxFragmentUniforms>=32/);
   assert.match(src,/\.get\('buttonRenderer'\)==='canvas'/);
   assert.match(src,/controlsGpuEnabled\)\?0:buttonSparks/);

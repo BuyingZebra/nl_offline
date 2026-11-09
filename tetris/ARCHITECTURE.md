@@ -10,7 +10,8 @@
 | `platform/android.js` | Android standalone mode and visual viewport events |
 | `platform/generic.js` | Standards-first browser fallback |
 | `diagnostics.js` | Timing, debug reports and clipboard |
-| `three-v027.js` | Scene and canvas ownership, game loop and frame scheduling |
+| `three-v027.js` | Tiny stable browser entry that starts the platform coordinator |
+| `platform.js` runtime | Application orchestration: frame scheduling, scene ownership and shared browser lifecycle |
 | `sw.js` | Versioned offline installation |
 
 Rendering observes read-only game events. The engine scores line clears before checking whether a locking piece ends the run. The renderer owns the visible line flash and delays presenting game over until that flash completes.
@@ -29,7 +30,7 @@ The worker activates a complete generation after the previous generation's clien
 
 ## Checks
 
-The visual layout, artwork, Canvas UI and compositor now share `render.js`, partitioned into private subsystems. The central runtime remains separate pending the final orchestration pass.
+The visual layout, artwork, Canvas UI and compositor now share `render.js`, partitioned into private subsystems. The application coordinator now resides inside `platform.js` as a browser-only startup function. The long-lived `three-v027.js` URL remains a very small compatibility entry.
 
 The gameplay rules, session controller and personal-best system now share one internally compartmentalized `game.js`. Runtime imports the game module directly; the legacy global integration hooks remain available for diagnostic tests.
 

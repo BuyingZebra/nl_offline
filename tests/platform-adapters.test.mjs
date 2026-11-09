@@ -32,3 +32,12 @@ test('Android standalone mode and viewport resize are handled separately',()=>{
  assert.equal(win.callbacks.has('resize'),true);
  detach();assert.equal(win.callbacks.has('resize'),false);
 });
+
+import fs from 'node:fs';
+test('published entry delegates to platform while remaining a stable URL',()=>{
+ const source=fs.readFileSync(new URL('../tetris/three-v027.js',import.meta.url),'utf8');
+ const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ assert.match(source,/startNOMAD/);
+ assert.match(platform,/export function startNOMAD\(\)/);
+ assert.ok(source.length<500,'the historical entry is no longer an application monolith');
+});

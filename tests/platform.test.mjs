@@ -11,7 +11,7 @@ const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
 describe('Build markers and reload safety',()=>{
  const read=n=>fs.readFileSync(path.join(appDir,n),'utf8');
- const html=read('three-v027.html'),main=read('three-v027.js'),platform=read('platform.js');
+ const html=read('three-v027.html'),main=read('platform.js'),platform=read('platform.js');
  const documentWithVersion=v=>({querySelector:s=>s==='meta[name="tetris-build"]'&&v!==null?
   {getAttribute:attr=>attr==='content'?v:null}:null});
  test('single metadata marker determines build number without a hard-coded JS constant',()=>{
