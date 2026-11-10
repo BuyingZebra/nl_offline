@@ -5,7 +5,8 @@ import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
 import {createHudDrawing,fitPreviewCells} from '../tetris/render.js';
-import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt,createInputController} from '../tetris/input.js';
+import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt} from '../tetris/render.js';
+import {createInputController} from '../tetris/platform.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
