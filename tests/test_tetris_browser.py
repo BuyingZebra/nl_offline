@@ -411,10 +411,16 @@ with sync_playwright() as p:
         # Compare against the actual manifest, not an arbitrary count: a
         # leaner release should not fail just because obsolete scripts left.
         worker_source = (Path(__file__).resolve().parents[1] / "tetris" / "sw.js").read_text()
-        match = re.search(r"const CORE_ASSETS=Object\\.freeze\\(\\[(.*?)\\]\\);",
-                          worker_source, re.S)
-        assert match, "Offline worker manifest is missing"
-        expected_assets = re.findall(r"'(\\./[^']+)'", match.group(1))
+        # The release generator writes this exact, line-oriented manifest
+        # block. Check every declared resource, not an arbitrary count.
+        asset_block = worker_source.partition("const CORE_ASSETS=Object.freeze([")[2]
+        asset_block = asset_block.partition("\n]);")[0]
+        assert asset_block, "Offline worker manifest is missing"
+        expected_assets = [
+            line.strip().strip(",").strip("'")
+            for line in asset_block.splitlines()
+            if line.strip().startswith("'./")
+        ]
         assert expected_assets, "Offline manifest has no resources"
         missing = page.evaluate("""async expected => {
           const build = document.querySelector('meta[name="tetris-build"]').content;
