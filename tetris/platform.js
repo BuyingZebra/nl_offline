@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v195';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v196';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v195';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v196';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -819,11 +819,10 @@ if(document.fonts?.load){
 }
 // V121: higher-contrast smooth SVG sprites, raster-cached at display DPR.
 // Approved pixel motifs remain a fallback during SVG loading/errors.
-const lightFX=()=>screenManager.isLight?
- {...settings.effects,shadowBlur:0}:settings.effects;
 const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR,
- getSettings:lightFX});
-const boardInsetShadows=createBoardInsetShadowRenderer({getSettings:lightFX});
+ getSettings:()=>settings.effects});
+const boardInsetShadows=createBoardInsetShadowRenderer({
+ getSettings:()=>settings.effects});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,
  onReady:()=>{
@@ -1332,8 +1331,11 @@ function syncFX(){
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
+ // Light Control uses the SAME saved rendering effects as gameplay,
+ // except phosphor persistence is paused so dragging remains immediate.
+ // The paused-board popup blur is suppressed separately in the compositor.
  compositor.syncFX({fx:screenManager.isLight?
-  {...settings.effects,softness:false,persistence:false}:settings.effects,
+  {...settings.effects,persistence:false}:settings.effects,
   theme:settings.theme,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,

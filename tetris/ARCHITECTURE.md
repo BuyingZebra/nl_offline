@@ -252,3 +252,20 @@ and phosphor persistence are temporarily disabled. The board-aperture bloom
 mask is retained despite the transparent modal, preserving the existing
 light/shadow-box separation. All original values return on DONE. No changes
 to piece art, ghost logic, scoring, buttons, or ordinary game controls.
+
+
+## Live shadow parity in Light Control (v196)
+
+The lighting laboratory no longer replaces the saved shadowBlur with zero.
+The normal piece and recessed-board rendering engines directly read the
+same persisted `settings.effects` object in Light Control as in gameplay,
+including Gaussian blur, shadow distance, angle, bias and opacity.
+The laboratory remains a *directional input mechanism*, not a second shadow
+renderer or point light. There is exactly one piece-shadow painter and one
+board-inset painter in the board stage, with the existing overlap, occlusion,
+clipping, compositing and dark-core normalization unchanged.
+
+The pause/game-over popup blur and modal scrim remain hidden to make the board
+visible, but ordinary saved edge-softness and Gaussian shadow settings are
+honoured. Phosphor persistence alone is temporarily bypassed for responsive
+dragging and returns unchanged on DONE. Gameplay remains paused throughout.
