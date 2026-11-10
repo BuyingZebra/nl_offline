@@ -66,3 +66,18 @@ Run `node --test tests/*.test.mjs` from the repository root.
 | `diagnostics-terminal` | Missing performance data, broken Copy Debug, or terminal drawing errors |
 
 GitHub Actions also runs the browser smoke test in Chromium and WebKit on manual dispatch or with `[pwa-smoke]` in the commit message. It opens the game, plays inputs, changes the viewport, and exercises offline launch. Physical iPhone Home Screen behavior is a separate check.
+
+## Frame scheduling and allocation discipline (v186)
+
+An active game still drives `requestAnimationFrame` continuously and uses the
+unchanged Three.js CRT compositor. With phosphor persistence enabled, the
+original continuous temporal history is retained. When continuous rendering is
+not needed, a single terminal timer wakes a frame at the next terminal event;
+no competing timeout is repeatedly created/cancelled during an active RAF loop.
+
+The button-feedback hot path now compares quantized luminance samples in place,
+using the exact old 8-bit rounding rather than rebuilding an array of strings.
+The no-button state returns a shared immutable empty array. The visual output
+and settings are unchanged. Browser smoke instrumentation reports idle RAF and
+timer counts for regression tracking; headless software-rendered browser counts
+are **not** valid phone battery or frame-rate benchmarks.

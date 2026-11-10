@@ -1,5 +1,5 @@
 import {describe,test} from 'node:test';
-import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks} from '../tetris/platform.js';
+import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks,needsContinuousFrame} from '../tetris/platform.js';
 import {createGraphicsCleanup,createGraphicsHealth} from '../tetris/render.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -911,5 +911,26 @@ describe('Offline installation and release switching',()=>{
   assert.ok(swCode.includes('fromPinnedCache(url)'));
   assert.ok(!swCode.includes('networkFirst('));
   execFileSync(process.execPath,[path.resolve(dir,'../tools/build-tetris-release.mjs'),'--check']);
+ });
+});
+
+
+describe('PWA frame scheduling policy',()=>{
+ test('running game and phosphor feedback retain continuous animation frames',()=>{
+  assert.equal(needsContinuousFrame({gameStatus:'playing'}),true);
+  assert.equal(needsContinuousFrame({persistence:true}),true);
+  assert.equal(needsContinuousFrame({buttonsActive:true}),true);
+  assert.equal(needsContinuousFrame({lineClearPending:true}),true);
+  assert.equal(needsContinuousFrame({redrawPending:true}),true);
+  assert.equal(needsContinuousFrame({scrolling:true}),true);
+ });
+ test('static idle state uses the scheduled terminal wake instead',()=>{
+  assert.equal(needsContinuousFrame(),false);
+  assert.equal(needsContinuousFrame({gameStatus:'paused'}),false);
+  assert.equal(needsContinuousFrame({gameStatus:'over'}),false);
+ });
+ test('terminal timeout is armed only in the non-continuous branch',()=>{
+  const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  assert.match(source,/if\(keepAnimating\)requestFrame\(\);\n  else if\(game.status!=='playing'&&\!document.hidden\)/);
  });
 });

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/render.js';
+import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,buttonFeedbackChanged,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/render.js';
 import {makeSliderControl,sliderValueAt} from '../tetris/render.js';
 import {DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/game.js';
 import {createCanvasUI,createHudDrawing} from '../tetris/render.js';
@@ -893,5 +893,41 @@ describe('Render resource ownership',()=>{
   assert.match(platform,/textures:visualScene\.textures/);
   assert.match(platform,/canvases:visualScene\.canvases/);
   assert.doesNotMatch(platform,/new THREE\./);
+ });
+});
+
+
+describe('Allocation-aware button feedback',()=>{
+ const signature=items=>items.map(s=>[s.x,s.y,s.w,s.h,
+  Math.round(s.power*49)].join(':')).join('|');
+ test('diff comparison is equivalent to prior quantized luminance signature',()=>{
+  const geometries=[
+   {x:0,y:0,w:50,h:50},{x:12,y:5,w:42,h:36},{x:100,y:12,w:80,h:50}
+  ];
+  const snapshots=[
+   [],[{...geometries[0],power:0}],
+   [{...geometries[0],power:.003}],
+   [{...geometries[0],power:.029}],
+   [{...geometries[0],power:.25}],
+   [{...geometries[0],power:.253}],
+   [{...geometries[0],power:.9},{...geometries[1],power:.12}],
+   [{...geometries[1],power:.12},{...geometries[0],power:.9}],
+   [{...geometries[2],power:1}]
+  ];
+  for(const previous of snapshots)for(const current of snapshots){
+   const expected=signature(previous)!==signature(current);
+   assert.equal(buttonFeedbackChanged(previous,current),expected);
+  }
+ });
+ test('idle button samples reuse a canonical immutable empty array',()=>{
+  const buttons=createButtonFeedback();
+  const first=buttons.sample(1),second=buttons.sample(100);
+  assert.equal(first,second);
+  assert.ok(Object.isFrozen(first));
+  assert.equal(first.length,0);
+  buttons.press({x:2,y:3,w:30,h:40},200,true);
+  assert.equal(buttons.sample(220).length,1);
+  buttons.clear();
+  assert.equal(buttons.sample(300),first);
  });
 });

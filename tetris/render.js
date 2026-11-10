@@ -1068,6 +1068,7 @@ const BUTTON_FLASH_TOTAL_MS=BUTTON_FLASH_PEAK_MS+BUTTON_AFTERGLOW_MS;
 const buttonLevel=power=>Math.round(BUTTON_BASE_LEVEL+
  (BUTTON_PEAK_LEVEL-BUTTON_BASE_LEVEL)*Math.max(0,Math.min(1,Number(power)||0)));
 const buttonInkLevel=power=>Math.round(6+24*Math.max(0,Math.min(1,Number(power)||0)));
+const EMPTY_BUTTON_SAMPLES=Object.freeze([]);
 function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
  const hits=[],limit=Math.max(1,Math.min(MAX_BUTTON_FLASHES,Math.floor(capacity)||1));
  const same=(a,b)=>a.x===b.x&&a.y===b.y&&a.w===b.w&&a.h===b.h;
@@ -1088,7 +1089,7 @@ function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
   a.releasedAt=now;return true;
  }
  function sample(now,physicalPersistence=false){
-  if(!Number.isFinite(now))return [];
+  if(!Number.isFinite(now))return EMPTY_BUTTON_SAMPLES;
   for(let i=hits.length-1;i>=0;i--){
    const a=hits[i];
    if(a.releasedAt!==null&&physicalPersistence&&
@@ -1097,6 +1098,7 @@ function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
    }
    if(a.releasedAt!==null&&now-a.releasedAt>=BUTTON_AFTERGLOW_MS)hits.splice(i,1);
   }
+  if(!hits.length)return EMPTY_BUTTON_SAMPLES;
   return hits.map(a=>{
    const age=a.releasedAt===null?0:Math.max(0,now-a.releasedAt);
    const fade=physicalPersistence?1:Math.max(0,1-age/BUTTON_AFTERGLOW_MS);
@@ -1105,6 +1107,20 @@ function createButtonFeedback({capacity=MAX_BUTTON_FLASHES}={}){
  }
  function clear(){const had=hits.length>0;hits.length=0;return had;}
  return Object.freeze({press,release,sample,clear,get count(){return hits.length;}});
+}
+
+/* Identical to the historical quantized signature comparison, without
+ * allocating nested arrays or concatenated strings on each frame.
+ */
+function buttonFeedbackChanged(previous,current){
+ if(previous===current)return false;
+ if(previous.length!==current.length)return true;
+ for(let i=0;i<current.length;i++){
+  const a=previous[i],b=current[i];
+  if(a.x!==b.x||a.y!==b.y||a.w!==b.w||a.h!==b.h||
+   Math.round(a.power*49)!==Math.round(b.power*49))return true;
+ }
+ return false;
 }
 
 /* NOMAD V169 — reusable GPU-driven luminance for static Canvas2D buttons.
@@ -1411,7 +1427,7 @@ function flashPhase(elapsed,interval=72){
  return Math.floor(elapsed/interval)%2;
 }
 
-return {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,buttonLevel,buttonInkLevel,createButtonFeedback,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase};
+return {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,buttonLevel,buttonInkLevel,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase};
 })();
 const {buttonLevel,buttonInkLevel}=CRT;
 // Textures, sprite art, fragments, silhouette shadows.
@@ -2972,7 +2988,7 @@ const api=Object.freeze({computeLayout});
 
 return api;
 })();
-export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
+export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
 export const {createCanvasUI,fitPreviewCells,createHudDrawing,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};

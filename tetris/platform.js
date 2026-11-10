@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene} from './render.js?v185';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene} from './render.js?v186';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v185';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v186';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -260,6 +260,17 @@ export function runCleanupTasks(tasks){
  }
  if(errors.length)throw new Error(errors.join(' | ').slice(0,240));
  return tasks.length;
+}
+
+/* Pure frame demand: physics, visual changes and CRT history drive RAF.
+ * The terminal timer is only armed if this function returns false.
+ */
+export function needsContinuousFrame({
+ gameStatus='ready',lineClearPending=false,redrawPending=false,
+ scrolling=false,buttonsActive=false,persistence=false
+}={}){
+ return gameStatus==='playing'||lineClearPending||redrawPending||
+  scrolling||buttonsActive||persistence;
 }
 
 /* Top-level application coordination is owned by the platform runtime.
@@ -578,7 +589,7 @@ let g=baseContext; // Current Canvas2D drawing target.
 // Source-owned button brightness; no fullscreen press overlay or extra glow.
 const buttonFeedback=createButtonFeedback();
 let buttonSparks=[];
-let priorButtonSignature='';
+// Button changes are now compared without temporary strings.
 let lastHistoryRender=0;
 
 // Upload changed canvases before submitting the composer so that the first
@@ -1340,10 +1351,7 @@ function frame(now){
   // including the final return to baseline. Phosphor history owns the fade.
   const previousButtonSparks=buttonSparks;
   buttonSparks=buttonFeedback.sample(now,phosphorOn);
-  const buttonSignature=buttonSparks.map(s=>[s.x,s.y,s.w,s.h,
-   Math.round(s.power*49)].join(':')).join('|');
-  if(buttonSignature!==priorButtonSignature){
-   priorButtonSignature=buttonSignature;
+  if(buttonFeedbackChanged(previousButtonSparks,buttonSparks)){
    // V166: the opaque, cropped controls plane already hides the base
    // canvas' duplicate deck artwork. Avoid reuploading the entire base
    // texture for deck-only button animations. Header and board-status
@@ -1403,15 +1411,21 @@ function frame(now){
   }
   perf.recordState(game.status);
   perf.endFrame(frameStarted);
+  const keepAnimating=needsContinuousFrame({
+   gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
+   redrawPending:layers.needsRender(),scrolling:Math.abs(scrollVelocity)>.015,
+   buttonsActive:buttonSparks.length>0,persistence:phosphorOn
+  });
+  // A continuously active RAF already advances the terminal. Scheduling a
+  // second timeout for the same work wastes callbacks and timer allocations.
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
-  if(game.status!=='playing'&&!document.hidden){
+  if(keepAnimating)requestFrame();
+  else if(game.status!=='playing'&&!document.hidden){
    terminalTimer=window.setTimeout(()=>{
     terminalTimer=null;
     if(!document.hidden)requestFrame();
    },terminalLog.nextDelay(now));
   }
-  if(game.status==='playing'||lineClearFX?.finalPoints||layers.needsRender()||Math.abs(scrollVelocity)>.015||
-   buttonSparks.length>0||phosphorOn)requestFrame();
  }catch(e){
   graphicsHealth.recordFailure(e);
   // A WebGL loss can interrupt a frame in progress. Its restoration event
