@@ -156,3 +156,18 @@ rebuild for every pointermove. Only direction/distance/blur/bias invalidate
 cached silhouette rasters. Enabling/disabling and opacity are applied on
 draw, without new convolution or texture resources. Shadow caches remain
 bounded and all graphics resources are disposed on page exit.
+
+
+## True-black visible shadow opacity (v191)
+
+Shadow colour remains #000000. The v190 Gaussian generated alpha lower than
+one even at 100% user opacity because convolution diluted the coverage.
+The v191 shadow engine subtracts the original opaque silhouette at its own
+half-resolution alpha mask, then normalizes the remaining *visible* Gaussian
+coverage per cached piece silhouette. A 100% opacity setting now produces a
+black core with a smooth, proportional soft edge (including at 6 CSS px blur).
+The opacity slider remains a linear draw-only Canvas globalAlpha multiplier;
+zero and all settings still behave normally. This avoids extra GPU passes,
+Canvas textures, extra allocations, and the former destination-out stamp pass.
+Game rules, piece artwork, screen colours, and shadow-box bloom isolation
+remain unchanged.
