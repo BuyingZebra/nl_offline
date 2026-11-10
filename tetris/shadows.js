@@ -25,6 +25,76 @@ export function directionalShadowProfile(tile=35,fx={}){
  });
 }
 
+/** Direction-aware inset shadow for the RECESSED playfield window.
+ * Reuses exactly the same persisted shadow settings as the tetrominoes.
+ * At the approved 55° / 13px / 14px / 100% bias / 80% opacity defaults,
+ * the standard and sharp-over-blurred-board gradients equal the old values.
+ *
+ * Inset geometry stays clipped to the window. Unlike a piece shadow, this
+ * represents light being obstructed by the four inner walls, not an offset
+ * exterior silhouette. No extra texture, GPU pass, or per-frame convolution.
+ */
+export function boardInsetShadowProfile(tile=35,fx={},sharp=false){
+ const p=directionalShadowProfile(tile,fx);
+ const base=sharp?
+  {ambient:.15,vertical:.21,horizontal:.12}:
+  {ambient:.24,vertical:.34,horizontal:.18};
+ if(!p.enabled||p.opacity<=0)return Object.freeze({
+  enabled:false,depth:0,hard:false,top:0,left:0,bottom:0,right:0
+ });
+ const referenceScale=Math.max(.1,(Number(tile)||35)/35);
+ const distance=p.distance/referenceScale/13;
+ const blur=p.blur/referenceScale/14;
+ const originalDepth=Math.min(20,Math.max(8,(Number(tile)||35)*.8));
+ const depth=Math.min(40,Math.max(1,
+  originalDepth*(blur*.75+distance*.25)));
+ const radians=p.angle*Math.PI/180;
+ const dx=Math.cos(radians),dy=Math.sin(radians);
+ const defaultX=Math.cos(55*Math.PI/180),defaultY=Math.sin(55*Math.PI/180);
+ // Bias of zero balances opposite walls; at 100% the cast is directional.
+ const projection=(component,reference)=>
+  p.bias*Math.max(0,component)/reference+(1-p.bias)*.5;
+ const strength=p.opacity/.8;
+ const alpha=(direction,delta)=>Math.min(1,Math.max(0,
+  (base.ambient+delta*distance*direction)*strength));
+ return Object.freeze({
+  enabled:true,depth,hard:p.blur===0,
+  top:alpha(projection(dy,defaultY),base.vertical),
+  left:alpha(projection(dx,defaultX),base.horizontal),
+  bottom:alpha(projection(-dy,defaultY),base.vertical),
+  right:alpha(projection(-dx,defaultX),base.horizontal)
+ });
+}
+
+/** Same lightweight Canvas painter for the live board and sharp popup.
+ * The popup retains its existing deliberately weaker shadow intensities.
+ */
+export function paintBoardInsetShadow(g,{x,y,w,h,tile},fx={},sharp=false){
+ if(!(w>0&&h>0))return false;
+ const p=boardInsetShadowProfile(tile,fx,sharp);
+ if(!p.enabled)return false;
+ const depth=Math.min(p.depth,w,h);
+ g.save();g.beginPath();g.rect(x,y,w,h);g.clip();
+ const shade=(x0,y0,x1,y1,rx,ry,rw,rh,alpha)=>{
+  if(alpha<=0)return;
+  if(p.hard){
+   g.fillStyle='rgba(0,0,0,'+alpha+')';
+  }else{
+   const fade=g.createLinearGradient(x0,y0,x1,y1);
+   fade.addColorStop(0,'rgba(0,0,0,'+alpha+')');
+   fade.addColorStop(1,'rgba(0,0,0,0)');
+   g.fillStyle=fade;
+  }
+  g.fillRect(rx,ry,rw,rh);
+ };
+ shade(x,y,x,y+depth,x,y,w,depth,p.top);
+ shade(x,y,x+depth,y,x,y,depth,h,p.left);
+ shade(x,y+h,x,y+h-depth,x,y+h-depth,w,depth,p.bottom);
+ shade(x+w,y,x+w-depth,y,x+w-depth,y,depth,h,p.right);
+ g.restore();
+ return true;
+}
+
 // V06 Gaussian, with asymmetric tap weights. A bias of zero is a conventional
 // symmetric Gaussian; one discards taps that would blur toward the light.
 function taps(sigma,bias){

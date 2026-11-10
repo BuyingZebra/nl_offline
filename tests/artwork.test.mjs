@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs,{readFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer} from '../tetris/render.js';
+import {drawTileFace,drawIBar,PIECE_PATTERNS,PIECE_LUMINANCE,drawPieceTiles,collectIFragments,drawIFragment,createVectorTileRenderer,spriteIdentity,VECTOR_PIECE_KINDS,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer,boardInsetShadowProfile,paintBoardInsetShadow} from '../tetris/render.js';
 import {renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,originalIDotCenters,originalJDotCenters} from '../tetris/assets/tiles/smooth-geometry.mjs';
 import Core from '../tetris/game.js';
 import {BRICK_UNIT,brickShapes,renderBrickSVG,brickRailGeometry,createBrickFrame} from '../tetris/assets/frames/brick-pattern.mjs';
@@ -945,6 +945,68 @@ describe('Piece shadows',()=>{
    new Float32Array([1,.5]),new Float32Array([1,1]));
   assert.deepEqual(Array.from(overlap),[0,0],
    'a completely hidden shadow must not be promoted into an artificial halo');
+ });
+
+ test('v192 playfield inset at approved defaults is visually equivalent to fixed stage and popup gradients',()=>{
+  const tile=25;
+  const normal=boardInsetShadowProfile(tile);
+  const sharp=boardInsetShadowProfile(tile,{},true);
+  const approx=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-10,
+   `expected ${expected}, found ${actual}`);
+  assert.equal(normal.enabled,true);
+  approx(normal.depth,20);
+  for(const [name,value] of Object.entries({top:.58,left:.42,bottom:.24,right:.24}))
+   approx(normal[name],value);
+  for(const [name,value] of Object.entries({top:.36,left:.27,bottom:.15,right:.15}))
+   approx(sharp[name],value);
+ });
+ test('v192 board inset responds to existing toggle, opacity, angle, distance, bias and blur',()=>{
+  const original={shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
+   shadowBias:1,shadowOpacity:.8};
+  const base=boardInsetShadowProfile(25,original);
+  assert.equal(boardInsetShadowProfile(25,{...original,shadows:false}).enabled,false);
+  assert.equal(boardInsetShadowProfile(25,{...original,shadowOpacity:0}).enabled,false);
+  const half=boardInsetShadowProfile(25,{...original,shadowOpacity:.4});
+  assert.ok(Math.abs(half.top-base.top*.5)<1e-10);
+  const full=boardInsetShadowProfile(25,{...original,shadowOpacity:1});
+  assert.ok(full.top>base.top);
+  const flipped=boardInsetShadowProfile(25,{...original,shadowAngle:235});
+  assert.ok(Math.abs(flipped.bottom-base.top)<1e-10);
+  assert.ok(Math.abs(flipped.right-base.left)<1e-10);
+  assert.ok(flipped.top<base.top&&flipped.left<base.left);
+  const symmetric=boardInsetShadowProfile(25,{...original,shadowBias:0});
+  assert.ok(Math.abs(symmetric.top-symmetric.bottom)<1e-10);
+  assert.ok(Math.abs(symmetric.left-symmetric.right)<1e-10);
+  const close=boardInsetShadowProfile(25,{...original,shadowDistance:0});
+  assert.ok(close.top<base.top);
+  const soft=boardInsetShadowProfile(25,{...original,shadowBlur:8});
+  assert.ok(soft.depth<base.depth&&!soft.hard);
+  const hard=boardInsetShadowProfile(25,{...original,shadowBlur:0});
+  assert.equal(hard.hard,true);
+  const calls={gradients:0,fill:[],clips:0};
+  const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){calls.clips++;},
+   fillStyle:'',
+   createLinearGradient(){calls.gradients++;return {addColorStop(){}};},
+   fillRect(...args){calls.fill.push([this.fillStyle,...args]);}};
+  assert.equal(paintBoardInsetShadow(ctx,{x:0,y:0,w:200,h:400,tile:25},
+   {...original,shadows:false}),false);
+  assert.equal(calls.gradients,0);
+  assert.equal(paintBoardInsetShadow(ctx,{x:0,y:0,w:200,h:400,tile:25},
+   {...original,shadowBlur:0}),true);
+  assert.equal(calls.gradients,0,'zero blur is a crisp inset, not a gradient');
+  assert.equal(calls.fill.length,4);
+  assert.ok(calls.fill.every(a=>a[0].startsWith('rgba(0,0,0,')));
+  assert.equal(paintBoardInsetShadow(ctx,{x:0,y:0,w:200,h:400,tile:25},
+   original,true),true);
+  assert.equal(calls.gradients,4,'sharp overlay uses the same settings');
+ });
+ test('v192 both board-shadow draw sites share settings and avoid old hard-coded gradients',()=>{
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const section=platform.slice(platform.indexOf('function stage('),
+   platform.indexOf('function paintBoardPopup('));
+  assert.match(section,/paintBoardInsetShadow\(g,\{x:offX,y:offY,w:w-4,h:h-4,tile\},\s*settings\.effects\)/);
+  assert.match(section,/paintBoardInsetShadow\(g,\{x:x\+2,y:y\+2,w:innerW,h:innerH,[\s\S]*?settings\.effects,true\)/);
+  assert.doesNotMatch(section,/const insetShade=|const shade=/);
  });
 
  test('v190 settings modify shadow direction and blur without disturbing shape caching',()=>{

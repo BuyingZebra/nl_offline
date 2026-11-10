@@ -1,6 +1,7 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer} from './shadows.js?v191';
+import {directionalShadowProfile,createDirectionalShadowRenderer,boardInsetShadowProfile,paintBoardInsetShadow} from './shadows.js?v192';
+export {boardInsetShadowProfile,paintBoardInsetShadow};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
