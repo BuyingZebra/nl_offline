@@ -265,24 +265,46 @@ with sync_playwright() as p:
     page.wait_for_timeout(3000)
     page.evaluate("""() => {
       window.__nomadIdleRAFCount = 0;
-      const original = window.requestAnimationFrame;
-      window.__nomadOriginalRAF = original;
+      window.__nomadIdleTimerSetCount = 0;
+      window.__nomadIdleTimerClearCount = 0;
+      const originalRAF = window.requestAnimationFrame;
+      const originalSetTimeout = window.setTimeout;
+      const originalClearTimeout = window.clearTimeout;
+      window.__nomadIdleOriginals = [originalRAF,originalSetTimeout,originalClearTimeout];
       window.requestAnimationFrame = function(callback) {
-        return original.call(window, timestamp => {
+        return originalRAF.call(window, timestamp => {
           window.__nomadIdleRAFCount++;
           callback(timestamp);
         });
       };
+      window.setTimeout = function(...args) {
+        window.__nomadIdleTimerSetCount++;
+        return originalSetTimeout.apply(window,args);
+      };
+      window.clearTimeout = function(...args) {
+        window.__nomadIdleTimerClearCount++;
+        return originalClearTimeout.apply(window,args);
+      };
     }""")
     page.wait_for_timeout(2000)
-    idle_raf = page.evaluate("""() => {
-      window.requestAnimationFrame = window.__nomadOriginalRAF;
-      const count = window.__nomadIdleRAFCount;
-      delete window.__nomadOriginalRAF;
+    idle_counts = page.evaluate("""() => {
+      const [raf,set,clear] = window.__nomadIdleOriginals;
+      window.requestAnimationFrame = raf;
+      window.setTimeout = set;
+      window.clearTimeout = clear;
+      const totals = {
+        raf:window.__nomadIdleRAFCount,
+        timeoutCreated:window.__nomadIdleTimerSetCount,
+        timeoutCleared:window.__nomadIdleTimerClearCount
+      };
+      delete window.__nomadIdleOriginals;
       delete window.__nomadIdleRAFCount;
-      return count;
+      delete window.__nomadIdleTimerSetCount;
+      delete window.__nomadIdleTimerClearCount;
+      return totals;
     }""")
-    print(f"IDLE RAF PROBE: {browser_name} callbacks_2s={idle_raf}")
+    idle_raf = idle_counts["raf"]
+    print(f"IDLE SCHEDULER PROBE: {browser_name} 2s={idle_counts}")
     assert idle_raf >= 1, "The terminal cursor stopped updating while idle"
 
     page.mouse.click(353, 103)
