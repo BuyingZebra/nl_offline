@@ -989,7 +989,7 @@ describe('v195 interactive lighting laboratory',()=>{
  test('v196 light direction uses the actual saved Gaussian shadows, without duplicate preview elements',()=>{
   const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  assert.match(platform,/actions\.setSetting\('shadowAngle',Math\.round\(angle\)\)/);
+  assert.match(platform,/actions\.setSetting\('shadowAngle',Number\(angle\.toFixed\(2\)\)\)/);
   // Both existing renderers receive the same persisted effect object.
   assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:\(\)=>settings\.effects\}\)/);
   assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
@@ -1008,5 +1008,34 @@ describe('v195 interactive lighting laboratory',()=>{
   assert.match(platform,/if\(getModal\(\)==='light'\)\{/);
   assert.match(platform,/if\(touch\.mode==='light'\)\{/);
   assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
+ });
+});
+
+describe('v197 lighting direction sidebar readout',()=>{
+ test('sidebar mask covers score, level, next and hold but never the brick rails',()=>{
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const lab=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
+   platform.indexOf('function paintModalOverlay('));
+  assert.match(lab,/const r=layout\(\),b=lightBoardBounds\(\)/);
+  assert.match(lab,/g\.fillStyle=C\.bg;\s*g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
+  assert.doesNotMatch(lab,/g\.fillRect\(r\.boardX|brickFrame\.|sidebarPlane\.visible/);
+  const mask=lab.indexOf('g.fillRect(r.sideX,r.boardY,r.sideW,r.boardH)');
+  const guide=lab.indexOf('g.moveTo(0,p.y);g.lineTo(W,p.y)');
+  const readout=lab.indexOf("text('DIRECTION'");
+  assert.ok(mask>=0&&mask<guide&&guide<readout,
+   'mask underlying sidebar first; draw one dashed separator, then the readout');
+ });
+ test('direction stays centered and upright above the horizontal guide with two-decimal value beneath',()=>{
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const lab=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
+   platform.indexOf('function paintModalOverlay('));
+  assert.match(lab,/const sideCenter=r\.sideX\+r\.sideW\/2,readoutWidth=r\.sideW-4/);
+  assert.match(lab,/text\('DIRECTION',sideCenter,p\.y-13,9,C\.weak,'center',readoutWidth\)/);
+  assert.match(lab,/text\(Number\(settings\.effects\.shadowAngle\)\.toFixed\(2\)\+'°',\s*sideCenter,p\.y\+14,12,C\.bright,'center',readoutWidth,'terminal'\)/);
+  assert.doesNotMatch(lab,/text\('LIGHT DIRECTION'/,
+   'old free-floating header label must not overlap NOMAD');
+  assert.match(platform,/actions\.setSetting\('shadowAngle',Number\(angle\.toFixed\(2\)\)\)/);
+  assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/,
+   'the existing paused exit action must remain intact');
  });
 });
