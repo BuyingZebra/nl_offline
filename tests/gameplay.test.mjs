@@ -2,7 +2,8 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS} from '../tetris/game.js';
 import fs from 'node:fs';
-import {createAppLifecycle,runCleanupTasks,createGraphicsHealth} from '../tetris/platform.js';
+import {createAppLifecycle,runCleanupTasks} from '../tetris/platform.js';
+import {createGraphicsHealth} from '../tetris/render.js';
 
 describe('Game rules and personal bests',()=>{
  const fresh=()=>new Core.Game(()=>.33);

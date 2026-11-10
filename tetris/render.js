@@ -2978,4 +2978,138 @@ export const {createCanvasUI,fitPreviewCells,createHudDrawing,createModalUI,crea
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
 export const {createPerfMonitor,createTextureUploadProfiler,formatDebugReport}=RenderDiagnostics;
 export {instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};
+
+/* Rendering-resource lifecycle: private implementation, public explicit hooks.
+ * Platform decides WHEN to suspend or dispose; renderer owns WHAT is disposed.
+ */
+const RenderResourceLifecycle=(()=>{
+/* The renderer owns its compositor, scene meshes, UI CanvasTextures and audio.
+ * Teardown is idempotent and continues when an individual dispose throws.
+ * No cleanup is triggered by temporary visibility loss or bfcache entry.
+ */
+function createGraphicsCleanup({
+ renderer,compositor,scene,textures=[],canvases=[],getAudioContext=()=>null
+}={}){
+ let done=false;const errors=[];
+ function safe(name,callback){
+  try{callback();}catch(error){
+   errors.push({name,error:String(error?.message||error).slice(0,160)});
+  }
+ }
+ function dispose(){
+  if(done)return false;
+  done=true;
+  safe('compositor',()=>compositor?.dispose?.());
+  const geometries=new Set(),materials=new Set();
+  safe('scene-traverse',()=>scene?.traverse?.(object=>{
+   if(object.geometry)geometries.add(object.geometry);
+   const material=object.material;
+   if(Array.isArray(material)){
+    for(const item of material)if(item)materials.add(item);
+   }else if(material)materials.add(material);
+  }));
+  for(const geometry of geometries)safe('geometry',()=>geometry.dispose?.());
+  for(const material of materials)safe('material',()=>material.dispose?.());
+  for(const texture of new Set(textures))if(texture)
+   safe('texture',()=>texture.dispose?.());
+  safe('renderer',()=>renderer?.dispose?.());
+  for(const canvas of new Set(canvases))if(canvas)safe('canvas',()=>{
+   canvas.width=1;canvas.height=1;
+  });
+  safe('audio',()=>{
+   const audio=getAudioContext();
+   const result=audio?.close?.();
+   if(result?.catch)result.catch(()=>{});
+  });
+  return true;
+ }
+ return Object.freeze({dispose,
+  get disposed(){return done;},
+  get errors(){return errors.map(e=>({...e}));}
+ });
+}
+
+
+/* NOMAD Tetris V089 — WebGL context lifecycle and bounded diagnostics.
+ * Three.js still owns the WebGLRenderer and its internal context recreation.
+ * This observer prevents game activity while the context is unavailable and
+ * reports recovery outcomes without storage, network calls or visible UI.
+ */
+function createGraphicsHealth({
+ canvas,onLost,onRestored,now=()=>Date.now(),historyLimit=8
+}){
+ if(!canvas||typeof canvas.addEventListener!=='function'||
+    typeof canvas.removeEventListener!=='function'||
+    typeof onLost!=='function'||typeof onRestored!=='function')
+  throw new TypeError('Graphics health requires a canvas and lifecycle callbacks');
+
+ let state='ready',attached=false,losses=0,restores=0,failures=0;
+ let lastError=null,lostSince=null;
+ const history=[];
+ function record(type,detail){
+  const event={type,at:new Date(now()).toISOString()};
+  if(detail)event.detail=String(detail).slice(0,240);
+  history.push(event);
+  if(history.length>historyLimit)history.shift();
+ }
+ function recordFailure(error){
+  failures++;
+  lastError=String(error?.message||error).slice(0,240);
+  record('render-error',lastError);
+  if(state==='recovering')state='failed';
+ }
+ function contextLost(event){
+  // Calling preventDefault is required by WebGL to allow restoration.
+  event?.preventDefault?.();
+  if(state==='lost')return;
+  losses++;state='lost';lostSince=now();
+  record('context-lost');
+  try{onLost();}catch(error){recordFailure(error);}
+ }
+ function contextRestored(){
+  if(state!=='lost')return;
+  restores++;state='recovering';lostSince=null;
+  record('context-restored');
+  try{onRestored();}catch(error){
+   recordFailure(error);
+  }
+ }
+ function rendered(){
+  if(state!=='recovering')return false;
+  state='ready';record('frame-recovered');
+  return true;
+ }
+ function attach(){
+  if(attached)return false;
+  canvas.addEventListener('webglcontextlost',contextLost,false);
+  canvas.addEventListener('webglcontextrestored',contextRestored,false);
+  attached=true;return true;
+ }
+ function detach(){
+  if(!attached)return false;
+  canvas.removeEventListener('webglcontextlost',contextLost,false);
+  canvas.removeEventListener('webglcontextrestored',contextRestored,false);
+  attached=false;return true;
+ }
+ function snapshot(){
+  return {
+   status:state,losses,restores,renderFailures:failures,
+   lastError,lossDurationMs:state==='lost'&&lostSince!==null?
+    Math.max(0,now()-lostSince):null,
+   history:history.map(event=>({...event}))
+  };
+ }
+ return Object.freeze({
+  attach,detach,rendered,recordFailure,snapshot,
+  get canRender(){return state==='ready'||state==='recovering';},
+  get status(){return state;}
+ });
+}
+
+
+
+return Object.freeze({createGraphicsCleanup,createGraphicsHealth});
+})();
+export const {createGraphicsCleanup,createGraphicsHealth}=RenderResourceLifecycle;
+
 export default Layout;

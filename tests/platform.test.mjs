@@ -1,5 +1,6 @@
 import {describe,test} from 'node:test';
-import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,createGraphicsCleanup,runCleanupTasks,createGraphicsHealth} from '../tetris/platform.js';
+import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks} from '../tetris/platform.js';
+import {createGraphicsCleanup,createGraphicsHealth} from '../tetris/render.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
