@@ -721,7 +721,7 @@ describe('Modal repaint regions',()=>{
   assert.match(paint,/if\(screenManager\.paintsModalLayer\)/);
   assert.match(paint,/if\(buttonSparks\.length\|\|previousButtonSparks\.length\)layers\.mark\('modal'\)/);
   assert.match(paint,/else\{\s*const affected=buttonFeedbackLayers\(/);
-  assert.match(s,/if\(previous==='options'&&next!=='options'\)layers\.mark\('base','controls','terminal'\)/);
+  assert.match(s,/if\(previous==='options'&&next!=='options'\)\{[\s\S]*?layers\.mark\('base','controls','terminal'\)/);
   assert.match(s,/if\(previous==='options'\|\|next==='options'\)layers\.mark\('modal'\)/);
  });
 
