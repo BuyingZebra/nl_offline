@@ -493,8 +493,8 @@ describe('Terminal repaint regions',()=>{
   const renderer=source('platform.js');
   const merged=source('render.js');
   const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
-  assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
-  assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
+  assert.match(source('render.js'),/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
+  assert.match(source('render.js'),/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
   assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);
   assert.match(renderer,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg,FONT\)/);
   assert.match(renderer,/if\(terminalPlane\.visible\)textureUploads\.upload\(terminalTexture,'terminal'\)/);
@@ -507,8 +507,8 @@ describe('Terminal repaint regions',()=>{
    renderer.indexOf('function paintTerminalLayer(){'));
   assert.doesNotMatch(controls,/drawTerminalLog/);
   assert.match(controls,/drawControls/);
-  assert.match(renderer,/terminalTexture,modalTexture,boardPopupTexture/);
-  assert.match(renderer,/terminalCanvas,modalCanvas,boardPopupCanvas/);
+  assert.match(source('render.js'),/terminalTexture,modalTexture,boardPopupTexture/);
+  assert.match(source('render.js'),/terminalCanvas,modalCanvas,boardPopupCanvas/);
  });
 
  test('terminal source instrumentation is independent and appears in debug report',()=>{
@@ -540,6 +540,7 @@ describe('Terminal repaint regions',()=>{
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('font-ready'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('context-restored'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('resize'\)/);
-  assert.match(renderer,/for\(const source of \[texture,boardTexture,sidebarTexture,controlsTexture,\s*terminalTexture,modalTexture,boardPopupTexture\]\)/);
+  assert.match(renderer,/for\(const source of visualScene\.textures\)source\.needsUpdate=true/);
+   assert.match(source('render.js'),/const textures=Object\.freeze\(\[texture,boardTexture,sidebarTexture,controlsTexture/);
  });
 });

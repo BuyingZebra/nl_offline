@@ -472,7 +472,7 @@ describe('Canvas button drawing',()=>{
   for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
    assert.ok(modal.includes(control),'modal control missing brightness: '+control);
   const game=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(game,/getButtonPower:r=>\(g===controlsContext&&controlsGpuEnabled\)\?0:buttonSparks\.find/);
+  assert.match(game,/getButtonPower:r=>\(g===controlsContext&&visualScene\.controlsGpuEnabled\)\?0:buttonSparks\.find/);
   assert.doesNotMatch(game,/syncButtonFeedback/);
  });
 
@@ -484,7 +484,7 @@ describe('Canvas button drawing',()=>{
   // though action dispatch changes game status within the pointerdown turn.
   assert.equal((actions.match(/if\(game\.status!==previous&&act!=='pause'\)buttonFeedback\.clear\(\)/g)||[]).length,2);
   assert.ok(game.includes('buttonSparks=buttonFeedback.sample(now,phosphorOn)'));
-  assert.match(game,/else if\(act&&!controlsGpuEnabled\)layers\.mark\('controls'\)/);
+  assert.match(game,/else if\(act&&!visualScene\.controlsGpuEnabled\)layers\.mark\('controls'\)/);
  });
 });
 
@@ -611,7 +611,7 @@ describe('Button repaint regions',()=>{
   const part=src.slice(start,end);
   assert.match(part,/buttonFeedbackLayers\(/);
   assert.match(part,/previousButtonSparks,buttonSparks,layoutInfo\|\|layout\(\)/);
-  assert.match(part,/const canvasAffected=controlsGpuEnabled\?/);
+  assert.match(part,/const canvasAffected=visualScene\.controlsGpuEnabled\?/);
   assert.match(part,/affected\.filter\(name=>name!=='controls'\):affected/);
   assert.match(part,/layers\.mark\(\.\.\.canvasAffected\)/);
   assert.doesNotMatch(part,/layers\.mark\('base','controls'\)/);
@@ -843,11 +843,11 @@ describe('GPU button lighting',()=>{
 
  test('renderer keeps Canvas source at baseline and pushes excitation through uniforms',()=>{
   const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(src,/controlsPlane\.material=controlLighting\.material/);
-  assert.match(src,/g===controlsContext&&controlsGpuEnabled\)\?0:buttonSparks/);
+  assert.match(fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8'),/controlsPlane\.material=controlLighting\.material/);
+  assert.match(src,/g===controlsContext&&visualScene\.controlsGpuEnabled\)\?0:buttonSparks/);
   assert.match(src,/controlLighting\.configure\(regions,bounds\)/);
   assert.match(src,/controlLighting\.update\(buttonSparks\)/);
-  assert.match(src,/canvasAffected=controlsGpuEnabled\?/);
+  assert.match(src,/canvasAffected=visualScene\.controlsGpuEnabled\?/);
   assert.match(src,/affected\.filter\(name=>name!=='controls'\):affected/);
   assert.match(src,/if\(game\.score!==prior\.score\|\|game\.lines!==prior\.lines\|\|\s*game\.level!==prior\.level\)layers\.mark\('sidebar'\)/);
   assert.doesNotMatch(src,/if\(act\)layers\.mark\('controls'\)/);
@@ -873,10 +873,25 @@ describe('GPU button lighting',()=>{
  });
  test('fallback is selectable and reports which button backend is active',()=>{
   const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(src,/maxFragmentUniforms>=32/);
-  assert.match(src,/\.get\('buttonRenderer'\)==='canvas'/);
+  assert.match(fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8'),/maxFragmentUniforms>=32/);
+  assert.match(fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8'),/\.get\('buttonRenderer'\)==='canvas'/);
   assert.match(src,/controlsGpuEnabled\)\?0:buttonSparks/);
   assert.match(src,/if\(!controlLighting\.configure\(regions,bounds\)\)disableGpuControls\(\)/);
-  assert.match(src,/buttonRenderer:controlsGpuEnabled\?'GPU uniforms':'Canvas2D fallback'/);
+  assert.match(src,/buttonRenderer:visualScene\.controlsGpuEnabled\?'GPU uniforms':'Canvas2D fallback'/);
+ });
+});
+
+
+describe('Render resource ownership',()=>{
+ test('scene, seven canvases, and seven textures share one render-owned inventory',()=>{
+  const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  assert.match(render,/function createVisualScene\(/);
+  assert.match(render,/const textures=Object\.freeze\(\[texture,boardTexture/);
+  assert.match(render,/const canvases=Object\.freeze\(\[input,boardCanvas/);
+  assert.match(platform,/const visualScene=createVisualScene\(/);
+  assert.match(platform,/textures:visualScene\.textures/);
+  assert.match(platform,/canvases:visualScene\.canvases/);
+  assert.doesNotMatch(platform,/new THREE\./);
  });
 });
