@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v189';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v190';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v189';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v190';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -677,6 +677,9 @@ const unsubscribeGameEvents=game.onEvent(event=>{
  if(event.status==='over')lineClearFX.finalPoints=event.points;
  layers.mark('board');layers.mark('sidebar');invalidate();
 });
+// The full-screen properties view hides the board. Keep changes to the
+// five shadow parameters in the lightweight thumbnail until exit.
+let shadowBoardNeedsPaint=false;
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
  pauseGame:()=>actions.perform('pause'),
@@ -691,7 +694,10 @@ const screenManager=createScreenManager({
   if(previous==='options'||next==='options')layers.mark('modal');
   // Gameplay's base can remain untouched while the full-screen Options
   // view is in front. Refresh it exactly once when becoming visible again.
-  if(previous==='options'&&next!=='options')layers.mark('base','controls','terminal');
+  if(previous==='options'&&next!=='options'){
+   layers.mark('base','controls','terminal');
+   if(shadowBoardNeedsPaint){layers.mark('board');shadowBoardNeedsPaint=false;}
+  }
   if(next===null)regions=baseRegions;
   invalidate();
  }
@@ -706,8 +712,12 @@ const actions=createActionController({
  // Score, lines and preview content already belong to sidebar/board.
  // The deck itself is static; presses are now uniform-only GPU changes.
  markLayers:(...names)=>{
-  const applicable=visualScene.controlsGpuEnabled?
+  let applicable=visualScene.controlsGpuEnabled?
    names.filter(name=>name!=='controls'):names;
+  if(screenManager.isOptions&&applicable.includes('board')){
+   shadowBoardNeedsPaint=true;
+   applicable=applicable.filter(name=>name!=='board');
+  }
   if(applicable.length)layers.mark(...applicable);
  },
  invalidate:()=>invalidate(),
@@ -765,7 +775,8 @@ if(document.fonts?.load){
 }
 // V121: higher-contrast smooth SVG sprites, raster-cached at display DPR.
 // Approved pixel motifs remain a fallback during SVG loading/errors.
-const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR});
+const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR,
+ getSettings:()=>settings.effects});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,
  onReady:()=>{
@@ -1479,6 +1490,7 @@ appLifecycle=createAppLifecycle({
   ['input',()=>inputController?.dispose()],
   ['vector-tiles',()=>vectorTiles.dispose()],
   ['piece-shadows',()=>pieceShadows.dispose()],
+  ['shadow-preview',()=>modalUI.dispose()],
   ['brick-frame',()=>brickFrame.dispose()],
   ['gpu-button-fallback-material',()=>controlsFallbackMaterial.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],

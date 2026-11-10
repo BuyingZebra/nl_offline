@@ -8,14 +8,19 @@ const MASK_SCALE=.5;
 const GAUSS_TRUNCATION=2.6;
 const TAP_CACHE=new Map();
 
-export function directionalShadowProfile(tile=35){
+export function directionalShadowProfile(tile=35,fx={}){
  const factor=Math.max(.1,(Number(tile)||35)/35);
+ const bounded=(key,defaultValue,min,max)=>{
+  const value=fx[key];
+  return Number.isFinite(value)?Math.min(max,Math.max(min,value)):defaultValue;
+ };
  return Object.freeze({
-  angle:DEFAULTS.angle,
-  distance:DEFAULTS.distance*factor,
-  blur:DEFAULTS.blur*factor,
-  bias:DEFAULTS.bias,
-  opacity:DEFAULTS.opacity,
+  enabled:fx.shadows!==false,
+  angle:bounded('shadowAngle',DEFAULTS.angle,0,360),
+  distance:bounded('shadowDistance',DEFAULTS.distance,0,35)*factor,
+  blur:bounded('shadowBlur',DEFAULTS.blur,0,30)*factor,
+  bias:bounded('shadowBias',DEFAULTS.bias,0,1),
+  opacity:bounded('shadowOpacity',DEFAULTS.opacity,0,1),
   resolution:MASK_SCALE
  });
 }
@@ -88,15 +93,21 @@ export function directionalShadowAlpha(source,width,height,{
  */
 export function createDirectionalShadowRenderer({
  createCanvas=()=>document.createElement('canvas'),
- capacity=48
+ getSettings=()=>null,capacity=48
 }={}){
  const cache=new Map();
  const limit=Math.max(1,Math.floor(capacity)||48);
- let builds=0,buildMs=0,worstBuildMs=0,cacheBytes=0;
+ let builds=0,buildMs=0,worstBuildMs=0,cacheBytes=0,lastProfileKey=null;
  const clock=()=>typeof performance!=='undefined'&&performance.now?
   performance.now():Date.now();
- function stamp(group,tile){
-  const settings=directionalShadowProfile(tile),scale=settings.resolution;
+ function stamp(group,tile,settings){
+  const scale=settings.resolution;
+  // Changing angle/blur/distance/bias invalidates all cached silhouettes.
+  // Opacity and enable/disable are draw-only: they never rerun convolution.
+  const signature=[tile,settings.angle,settings.distance,settings.blur,settings.bias].join(':');
+  if(signature!==lastProfileKey){
+   cache.clear();cacheBytes=0;lastProfileKey=signature;
+  }
   const normalized=group.cells.map(c=>
    (c.x-group.minX)+','+(c.y-group.minY)).sort().join(';');
   const key=tile.toFixed(4)+':'+normalized;
@@ -134,7 +145,7 @@ export function createDirectionalShadowRenderer({
   if(!ctx)return null;
   const image=ctx.createImageData(sw,sh);
   for(let i=0;i<out.length;i++)
-   image.data[i*4+3]=Math.round(Math.max(0,Math.min(1,out[i]*settings.opacity))*255);
+   image.data[i*4+3]=Math.round(Math.max(0,Math.min(1,out[i]))*255);
   ctx.putImageData(image,0,0);
   // Opaque art masks the original silhouette exactly as in v187. This also
   // prevents a black shadow from showing through transparent sprite motifs.
@@ -158,20 +169,26 @@ export function createDirectionalShadowRenderer({
  }
  function draw(g,groups,offX,offY,tile){
   if(!(tile>0)||!groups?.length)return 0;
+  const settings=directionalShadowProfile(tile,getSettings()||{});
+  if(!settings.enabled||settings.opacity<=0)return 0;
   let count=0;
-  for(const group of groups){
-   if(!group.cells.length)continue;
-   const item=stamp(group,tile);
-   if(!item)continue;
-   g.drawImage(item.canvas,
-    offX+group.minX*tile-item.pad,
-    offY+group.minY*tile-item.pad,item.width,item.height);
-   count++;
-  }
+  g.save();
+  g.globalAlpha*=settings.opacity;
+  try{
+   for(const group of groups){
+    if(!group.cells.length)continue;
+    const item=stamp(group,tile,settings);
+    if(!item)continue;
+    g.drawImage(item.canvas,
+     offX+group.minX*tile-item.pad,
+     offY+group.minY*tile-item.pad,item.width,item.height);
+    count++;
+   }
+  }finally{g.restore();}
   return count;
  }
  return Object.freeze({
-  draw,dispose:()=>{cache.clear();cacheBytes=0;},
+  draw,dispose:()=>{cache.clear();cacheBytes=0;lastProfileKey=null;},
   get cacheSize(){return cache.size;},
   get stats(){return {
    mode:'v06 cached directional Gaussian (0.5 CSS px)',builds,

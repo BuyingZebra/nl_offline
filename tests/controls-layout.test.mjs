@@ -577,6 +577,17 @@ describe('Shared hitboxes and slider geometry',()=>{
   assert.equal(a.arrow,true);
   assert.equal(b.arrow,false);
  });
+ test('v190 shadow preview uses the real cached Gaussian without resizing other property rows',()=>{
+  const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  assert.match(render,/shadowPreviewRenderer\.draw\(p,\[shadowPreviewGroup\]/);
+  assert.match(render,/const standardRowHeight=/);
+  assert.match(render,/effect\.id==='shadows'\?/);
+  assert.match(platform,/let shadowBoardNeedsPaint=false/);
+  assert.match(platform,/if\(shadowBoardNeedsPaint\)\{layers\.mark\('board'\)/);
+  assert.match(platform,/getSettings:\(\)=>settings\.effects/);
+  assert.match(platform,/shadow-preview.*modalUI\.dispose\(\)/);
+ });
  test('slider describes painted track, handle and hit region as one geometry',()=>{
   const a=makeSliderControl(100,200,220,['','bloomStrength',0,100,1,'%'],25);
   assert.equal(a.size,15);

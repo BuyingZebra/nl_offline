@@ -876,7 +876,7 @@ describe('Piece shadows',()=>{
    stats.created++;
    const canvas={width:0,height:0};
    const g={
-    save(){},restore(){},scale(){},fillRect(){},
+    globalAlpha:1,save(){},restore(){},scale(){},fillRect(){},
     getImageData(){return {data:new Uint8ClampedArray(canvas.width*canvas.height*4)};},
     createImageData(w,h){return {data:new Uint8ClampedArray(w*h*4)};},
     putImageData(){stats.uploads++;}
@@ -890,7 +890,7 @@ describe('Piece shadows',()=>{
   const shadows=createPieceShadowRenderer({
    createCanvas:fakeCanvasFactory(stats),pixelRatio:()=>2,capacity:8
   });
-  const g={drawImage:(...args)=>images.push(args)};
+  const g={globalAlpha:1,save(){},restore(){},drawImage:(...args)=>images.push(args)};
   const b=board(),m=meta();
   const T={id:1,x:3,y:4,matrix:Core.SHAPES.T};
   shadows.draw(g,collectPieceShadowGroups(b,m,T),2,2,20);
@@ -912,6 +912,57 @@ describe('Piece shadows',()=>{
   assert.equal(shadows.stats.builds,2);
   shadows.dispose();assert.equal(shadows.cacheSize,0);
   assert.equal(shadows.stats.cacheKiB,0);
+ });
+
+ test('v190 settings modify shadow direction and blur without disturbing shape caching',()=>{
+  const fx={shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
+   shadowBias:1,shadowOpacity:.8};
+  const stats={created:0,uploads:0},samples=[];
+  const renderer=createPieceShadowRenderer({
+   createCanvas:fakeCanvasFactory(stats),getSettings:()=>fx,capacity:6
+  });
+  const stack=[];
+  const g={globalAlpha:1,
+   save(){stack.push(this.globalAlpha);},
+   restore(){this.globalAlpha=stack.pop();},
+   drawImage(){samples.push(this.globalAlpha);}};
+  const T={id:1,x:3,y:4,matrix:Core.SHAPES.T};
+  const groups=()=>collectPieceShadowGroups(board(),meta(),T);
+  renderer.draw(g,groups(),2,2,20);
+  assert.equal(stats.created,2);
+  assert.equal(samples[0],.8);
+  fx.shadowOpacity=.35;
+  renderer.draw(g,groups(),2,2,20);
+  assert.equal(stats.created,2,'opacity is a cheap draw-only setting');
+  assert.equal(samples.at(-1),.35);
+  fx.shadows=false;
+  assert.equal(renderer.draw(g,groups(),2,2,20),0);
+  assert.equal(stats.created,2,'disabling shadows avoids any convolution');
+  fx.shadows=true;
+  renderer.draw(g,groups(),2,2,20);
+  assert.equal(stats.created,2,'re-enabling shadows reuses the previous stamp');
+  fx.shadowAngle=90;
+  renderer.draw(g,groups(),2,2,20);
+  assert.equal(stats.created,4,'direction change generates a new stamp');
+  assert.equal(renderer.cacheSize,1,'old settings evict old shadow rasters');
+  fx.shadowBlur=0;
+  renderer.draw(g,groups(),2,2,20);
+  assert.equal(stats.created,6,'hard-edged shadow rebuilds once');
+  assert.ok(renderer.stats.cacheKiB>0);
+  renderer.dispose();assert.equal(renderer.cacheSize,0);
+ });
+ test('v190 profile controls use the approved defaults and clamp all parameters',()=>{
+  const p=pieceShadowProfile(35,{
+   shadows:false,shadowAngle:320,shadowDistance:24,shadowBlur:7,
+   shadowBias:.4,shadowOpacity:.6
+  });
+  assert.deepEqual([p.enabled,p.angle,p.distance,p.blur,p.bias,p.opacity],
+   [false,320,24,7,.4,.6]);
+  const clamped=pieceShadowProfile(35,{shadowAngle:999,shadowDistance:-1,
+   shadowBlur:90,shadowBias:-3,shadowOpacity:3});
+  assert.deepEqual([clamped.angle,clamped.distance,clamped.blur,
+   clamped.bias,clamped.opacity],[360,0,30,0,1]);
+  assert.equal(pieceShadowProfile(35).opacity,.8);
  });
 
  test('V162 shadows render after the grid, before SVG piece faces',()=>{

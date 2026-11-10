@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer} from './shadows.js?v188';
+import {directionalShadowProfile,createDirectionalShadowRenderer} from './shadows.js?v190';
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
@@ -2176,6 +2176,7 @@ function effectPreview(id){
   p.fillStyle=gray(173);p.fillRect(13,13,n-26,n-26);
   return canvas;
  }
+ if(id==='shadows')return canvas; // Live v06 thumbnail is painted on demand.
  if(id==='sound'){
   p.fillStyle=gray(193);
   [16,27,43,54,35,23].forEach((h,i)=>p.fillRect(15+i*12,70-h,7,h));
@@ -2230,9 +2231,46 @@ function effectPreview(id){
 }
 const EFFECT_PREVIEWS=Object.fromEntries(
  DISPLAY_EFFECTS.map(effect=>[effect.id,effectPreview(effect.id)]));
+// Only this thumbnail is regenerated as the user adjusts the parameters.
+// The SAME v06 generator paints the real board; no imitation shadow blur.
+const shadowPreviewRenderer=createDirectionalShadowRenderer({
+ createCanvas:()=>document.createElement('canvas'),
+ getSettings:()=>getFX(),capacity:4
+});
+const shadowPreviewGroup=Object.freeze({
+ minX:0,minY:0,maxX:2,maxY:1,
+ cells:Object.freeze([{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:2,y:1}])
+});
+let shadowPreviewSignature=null;
+function updateShadowPreview(){
+ const fx=getFX();
+ const signature=['shadows','shadowAngle','shadowDistance','shadowBlur',
+  'shadowBias','shadowOpacity'].map(k=>String(fx[k])).join('/');
+ if(signature===shadowPreviewSignature)return;
+ shadowPreviewSignature=signature;
+ const p=EFFECT_PREVIEWS.shadows.getContext('2d');
+ if(!p)return;
+ p.clearRect(0,0,PREVIEW_SIZE,PREVIEW_SIZE);
+ p.fillStyle=gray(26);p.fillRect(0,0,PREVIEW_SIZE,PREVIEW_SIZE);
+ p.fillStyle=gray(31);
+ for(let v=8;v<PREVIEW_SIZE;v+=8){
+  p.fillRect(v,0,1,PREVIEW_SIZE);p.fillRect(0,v,PREVIEW_SIZE,1);
+ }
+ const x0=18,y0=27,tile=18;
+ shadowPreviewRenderer.draw(p,[shadowPreviewGroup],x0,y0,tile);
+ for(const {x,y} of shadowPreviewGroup.cells){
+  const bx=x0+x*tile,by=y0+y*tile;
+  p.fillStyle=gray(201);p.fillRect(bx+1,by+1,tile-2,tile-2);
+  p.fillStyle=gray(94);p.fillRect(bx+3,by+4,tile-6,tile-7);
+  p.fillStyle=gray(229);p.fillRect(bx+3,by+2,tile-6,2);
+  p.fillStyle=gray(165);p.fillRect(bx+3,by+4,2,tile-7);
+ }
+}
+
 // Match the shared square panel outline around every thumbnail, with a
 // subtle 1px light-top/left and dark-bottom/right rim for terminal-style bevel.
 function drawEffectThumbnail(id,x,y,size){
+ if(id==='shadows')updateShadowPreview();
  const g=getContext();
  panel(x,y,size,size,9,C.panel,C.border);
  const inset=3,inner=Math.max(1,size-2*inset);
@@ -2290,13 +2328,15 @@ function settingsContentHeight(effect,gap){
 }
 function settingsRows(buttonH,gap,width){
  const image=settingsPreviewSize(width),rows=[];let offset=0;
- const maxContentHeight=Math.max(...DISPLAY_EFFECTS.map(effect=>
-  settingsContentHeight(effect,gap)));
- // 102px slots at 6px inner gaps, containing 68px image: 40px between
- // thumbnail edges after including the standard 6px between row slots.
- const rowHeight=Math.max(image,maxContentHeight+2*gap);
+ // Preserve the existing uniform row height for every established effect.
+ // The five shadow sliders occupy ONE taller row instead of inflating all rows.
+ const standardMax=Math.max(...DISPLAY_EFFECTS.filter(e=>e.id!=='shadows')
+  .map(effect=>settingsContentHeight(effect,gap)));
+ const standardRowHeight=Math.max(image,standardMax+2*gap);
  for(const effect of DISPLAY_EFFECTS){
   const contentHeight=settingsContentHeight(effect,gap);
+  const rowHeight=effect.id==='shadows'?
+   Math.max(image,contentHeight+2*gap):standardRowHeight;
   const choiceHeight=Math.max(34,buttonH-8);
   const expanded=effect.pattern&&scanlineMenuOpen;
   const height=rowHeight+(expanded?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
@@ -2503,6 +2543,7 @@ function paintModal(q){
  }
  return Object.freeze({
   modalBounds,paintModal,toggleScanlineMenu,chooseScanline,reset,resetSettings,
+  dispose:()=>shadowPreviewRenderer.dispose(),
   get view(){return modalView;},
   get scroll(){return optionsScroll;},
   set scroll(v){optionsScroll=v;},
