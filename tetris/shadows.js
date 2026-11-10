@@ -25,18 +25,16 @@ export function directionalShadowProfile(tile=35,fx={}){
  });
 }
 
-/** A frame recess casts its shadow *inside* the opening. It uses the
- * SAME user light direction, Gaussian softness, bias and opacity as the
- * tetrominoes, but is physically twice as deep: 2x throw and 2x blur.
- * Opacity is not divided by either multiplier.
+/** The recessed board uses the same light direction, throw, Gaussian
+ * softness, bias and opacity as the pieces. Depth is represented by its
+ * inward-facing aperture mask, NOT additional distance or blur multipliers.
  */
 export function boardInsetShadowProfile(tile=35,fx={}){
  const piece=directionalShadowProfile(tile,fx);
- const blur=piece.blur*2;
  return Object.freeze({
   enabled:piece.enabled,angle:piece.angle,
-  distance:piece.distance*2,blur,bias:piece.bias,
-  opacity:piece.opacity,resolution:blur<=6?1:.5
+  distance:piece.distance,blur:piece.blur,bias:piece.bias,
+  opacity:piece.opacity,resolution:piece.blur<=6?1:.5
  });
 }
 
