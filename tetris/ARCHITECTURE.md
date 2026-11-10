@@ -225,3 +225,30 @@ from the piece silhouette algorithm, so identical inputs need not yield
 identical-looking fields. The deliberate late inset shadow over nearby pieces,
 including its separate sharp pause-overlay copy, stays in the same rendering
 order. No compositing, masks, brightness, gameplay or artwork changes.
+
+
+## Directional Light Control laboratory (v195)
+
+The Drop Shadows row now exposes LIGHT CONTROL alongside its existing angle,
+distance, Gaussian blur, bias and opacity controls. LIGHT CONTROL enters a
+separate paused-light modal. The rules engine remains paused after entry and
+on exit; it must never advance while a user adjusts a shadow. This is a
+**directional** controller, NOT a point-light simulation: the dragged marker
+changes only the global shadow angle using the vector from the marker toward
+the centre of the fixed playfield. Distance from the marker to the centre
+has no bearing on the shadow's cast distance or opacity.
+
+The user may drag anywhere within the board aperture. A bright marker and
+subtle halo are clipped to the board while the faint crosshair extends to
+both axes of the entire phone screen. A DONE button returns to the scrolled
+Display System and Escape does the same. Touch input never reaches Tetris
+controls while the light view is active. A 55 degree saved angle is initially
+shown at its corresponding position; returning saves the new angle.
+
+Shadow Gaussian blur is temporarily set to zero **for painting only**; the
+saved blur setting is not changed. The normal popup blur and settings scrim
+are suppressed while the light view is present, and optional edge softness
+and phosphor persistence are temporarily disabled. The board-aperture bloom
+mask is retained despite the transparent modal, preserving the existing
+light/shadow-box separation. All original values return on DONE. No changes
+to piece art, ghost logic, scoring, buttons, or ordinary game controls.
