@@ -472,7 +472,7 @@ describe('Canvas button drawing',()=>{
   for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
    assert.ok(modal.includes(control),'modal control missing brightness: '+control);
   const game=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(game,/getButtonPower:r=>\(g===controlsContext&&visualScene\.visualScene\.controlsGpuEnabled\)\?0:buttonSparks\.find/);
+  assert.match(game,/getButtonPower:r=>\(g===controlsContext&&visualScene\.controlsGpuEnabled\)\?0:buttonSparks\.find/);
   assert.doesNotMatch(game,/syncButtonFeedback/);
  });
 
