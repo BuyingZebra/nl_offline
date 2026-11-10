@@ -626,11 +626,12 @@ export function createSettingsManager(storage){
 export const SCREENS=Object.freeze({
  GAME:'game',
  OPTIONS:'options',
- SCORES:'scores'
+ SCORES:'scores',
+ LIGHT:'light'
 });
 
 const MODALS=new Set([
- null,SCREENS.OPTIONS,SCREENS.SCORES
+ null,SCREENS.OPTIONS,SCREENS.SCORES,SCREENS.LIGHT
 ]);
 
 export function createScreenManager({getGameStatus,pauseGame,onChange}){
@@ -658,9 +659,11 @@ export function createScreenManager({getGameStatus,pauseGame,onChange}){
   get hasModal(){return active!==null;},
   get isScores(){return active===SCREENS.SCORES;},
   get isOptions(){return active===SCREENS.OPTIONS;},
+  get isLight(){return active===SCREENS.LIGHT;},
   get paintsModalLayer(){return active!==null&&active!==SCREENS.SCORES;},
   close:()=>open(null),
   openOptions:()=>openWithPause(SCREENS.OPTIONS),
+  openLight:()=>openWithPause(SCREENS.LIGHT),
   openScores:()=>openWithPause(SCREENS.SCORES)
  });
 }
@@ -781,6 +784,8 @@ export function createActionController({
   if(action==='close'){screens.close();return;}
   if(action==='copyDebug'){onCopyDebug();return;}
   if(action==='options'){screens.openOptions();return;}
+  if(action==='light'){screens.openLight();return;}
+  if(action==='lightDone'){screens.openOptions();return;}
   if(action==='scores'){
    const saved=scores.read(storage);
    if(saved&&(!best||saved.score>best.score))best=saved;
