@@ -859,34 +859,34 @@ describe('Piece shadows',()=>{
   assert.equal(group.cells.length,4);
  });
 
- test('profile adds contact and projected gradient layers at board-like depth',()=>{
-  const p=pieceShadowProfile(20);
-  assert.equal(p.depth,16);
-  assert.ok(p.contact.blur<p.core.blur&&p.core.blur<p.cast.blur);
-  assert.ok(p.cast.offsetY>p.contact.offsetY);
-  assert.equal(p.cast.alpha,1);
-  assert.equal(p.core.alpha,1);
-  assert.equal(p.contact.alpha,1);
-  assert.equal(p.cast.offsetY,p.core.offsetY);
-  assert.equal(p.cast.offsetX,p.core.offsetX);
-  assert.equal(pieceShadowProfile(4).depth,8);
-  assert.equal(pieceShadowProfile(100).depth,20);
+ test('v06 parameters are scaled from the same 35px reference tile',()=>{
+  const p=pieceShadowProfile(35);
+  assert.equal(p.angle,55);
+  assert.equal(p.distance,13);
+  assert.equal(p.blur,14);
+  assert.equal(p.bias,1);
+  assert.equal(p.opacity,.8);
+  assert.equal(p.resolution,.5);
+  assert.ok(Math.abs(pieceShadowProfile(20).distance-13*20/35)<1e-12);
+  assert.equal(pieceShadowProfile(70).blur,28);
  });
 
  function fakeCanvasFactory(stats){
   return ()=>{
    stats.created++;
-   const draws=[],g={
-    save(){},restore(){},setTransform(){},beginPath(){},rect(){},
-    fill(){draws.push({blur:this.shadowBlur,x:this.shadowOffsetX,
-     y:this.shadowOffsetY,alpha:this.shadowColor,operation:this.globalCompositeOperation});}
+   const canvas={width:0,height:0};
+   const g={
+    save(){},restore(){},scale(){},fillRect(){},
+    getImageData(){return {data:new Uint8ClampedArray(canvas.width*canvas.height*4)};},
+    createImageData(w,h){return {data:new Uint8ClampedArray(w*h*4)};},
+    putImageData(){stats.uploads++;}
    };
-   const canvas={width:0,height:0,draws,getContext(type){return type==='2d'?g:null;}};
+   canvas.getContext=type=>type==='2d'?g:null;
    return canvas;
   };
  }
- test('shadow stamps are cached across movement and rebuilt for rotation',()=>{
-  const stats={created:0},images=[];
+ test('v06 stamps cache by shape, not position; rotation rebuilds only once',()=>{
+  const stats={created:0,uploads:0},images=[];
   const shadows=createPieceShadowRenderer({
    createCanvas:fakeCanvasFactory(stats),pixelRatio:()=>2,capacity:8
   });
@@ -894,26 +894,24 @@ describe('Piece shadows',()=>{
   const b=board(),m=meta();
   const T={id:1,x:3,y:4,matrix:Core.SHAPES.T};
   shadows.draw(g,collectPieceShadowGroups(b,m,T),2,2,20);
-  assert.equal(stats.created,1);
+  assert.equal(stats.created,2,'one temporary mask plus one cached shadow');
+  assert.equal(stats.uploads,1,'one ImageData write for new silhouette');
   assert.equal(images.length,1);
-  const stamp=images[0][0];
-  assert.equal(stamp.draws.length,4,'cast, opaque core, contact, silhouette erasure');
-  assert.ok(stamp.draws[0].blur>stamp.draws[1].blur);
-  assert.ok(stamp.draws[1].blur>stamp.draws[2].blur);
-  assert.equal(stamp.draws[0].alpha,'rgba(0,0,0,1)');
-  assert.equal(stamp.draws[1].alpha,'rgba(0,0,0,1)');
-  assert.equal(stamp.draws[3].operation,'destination-out');
+  assert.ok(images[0][0].width>20,'stamp includes Gaussian padding');
+  assert.ok(shadows.stats.cacheKiB>0);
   T.x+=2;T.y+=1;
   shadows.draw(g,collectPieceShadowGroups(b,m,T),2,2,20);
-  assert.equal(stats.created,1,'translation reuses the same raster');
+  assert.equal(stats.created,2,'movement never repeats convolution');
   T.matrix=Core.turn(T.matrix,1);
   shadows.draw(g,collectPieceShadowGroups(b,m,T),2,2,20);
-  assert.equal(stats.created,2,'rotation has an independently rasterized silhouette');
+  assert.equal(stats.created,4,'rotation receives a new cached stamp');
   T.matrix=Core.turn(T.matrix,-1);
   shadows.draw(g,collectPieceShadowGroups(b,m,T),2,2,20);
-  assert.equal(stats.created,2,'rotating back reuses prior shadow');
+  assert.equal(stats.created,4,'rotating back reuses first stamp');
   assert.equal(shadows.cacheSize,2);
+  assert.equal(shadows.stats.builds,2);
   shadows.dispose();assert.equal(shadows.cacheSize,0);
+  assert.equal(shadows.stats.cacheKiB,0);
  });
 
  test('V162 shadows render after the grid, before SVG piece faces',()=>{

@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v187';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v188';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v187';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v188';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -829,10 +829,9 @@ function stage(r,drawPieces=true){
  const iRuns=collectIFragments(displayBoard,displayMeta,{
   hiddenRows:clearIsEmpty?lineClearFX.rows:null
  });
- // V162: cast each locked/active tetromino's own 2-layer shadow onto the
- // grid BEFORE painting its source SVG art. Piece IDs preserve separate
- // shadows for touching stacks, and the current rotated matrix is sampled
- // anew on every paint so even wall kicks change the silhouette correctly.
+ // V188: draw each piece's cached v06 directional-Gaussian silhouette below
+ // the original SVG art; identities and rotation remain piece-correct.
+ // This reuses the existing board CanvasTexture and requires no new GPU pass.
  const shadowGroups=collectPieceShadowGroups(displayBoard,displayMeta,
   !lineClearFX&&game.status!=='over'?game.current:null,
   clearIsEmpty?lineClearFX.rows:null);
@@ -1172,7 +1171,8 @@ function createDebugReport(){
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
   display:{theme:settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
    settings:JSON.stringify({...settings.effects,pieceGhost:settings.pieceGhost,sound:settings.soundOn})},
-  gpu,canvasMemory:estimateCanvasSourceBytes(visualScene.canvases),
+  gpu,shadowStats:pieceShadows.stats,
+  canvasMemory:estimateCanvasSourceBytes(visualScene.canvases),
   graphics:graphicsHealth.snapshot(),lifecycle:appLifecycle?.snapshot(),
   offline:{network:navigator.onLine===false?'offline':'online',
    supported:'serviceWorker' in navigator,

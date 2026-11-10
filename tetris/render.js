@@ -1,5 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
+import {directionalShadowProfile,createDirectionalShadowRenderer} from './shadows.js?v188';
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
@@ -301,7 +302,7 @@ function createTextureUploadProfiler({renderer,onTiming=()=>{},now=()=>performan
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,gpu,canvasMemory,graphics,lifecycle,offline,samples=[],current}={}){
+function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -379,6 +380,15 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
    }
   }
  });
+ if(shadowStats){
+  rows.push('', 'DIRECTIONAL SHADOW CACHE (CPU; generated on cache misses)');
+  rows.push('Mode: '+value(shadowStats.mode)+' / stamps '+value(shadowStats.cacheSize)+
+   ' / raster estimates '+value(shadowStats.cacheKiB,' KiB'));
+  rows.push('Cache builds: '+value(shadowStats.builds)+
+   ' / total '+value(shadowStats.totalBuildMs,'ms')+
+   ' / slowest '+value(shadowStats.maxBuildMs,'ms'));
+  rows.push('No additional CanvasTextures or GPU passes for the shadow effect.');
+ }
  if(canvasMemory){
   rows.push('', 'CANVAS SOURCE PIXELS (RGBA8 equivalent, not observed RAM or GPU VRAM)');
   rows.push('Surfaces: '+value(canvasMemory.count)+
@@ -1799,15 +1809,11 @@ function collectIFragments(board,metadata,{hiddenRows=null}={}){
  return Object.freeze([...runs,...missing].sort((a,b)=>a.y-b.y||a.x-b.x||String(a.pieceId).localeCompare(String(b.pieceId))));
 }
 
-/* NOMAD V163 — deeper per-piece raised cast shadows.
- * Preserve core piece IDs and current rotated matrices. Pre-rasterized stamps
- * are cached by SILHOUETTE (not position) for fast movement and rotation on iOS.
- * Shadows darken the floor/grid only; SVG piece artwork remains untouched.
+/* NOMAD V188 — the approved v06 one-silhouette directional Gaussian system.
+ * Keep existing piece identities, clip, stage order and SVG artwork unchanged.
+ * Per-silhouette caches avoid per-frame pixel processing and extra GPU passes.
  */
 const COLS=10,ROWS=20;
-const depthForTile=tile=>Math.min(20,Math.max(8,tile*.8));
-const cappedDpr=n=>Math.max(1,Math.min(3,Number(n)||1));
-
 // Respect immutable boardMeta.pieceId even when two independent tetrominoes
 // share edges or have been split by completed rows. Fallback legacy cells
 // have distinct IDs rather than merging every connected block.
@@ -1840,92 +1846,9 @@ function collectPieceShadowGroups(board,meta,active=null,hiddenRows=null){
  });
 }
 
-function pieceShadowProfile(tile){
- const depth=depthForTile(tile);
- return Object.freeze({
-  // Keep the existing shadow reach, but deepen its projection so phosphor
-  // bloom doesn't wash it out. An opaque central shadow is offset below
-  // the piece, while a soft penumbra gradually extinguishes the grid.
-  cast:{blur:depth,offsetX:6,offsetY:7,alpha:1},
-  core:{blur:5,offsetX:6,offsetY:7,alpha:1},
-  // Tight contact shadow preserves the apparent separation at each edge.
-  contact:{blur:2.25,offsetX:2.5,offsetY:3.5,alpha:1},
-  depth
- });
-}
-
-function createPieceShadowRenderer({
- createCanvas=()=>document.createElement('canvas'),
- pixelRatio=()=>1,capacity=48
-}={}){
- const cache=new Map();
- const limit=Math.max(1,Math.floor(capacity)||48);
- function stamp(group,tile,dpr){
-  const profile=pieceShadowProfile(tile);
-  const normalized=group.cells.map(c=>(c.x-group.minX)+','+(c.y-group.minY)).sort().join(';');
-  const key=tile.toFixed(4)+'@'+dpr.toFixed(2)+':'+normalized;
-  const prev=cache.get(key);
-  if(prev){cache.delete(key);cache.set(key,prev);return prev;}
-  const pad=Math.ceil(profile.depth*2+Math.max(
-   profile.cast.offsetX,profile.cast.offsetY)+4);
-  const shapeW=(group.maxX-group.minX+1)*tile;
-  const shapeH=(group.maxY-group.minY+1)*tile;
-  const width=shapeW+2*pad,height=shapeH+2*pad;
-  const canvas=createCanvas();
-  canvas.width=Math.ceil(width*dpr);canvas.height=Math.ceil(height*dpr);
-  const ctx=canvas.getContext('2d',{alpha:true});
-  if(!ctx)return null;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  const silhouette=()=>{
-   ctx.beginPath();
-   for(const {x,y} of group.cells)ctx.rect(
-    pad+(x-group.minX)*tile,pad+(y-group.minY)*tile,tile,tile);
-  };
-  // Apply physical pixel offsets to Canvas2D shadow props because shadowBlur
-  // and shadowOffset are not transformed with the canvas coordinate matrix.
-  for(const layer of [profile.cast,profile.core,profile.contact]){
-   ctx.save();
-   ctx.fillStyle='#000000';
-   ctx.shadowColor='rgba(0,0,0,'+layer.alpha+')';
-   ctx.shadowBlur=layer.blur*dpr;
-   ctx.shadowOffsetX=layer.offsetX*dpr;
-   ctx.shadowOffsetY=layer.offsetY*dpr;
-   silhouette();ctx.fill();
-   ctx.restore();
-  }
-  // Erase each source silhouette from the offscreen shadow, so transparent
-  // motifs in the actual SVG pieces still show their correct original floor.
-  ctx.save();
-  ctx.globalCompositeOperation='destination-out';
-  ctx.fillStyle='#000000';
-  silhouette();ctx.fill();
-  ctx.restore();
-  const item={canvas,width,height,pad};
-  if(cache.size>=limit)cache.delete(cache.keys().next().value);
-  cache.set(key,item);
-  return item;
- }
- function draw(g,groups,offX,offY,tile){
-  if(!(tile>0)||!groups?.length)return 0;
-  const dpr=cappedDpr(pixelRatio());
-  let drawn=0;
-  // The board's existing clip confines every shadow to the recessed floor.
-  for(const group of groups){
-   if(!group.cells.length)continue;
-   const item=stamp(group,tile,dpr);
-   if(!item)continue;
-   g.drawImage(item.canvas,
-    offX+group.minX*tile-item.pad,
-    offY+group.minY*tile-item.pad,item.width,item.height);
-   drawn++;
-  }
-  return drawn;
- }
- return Object.freeze({
-  draw,dispose:()=>cache.clear(),
-  get cacheSize(){return cache.size;}
- });
-}
+// Public compatibility API; implementation is independently reusable.
+const pieceShadowProfile=directionalShadowProfile;
+const createPieceShadowRenderer=createDirectionalShadowRenderer;
 
 return {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer};
 })();
