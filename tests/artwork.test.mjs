@@ -867,7 +867,7 @@ describe('Piece shadows',()=>{
   assert.equal(p.bias,1);
   assert.equal(p.opacity,.8);
   assert.equal(p.resolution,.5);
-  assert.equal(pieceShadowProfile(20).distance,13*20/35);
+  assert.ok(Math.abs(pieceShadowProfile(20).distance-13*20/35)<1e-12);
   assert.equal(pieceShadowProfile(70).blur,28);
  });
 
