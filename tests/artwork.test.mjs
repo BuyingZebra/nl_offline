@@ -921,7 +921,10 @@ describe('Piece shadows',()=>{
   const renderer=createPieceShadowRenderer({
    createCanvas:fakeCanvasFactory(stats),getSettings:()=>fx,capacity:6
   });
-  const g={globalAlpha:1,save(){},restore(){},
+  const stack=[];
+  const g={globalAlpha:1,
+   save(){stack.push(this.globalAlpha);},
+   restore(){this.globalAlpha=stack.pop();},
    drawImage(){samples.push(this.globalAlpha);}};
   const T={id:1,x:3,y:4,matrix:Core.SHAPES.T};
   const groups=()=>collectPieceShadowGroups(board(),meta(),T);
