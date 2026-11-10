@@ -468,7 +468,9 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
  softness:false,softnessStrength:.64,softnessRadius:3,
  vignette:true,vignetteAmount:.57,
- persistence:true,persistenceMs:120});
+ persistence:true,persistenceMs:120,
+ shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
+ shadowBias:1,shadowOpacity:.8});
 export const DISPLAY_EFFECTS=[
  {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
  {id:'persistence',title:'PHOSPHOR RESPONSE',toggle:'persistence',
@@ -479,6 +481,12 @@ export const DISPLAY_EFFECTS=[
   sliders:[['','vignetteAmount',0,100,1,'%']]},
  {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
   sliders:[['','bloomStrength',0,100,1,'%']]},
+ {id:'shadows',title:'DROP SHADOWS',toggle:'shadows',
+  sliders:[['ANGLE','shadowAngle',0,360,5,'°'],
+   ['DIST','shadowDistance',0,35,1,'px'],
+   ['BLUR','shadowBlur',0,30,1,'px'],
+   ['BIAS','shadowBias',0,100,5,'%'],
+   ['OPACITY','shadowOpacity',0,100,5,'%']]},
  {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
   sliders:[['X','ghostX',-32,32,1,'px'],
    ['Y','ghostY',-32,32,1,'px'],
@@ -489,18 +497,24 @@ export const DISPLAY_EFFECTS=[
  {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost'},
  {id:'sound',title:'SOUND',toggle:'sound'}
 ];
+// Supported independently of renderer code so saved preferences migrate safely.
+export const SHADOW_RANGES=Object.freeze({
+ shadowAngle:[0,360],shadowDistance:[0,35],shadowBlur:[0,30],
+ shadowBias:[0,1],shadowOpacity:[0,1]
+});
+export const SHADOW_SETTING_KEYS=Object.freeze(['shadows',...Object.keys(SHADOW_RANGES)]);
 export function scanlineChoices(presets){
  return [{id:'off',name:'OFF'},...presets.map(p=>({id:p.id,name:p.name}))];
 }
 export function effectSettingValue(key,fx,{ghost,sound}){
  if(key==='pieceGhost')return ghost;
  if(key==='sound')return sound;
- if(['softnessStrength','vignetteAmount','bloomStrength'].includes(key))
+ if(['softnessStrength','vignetteAmount','bloomStrength','shadowBias','shadowOpacity'].includes(key))
   return Math.round(fx[key]*100);
  return fx[key];
 }
 export function effectSettingToStored(key,value,clamp=(v,a,b)=>Math.max(a,Math.min(b,v))){
- return ['softnessStrength','vignetteAmount','bloomStrength'].includes(key)?
+ return ['softnessStrength','vignetteAmount','bloomStrength','shadowBias','shadowOpacity'].includes(key)?
   clamp(value/100,0,1):value;
 }
 
@@ -537,6 +551,10 @@ export function createSettingsManager(storage){
  // Match the existing V084 migration of out-of-range historical bloom values.
  effects.bloomStrength=clamp(Number(effects.bloomStrength)||0,0,1);
  effects.persistenceMs=normalizePersistenceMs(effects.persistenceMs);
+ for(const [key,[lo,hi]] of Object.entries(SHADOW_RANGES)){
+  const n=Number(effects[key]);
+  effects[key]=Number.isFinite(n)?clamp(n,lo,hi):DEFAULT_EFFECTS[key];
+ }
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
  // Restore the original green/amber-only phosphor selection. A saved
@@ -562,7 +580,13 @@ export function createSettingsManager(storage){
   }
   if(key==='persistenceMs')value=normalizePersistenceMs(value);
   if(Object.prototype.hasOwnProperty.call(DEFAULT_EFFECTS,key)){
-   effects[key]=effectSettingToStored(key,value,clamp);
+   const converted=effectSettingToStored(key,value,clamp);
+   const range=SHADOW_RANGES[key];
+   if(range){
+    const n=Number(converted);
+    value=Number.isFinite(n)?clamp(n,range[0],range[1]):DEFAULT_EFFECTS[key];
+   }else value=converted;
+   effects[key]=value;
    persistEffects();
   }
  }
@@ -747,7 +771,7 @@ export function createActionController({
  function setSetting(key,value){
   if(!canInteract())return;
   settings.setSetting(key,value);
-  if(key==='pieceGhost')markLayers('board');
+  if(key==='pieceGhost'||SHADOW_SETTING_KEYS.includes(key))markLayers('board');
   invalidate();
  }
 
@@ -769,7 +793,7 @@ export function createActionController({
   if(action==='restart'){restart();return;}
   if(action==='resetFX'){
    settings.restoreDefaults();onResetSettingsUI();
-   markLayers('base');invalidate();return;
+   markLayers('base','board');invalidate();return;
   }
   if(GAME_ACTIONS.includes(action))perform(action);
  }

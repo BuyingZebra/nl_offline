@@ -1,6 +1,6 @@
 import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
-import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS} from '../tetris/game.js';
+import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS,DISPLAY_EFFECTS} from '../tetris/game.js';
 import fs from 'node:fs';
 import {createAppLifecycle,runCleanupTasks} from '../tetris/platform.js';
 import {createGraphicsHealth} from '../tetris/render.js';
@@ -497,10 +497,12 @@ describe('Gameplay commands',()=>{
   const h=harness();
   h.actions.setSetting('pieceGhost',false);
   assert.deepEqual(h.events,[['setting','pieceGhost',false],['dirty','board'],['invalidate']]);
+  h.events.length=0;h.actions.setSetting('shadowAngle',110);
+  assert.deepEqual(h.events,[['setting','shadowAngle',110],['dirty','board'],['invalidate']]);
   h.events.length=0;h.actions.dispatch('theme');
   assert.deepEqual(h.events,[['theme'],['dirty','base'],['invalidate']]);
   h.events.length=0;h.actions.dispatch('resetFX');
-  assert.deepEqual(h.events,[['restoreFX'],['resetSettingsUI'],['dirty','base'],['invalidate']]);
+  assert.deepEqual(h.events,[['restoreFX'],['resetSettingsUI'],['dirty','base','board'],['invalidate']]);
  });
  test('menu actions retain navigation, but score entry and initials commands are gone',()=>{
   const h=harness();
@@ -666,6 +668,64 @@ describe('Saved preferences',()=>{
   assert.equal(JSON.parse(storage.data.get(STORAGE_KEYS.effects)).bloomStrength,.35);
  });
 
+ test('v190 directional shadow sliders persist, normalize and restore cleanly',()=>{
+  const storage=memoryStorage(),settings=createSettingsManager(storage);
+  assert.equal(settings.effects.shadows,true);
+  assert.equal(settings.effects.shadowAngle,55);
+  assert.equal(settings.effects.shadowDistance,13);
+  assert.equal(settings.effects.shadowBlur,14);
+  assert.equal(settings.settingValue('shadowBias'),100);
+  assert.equal(settings.settingValue('shadowOpacity'),80);
+  settings.setSetting('shadows',false);
+  settings.setSetting('shadowAngle',170);
+  settings.setSetting('shadowDistance',30);
+  settings.setSetting('shadowBlur',2);
+  settings.setSetting('shadowBias',45);
+  settings.setSetting('shadowOpacity',25);
+  assert.equal(settings.effects.shadows,false);
+  assert.equal(settings.effects.shadowBias,.45);
+  assert.equal(settings.effects.shadowOpacity,.25);
+  const reopened=createSettingsManager(storage);
+  assert.equal(reopened.effects.shadowAngle,170);
+  assert.equal(reopened.effects.shadowDistance,30);
+  assert.equal(reopened.effects.shadowBlur,2);
+  assert.equal(reopened.settingValue('shadowBias'),45);
+  assert.equal(reopened.settingValue('shadowOpacity'),25);
+  assert.equal(reopened.effects.shadows,false);
+  reopened.restoreDefaults();
+  assert.equal(reopened.effects.shadows,true);
+  assert.equal(reopened.effects.shadowAngle,55);
+  assert.equal(reopened.settingValue('shadowBias'),100);
+  assert.equal(reopened.settingValue('shadowOpacity'),80);
+ });
+ test('v190 shadow parameters clamp unsafe saved and submitted values',()=>{
+  const storage=memoryStorage({
+   [STORAGE_KEYS.effects]:JSON.stringify({
+    shadowAngle:900,shadowDistance:-10,shadowBlur:1e6,
+    shadowBias:99,shadowOpacity:-1
+   })
+  });
+  const settings=createSettingsManager(storage);
+  assert.equal(settings.effects.shadowAngle,360);
+  assert.equal(settings.effects.shadowDistance,0);
+  assert.equal(settings.effects.shadowBlur,30);
+  assert.equal(settings.effects.shadowBias,1);
+  assert.equal(settings.effects.shadowOpacity,0);
+  settings.setSetting('shadowBias',-200);
+  settings.setSetting('shadowOpacity',900);
+  assert.equal(settings.effects.shadowBias,0);
+  assert.equal(settings.effects.shadowOpacity,1);
+  settings.setSetting('shadowDistance',Infinity);
+  assert.equal(settings.effects.shadowDistance,13);
+ });
+ test('v190 properties expose the five actual shadow engine controls',()=>{
+  const names=DISPLAY_EFFECTS.find(e=>e.id==='shadows');
+  assert.ok(names);
+  assert.equal(names.toggle,'shadows');
+  assert.deepEqual(names.sliders.map(s=>s[1]),[
+   'shadowAngle','shadowDistance','shadowBlur','shadowBias','shadowOpacity'
+  ]);
+ });
  test('all historical preference storage keys remain compatible',()=>{
   const storage=memoryStorage();
   const settings=createSettingsManager(storage);

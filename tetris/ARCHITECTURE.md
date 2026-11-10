@@ -137,3 +137,22 @@ exterior bloom can still visually overlap the window.
 The existing ghost and edge-softness passes now avoid cross-aperture sampling.
 For a same-build comparison append ?shadowbox=off to temporarily restore the
 old unrestricted global bloom. This opt-out is not saved in user settings.
+
+
+## Interactive directional-shadow controls (v190)
+
+The Display System properties page now has Drop Shadows: enable/disable,
+angle (0–360°), distance (0–35 CSS px), Gaussian blur (0–30 CSS px),
+directional bias (0–100%), and opacity (0–100%). Default values are
+exactly the approved v188 / v06 profile (55°, 13px, 14px, 100%, 80%).
+Settings share the existing persisted effects object, including restoring
+historical preferences and Restore Defaults. Their slider percentages are
+translated into normalized renderer fractions.
+
+The menu thumbnail is a live miniature rendered through the actual v06
+shadow engine. Since Display System covers the playfield, board repainting
+is deferred until the page closes; this avoids a costly all-piece shadow
+rebuild for every pointermove. Only direction/distance/blur/bias invalidate
+cached silhouette rasters. Enabling/disabling and opacity are applied on
+draw, without new convolution or texture resources. Shadow caches remain
+bounded and all graphics resources are disposed on page exit.
