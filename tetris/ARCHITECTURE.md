@@ -81,3 +81,7 @@ The no-button state returns a shared immutable empty array. The visual output
 and settings are unchanged. Browser smoke instrumentation reports idle RAF and
 timer counts for regression tracking; headless software-rendered browser counts
 are **not** valid phone battery or frame-rate benchmarks.
+
+The [v186 rendering-efficiency case study](./PWA_ENGINEERING_CASE_STUDY.md)
+records the measured browser callback counts, code changes, regression tests,
+and limits on interpreting software-rendered benchmarks.

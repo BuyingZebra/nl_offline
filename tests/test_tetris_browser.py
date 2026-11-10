@@ -306,6 +306,14 @@ with sync_playwright() as p:
     idle_raf = idle_counts["raf"]
     print(f"IDLE SCHEDULER PROBE: {browser_name} 2s={idle_counts}")
     assert idle_raf >= 1, "The terminal cursor stopped updating while idle"
+    # Fresh profile has persistence enabled: continuous RAF handles terminal
+    # advancement; redundant terminal timeouts must not be recreated per frame.
+    assert idle_counts["timeoutCreated"] <= 8, (
+        f"Excess idle terminal timer scheduling: {idle_counts}"
+    )
+    assert idle_counts["timeoutCleared"] <= 8, (
+        f"Excess idle timer cancellation: {idle_counts}"
+    )
 
     page.mouse.click(353, 103)
     page.wait_for_timeout(150)
