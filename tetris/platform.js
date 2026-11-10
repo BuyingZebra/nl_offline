@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v196';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v197';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v196';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v197';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -713,7 +713,7 @@ function setLightPosition(point){
  const dx=b.x+b.w/2-x,dy=b.y+b.h/2-y;
  if(Math.hypot(dx,dy)>=3){
   const angle=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
-  actions.setSetting('shadowAngle',Math.round(angle));
+  actions.setSetting('shadowAngle',Number(angle.toFixed(2)));
  }
  layers.mark('modal');invalidate();
 }
@@ -1220,14 +1220,22 @@ function copyDebugReport(){
 }
 function paintLightDirectionOverlay(){
  regions=[];
- const b=lightBoardBounds(),cx=b.x+b.w/2,cy=b.y+b.h/2;
+ const r=layout(),b=lightBoardBounds(),cx=b.x+b.w/2,cy=b.y+b.h/2;
  const angle=(Number(settings.effects.shadowAngle)||0)*Math.PI/180;
  const radius=Math.min(b.w,b.h)*.34;
  const p=lightPosition||{
   x:clamp(cx-Math.cos(angle)*radius,b.x+6,b.x+b.w-6),
   y:clamp(cy-Math.sin(angle)*radius,b.y+6,b.y+b.h-6)
  };
+ // Mask only the scoreboard/sidebar contents; the adjacent brick rail
+ // belongs to the base artwork and must remain fully visible. The actual
+ // game sidebar is left unchanged underneath this temporary modal plane.
+ g.save();
+ g.fillStyle=C.bg;
+ g.fillRect(r.sideX,r.boardY,r.sideW,r.boardH);
+ g.restore();
  // Crosshairs reach the FULL screen, deliberately outside the aperture.
+ // Its horizontal dashed line doubles as the separator for the readout.
  // The luminous source itself is clipped to the playfield window.
  g.save();
  g.strokeStyle='rgba(180,180,180,.27)';g.lineWidth=.7;
@@ -1246,10 +1254,16 @@ function paintLightDirectionOverlay(){
  g.fillStyle='rgba(235,235,235,.96)';
  g.beginPath();g.arc(p.x,p.y,3.5,0,2*Math.PI);g.fill();
  g.restore();
+ // The label and precise angle straddle the horizontal guide, following
+ // it vertically without rotating. Both are centered in the masked sidebar.
+ // No extra divider is painted: the existing crosshair dashes ARE the divider.
+ if(r.sideW>25){
+  const sideCenter=r.sideX+r.sideW/2,readoutWidth=r.sideW-4;
+  text('DIRECTION',sideCenter,p.y-13,9,C.weak,'center',readoutWidth);
+  text(Number(settings.effects.shadowAngle).toFixed(2)+'°',
+   sideCenter,p.y+14,12,C.bright,'center',readoutWidth,'terminal');
+ }
  const safe=insets();
- text('LIGHT DIRECTION',Math.max(12,b.x),safe.top+16,12,C.bright,'left',b.w*.7);
- text(Math.round(settings.effects.shadowAngle)+'°',b.x+b.w-8,
-  safe.top+16,12,C.bright,'right',50);
  const exitW=94,exitH=34;
  const exitX=W-exitW-16,exitY=Math.max(safe.top+28,layout().hy+8);
  key('DONE',exitX,exitY,exitW,exitH,'lightDone');
