@@ -171,3 +171,22 @@ zero and all settings still behave normally. This avoids extra GPU passes,
 Canvas textures, extra allocations, and the former destination-out stamp pass.
 Game rules, piece artwork, screen colours, and shadow-box bloom isolation
 remain unchanged.
+
+
+## Unified board-wall and piece shadow settings (v192)
+
+The recessed game board's black inside-wall shadow and its restrained sharp
+copy on the paused/overlaid board now both read the same DROP SHADOWS controls
+as the piece silhouettes. The previous fixed Canvas gradients are replaced by
+one shared, clipped Canvas painter. The board remains an *inset* window rather
+than an exterior silhouette: angle rotates the wall shading, bias balances
+opposing walls, distance adjusts directional occlusion and depth, blur adjusts
+gradient width (0px is a crisp band), and opacity scales darkness. Disabling
+Drop Shadows removes both inset layers and the individual piece shadows.
+
+At the approved default angle 55°, distance 13px, blur 14px, bias 100%,
+opacity 80%, the old normal wall intensities (.58/.42/.24/.24) and sharp
+popup wall intensities (.36/.27/.15/.15), along with original width, are
+preserved. Existing stored settings migrate unchanged. No new GPU passes,
+Canvas textures or settings pages. Canvas repaint remains deferred during
+settings adjustment; changing these controls redraws the board on menu exit.
