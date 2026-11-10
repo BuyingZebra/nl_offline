@@ -269,3 +269,25 @@ The pause/game-over popup blur and modal scrim remain hidden to make the board
 visible, but ordinary saved edge-softness and Gaussian shadow settings are
 honoured. Phosphor persistence alone is temporarily bypassed for responsive
 dragging and returns unchanged on DONE. Gameplay remains paused throughout.
+
+
+## Light Direction sidebar refinement (v197)
+
+While the paused Light Control laboratory is active, the modal paints an
+opaque background over only the right-hand sidebar region
+`(sideX, boardY, sideW, boardH)`. NEXT, SCORE, LEVEL, LINES, and HOLD are
+visually hidden without editing or suppressing their underlying textures.
+The adjacent decorative right brick rail and all game board art, shadows,
+controls and rendering layers remain intact. Closing Light Control removes
+the mask automatically.
+
+The existing dashed horizontal light-position crosshair remains full-screen,
+and doubles as a separator in the newly empty sidebar. `DIRECTION` is
+centered above the dashes; the live shadow angle formatted to **two real
+decimal places** is centered beneath them. Both remain upright and move
+vertically in lockstep with the horizontal crosshair. The earlier detached
+header label/degree counter is removed. Dragging records angle precision to
+0.01° instead of rounding to integer degrees; the same persisted angle
+controls the existing piece and inset shadows, with no new light simulation
+or renderer. The original DONE control, pause logic and settings return are
+unchanged.
