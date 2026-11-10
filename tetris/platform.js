@@ -285,6 +285,7 @@ export function createInputController({screen,document,window,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
+ getLightBounds=()=>null,onLightPoint=()=>{},onLightExit=()=>{},
  onButtonPress=()=>{},onButtonRelease=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
@@ -325,6 +326,14 @@ listen(screen,'pointerdown',e=>{
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
  const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
+ if(getModal()==='light'){
+  const b=getLightBounds();
+  if(b&&p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h){
+   pressed={id:e.pointerId,mode:'light',region:null,start:p,last:p};
+   try{screen.setPointerCapture(e.pointerId);}catch(error){}
+   onLightPoint(p);invalidate();return;
+  }
+ }
  if(!r&&!getModal())return;
  if(isVisualButton(r))onButtonPress(r,performance.now(),true);
  stopRepeat();setScrollVelocity(0);
@@ -353,6 +362,9 @@ listen(screen,'pointermove',e=>{
  if(disposed||!canInteract())return;
  if(!pressed||pressed.id!==e.pointerId)return;
  const p=eventPoint(e),r=pressed.region,touch=pressed;
+ if(touch.mode==='light'){
+  onLightPoint(p);touch.last=p;invalidate();return;
+ }
  if(!getModal())return;
  const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
  const ax=Math.abs(dx),ay=Math.abs(dy);
@@ -377,6 +389,11 @@ function releaseTouch(e){
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
  const touch=pressed,p=eventPoint(e);pressed=null;
+ if(touch.mode==='light'){
+  if(e.type==='pointerup')onLightPoint(p);
+  try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(error){}
+  invalidate();return;
+ }
   if(isVisualButton(touch.region))onButtonRelease(touch.region,performance.now());
  // Redraw only the touched button's cropped HUD texture on release.
  if(!getModal())setBaseDirty(touch.action);
@@ -420,7 +437,7 @@ const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
 listen(document,'keydown',e=>{
  if(disposed||!canInteract())return;
  if(getModal()){
-  if(e.code==='Escape'){e.preventDefault();openModal(null);}
+  if(e.code==='Escape'){e.preventDefault();if(getModal()==='light')onLightExit();else openModal(null);}
   return;
  }
  const a=KEYS[e.code];
