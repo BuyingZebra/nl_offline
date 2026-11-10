@@ -260,6 +260,31 @@ with sync_playwright() as p:
     shader_errors = [error for error in console_errors if "WebGLProgram" in error]
     assert not shader_errors, shader_errors
     assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
+    # Measure idle main-thread RAF demand on a settled, unstarted game.
+    # The only expected periodic UI activity is the terminal cursor blink.
+    page.wait_for_timeout(3000)
+    page.evaluate("""() => {
+      window.__nomadIdleRAFCount = 0;
+      const original = window.requestAnimationFrame;
+      window.__nomadOriginalRAF = original;
+      window.requestAnimationFrame = function(callback) {
+        return original.call(window, timestamp => {
+          window.__nomadIdleRAFCount++;
+          callback(timestamp);
+        });
+      };
+    }""")
+    page.wait_for_timeout(2000)
+    idle_raf = page.evaluate("""() => {
+      window.requestAnimationFrame = window.__nomadOriginalRAF;
+      const count = window.__nomadIdleRAFCount;
+      delete window.__nomadOriginalRAF;
+      delete window.__nomadIdleRAFCount;
+      return count;
+    }""")
+    print(f"IDLE RAF PROBE: {browser_name} callbacks_2s={idle_raf}")
+    assert idle_raf >= 1, "The terminal cursor stopped updating while idle"
+
     page.mouse.click(353, 103)
     page.wait_for_timeout(150)
     settings_screen = page.screenshot()
