@@ -36,6 +36,15 @@ function createPerfMonitor({enabled=false,now=()=>performance.now(),
   passTimes:{},webglCalls:0,renderSubmissions:0,uploadTimes:{},
   worstFrame:null});
  let counters=fresh();
+ // Fixed 512-slot ring: bounded memory, no per-frame arrays or sorting.
+ const frameCpuSamples=new Float32Array(512);
+ let frameCpuUsed=0,frameCpuNext=0;
+ function frameCpuPercentiles(){
+  if(!frameCpuUsed)return {p50:null,p95:null,p99:null,samples:0};
+  const sorted=Array.from(frameCpuSamples.subarray(0,frameCpuUsed)).sort((a,b)=>a-b);
+  const at=q=>+sorted[Math.max(0,Math.ceil(sorted.length*q)-1)].toFixed(3);
+  return {p50:at(.5),p95:at(.95),p99:at(.99),samples:sorted.length};
+ }
  // Reused during each RAF: no additional timers, paints, or GPU readbacks.
  let frameReasons=new Set(),frameStageMs={},frameUploadMs=0,
   frameUploadLayers={},frameState='other';
@@ -67,10 +76,13 @@ function createPerfMonitor({enabled=false,now=()=>performance.now(),
  }
  function buildSnapshot(period=now()-started){
   const rounded=value=>+value.toFixed(2);
+  const percentile=frameCpuPercentiles();
   return {seconds:rounded(Math.max(0,period)/1000),
    frameTicks:counters.ticks,draws:counters.draws,
    avgFrameCpuMs:+(counters.frameMs/Math.max(1,counters.ticks)).toFixed(3),
    maxFrameCpuMs:+counters.maxFrameMs.toFixed(3),
+   p50FrameCpuMs:percentile.p50,p95FrameCpuMs:percentile.p95,
+   p99FrameCpuMs:percentile.p99,frameCpuPercentileSamples:percentile.samples,
    avgRenderSubmitMs:+(counters.renderMs/Math.max(1,counters.draws)).toFixed(3),
    rafSamples:counters.rafSamples,
    avgRafMs:counters.rafSamples?rounded(counters.rafDeltaTotal/counters.rafSamples):null,
@@ -182,6 +194,11 @@ function createPerfMonitor({enabled=false,now=()=>performance.now(),
  function endFrame(start){
   if(!enabled)return;
   const elapsed=now()-start;
+  if(Number.isFinite(elapsed)&&elapsed>=0){
+   frameCpuSamples[frameCpuNext]=elapsed;
+   frameCpuNext=(frameCpuNext+1)%frameCpuSamples.length;
+   if(frameCpuUsed<frameCpuSamples.length)frameCpuUsed++;
+  }
   counters.ticks++;
   counters.frameMs+=elapsed;
   if(elapsed>counters.maxFrameMs){
@@ -200,7 +217,7 @@ function createPerfMonitor({enabled=false,now=()=>performance.now(),
    last=value;
    try{log(value);}catch(err){/* Diagnostics must never break gameplay. */}
    try{onSample(value);}catch(err){/* Ignore diagnostics errors. */}
-   counters=fresh();started=now();
+   counters=fresh();frameCpuUsed=0;frameCpuNext=0;started=now();
   }
  }
  function startRender(){return enabled?now():0;}
@@ -284,7 +301,7 @@ function createTextureUploadProfiler({renderer,onTiming=()=>{},now=()=>performan
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,gpu,graphics,lifecycle,offline,samples=[],current}={}){
+function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,gpu,canvasMemory,graphics,lifecycle,offline,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -298,6 +315,7 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
   '',
   'RECENT FRAME SAMPLES (2-second windows, newest last)',
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
+  'CPU p50/p95/p99 = percentiles of up to 512 recent JavaScript RAF durations.',
   'RAF interval = pacing between scheduled frames, not physical display refresh rate.',
   'PASS CPU = time inside each compositor pass; may include driver waits, NOT GPU shader timing.',
   'PRE-UPLOAD = CPU time for renderer.initTexture on changed canvases; not GPU execution time.',
@@ -314,6 +332,7 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
    ' | RAF avg/max '+value(s.avgRafMs,'ms')+'/'+value(s.maxRafMs,'ms')+
    ' | slow '+value(s.slowRafTicks)+
    ' | CPU avg/max '+value(s.avgFrameCpuMs,'ms')+'/'+value(s.maxFrameCpuMs,'ms')+
+   ' | CPU p50/p95/p99 '+value(s.p50FrameCpuMs,'ms')+'/'+value(s.p95FrameCpuMs,'ms')+'/'+value(s.p99FrameCpuMs,'ms')+
    ' | submit '+value(s.avgRenderSubmitMs,'ms')+
    ' | DIRTY B/D/S/C/T/P/M '+value(s.baseUploadRequests)+'/'+value(s.boardUploadRequests)+'/'+value(s.sidebarUploadRequests)+'/'+value(s.controlsUploadRequests)+'/'+value(s.terminalUploadRequests??0)+'/'+value(s.popupUploadRequests)+'/'+value(s.modalUploadRequests));
   if(s.basePaints!==undefined||s.avgLogicMs!==undefined){
@@ -360,6 +379,16 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
    }
   }
  });
+ if(canvasMemory){
+  rows.push('', 'CANVAS SOURCE PIXELS (RGBA8 equivalent, not observed RAM or GPU VRAM)');
+  rows.push('Surfaces: '+value(canvasMemory.count)+
+   ' / source pixels '+value(canvasMemory.pixels)+
+   ' / estimated RGBA8 '+value(canvasMemory.rgba8MiB,'MiB'));
+  for(const surface of (canvasMemory.surfaces||[]).slice(0,7))
+   rows.push('  '+value(surface.name)+': '+value(surface.width)+'x'+value(surface.height)+
+    ' / '+value(surface.rgba8MiB,'MiB'));
+  rows.push('Pixel-size model only; excludes WebGL render targets, compositor history, driver storage and browser overhead.');
+ }
  const gfx=gpu||current?.gpu||samples.at(-1)?.gpu;
  rows.push('', 'GPU RESOURCES (Three.js counters; not GPU utilization)');
  rows.push('Textures: '+value(gfx?.textures)+' / geometries: '+value(gfx?.geometries)+' / programs: '+value(gfx?.programs));
@@ -2999,6 +3028,27 @@ export {instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderContro
  * Platform decides WHEN to suspend or dispose; renderer owns WHAT is disposed.
  */
 const RenderResourceLifecycle=(()=>{
+/* Source-pixel estimate, not an observed browser allocation or GPU VRAM.
+ * Runs only when Copy Debug is requested by the user.
+ */
+function estimateCanvasSourceBytes(canvases=[]){
+ const names=['base','board','sidebar','controls','terminal','modal','popup'];
+ const seen=new Set(),surfaces=[];
+ let pixels=0;
+ for(const [i,canvas] of canvases.entries()){
+  if(!canvas||seen.has(canvas))continue;
+  seen.add(canvas);
+  const width=canvas.width,height=canvas.height;
+  if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||
+     width<0||height<0||!Number.isSafeInteger(width*height*4))continue;
+  const count=width*height;
+  pixels+=count;
+  surfaces.push(Object.freeze({name:names[i]||'source-'+i,
+   width,height,pixels:count,rgba8MiB:+(count*4/1048576).toFixed(2)}));
+ }
+ return Object.freeze({count:surfaces.length,pixels,rgba8Bytes:pixels*4,
+  rgba8MiB:+(pixels*4/1048576).toFixed(2),surfaces:Object.freeze(surfaces)});
+}
 /* The renderer owns its compositor, scene meshes, UI CanvasTextures and audio.
  * Teardown is idempotent and continues when an individual dispose throws.
  * No cleanup is triggered by temporary visibility loss or bfcache entry.
@@ -3244,8 +3294,8 @@ modalPlane.visible=false;scene.add(modalPlane);
  });
 }
 
-return Object.freeze({createGraphicsCleanup,createGraphicsHealth,createVisualScene});
+return Object.freeze({createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes});
 })();
-export const {createGraphicsCleanup,createGraphicsHealth,createVisualScene}=RenderResourceLifecycle;
+export const {createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes}=RenderResourceLifecycle;
 
 export default Layout;

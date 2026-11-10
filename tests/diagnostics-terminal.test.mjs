@@ -1,5 +1,5 @@
 import {describe,test} from 'node:test';
-import {formatDebugReport as format,createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from '../tetris/render.js';
+import {formatDebugReport as format,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,estimateCanvasSourceBytes} from '../tetris/render.js';
 import {createDebugClipboard as createClipboard} from '../tetris/platform.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -542,5 +542,48 @@ describe('Terminal repaint regions',()=>{
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('resize'\)/);
   assert.match(renderer,/for\(const source of visualScene\.textures\)source\.needsUpdate=true/);
    assert.match(source('render.js'),/const textures=Object\.freeze\(\[texture,boardTexture,sidebarTexture,controlsTexture/);
+ });
+});
+
+describe('Performance observability',()=>{
+ test('CPU percentile captures stutters hidden by average',()=>{
+  let clock=0;
+  const monitor=createPerfMonitor({enabled:true,now:()=>clock,intervalMs:100000,log:()=>{}});
+  for(let i=0;i<100;i++){const start=monitor.startFrame();clock+=i===99?80:1;monitor.endFrame(start);}
+  const result=monitor.currentSnapshot();
+  assert.equal(result.frameTicks,100);
+  assert.equal(result.p50FrameCpuMs,1);
+  assert.equal(result.p95FrameCpuMs,1);
+  assert.equal(result.p99FrameCpuMs,1);
+  assert.equal(result.maxFrameCpuMs,80);
+ });
+ test('frame sample history is bounded and resets each interval',()=>{
+  let clock=0,emitted;
+  const monitor=createPerfMonitor({enabled:true,now:()=>clock,intervalMs:2000,
+   log:()=>{},onSample:value=>emitted=value});
+  for(let i=0;i<700;i++){const start=monitor.startFrame();clock++;monitor.endFrame(start);}
+  assert.equal(monitor.currentSnapshot().frameCpuPercentileSamples,512);
+  clock=2100;
+  const start=monitor.startFrame();clock+=2;monitor.endFrame(start);
+  assert.equal(emitted.frameCpuPercentileSamples,512);
+  assert.equal(monitor.currentSnapshot().frameCpuPercentileSamples,0);
+  assert.equal(monitor.currentSnapshot().p95FrameCpuMs,null);
+ });
+ test('canvas census counts unique backing pixel dimensions',()=>{
+  const a={width:800,height:400},b={width:200,height:100};
+  const estimate=estimateCanvasSourceBytes([a,b,a,null,{width:NaN,height:5}]);
+  assert.equal(estimate.count,2);
+  assert.equal(estimate.pixels,340000);
+  assert.equal(estimate.rgba8Bytes,1360000);
+  assert.equal(estimate.surfaces[0].name,'base');
+  assert.ok(Object.isFrozen(estimate.surfaces));
+ });
+ test('Copy Debug differentiates pixel estimate from measured VRAM',()=>{
+  const report=format({canvasMemory:estimateCanvasSourceBytes([{width:400,height:900}]),
+   samples:[{seconds:2,frameTicks:12,draws:2,p50FrameCpuMs:1,p95FrameCpuMs:5,p99FrameCpuMs:8}]});
+  assert.match(report,/CPU p50\/p95\/p99 1ms\/5ms\/8ms/);
+  assert.match(report,/CANVAS SOURCE PIXELS/);
+  assert.match(report,/not observed RAM or GPU VRAM/);
+  assert.match(report,/excludes WebGL render targets/);
  });
 });
