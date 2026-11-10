@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v194';
+import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v195';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
@@ -2325,7 +2325,8 @@ function settingsPreviewSize(width){
 function settingsContentHeight(effect,gap){
  const controls=effect.id==='ghost'?2:(effect.sliders?.length||0);
  return SETTINGS_TITLE_H+controls*(SETTINGS_CONTROL_H+gap)+
-  (effect.pattern?(SETTINGS_SELECT_H+gap):0);
+  (effect.pattern?(SETTINGS_SELECT_H+gap):0)+
+  (effect.id==='shadows'?(SETTINGS_CONTROL_H+2*gap):0);
 }
 function settingsRows(buttonH,gap,width){
  const image=settingsPreviewSize(width),rows=[];let offset=0;
@@ -2457,6 +2458,13 @@ function drawOptions(q){
   }else if(effect.sliders?.length){
    effect.sliders.forEach((setting,i)=>drawSettingsSlider(ctrlX,
     firstY+i*(SETTINGS_CONTROL_H+gap),ctrlW,setting));
+  }
+  if(effect.id==='shadows'){
+   // Launch a temporary, paused directional-light view. It is an ACTION,
+   // not a saved display effect, and does not replace angle precision input.
+   const lightY=blockTop+SETTINGS_TITLE_H+
+    effect.sliders.length*(SETTINGS_CONTROL_H+gap)+gap;
+   key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light');
   }
   if(effect.pattern){
    // Pattern picker belongs to Scanlines; no new category or separate row.
