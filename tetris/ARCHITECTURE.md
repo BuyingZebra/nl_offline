@@ -119,3 +119,21 @@ shadow cache misses, bitmap estimates and per-stamp generation times.
 This is a fidelity/integration comparison, not a claim that CPU rasterization
 is the final fastest architecture. Review its visual output and worst
 cache-build latency on a physical phone before selecting any GPU replacement.
+
+
+## Window-style separated bloom (v189)
+
+The board is a recessed luminous window; exterior controls live on the cover.
+The approved v188 shadows and phosphor response remain unchanged. The existing
+five-scale UnrealBloomPass is retained without new GPU passes or textures.
+
+Its brightness extraction packs exterior light into red and board-origin light
+into green. Before phosphor tint the source scene is grayscale, so the
+unaltered underlying scene remains in the blue channel after additive bloom.
+The existing phosphor tint pass reconstructs original + cover glow + board
+ glow * inside-window. The full interior bloom is masked after Gaussian blur;
+exterior bloom can still visually overlap the window.
+
+The existing ghost and edge-softness passes now avoid cross-aperture sampling.
+For a same-build comparison append ?shadowbox=off to temporarily restore the
+old unrestricted global bloom. This opt-out is not saved in user settings.

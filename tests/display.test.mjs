@@ -16,7 +16,7 @@ describe('CRT composition',()=>{
  const source=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
  const compositor=source.slice(source.indexOf('const MENU_BLUR_PERCENT='),source.indexOf('const MAX_BUTTON_FLASHES='));
 
- function setup(){
+ function setup({shadowBox=true}={}){
   const instances=[],textures=[];
   class Vec2{constructor(x,y){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
   class Vec3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}copy(o){this.x=o.x;this.y=o.y;this.z=o.z;return this;}}
@@ -32,10 +32,11 @@ describe('CRT composition',()=>{
    dispose(){this.disposed=true;}
   }
   class RenderPass{constructor(){this.label='RENDER';}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
-  class UnrealBloomPass{constructor(){this.label='BLOOM';this.highPassUniforms={smoothWidth:{value:0}};}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
+  class UnrealBloomPass{constructor(){this.label='BLOOM';this.highPassUniforms={smoothWidth:{value:0}};this.materialHighPassFilter={uniforms:{}};}dispose(){this.disposeCount=(this.disposeCount||0)+1;}}
   class ShaderPass{
    constructor(shader){
     this.uniforms=shader.uniforms;
+    this.fragmentShader=shader.fragmentShader;
     const u=this.uniforms;
     this.label='uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
      'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
@@ -67,7 +68,7 @@ describe('CRT composition',()=>{
    (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses,
     createPhosphorPersistencePass);
   const externalPopup={external:true};
-  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup});
+  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup,shadowBox});
   return {pipeline,composer:instances[0],externalPopup,instances,textures};
  }
  const states={
@@ -87,6 +88,38 @@ describe('CRT composition',()=>{
    'RENDER','BOARD BLUR','BOARD POPUP','HISTORY','GHOST','BLOOM',
    'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
   ]);
+ });
+ test('v189 bloom separates board and cover light without extra passes',()=>{
+  const {pipeline,composer}=setup();
+  update(pipeline);
+  const bloom=composer.passes[5],phosphor=composer.passes[6];
+  assert.match(bloom.materialHighPassFilter.fragmentShader,/brightness\*\(1\.0-inside\)/);
+  assert.match(bloom.materialHighPassFilter.fragmentShader,/brightness\*inside/);
+  assert.match(phosphor.fragmentShader,/coverBloom/);
+  assert.match(phosphor.fragmentShader,/boardBloom\*inside/);
+  const box=bloom.highPassUniforms.uBoardRect.value;
+  assert.ok(box.x<box.z&&box.y<box.w,'window is nonempty while playing');
+  assert.deepEqual([box.x,box.y,box.z,box.w],
+   Object.values(phosphor.uniforms.uBoardRect.value));
+  assert.equal(composer.passes.length,12,'no new full-screen pass added');
+  pipeline.dispose();
+ });
+ test('v189 A/B switch makes the window mask empty, recreating global bloom',()=>{
+  const {pipeline,composer}=setup({shadowBox:false});
+  update(pipeline);
+  for(const rect of [composer.passes[5].highPassUniforms.uBoardRect.value,
+   composer.passes[6].uniforms.uBoardRect.value,
+   composer.passes[4].uniforms.uBoardRect.value,
+   composer.passes[7].uniforms.uBoardRect.value])
+    assert.deepEqual([rect.x,rect.y,rect.z,rect.w],[0,0,0,0]);
+  pipeline.dispose();
+ });
+ test('v189 optional spatial filters cannot sample across the aperture',()=>{
+  const {pipeline,composer}=setup();
+  update(pipeline);
+  assert.match(composer.passes[4].fragmentShader,/sameDomain=1\.0-step/);
+  assert.match(composer.passes[7].fragmentShader,/abs\(currentIn-sampledIn\)>\.5\?sharp/);
+  pipeline.dispose();
  });
  test('display effect settings target their own passes',()=>{
   const {pipeline,composer}=setup();
