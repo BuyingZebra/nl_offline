@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v188';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v189';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v188';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v189';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -596,7 +596,9 @@ let lastHistoryRender=0;
 // RenderPass no longer conflates texture transfer and scene rendering.
 const textureUploads=createTextureUploadProfiler({renderer,
  onTiming:(kind,elapsed,source)=>perf.recordUpload(kind,elapsed,source)});
-const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
+// Developer A/B: ?shadowbox=off restores v188's unrestricted bloom.
+const shadowBox=new URLSearchParams(window.location.search).get('shadowbox')!=='off';
+const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,shadowBox,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
 const {SCANLINE_PRESETS}=compositor;
 const graphicsHealth=createGraphicsHealth({

@@ -695,7 +695,7 @@ function boardBlurParams(){
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
 }
 
-function createCompositor({renderer,scene,camera,boardPopupTexture,onPassTiming=()=>{}}){
+function createCompositor({renderer,scene,camera,boardPopupTexture,shadowBox=true,onPassTiming=()=>{}}){
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
  // Extract bloom from grayscale luminance before colourization.
@@ -703,6 +703,16 @@ const glow=new UnrealBloomPass(new THREE.Vector2(1,1),1.5,.42,.55);
 glow.threshold=0;
 // Avoid degenerate smoothstep(0,0,x) without a visible brightness cutoff.
 if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0001;
+ // NOMAD v189: one five-scale bloom, two independently blurred light domains.
+ // Bright-pass R = exterior, G = recessed interior, B = zero.
+ // The source grayscale survives in B after UnrealBloom's additive composite.
+ if(glow.materialHighPassFilter&&glow.highPassUniforms){
+  const rect={value:new THREE.Vector4(0,0,0,0)};
+  glow.highPassUniforms.uBoardRect=rect;
+  glow.materialHighPassFilter.uniforms.uBoardRect=rect;
+  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse;\nuniform float luminosityThreshold,smoothWidth;\nuniform vec4 uBoardRect;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n gl_FragColor=vec4(brightness*(1.0-inside),brightness*inside,0.0,1.0);\n}";
+  glow.materialHighPassFilter.needsUpdate=true;
+ }
 
  const passVertex='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 
@@ -771,35 +781,44 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
 
  // Analog ghost is a displaced image sample, not a duplicate HTML element.
  const ghostPass=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uX:{value:8},uY:{value:0},uStrength:{value:.22},uSize:{value:new THREE.Vector2(1,1)}},
+  uniforms:{tDiffuse:{value:null},uX:{value:8},uY:{value:0},uStrength:{value:.22},uSize:{value:new THREE.Vector2(1,1)},uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uX,uY,uStrength;uniform vec2 uSize;
+   uniform float uX,uY,uStrength;uniform vec2 uSize;uniform vec4 uBoardRect;
    void main(){
     vec3 currentImage=texture2D(tDiffuse,vUv).rgb;
     vec2 uv2=vUv+vec2(-uX/max(1.0,uSize.x),uY/max(1.0,uSize.y));
     float mask=step(0.0,uv2.x)*step(uv2.x,1.0)*step(0.0,uv2.y)*step(uv2.y,1.0);
     vec3 echo=texture2D(tDiffuse,clamp(uv2,vec2(0.0),vec2(1.0))).rgb;
-    gl_FragColor=vec4(clamp(currentImage+echo*uStrength*mask,0.0,1.0),1.0);
+    float currentIn=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*
+      step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);
+    float sampleIn=step(uBoardRect.x,uv2.x)*step(uv2.x,uBoardRect.z)*
+      step(uBoardRect.y,uv2.y)*step(uv2.y,uBoardRect.w);
+    float sameDomain=1.0-step(.5,abs(currentIn-sampleIn));
+    gl_FragColor=vec4(clamp(currentImage+echo*uStrength*mask*sameDomain,0.0,1.0),1.0);
    }`
  });
  ghostPass.enabled=false;
  composer.addPass(ghostPass);
 
+ // Decode R/G bloom after blurring. Board-origin light is clipped here
+ // while cover-origin light can overlap the board; no extra rendering pass.
  const tint=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uVoltage:{value:1},uTint:{value:new THREE.Vector3(.2,1,.2)}},
+  uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uVoltage:{value:1},
+   uTint:{value:new THREE.Vector3(.2,1,.2)},
+   uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
   vertexShader:passVertex,
-  fragmentShader:'varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uEnabled,uVoltage;uniform vec3 uTint;void main(){vec3 rgb=texture2D(tDiffuse,vUv).rgb*clamp(uVoltage,1.0,1.2);float lum=dot(rgb,vec3(.2126,.7152,.0722));gl_FragColor=vec4(mix(rgb,vec3(lum)*uTint,clamp(uEnabled,0.0,1.0)),1.);}'
+  fragmentShader:"varying vec2 vUv;\nuniform sampler2D tDiffuse;\nuniform float uEnabled,uVoltage;\nuniform vec3 uTint;\nuniform vec4 uBoardRect;\nvoid main(){\n vec3 encoded=texture2D(tDiffuse,vUv).rgb;\n float original=encoded.b;\n float coverBloom=max(0.0,encoded.r-original);\n float boardBloom=max(0.0,encoded.g-original);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n float lit=(original+coverBloom+boardBloom*inside)*clamp(uVoltage,1.0,1.2);\n vec3 rgb=vec3(lit);\n gl_FragColor=vec4(mix(rgb,rgb*uTint,clamp(uEnabled,0.0,1.0)),1.0);\n}"
  });
 
  // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
  const edgeSoftness=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uAmount:{value:.65},uRadius:{value:4},uSize:{value:new THREE.Vector2(1,1)}},
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.65},uRadius:{value:4},uSize:{value:new THREE.Vector2(1,1)},uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uAmount,uRadius;uniform vec2 uSize;
+   uniform float uAmount,uRadius;uniform vec2 uSize;uniform vec4 uBoardRect;
    // This is exactly the same separable Gaussian kernel (sigma=1.25),
    // with its constant weights calculated once instead of 49 exp() calls
    // per pixel. Keep 7x7 sampling and all edge falloff settings unchanged.
@@ -817,13 +836,19 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     if(amount<.001||uRadius<.001){gl_FragColor=sharp;return;}
     vec2 pixel=1.0/max(vec2(1.0),uSize);
     float interval=max(.001,uRadius)/3.0;
+    float currentIn=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*
+      step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);
     vec4 sum=vec4(0.0);float weights=0.0;
     for(int y=-3;y<=3;y++){
      float wy=gaussianWeight(y);
      for(int x=-3;x<=3;x++){
       vec2 offset=vec2(float(x),float(y));
       float weight=gaussianWeight(x)*wy;
-      sum+=texture2D(tDiffuse,clamp(vUv+offset*interval*pixel,vec2(0.0),vec2(1.0)))*weight;
+      vec2 uv=clamp(vUv+offset*interval*pixel,vec2(0.0),vec2(1.0));
+      float sampledIn=step(uBoardRect.x,uv.x)*step(uv.x,uBoardRect.z)*
+        step(uBoardRect.y,uv.y)*step(uv.y,uBoardRect.w);
+      vec4 sampleColour=abs(currentIn-sampledIn)>.5?sharp:texture2D(tDiffuse,uv);
+      sum+=sampleColour*weight;
       weights+=weight;
      }
     }
@@ -1026,6 +1051,16 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
   for(const pass of popupPasses){
    pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
+  }
+  // Board content is the light source only when the recessed window is visible.
+  // Zero rect restores v188 global bloom for the optional A/B query parameter.
+  const active=shadowBox&&!modalOpen&&w>0&&h>0;
+  const x0=active?x/W:0,y0=active?1-(y+h)/H:0;
+  const x1=active?(x+w)/W:0,y1=active?1-y/H:0;
+  for(const uniform of [glow.highPassUniforms?.uBoardRect,
+   tint.uniforms.uBoardRect,ghostPass.uniforms.uBoardRect,
+   edgeSoftness.uniforms.uBoardRect]){
+   uniform?.value.set(x0,y0,x1,y1);
   }
  }
  edgeVignette.enabled=fx.vignette;
