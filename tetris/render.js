@@ -2464,7 +2464,8 @@ function drawOptions(q){
    // not a saved display effect, and does not replace angle precision input.
    const lightY=blockTop+SETTINGS_TITLE_H+
     effect.sliders.length*(SETTINGS_CONTROL_H+gap)+gap;
-   key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light');
+   key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light',
+    {modalControl:true});
   }
   if(effect.pattern){
    // Pattern picker belongs to Scanlines; no new category or separate row.
