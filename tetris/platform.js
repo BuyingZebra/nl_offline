@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v193';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v194';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v193';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v194';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -832,6 +832,9 @@ function stage(r,drawPieces=true){
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
+ // Recessed-window shading belongs on the board FLOOR, below all falling
+ // and locked pieces. Never darken the tile faces with the cover's shadow.
+ boardInsetShadows.draw(g,offX,offY,w-4,h-4,tile);
  // Blink freshly completed rows between the detailed tiles and empty
  // outlined cubes before revealing the core's already-cleared board.
  if(drawPieces){
@@ -886,9 +889,6 @@ function stage(r,drawPieces=true){
   text(label,x+w/2,y+h/2,Math.min(21,w*.1),C.bright,'center',w*.60);
  }
  }
- // Recessed board walls share the piece-shadow controls; only the interior
- // is darkened, preserving the aperture and shadow-box bloom separation.
- boardInsetShadows.draw(g,offX,offY,w-4,h-4,tile);
  g.restore();
 }
 // The stage's inset shadow is blurred along with gameplay. Redraw a
@@ -896,8 +896,33 @@ function stage(r,drawPieces=true){
 // Keep the same four-sided 2px inset without touching stage geometry.
 function drawSharpBoardInsetShadow(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
- const innerW=w-4,innerH=h-4;
- boardInsetShadows.draw(g,x+2,y+2,innerW,innerH,innerW/10,.62);
+ const innerW=w-4,innerH=h-4,tile=innerW/10;
+ if(!boardInsetShadows.draw(g,x+2,y+2,innerW,innerH,tile,.62))return;
+ // The sharper paused/game-over inset lives on a separate TRANSPARENT
+ // popup plane drawn after the board. Punch out sprite silhouettes from
+ // that plane so the late shadow doesn't dim illuminated piece artwork.
+ // Keep this compositing confined to the popup: the board and saved sprites
+ // are never modified, and the sharp rim still covers empty floor.
+ g.save();
+ try{
+  g.globalCompositeOperation='destination-out';
+  g.fillStyle='#000';
+  const visibleBoard=lineClearFX?.board||game.board;
+  const hidden=lineClearFX&&Math.floor(lineClearFX.elapsed/LINE_FLASH_TOGGLE_MS)%2===1?
+   lineClearFX.rows:null;
+  for(let ry=0;ry<visibleBoard.length;ry++){
+   if(hidden?.has(ry))continue;
+   for(let rx=0;rx<visibleBoard[ry].length;rx++){
+    if(visibleBoard[ry][rx])g.fillRect(x+2+rx*tile,y+2+ry*tile,tile,tile);
+   }
+  }
+  if(!lineClearFX&&game.current&&game.status!=='over'){
+   const p=game.current;
+   p.matrix.forEach((row,dy)=>row.forEach((kind,dx)=>{
+    if(kind)g.fillRect(x+2+(p.x+dx)*tile,y+2+(p.y+dy)*tile,tile,tile);
+   }));
+  }
+ }finally{g.restore();}
 }
 function paintBoardPopup(r){
  // A freshly rendered status snapshot prevents START GAME from persisting
