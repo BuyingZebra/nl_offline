@@ -41,3 +41,29 @@ test('published entry delegates to platform while remaining a stable URL',()=>{
  assert.match(platform,/export function startNOMAD\(\)/);
  assert.ok(source.length<500,'the historical entry is no longer an application monolith');
 });
+
+test('device adapters live inside platform and share a viewport observer',()=>{
+ const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ assert.match(source,/function observeVisualViewport/);
+ assert.match(source,/const appleAdapter=Object.freeze/);
+ assert.match(source,/const androidAdapter=Object.freeze/);
+ assert.match(source,/const genericAdapter=Object.freeze/);
+ assert.equal(source.includes("from './platform/ios.js'"),false);
+ assert.equal(source.includes("from './platform/android.js'"),false);
+ assert.equal(source.includes("from './platform/generic.js'"),false);
+});
+
+test('visual input geometry and device event handling have distinct owners',()=>{
+ const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ const visual=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+ assert.match(platform,/export function createInputController/);
+ assert.match(visual,/const InteractionGeometry=/);
+ assert.match(visual,/export \{instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt\}/);
+});
+test('render diagnostics and browser clipboard have distinct owners',()=>{
+ const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ const visual=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+ assert.match(platform,/export function createDebugClipboard/);
+ assert.match(visual,/const RenderDiagnostics=/);
+ assert.equal(visual.includes("from './diagnostics.js'"),false);
+});

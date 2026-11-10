@@ -1,5 +1,6 @@
 import {describe,test} from 'node:test';
-import {formatDebugReport as format,createDebugClipboard as createClipboard,createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from '../tetris/diagnostics.js';
+import {formatDebugReport as format,createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from '../tetris/render.js';
+import {createDebugClipboard as createClipboard} from '../tetris/platform.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';

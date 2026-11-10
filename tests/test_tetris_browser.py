@@ -408,15 +408,33 @@ with sync_playwright() as p:
             "() => Boolean(navigator.serviceWorker?.controller)",
             timeout=45000,
         )
-        cache_count = page.evaluate("""async () => {
+        # Compare against the actual manifest, not an arbitrary count: a
+        # leaner release should not fail just because obsolete scripts left.
+        worker_source = (Path(__file__).resolve().parents[1] / "tetris" / "sw.js").read_text()
+        # The release generator writes this exact, line-oriented manifest
+        # block. Check every declared resource, not an arbitrary count.
+        asset_block = worker_source.partition("const CORE_ASSETS=Object.freeze([")[2]
+        asset_block = asset_block.partition("\n]);")[0]
+        assert asset_block, "Offline worker manifest is missing"
+        expected_assets = [
+            line.strip().strip(",").strip("'")
+            for line in asset_block.splitlines()
+            if line.strip().startswith("'./")
+        ]
+        assert expected_assets, "Offline manifest has no resources"
+        missing = page.evaluate("""async expected => {
           const build = document.querySelector('meta[name="tetris-build"]').content;
           const names = await caches.keys();
           const name = names.find(n => n === 'nomad-tetris-offline-v' + build);
-          if (!name) return 0;
+          if (!name) return expected;
           const cache = await caches.open(name);
-          return (await cache.keys()).length;
-        }""")
-        assert cache_count >= 38, f"Incomplete offline cache: {cache_count} entries"
+          const absent = [];
+          for (const asset of expected) {
+            if (!(await cache.match(new URL(asset, location.href).href))) absent.push(asset);
+          }
+          return absent;
+        }""", expected_assets)
+        assert not missing, f"Offline cache missing required resources: {missing}"
 
         page.evaluate("() => localStorage.setItem('nomad-smoke-marker','persist')")
         page.context.set_offline(True)

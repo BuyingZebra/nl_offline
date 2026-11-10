@@ -3,17 +3,14 @@
 | Script | Owns |
 | --- | --- |
 | `game.js` | Board, movement, gravity, scoring, sessions, settings, action dispatch and personal-best logic |
-| `input.js` | Control geometry, keyboard and pointer dispatch |
-| `render.js` | Visual layout, UI, art, shadows, CRT compositor, lighting and render invalidation |
-| `platform.js` | Application coordinator, frame scheduling, shared viewport, browser lifecycle, WebGL ownership and device-adapter selection |
-| `platform/ios.js` | Home Screen sizing mode and visual viewport events on Apple devices |
-| `platform/android.js` | Android standalone mode and visual viewport events |
-| `platform/generic.js` | Standards-first browser fallback |
-| `diagnostics.js` | Timing, debug reports and clipboard |
+| `render.js` | Visual layout, hitbox geometry, UI, art, CRT effects, frame timing and GPU diagnostics |
+| `platform.js` | Application coordinator, device input, clipboard, browser lifecycle, WebGL ownership and private Apple/Android/generic adapters |
 | `three-v027.js` | Tiny stable browser entry that starts the platform coordinator |
 | `sw.js` | Versioned offline installation |
 
 Rendering observes read-only game events. The engine scores line clears before checking whether a locking piece ends the run. The renderer owns the visible line flash and delays presenting game over until that flash completes.
+
+The three device adapters are internal compartments of platform.js, sharing one viewport listener. Input event handling belongs to platform.js, visible hitboxes belong to render.js, and frame/GPU instrumentation belongs to render.js. This eliminates five redundant standalone JavaScript files without changing any SVGs, SVG generators, tile art, gameplay rules, or high-score storage.
 
 The gameplay is identical across devices. Apple Home Screen compatibility stays behind an iOS adapter; the Android adapter observes supported viewport resize events. Device detection does not determine game rules.
 
@@ -26,6 +23,16 @@ Run `node tools/build-tetris-release.mjs <build>` to regenerate the HTML build m
 The worker activates a complete generation after the previous generation's clients close. After the online installation completes, close all Tetris tabs and the installed app, then reopen to switch generations. Scores and settings use their existing storage keys. Keep the repository-root `sw.js` in place to retire former site-wide installations.
 
 `vendor/three/three.bundle.js` packages the required Three.js r180 exports and postprocessing passes. Rebuild it with `node tools/build-tetris-vendor.mjs`. The generated bundle and MIT license ship together. Pixel artwork and the tile comparison page are development references. The game keeps its procedural pixel fallback.
+
+## Engine ownership
+
+Only the three main modules own application behaviour. The small three-v027.js entry, offline service worker, vendored Three.js and procedural SVG/art data remain separate by design.
+
+- Game: board state, gravity, scores, screen actions and settings
+- Render: artwork, layout, control hitbox geometry, Canvas/WebGL, CRT and diagnostics
+- Platform: initialization, frame scheduling, touch/keyboard, device adapters and lifecycle
+
+The renderer does not import platform.js, and game rules do not depend on the renderer.
 
 ## Checks
 
