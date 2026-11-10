@@ -85,3 +85,17 @@ are **not** valid phone battery or frame-rate benchmarks.
 The [v186 rendering-efficiency case study](./PWA_ENGINEERING_CASE_STUDY.md)
 records the measured browser callback counts, code changes, regression tests,
 and limits on interpreting software-rendered benchmarks.
+
+
+## Performance observability (v187)
+
+The existing user-initiated Copy Debug report now includes CPU frame p50/p95/p99
+percentiles from a bounded `Float32Array(512)` ring. It is sampled in the
+existing RAF recorder; sorting occurs only when generating a report or the
+regular two-second sample, not during a frame.
+
+The renderer estimates the uncompressed RGBA8-equivalent size of its seven
+Canvas source backing stores **only when Copy Debug is selected**. This
+estimate is not measured RAM use, GPU memory or compositor render-target
+memory. It introduces no telemetry, background worker, or new runtime library.
+See [PWA performance study](./PWA_PERFORMANCE_STUDY.md).
