@@ -260,6 +260,61 @@ with sync_playwright() as p:
     shader_errors = [error for error in console_errors if "WebGLProgram" in error]
     assert not shader_errors, shader_errors
     assert glow_delta > 3, f"Button afterglow not visible or did not fade: {glow_delta:.2f}"
+    # Measure idle main-thread RAF demand on a settled, unstarted game.
+    # The only expected periodic UI activity is the terminal cursor blink.
+    page.wait_for_timeout(3000)
+    page.evaluate("""() => {
+      window.__nomadIdleRAFCount = 0;
+      window.__nomadIdleTimerSetCount = 0;
+      window.__nomadIdleTimerClearCount = 0;
+      const originalRAF = window.requestAnimationFrame;
+      const originalSetTimeout = window.setTimeout;
+      const originalClearTimeout = window.clearTimeout;
+      window.__nomadIdleOriginals = [originalRAF,originalSetTimeout,originalClearTimeout];
+      window.requestAnimationFrame = function(callback) {
+        return originalRAF.call(window, timestamp => {
+          window.__nomadIdleRAFCount++;
+          callback(timestamp);
+        });
+      };
+      window.setTimeout = function(...args) {
+        window.__nomadIdleTimerSetCount++;
+        return originalSetTimeout.apply(window,args);
+      };
+      window.clearTimeout = function(...args) {
+        window.__nomadIdleTimerClearCount++;
+        return originalClearTimeout.apply(window,args);
+      };
+    }""")
+    page.wait_for_timeout(2000)
+    idle_counts = page.evaluate("""() => {
+      const [raf,set,clear] = window.__nomadIdleOriginals;
+      window.requestAnimationFrame = raf;
+      window.setTimeout = set;
+      window.clearTimeout = clear;
+      const totals = {
+        raf:window.__nomadIdleRAFCount,
+        timeoutCreated:window.__nomadIdleTimerSetCount,
+        timeoutCleared:window.__nomadIdleTimerClearCount
+      };
+      delete window.__nomadIdleOriginals;
+      delete window.__nomadIdleRAFCount;
+      delete window.__nomadIdleTimerSetCount;
+      delete window.__nomadIdleTimerClearCount;
+      return totals;
+    }""")
+    idle_raf = idle_counts["raf"]
+    print(f"IDLE SCHEDULER PROBE: {browser_name} 2s={idle_counts}")
+    assert idle_raf >= 1, "The terminal cursor stopped updating while idle"
+    # Fresh profile has persistence enabled: continuous RAF handles terminal
+    # advancement; redundant terminal timeouts must not be recreated per frame.
+    assert idle_counts["timeoutCreated"] <= 8, (
+        f"Excess idle terminal timer scheduling: {idle_counts}"
+    )
+    assert idle_counts["timeoutCleared"] <= 8, (
+        f"Excess idle timer cancellation: {idle_counts}"
+    )
+
     page.mouse.click(353, 103)
     page.wait_for_timeout(150)
     settings_screen = page.screenshot()
