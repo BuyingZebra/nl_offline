@@ -87,6 +87,30 @@ export function directionalShadowAlpha(source,width,height,{
  return blurAxis(shifted,width,height,size*(1+.3*b),ux,uy,b);
 }
 
+/** Normalize the *visible* Gaussian alpha in place. The shadow source is
+ * black already; its apparent weakness came from Gaussian convolution
+ * reducing peak coverage, even when the OPACITY slider was set to 100%.
+ * Mask the original opaque tiles first so the visible peak, rather than a
+ * hidden portion underneath the art, reaches full coverage. This retains
+ * the smooth Gaussian edge ratios and requires no extra Canvas/GPU layer.
+ */
+export function normalizeVisibleShadowAlpha(blurred,source){
+ if(blurred.length!==source.length)throw new RangeError('Shadow mask length mismatch');
+ let peak=0;
+ for(let i=0;i<blurred.length;i++){
+  const coverage=Math.max(0,Math.min(1,source[i]));
+  const value=Math.max(0,Math.min(1,blurred[i]))*(1-coverage);
+  blurred[i]=value;
+  if(value>peak)peak=value;
+ }
+ if(peak>1e-8){
+  const gain=1/peak;
+  for(let i=0;i<blurred.length;i++)
+   blurred[i]=Math.min(1,blurred[i]*gain);
+ }
+ return blurred;
+}
+
 /** Cached Canvas2D bridge for the existing stage. The published v06 uses
  * 0.5 CSS-pixel alpha masks and bilinear upscaling; retain that sampling.
  * No per-frame convolution: a moving/locked piece just draws its cached stamp.
@@ -136,10 +160,10 @@ export function createDirectionalShadowRenderer({
   const rgba=mg.getImageData(0,0,sw,sh).data;
   const alpha=new Float32Array(sw*sh);
   for(let i=0;i<alpha.length;i++)alpha[i]=rgba[4*i+3]/255;
-  const out=directionalShadowAlpha(alpha,sw,sh,{
+  const out=normalizeVisibleShadowAlpha(directionalShadowAlpha(alpha,sw,sh,{
    angle:settings.angle,distance:settings.distance*scale,
    blur:settings.blur*scale,bias:settings.bias
-  });
+  }),alpha);
   const canvas=createCanvas();canvas.width=sw;canvas.height=sh;
   const ctx=canvas.getContext('2d',{alpha:true});
   if(!ctx)return null;
@@ -147,15 +171,8 @@ export function createDirectionalShadowRenderer({
   for(let i=0;i<out.length;i++)
    image.data[i*4+3]=Math.round(Math.max(0,Math.min(1,out[i]))*255);
   ctx.putImageData(image,0,0);
-  // Opaque art masks the original silhouette exactly as in v187. This also
-  // prevents a black shadow from showing through transparent sprite motifs.
-  ctx.save();ctx.scale(scale,scale);
-  ctx.globalCompositeOperation='destination-out';
-  ctx.fillStyle='#000';
-  for(const {x,y} of group.cells)
-   ctx.fillRect(pad+(x-group.minX)*tile,
-    pad+(y-group.minY)*tile,tile,tile);
-  ctx.restore();
+  // The opaque silhouette was already subtracted at mask resolution
+  // before normalization. Avoid another Canvas compositing pass.
   const bytes=sw*sh*4;
   const item={canvas,width,height,pad,bytes};
   if(cache.size>=limit){
