@@ -214,3 +214,14 @@ cached stamp; the secondary overlay retains its existing restrained 62%
 intensity. Opacity/toggle changes reuse the stamp; changing orientation,
 blur, distance or bias rebuilds it once. No new WebGL pass, CanvasTexture,
 viewport, user setting, gameplay logic or tile artwork has been introduced.
+
+
+## Recessed edge shadow scale correction (v194)
+
+The board inset shares the piece renderer's resolved shadow distance and
+Gaussian blur at **1×** rather than the v193 2× multipliers. Angle, bias,
+enable and opacity remain shared; the analytical inset mask remains distinct
+from the piece silhouette algorithm, so identical inputs need not yield
+identical-looking fields. The deliberate late inset shadow over nearby pieces,
+including its separate sharp pause-overlay copy, stays in the same rendering
+order. No compositing, masks, brightness, gameplay or artwork changes.

@@ -947,17 +947,17 @@ describe('Piece shadows',()=>{
    'a completely hidden shadow must not be promoted into an artificial halo');
  });
 
- test('v193 the recessed aperture uses twice the piece throw and blur without dimming its opacity',()=>{
+ test('v194 the recessed aperture shares the exact piece throw and blur without changing opacity',()=>{
   const fx={shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:6,
    shadowBias:1,shadowOpacity:1};
   for(const tile of [25,35,50]){
    const piece=pieceShadowProfile(tile,fx);
    const board=boardInsetShadowProfile(tile,fx);
    assert.equal(board.angle,piece.angle);
-   assert.equal(board.distance,piece.distance*2);
-   assert.equal(board.blur,piece.blur*2);
+   assert.equal(board.distance,piece.distance);
+   assert.equal(board.blur,piece.blur);
    assert.equal(board.bias,piece.bias);
-   assert.equal(board.opacity,1,'twice the depth must not halve the darkness');
+   assert.equal(board.opacity,1,'matching depth must preserve opacity');
   }
   assert.equal(boardInsetShadowProfile(35,{...fx,shadowOpacity:.4}).opacity,.4);
   assert.equal(boardInsetShadowProfile(35,{...fx,shadows:false}).enabled,false);
