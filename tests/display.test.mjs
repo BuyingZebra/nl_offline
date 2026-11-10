@@ -986,13 +986,25 @@ describe('v195 interactive lighting laboratory',()=>{
   assert.match(lab,/g\.rect\(b\.x,b\.y,b\.w,b\.h\);g\.clip\(\)/);
   assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/);
  });
- test('only angle changes, blur and menus are temporary, input never reaches gameplay',()=>{
+ test('v196 light direction uses the actual saved Gaussian shadows, without duplicate preview elements',()=>{
   const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(platform,/actions\.setSetting\('shadowAngle',Math\.round\(angle\)\)/);
-  assert.match(platform,/getSettings:lightFX/);
-  assert.match(platform,/\{\.\.\.settings\.effects,shadowBlur:0\}:settings\.effects/);
-  assert.match(platform,/softness:false,persistence:false/);
+  // Both existing renderers receive the same persisted effect object.
+  assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:\(\)=>settings\.effects\}\)/);
+  assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
+  assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects/);
+  assert.doesNotMatch(platform,/getSettings:lightFX/);
+  // Only the paused-board popup is hidden; real shadow blur and global softness
+  // retain their stored values. Persistence still pauses to avoid ghost trails.
+  assert.match(platform,/\{\.\.\.settings\.effects,persistence:false\}:settings\.effects/);
+  assert.doesNotMatch(platform,/softness:false,persistence:false/);
+  assert.match(renderer,/boardStatus!=='playing'&&\(!modalOpen\|\|scoresOverlay\)/);
+  const stage=platform.slice(platform.indexOf('function stage('),
+   platform.indexOf('function drawSharpBoardInsetShadow('));
+  assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
+  assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
+  assert.match(platform,/if\(screenManager\.isLight\)paintLightDirectionOverlay\(\)/);
   assert.match(platform,/if\(getModal\(\)==='light'\)\{/);
   assert.match(platform,/if\(touch\.mode==='light'\)\{/);
   assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
