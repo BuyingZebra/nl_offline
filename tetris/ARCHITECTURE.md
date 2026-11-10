@@ -99,3 +99,23 @@ Canvas source backing stores **only when Copy Debug is selected**. This
 estimate is not measured RAM use, GPU memory or compositor render-target
 memory. It introduces no telemetry, background worker, or new runtime library.
 See [PWA performance study](./PWA_PERFORMANCE_STUDY.md).
+
+
+## Directional drop shadows (v188 integrated preview)
+
+The approved v06 shadow-laboratory algorithm now lives in the reusable shadows.js.
+Each piece contributes a filled alpha silhouette; a direction-aware two-pass
+Gaussian blur (standard perpendicular, weighted downstream along the shadow)
+operates on a 0.5-CSS-pixel mask. Angle, Gaussian directional bias, distance,
+and opacity match the approved v06 defaults, scaled from a 35px block size.
+
+The result is cached by normalized silhouette and tile size. Translation reuses
+the bitmap; rotation and row clears retain existing per-piece metadata. The
+board's previous clip and draw order remain unchanged. The shadow is painted
+into the same Canvas2D board source, so this preview introduces zero additional
+CanvasTextures, GPU passes, or per-frame GPU uploads. Copy Debug now reports
+shadow cache misses, bitmap estimates and per-stamp generation times.
+
+This is a fidelity/integration comparison, not a claim that CPU rasterization
+is the final fastest architecture. Review its visual output and worst
+cache-build latency on a physical phone before selecting any GPU replacement.
