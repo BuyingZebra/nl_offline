@@ -1,7 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth} from './render.js?v184';
-import * as THREE from './vendor/three/three.bundle.js';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene} from './render.js?v185';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v184';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v185';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -569,109 +568,12 @@ let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
 let lineClearFX=null,lastPaintedBoardPopupStatus=null;
 const presentedBoardStatus=()=>lineClearFX?.finalPoints?'playing':game.status;
-const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
-const boardCanvas=document.createElement('canvas');
-const boardContext=boardCanvas.getContext('2d',{alpha:false});
-const sidebarCanvas=document.createElement('canvas');
-const sidebarContext=sidebarCanvas.getContext('2d',{alpha:false});
-const controlsCanvas=document.createElement('canvas');
-const controlsContext=controlsCanvas.getContext('2d',{alpha:false});
-// The tiny operation log is independent of the deck's six control buttons.
-// It shares their grayscale source and all downstream CRT postprocessing.
-const terminalCanvas=document.createElement('canvas');
-const terminalContext=terminalCanvas.getContext('2d',{alpha:false});
-let g=baseContext; // UI drawing target: stationary gameplay or small modal canvas.
-const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
-// Sharp board popup UI is a separate grayscale layer composed after GPU blur.
-const boardPopupCanvas=document.createElement('canvas');
-const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
-if(!g||!boardContext||!sidebarContext||!controlsContext||!terminalContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
-const texture=new THREE.CanvasTexture(input);
-texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
-const boardTexture=new THREE.CanvasTexture(boardCanvas);
-boardTexture.colorSpace=THREE.SRGBColorSpace;
-boardTexture.minFilter=THREE.LinearFilter;boardTexture.magFilter=THREE.LinearFilter;
-boardTexture.generateMipmaps=false;
-const sidebarTexture=new THREE.CanvasTexture(sidebarCanvas);
-const controlsTexture=new THREE.CanvasTexture(controlsCanvas);
-const terminalTexture=new THREE.CanvasTexture(terminalCanvas);
-for(const t of [sidebarTexture,controlsTexture,terminalTexture]){
- t.colorSpace=THREE.SRGBColorSpace;
- t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
- t.generateMipmaps=false;
-}
-const boardPopupTexture=new THREE.CanvasTexture(boardPopupCanvas);
-boardPopupTexture.colorSpace=THREE.SRGBColorSpace;boardPopupTexture.minFilter=THREE.LinearFilter;
-boardPopupTexture.magFilter=THREE.LinearFilter;boardPopupTexture.generateMipmaps=false;
-// All scene meshes are fullscreen textured planes; MSAA cannot smooth a
-// geometry silhouette that doesn't exist. Avoid an unused AA backbuffer.
-const renderer=new THREE.WebGLRenderer({canvas:screen,antialias:false,alpha:false,powerPreference:'high-performance'});
-renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
-// The composer invokes WebGLRenderer.render repeatedly. Preserve draw-call
-// counters across passes, resetting them once per completed game image.
-renderer.info.autoReset=false;
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x080808);
-const camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
-const surface=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
- new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
-surface.frustumCulled=false;scene.add(surface);
-// Cropped board overlays the unchanged full-screen interface before CRT FX.
-const boardPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
- new THREE.MeshBasicMaterial({map:boardTexture,side:THREE.DoubleSide,
-  depthTest:false,depthWrite:false}));
-boardPlane.frustumCulled=false;boardPlane.renderOrder=.5;boardPlane.position.z=.01;
-scene.add(boardPlane);
-// Sidebar and deck are cropped opaque UI layers. Both are composited before
-// bloom/phosphor/CRT effects; the full-screen base remains unchanged.
-function makeUILayer(texture,order,z){
- const plane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
-  new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,
-   depthTest:false,depthWrite:false}));
- plane.frustumCulled=false;plane.renderOrder=order;plane.position.z=z;
- scene.add(plane);return plane;
-}
-const sidebarPlane=makeUILayer(sidebarTexture,.6,.011);
-const controlsPlane=makeUILayer(controlsTexture,.7,.012);
-// Reuse the same control-plane draw call: a GPU shader remaps only the
-// button-face/ink luminance. The uploaded CanvasTexture stays at baseline.
-// Some WebGL1 implementations expose fewer than 32 fragment uniform
-// vectors. Keep the original supported Canvas2D material on those devices.
-const controlsFallbackMaterial=controlsPlane.material;
-// Explicit comparison switch for visual regression checks, without changing
-// any saved settings or the normal GPU rendering mode.
-const forceCanvasButtons=new URLSearchParams(window.location.search)
- .get('buttonRenderer')==='canvas';
-const controlLighting=!forceCanvasButtons&&renderer.capabilities.maxFragmentUniforms>=32?
- createGpuButtonLighting({THREE,texture:controlsTexture}):null;
-let controlsGpuEnabled=Boolean(controlLighting);
-if(controlsGpuEnabled)controlsPlane.material=controlLighting.material;
-function disableGpuControls(){
- if(!controlsGpuEnabled)return;
- controlsGpuEnabled=false;
- controlsPlane.material=controlsFallbackMaterial;
- layers.mark('controls');invalidate('gpu-controls-fallback');
-}
-// Same CRT scene and pass order, with one additional tiny opaque HUD crop.
-const terminalPlane=makeUILayer(terminalTexture,.8,.013);
-// Three.js composes stationary gameplay, a translucent modal scrim, and a
-// smaller transparent modal texture into ONE framebuffer before CRT shaders.
-// Dragging a menu no longer repaints or reuploads the fullscreen game texture.
-const scrimPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
- new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.77,
-  depthTest:false,depthWrite:false}));
-scrimPlane.frustumCulled=false;scrimPlane.renderOrder=1;scrimPlane.position.z=.02;
-scrimPlane.visible=false;scene.add(scrimPlane);
-const modalTexture=new THREE.CanvasTexture(modalCanvas);
-modalTexture.colorSpace=THREE.SRGBColorSpace;
-modalTexture.minFilter=THREE.LinearFilter;modalTexture.magFilter=THREE.LinearFilter;
-modalTexture.generateMipmaps=false;
-const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
- new THREE.MeshBasicMaterial({map:modalTexture,transparent:true,depthTest:false,
-  depthWrite:false}));
-// The transparent modal texture spans the entire screen. Keeping its image
-// dimensions stable across dialog types prevents stale cropped texture data.
-modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
-modalPlane.visible=false;scene.add(modalPlane);
+// Canvas sources and Three.js scene resources belong to the render engine.
+const visualScene=createVisualScene({document,window,screen,fatal,
+ onControlsFallback:()=>{layers.mark('controls');invalidate('gpu-controls-fallback');}
+});
+const {input,baseContext,boardCanvas,boardContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls}=visualScene;
+let g=baseContext; // Current Canvas2D drawing target.
 
 // Source-owned button brightness; no fullscreen press overlay or extra glow.
 const buttonFeedback=createButtonFeedback();
@@ -704,8 +606,7 @@ const graphicsHealth=createGraphicsHealth({
    renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
    compositor.resize(W,H,DPR);
    compositor.resetPersistence();
-   for(const source of [texture,boardTexture,sidebarTexture,controlsTexture,
-    terminalTexture,modalTexture,boardPopupTexture])source.needsUpdate=true;
+   for(const source of visualScene.textures)source.needsUpdate=true;
    lastPaintedBoardPopupStatus=null;cachedLayout=null;
    lastTime=performance.now();perf.resetPacing();
    layers.mark('base','board','sidebar','controls','terminal');
@@ -792,7 +693,7 @@ const actions=createActionController({
  // Score, lines and preview content already belong to sidebar/board.
  // The deck itself is static; presses are now uniform-only GPU changes.
  markLayers:(...names)=>{
-  const applicable=controlsGpuEnabled?
+  const applicable=visualScene.controlsGpuEnabled?
    names.filter(name=>name!=='controls'):names;
   if(applicable.length)layers.mark(...applicable);
  },
@@ -805,7 +706,7 @@ const actions=createActionController({
 });
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
- getButtonPower:r=>(g===controlsContext&&controlsGpuEnabled)?0:buttonSparks.find(
+ getButtonPower:r=>(g===controlsContext&&visualScene.controlsGpuEnabled)?0:buttonSparks.find(
   s=>s.x===r.x&&s.y===r.y&&s.w===r.w&&s.h===r.h)?.power??0,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE
@@ -1112,7 +1013,7 @@ function paintControlsLayer(){
    drawControls(r);
    // The temporary regions list contains the exact button geometry
    // produced by the same Canvas painter and touch-hitbox model.
-   if(controlsGpuEnabled){
+   if(visualScene.controlsGpuEnabled){
     if(!controlLighting.configure(regions,bounds))disableGpuControls();
     else controlLighting.update(buttonSparks);
    }
@@ -1254,7 +1155,7 @@ function createDebugReport(){
   geometries:memory?.geometries,programs:renderer.info.programs?.length};
  return formatDebugReport({
   version:THREE_BUILD_VERSION,createdAt:new Date().toISOString(),
-  buttonRenderer:controlsGpuEnabled?'GPU uniforms':'Canvas2D fallback',
+  buttonRenderer:visualScene.controlsGpuEnabled?'GPU uniforms':'Canvas2D fallback',
   platform:navigator.userAgent,
   viewport:{width:W,height:H,dpr:DPR,deviceDpr:Math.max(1,window.devicePixelRatio||1)},
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
@@ -1316,7 +1217,7 @@ inputController=createInputController({
   else if(act==='board')layers.mark('board');
   // GPU button brightness needs only a shader-uniform update. Retain
   // original source painting on devices without sufficient GPU capability.
-  else if(act&&!controlsGpuEnabled)layers.mark('controls');
+  else if(act&&!visualScene.controlsGpuEnabled)layers.mark('controls');
  },
  handleAction:act=>{
   const previous=game.status;
@@ -1458,7 +1359,7 @@ function frame(now){
     // Game controls now use GPU uniform updates, not CanvasTexture
     // invalidation. Header and board-status popup buttons retain the
     // original source-owned brightness and require base painting.
-    const canvasAffected=controlsGpuEnabled?
+    const canvasAffected=visualScene.controlsGpuEnabled?
      affected.filter(name=>name!=='controls'):affected;
     if(canvasAffected.length)layers.mark(...canvasAffected);
    }
@@ -1466,7 +1367,7 @@ function frame(now){
   }
   // Uniform-only updates still render through the unchanged CRT FX,
   // allowing pressed pixels to contribute to bloom and phosphor naturally.
-  if(controlsGpuEnabled)controlLighting.update(buttonSparks);
+  if(visualScene.controlsGpuEnabled)controlLighting.update(buttonSparks);
   if(layers.needsRender()){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
@@ -1525,10 +1426,8 @@ function frame(now){
 // Release only when the browser abandons the page without caching it.
 const graphicsCleanup=createGraphicsCleanup({
  renderer,compositor,scene,
- textures:[texture,boardTexture,sidebarTexture,controlsTexture,
-  terminalTexture,modalTexture,boardPopupTexture],
- canvases:[input,boardCanvas,sidebarCanvas,controlsCanvas,
-  terminalCanvas,modalCanvas,boardPopupCanvas],
+ textures:visualScene.textures,
+ canvases:visualScene.canvases,
  getAudioContext:()=>audioCtx
 });
 appLifecycle=createAppLifecycle({

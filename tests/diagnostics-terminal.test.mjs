@@ -493,8 +493,8 @@ describe('Terminal repaint regions',()=>{
   const renderer=source('platform.js');
   const merged=source('render.js');
   const cropped=merged.slice(0,merged.indexOf('// Textures, sprite art'));
-  assert.match(renderer,/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
-  assert.match(renderer,/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
+  assert.match(source('render.js'),/terminalCanvas\.getContext\('2d',\{alpha:false\}\)/);
+  assert.match(source('render.js'),/const terminalPlane=makeUILayer\(terminalTexture,\.8,\.013\)/);
   assert.match(renderer,/croppedBounds\(\[terminalLineBounds\(r\)\],W,H,DPR,0\)/);
   assert.match(renderer,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg,FONT\)/);
   assert.match(renderer,/if\(terminalPlane\.visible\)textureUploads\.upload\(terminalTexture,'terminal'\)/);

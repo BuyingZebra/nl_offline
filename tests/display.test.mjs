@@ -880,3 +880,18 @@ describe('GPU button lighting',()=>{
   assert.match(src,/buttonRenderer:controlsGpuEnabled\?'GPU uniforms':'Canvas2D fallback'/);
  });
 });
+
+
+describe('Render resource ownership',()=>{
+ test('scene, seven canvases, and seven textures share one render-owned inventory',()=>{
+  const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  assert.match(render,/function createVisualScene\(/);
+  assert.match(render,/const textures=Object\.freeze\(\[texture,boardTexture/);
+  assert.match(render,/const canvases=Object\.freeze\(\[input,boardCanvas/);
+  assert.match(platform,/const visualScene=createVisualScene\(/);
+  assert.match(platform,/textures:visualScene\.textures/);
+  assert.match(platform,/canvases:visualScene\.canvases/);
+  assert.doesNotMatch(platform,/new THREE\./);
+ });
+});
