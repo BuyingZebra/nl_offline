@@ -25,74 +25,130 @@ export function directionalShadowProfile(tile=35,fx={}){
  });
 }
 
-/** Direction-aware inset shadow for the RECESSED playfield window.
- * Reuses exactly the same persisted shadow settings as the tetrominoes.
- * At the approved 55° / 13px / 14px / 100% bias / 80% opacity defaults,
- * the standard and sharp-over-blurred-board gradients equal the old values.
- *
- * Inset geometry stays clipped to the window. Unlike a piece shadow, this
- * represents light being obstructed by the four inner walls, not an offset
- * exterior silhouette. No extra texture, GPU pass, or per-frame convolution.
+/** A frame recess casts its shadow *inside* the opening. It uses the
+ * SAME user light direction, Gaussian softness, bias and opacity as the
+ * tetrominoes, but is physically twice as deep: 2x throw and 2x blur.
+ * Opacity is not divided by either multiplier.
  */
-export function boardInsetShadowProfile(tile=35,fx={},sharp=false){
- const p=directionalShadowProfile(tile,fx);
- const base=sharp?
-  {ambient:.15,vertical:.21,horizontal:.12}:
-  {ambient:.24,vertical:.34,horizontal:.18};
- if(!p.enabled||p.opacity<=0)return Object.freeze({
-  enabled:false,depth:0,hard:false,top:0,left:0,bottom:0,right:0
- });
- const referenceScale=Math.max(.1,(Number(tile)||35)/35);
- const distance=p.distance/referenceScale/13;
- const blur=p.blur/referenceScale/14;
- const originalDepth=Math.min(20,Math.max(8,(Number(tile)||35)*.8));
- const depth=Math.min(40,Math.max(1,
-  originalDepth*(blur*.75+distance*.25)));
- const radians=p.angle*Math.PI/180;
- const dx=Math.cos(radians),dy=Math.sin(radians);
- const defaultX=Math.cos(55*Math.PI/180),defaultY=Math.sin(55*Math.PI/180);
- // Bias of zero balances opposite walls; at 100% the cast is directional.
- const projection=(component,reference)=>
-  p.bias*Math.max(0,component)/reference+(1-p.bias)*.5;
- const strength=p.opacity/.8;
- const alpha=(direction,delta)=>Math.min(1,Math.max(0,
-  (base.ambient+delta*distance*direction)*strength));
+export function boardInsetShadowProfile(tile=35,fx={}){
+ const piece=directionalShadowProfile(tile,fx);
+ const blur=piece.blur*2;
  return Object.freeze({
-  enabled:true,depth,hard:p.blur===0,
-  top:alpha(projection(dy,defaultY),base.vertical),
-  left:alpha(projection(dx,defaultX),base.horizontal),
-  bottom:alpha(projection(-dy,defaultY),base.vertical),
-  right:alpha(projection(-dx,defaultX),base.horizontal)
+  enabled:piece.enabled,angle:piece.angle,
+  distance:piece.distance*2,blur,bias:piece.bias,
+  opacity:piece.opacity,resolution:blur<=6?1:.5
  });
 }
 
-/** Same lightweight Canvas painter for the live board and sharp popup.
- * The popup retains its existing deliberately weaker shadow intensities.
+// Fast Gaussian CDF (maximum absolute error ~8e-8). For an axis-aligned
+// rectangular aperture, a blurred exterior can be integrated per axis.
+// Only O(width+height) Gaussian samples are needed, rather than a full
+// 2D convolution of an entire phone-sized game board.
+function normalCDF(z){
+ if(z<=-8)return 0;
+ if(z>=8)return 1;
+ const x=Math.abs(z),t=1/(1+.2316419*x);
+ const polynomial=t*(.319381530+t*(-.356563782+
+  t*(1.781477937+t*(-1.821255978+t*1.330274429))));
+ const positive=1-.3989422804014327*Math.exp(-x*x/2)*polynomial;
+ return z>=0?positive:1-positive;
+}
+function apertureCoverage(pixel,length,offset,sigma){
+ const shifted=pixel-offset;
+ if(sigma<.001)return shifted>=0&&shifted<length?1:0;
+ return Math.max(0,Math.min(1,
+  normalCDF(shifted/sigma)-normalCDF((shifted-length)/sigma)));
+}
+
+/** Analytic inset-shadow alpha. Angles and screen axes match the piece engine:
+ * e.g. 0 degrees means a rightward shadow, darkening the LEFT interior rim.
+ * The biased, rotated Gaussian is approximated by its projected x/y variance
+ * and directional mean. This avoids a costly board-sized convolution on iOS.
+ * Normalize the strongest visible point to full coverage, independently of
+ * the user's opacity slider, just as for piece shadows in v191.
  */
-export function paintBoardInsetShadow(g,{x,y,w,h,tile},fx={},sharp=false){
- if(!(w>0&&h>0))return false;
- const p=boardInsetShadowProfile(tile,fx,sharp);
- if(!p.enabled)return false;
- const depth=Math.min(p.depth,w,h);
- g.save();g.beginPath();g.rect(x,y,w,h);g.clip();
- const shade=(x0,y0,x1,y1,rx,ry,rw,rh,alpha)=>{
-  if(alpha<=0)return;
-  if(p.hard){
-   g.fillStyle='rgba(0,0,0,'+alpha+')';
-  }else{
-   const fade=g.createLinearGradient(x0,y0,x1,y1);
-   fade.addColorStop(0,'rgba(0,0,0,'+alpha+')');
-   fade.addColorStop(1,'rgba(0,0,0,0)');
-   g.fillStyle=fade;
-  }
-  g.fillRect(rx,ry,rw,rh);
- };
- shade(x,y,x,y+depth,x,y,w,depth,p.top);
- shade(x,y,x+depth,y,x,y,depth,h,p.left);
- shade(x,y+h,x,y+h-depth,x,y+h-depth,w,depth,p.bottom);
- shade(x+w,y,x+w-depth,y,x+w-depth,y,depth,h,p.right);
- g.restore();
- return true;
+export function directionalBoardInsetAlpha(width,height,{
+ angle=55,distance=26,blur=28,bias=1
+}={}){
+ if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1)
+  throw new RangeError('Board inset requires positive integer dimensions');
+ const b=Math.max(0,Math.min(1,Number(bias)||0));
+ const theta=angle*Math.PI/180,ux=Math.cos(theta),uy=Math.sin(theta);
+ const size=Math.max(0,Number(blur)||0);
+ const along=size*(1+.3*b),across=size*(1-.24*b);
+ const sx=Math.hypot(along*ux,across*uy);
+ const sy=Math.hypot(along*uy,across*ux);
+ // The piece renderer's one-sided along-axis Gaussian adds a mean shift.
+ const biasThrow=b*along*Math.sqrt(2/Math.PI);
+ const shift=(Number(distance)||0)+biasThrow;
+ const dx=shift*ux,dy=shift*uy;
+ const insideX=new Float32Array(width),insideY=new Float32Array(height);
+ for(let x=0;x<width;x++)
+  insideX[x]=apertureCoverage(x+.5,width,dx,sx);
+ for(let y=0;y<height;y++)
+  insideY[y]=apertureCoverage(y+.5,height,dy,sy);
+ const alpha=new Float32Array(width*height);
+ let peak=0;
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+  const amount=Math.max(0,1-insideX[x]*insideY[y]);
+  const value=amount<1e-6?0:amount;
+  alpha[y*width+x]=value;
+  peak=Math.max(peak,value);
+ }
+ if(peak>1e-8)for(let i=0;i<alpha.length;i++)
+  alpha[i]=Math.min(1,alpha[i]/peak);
+ return alpha;
+}
+
+/** One cached inset raster, shared by active board and the sharper popup.
+ * Draws only into existing Canvas layers: no added GPU texture or pass.
+ */
+export function createBoardInsetShadowRenderer({
+ createCanvas=()=>document.createElement('canvas'),getSettings=()=>null
+}={}){
+ let cached=null,signature=null,builds=0;
+ function stamp(width,height,tile,p){
+  const key=[width,height,tile,p.angle,p.distance,p.blur,p.bias,p.resolution]
+   .map(v=>Number(v).toFixed(3)).join(':');
+  if(signature===key&&cached)return cached;
+  const sw=Math.max(1,Math.ceil(width*p.resolution));
+  const sh=Math.max(1,Math.ceil(height*p.resolution));
+  const alpha=directionalBoardInsetAlpha(sw,sh,{
+   angle:p.angle,distance:p.distance*p.resolution,
+   blur:p.blur*p.resolution,bias:p.bias
+  });
+  const canvas=createCanvas();canvas.width=sw;canvas.height=sh;
+  const context=canvas.getContext('2d',{alpha:true});
+  if(!context)return null;
+  const image=context.createImageData(sw,sh);
+  for(let i=0;i<alpha.length;i++)image.data[4*i+3]=Math.round(alpha[i]*255);
+  context.putImageData(image,0,0);
+  if(cached){cached.width=1;cached.height=1;}
+  cached=canvas;signature=key;builds++;
+  return canvas;
+ }
+ function draw(g,x,y,width,height,tile,strength=1){
+  if(!(width>0&&height>0&&tile>0))return 0;
+  const p=boardInsetShadowProfile(tile,getSettings()||{});
+  if(!p.enabled||p.opacity<=0||strength<=0)return 0;
+  const canvas=stamp(width,height,tile,p);
+  if(!canvas)return 0;
+  g.save();
+  try{
+   g.beginPath();g.rect(x,y,width,height);g.clip();
+   g.globalAlpha*=p.opacity*Math.max(0,Math.min(1,strength));
+   g.drawImage(canvas,x,y,width,height);
+  }finally{g.restore();}
+  return 1;
+ }
+ function dispose(){
+  if(cached){cached.width=1;cached.height=1;}
+  cached=null;signature=null;
+ }
+ return Object.freeze({draw,dispose,
+  get stats(){return {builds,cached:!!cached,
+   cacheKiB:cached?Math.round(cached.width*cached.height*4/1024):0};}
+ });
 }
 
 // V06 Gaussian, with asymmetric tap weights. A bias of zero is a conventional
