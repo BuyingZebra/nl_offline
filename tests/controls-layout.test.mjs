@@ -694,6 +694,48 @@ describe('Pointer and keyboard input',()=>{
    get buttonPresses(){return buttonPresses},get buttonReleases(){return buttonReleases}
   };
  }
+ test('v195 light gestures update direction but never trigger Tetris controls',()=>{
+  const screen=target(),document=target(),window=target();
+  let captured=null,pointSamples=[],actions=[],exits=0;
+  screen.getBoundingClientRect=()=>({left:0,top:0,width:100,height:60});
+  screen.setPointerCapture=id=>{captured=id;};
+  screen.hasPointerCapture=id=>captured===id;
+  screen.releasePointerCapture=()=>{captured=null;};
+  const controller=createInputController({
+   screen,document,window,
+   getViewport:()=>({width:100,height:60}),
+   getRegions:()=>[
+    {x:85,y:2,w:14,h:10,act:'lightDone',kind:'button'},
+    {x:10,y:15,w:70,h:40,act:'left',kind:'button'}
+   ],
+   getModal:()=> 'light',getModalView:()=>null,
+   getLightBounds:()=>({x:10,y:15,w:70,h:40}),
+   onLightPoint:p=>pointSamples.push(p),onLightExit:()=>{exits++;},
+   getOptionsScroll:()=>0,setOptionsScroll:()=>{},
+   getOptionsMaxScroll:()=>0,setScrollVelocity:()=>{},
+   setBaseDirty:()=>{},handleAction:a=>actions.push(a),
+   perform:a=>actions.push(a),setSetting:()=>{},
+   settingValue:()=>0,toggleScanlineMenu:()=>{},chooseScanline:()=>{},
+   openModal:()=>{},invalidate:()=>{},clamp:(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
+  });
+  const e=(id,x,y,type='pointerdown')=>({
+   type,pointerType:'touch',button:0,pointerId:id,
+   clientX:x,clientY:y,timeStamp:20,preventDefault(){}
+  });
+  screen.emit('pointerdown',e(1,25,30));
+  screen.emit('pointermove',e(1,60,45,'pointermove'));
+  screen.emit('pointerup',e(1,65,48,'pointerup'));
+  assert.deepEqual(pointSamples,[{x:25,y:30},{x:60,y:45},{x:65,y:48}]);
+  assert.deepEqual(actions,[],'the game must never receive light drags');
+  assert.equal(captured,null);
+  screen.emit('pointerdown',e(2,90,7));
+  screen.emit('pointerup',e(2,90,7,'pointerup'));
+  assert.deepEqual(actions,['lightDone'],'the exit button remains clickable');
+  document.emit('keydown',{code:'Escape',preventDefault(){}});
+  assert.equal(exits,1,'Escape also leaves the lighting laboratory');
+  controller.dispose();
+ });
+
  test('input ownership registers one matching listener for each event',()=>{
   const h=harness();
   assert.deepEqual([...h.screen.listeners.keys()],

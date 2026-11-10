@@ -964,3 +964,37 @@ describe('Allocation-aware button feedback',()=>{
   assert.equal(buttons.sample(300),first);
  });
 });
+
+describe('v195 interactive lighting laboratory',()=>{
+ test('light view is a modal over the live board, with isolated aperture and no popup scrim',()=>{
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const game=fs.readFileSync(new URL('../tetris/game.js',import.meta.url),'utf8');
+  assert.match(game,/LIGHT:'light'/);
+  assert.match(game,/openLight:\(\)=>openWithPause\(SCREENS\.LIGHT\)/);
+  assert.match(platform,/if\(screenManager\.isLight\)paintLightDirectionOverlay\(\)/);
+  assert.match(platform,/scrimPlane\.visible=!standaloneSettings&&!screenManager\.isScores&&!screenManager\.isLight/);
+  assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
+  assert.match(renderer,/shadowBox&&\(!modalOpen\|\|isolateLightWindow\)/);
+ });
+ test('light marker is clipped but faint crosshairs span the screen',()=>{
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const lab=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
+   platform.indexOf('function paintModalOverlay('));
+  assert.match(lab,/g\.moveTo\(p\.x,0\);g\.lineTo\(p\.x,H\)/);
+  assert.match(lab,/g\.moveTo\(0,p\.y\);g\.lineTo\(W,p\.y\)/);
+  assert.match(lab,/g\.rect\(b\.x,b\.y,b\.w,b\.h\);g\.clip\(\)/);
+  assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/);
+ });
+ test('only angle changes, blur and menus are temporary, input never reaches gameplay',()=>{
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  assert.match(platform,/actions\.setSetting\('shadowAngle',Math\.round\(angle\)\)/);
+  assert.match(platform,/getSettings:lightFX/);
+  assert.match(platform,/\{\.\.\.settings\.effects,shadowBlur:0\}:settings\.effects/);
+  assert.match(platform,/softness:false,persistence:false/);
+  assert.match(platform,/if\(getModal\(\)==='light'\)\{/);
+  assert.match(platform,/if\(touch\.mode==='light'\)\{/);
+  assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
+ });
+});

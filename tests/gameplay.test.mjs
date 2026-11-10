@@ -574,6 +574,26 @@ describe('Menus and pause state',()=>{
   assert.equal(h.screens.paintsModalLayer,true);
  });
 
+ test('v195 lighting laboratory pauses active gameplay and preserves pause on return',()=>{
+  const h=harness('playing');
+  assert.equal(h.screens.openLight(),true);
+  assert.equal(h.screens.isLight,true);
+  assert.equal(h.screens.active,SCREENS.LIGHT);
+  assert.equal(h.screens.paintsModalLayer,true);
+  assert.equal(h.status,'paused');
+  assert.equal(h.pauses,1);
+  assert.equal(h.screens.openOptions(),true);
+  assert.equal(h.screens.isLight,false);
+  assert.equal(h.screens.isOptions,true);
+  assert.equal(h.status,'paused');
+  assert.equal(h.pauses,1,'leaving the lab must NEVER resume the game');
+  assert.deepEqual(h.transitions.map(t=>[t.from,t.to]),[
+   [null,'light'],['light','options']
+  ]);
+  h.screens.close();
+  assert.equal(h.status,'paused');
+ });
+
  test('high scores pause active gameplay but continue painting into the board popup',()=>{
   const h=harness('playing');
   h.screens.openScores();
@@ -949,6 +969,20 @@ describe('Gameplay integration',()=>{
    clearFlash(){clearActive=false;}
   };
  }
+
+ test('v195 light actions use the existing paused screen lifecycle',()=>{
+  const sessionState=session();
+  sessionState.actions.perform('start');
+  sessionState.actions.dispatch('light');
+  assert.equal(sessionState.game.status,'paused');
+  assert.equal(sessionState.screens.isLight,true);
+  sessionState.actions.setSetting('shadowAngle',135);
+  assert.equal(sessionState.settings.effects.shadowAngle,135);
+  sessionState.actions.dispatch('lightDone');
+  assert.equal(sessionState.screens.isOptions,true);
+  assert.equal(sessionState.game.status,'paused');
+  sessionState.lifecycle.dispose();
+ });
 
  test('real game, screen manager and settings preserve pause-before-options and audio',()=>{
   const s=session();

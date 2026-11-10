@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v194';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v195';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v194';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v195';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -285,6 +285,7 @@ export function createInputController({screen,document,window,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
+ getLightBounds=()=>null,onLightPoint=()=>{},onLightExit=()=>{},
  onButtonPress=()=>{},onButtonRelease=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
@@ -325,6 +326,14 @@ listen(screen,'pointerdown',e=>{
  e.preventDefault();
  if(pressed)return; // One active touch: prevents accidental multi-touch changes.
  const p=eventPoint(e),r=regionAt(p),inOptions=optionPoint(p);
+ if(getModal()==='light'){
+  const b=getLightBounds();
+  if(b&&p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h){
+   pressed={id:e.pointerId,mode:'light',region:null,start:p,last:p};
+   try{screen.setPointerCapture(e.pointerId);}catch(error){}
+   onLightPoint(p);invalidate();return;
+  }
+ }
  if(!r&&!getModal())return;
  if(isVisualButton(r))onButtonPress(r,performance.now(),true);
  stopRepeat();setScrollVelocity(0);
@@ -353,6 +362,9 @@ listen(screen,'pointermove',e=>{
  if(disposed||!canInteract())return;
  if(!pressed||pressed.id!==e.pointerId)return;
  const p=eventPoint(e),r=pressed.region,touch=pressed;
+ if(touch.mode==='light'){
+  onLightPoint(p);touch.last=p;invalidate();return;
+ }
  if(!getModal())return;
  const dx=p.x-touch.start.x,dy=p.y-touch.start.y;
  const ax=Math.abs(dx),ay=Math.abs(dy);
@@ -377,6 +389,11 @@ function releaseTouch(e){
  if(!pressed||pressed.id!==e.pointerId)return;
  stopRepeat();
  const touch=pressed,p=eventPoint(e);pressed=null;
+ if(touch.mode==='light'){
+  if(e.type==='pointerup')onLightPoint(p);
+  try{if(screen.hasPointerCapture(e.pointerId))screen.releasePointerCapture(e.pointerId);}catch(error){}
+  invalidate();return;
+ }
   if(isVisualButton(touch.region))onButtonRelease(touch.region,performance.now());
  // Redraw only the touched button's cropped HUD texture on release.
  if(!getModal())setBaseDirty(touch.action);
@@ -420,7 +437,7 @@ const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
 listen(document,'keydown',e=>{
  if(disposed||!canInteract())return;
  if(getModal()){
-  if(e.code==='Escape'){e.preventDefault();openModal(null);}
+  if(e.code==='Escape'){e.preventDefault();if(getModal()==='light')onLightExit();else openModal(null);}
   return;
  }
  const a=KEYS[e.code];
@@ -680,15 +697,42 @@ const unsubscribeGameEvents=game.onEvent(event=>{
 // The full-screen properties view hides the board. Keep changes to the
 // five shadow parameters in the lightweight thumbnail until exit.
 let shadowBoardNeedsPaint=false;
+let lightPosition=null;
+function lightBoardBounds(){
+ const r=layout();
+ return {x:r.boardX+2,y:r.boardY+2,w:r.boardW-4,h:r.boardH-4};
+}
+function setLightPosition(point){
+ if(!screenManager.isLight)return;
+ const b=lightBoardBounds(),margin=6;
+ const x=clamp(point.x,b.x+margin,b.x+b.w-margin);
+ const y=clamp(point.y,b.y+margin,b.y+b.h-margin);
+ lightPosition={x,y};
+ // One direction for the ENTIRE board. This is not a point light:
+ // the marker's radius never affects shadow length, blur or intensity.
+ const dx=b.x+b.w/2-x,dy=b.y+b.h/2-y;
+ if(Math.hypot(dx,dy)>=3){
+  const angle=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
+  actions.setSetting('shadowAngle',Math.round(angle));
+ }
+ layers.mark('modal');invalidate();
+}
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
  pauseGame:()=>actions.perform('pause'),
  onChange:(previous,next)=>{
   // Preserve menu-local reset, touch capture and score popup invalidation.
-  modalUI.reset();scrollVelocity=0;inputController?.cancel();
+  // Preserve the scrolled shadow-settings row while entering/leaving the
+  // temporary light lab, so DONE returns to the same controls.
+  if(previous!=='light'&&next!=='light')modalUI.reset();
+  scrollVelocity=0;inputController?.cancel();
   // Buttons release on navigation, but the full-screen afterglow survives.
   buttonFeedback.clear();
   if(previous==='scores'||next==='scores')layers.mark('base');
+  if(previous==='light'||next==='light'){
+   if(next==='light')lightPosition=null;
+   layers.mark('base','board','modal');
+  }
   // Entering/re-entering Options needs a fresh full menu; leaving it must
   // discard any pending modal dirtiness even if another screen is selected.
   if(previous==='options'||next==='options')layers.mark('modal');
@@ -775,9 +819,11 @@ if(document.fonts?.load){
 }
 // V121: higher-contrast smooth SVG sprites, raster-cached at display DPR.
 // Approved pixel motifs remain a fallback during SVG loading/errors.
+const lightFX=()=>screenManager.isLight?
+ {...settings.effects,shadowBlur:0}:settings.effects;
 const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR,
- getSettings:()=>settings.effects});
-const boardInsetShadows=createBoardInsetShadowRenderer({getSettings:()=>settings.effects});
+ getSettings:lightFX});
+const boardInsetShadows=createBoardInsetShadowRenderer({getSettings:lightFX});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,
  onReady:()=>{
@@ -1173,6 +1219,42 @@ function copyDebugReport(){
   modalUI.debugCopyState='failed';invalidate();
  });
 }
+function paintLightDirectionOverlay(){
+ regions=[];
+ const b=lightBoardBounds(),cx=b.x+b.w/2,cy=b.y+b.h/2;
+ const angle=(Number(settings.effects.shadowAngle)||0)*Math.PI/180;
+ const radius=Math.min(b.w,b.h)*.34;
+ const p=lightPosition||{
+  x:clamp(cx-Math.cos(angle)*radius,b.x+6,b.x+b.w-6),
+  y:clamp(cy-Math.sin(angle)*radius,b.y+6,b.y+b.h-6)
+ };
+ // Crosshairs reach the FULL screen, deliberately outside the aperture.
+ // The luminous source itself is clipped to the playfield window.
+ g.save();
+ g.strokeStyle='rgba(180,180,180,.27)';g.lineWidth=.7;
+ g.setLineDash([3,7]);g.beginPath();
+ g.moveTo(p.x,0);g.lineTo(p.x,H);
+ g.moveTo(0,p.y);g.lineTo(W,p.y);g.stroke();
+ g.setLineDash([]);
+ g.beginPath();g.rect(b.x,b.y,b.w,b.h);g.clip();
+ const halo=g.createRadialGradient(p.x,p.y,0,p.x,p.y,28);
+ halo.addColorStop(0,'rgba(230,230,230,.19)');
+ halo.addColorStop(.3,'rgba(215,215,215,.08)');
+ halo.addColorStop(1,'rgba(215,215,215,0)');
+ g.fillStyle=halo;g.fillRect(p.x-28,p.y-28,56,56);
+ g.strokeStyle='rgba(224,224,224,.88)';g.lineWidth=1;
+ g.beginPath();g.arc(p.x,p.y,11,0,2*Math.PI);g.stroke();
+ g.fillStyle='rgba(235,235,235,.96)';
+ g.beginPath();g.arc(p.x,p.y,3.5,0,2*Math.PI);g.fill();
+ g.restore();
+ const safe=insets();
+ text('LIGHT DIRECTION',Math.max(12,b.x),safe.top+16,12,C.bright,'left',b.w*.7);
+ text(Math.round(settings.effects.shadowAngle)+'°',b.x+b.w-8,
+  safe.top+16,12,C.bright,'right',50);
+ const exitW=94,exitH=34;
+ const exitX=W-exitW-16,exitY=Math.max(safe.top+28,layout().hy+8);
+ key('DONE',exitX,exitY,exitW,exitH,'lightDone');
+}
 function paintModalOverlay(){
  // Repaint exactly one active dialog. Always clear the entire backing image
  // so no pixels from a previous modal remain after a menu transition.
@@ -1191,9 +1273,9 @@ function paintModalOverlay(){
  modalContext.setTransform(DPR,0,0,DPR,0,0);
  modalPlane.visible=true;
  // Don't dim the HUD while the score list occupies the board.
- scrimPlane.visible=!standaloneSettings&&!screenManager.isScores;
+ scrimPlane.visible=!standaloneSettings&&!screenManager.isScores&&!screenManager.isLight;
  g=modalContext;
- try{modalUI.paintModal(q);}
+ try{if(screenManager.isLight)paintLightDirectionOverlay();else modalUI.paintModal(q);}
  finally{g=baseContext;}
  modalTexture.needsUpdate=true;
  perf.textureChanged('modal');
@@ -1206,7 +1288,7 @@ inputController=createInputController({
  getOptionsMaxScroll:()=>modalUI.maxScroll,
  setScrollVelocity:v=>{scrollVelocity=v;},
  setBaseDirty:(act)=>{
-  if(act==='theme'||act==='options')layers.mark('base');
+  if(act==='theme'||act==='options'||act==='light')layers.mark('base');
   else if(act==='board')layers.mark('board');
   // GPU button brightness needs only a shader-uniform update. Retain
   // original source painting on devices without sufficient GPU capability.
@@ -1229,6 +1311,8 @@ inputController=createInputController({
   return result;
  },
  setSetting:actions.setSetting,settingValue,
+ getLightBounds:lightBoardBounds,onLightPoint:setLightPosition,
+ onLightExit:()=>screenManager.openOptions(),
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp,
@@ -1248,10 +1332,13 @@ function syncFX(){
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
- compositor.syncFX({fx:settings.effects,theme:settings.theme,width:W,height:H,dpr:DPR,
+ compositor.syncFX({fx:screenManager.isLight?
+  {...settings.effects,softness:false,persistence:false}:settings.effects,
+  theme:settings.theme,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
-  popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout});
+  popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
+  isolateLightWindow:screenManager.isLight});
 }
 function cancelPendingFrame(){
  if(frameHandle!==null){cancelAnimationFrame(frameHandle);frameHandle=null;}
@@ -1324,7 +1411,7 @@ function frame(now){
    else{layers.mark('modal');layers.reason('scroll');}
   }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
-  const phosphorOn=settings.effects.persistence===true;
+  const phosphorOn=settings.effects.persistence===true&&!screenManager.isLight;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
@@ -1489,6 +1576,7 @@ const platform=createPlatformManager({
   cachedLayout=null;
   if(!unchanged){
    W=width;H=height;DPR=dpr;
+   lightPosition=null;
    buttonFeedback.clear();buttonSparks=[];
   compositor.resetPersistence();
    input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);

@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v194';
+import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v195';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
@@ -1010,7 +1010,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
@@ -1055,7 +1055,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   }
   // Board content is the light source only when the recessed window is visible.
   // Zero rect restores v188 global bloom for the optional A/B query parameter.
-  const active=shadowBox&&!modalOpen&&w>0&&h>0;
+  const active=shadowBox&&(!modalOpen||isolateLightWindow)&&w>0&&h>0;
   const x0=active?x/W:0,y0=active?1-(y+h)/H:0;
   const x1=active?(x+w)/W:0,y1=active?1-y/H:0;
   for(const uniform of [glow.highPassUniforms?.uBoardRect,
@@ -2325,7 +2325,8 @@ function settingsPreviewSize(width){
 function settingsContentHeight(effect,gap){
  const controls=effect.id==='ghost'?2:(effect.sliders?.length||0);
  return SETTINGS_TITLE_H+controls*(SETTINGS_CONTROL_H+gap)+
-  (effect.pattern?(SETTINGS_SELECT_H+gap):0);
+  (effect.pattern?(SETTINGS_SELECT_H+gap):0)+
+  (effect.id==='shadows'?(SETTINGS_CONTROL_H+2*gap):0);
 }
 function settingsRows(buttonH,gap,width){
  const image=settingsPreviewSize(width),rows=[];let offset=0;
@@ -2457,6 +2458,14 @@ function drawOptions(q){
   }else if(effect.sliders?.length){
    effect.sliders.forEach((setting,i)=>drawSettingsSlider(ctrlX,
     firstY+i*(SETTINGS_CONTROL_H+gap),ctrlW,setting));
+  }
+  if(effect.id==='shadows'){
+   // Launch a temporary, paused directional-light view. It is an ACTION,
+   // not a saved display effect, and does not replace angle precision input.
+   const lightY=blockTop+SETTINGS_TITLE_H+
+    effect.sliders.length*(SETTINGS_CONTROL_H+gap)+gap;
+   key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light',
+    {modalControl:true});
   }
   if(effect.pattern){
    // Pattern picker belongs to Scanlines; no new category or separate row.
