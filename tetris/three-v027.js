@@ -1,3 +1,3 @@
 /* Stable three-v027.html runtime entry; all orchestration lives in platform.js. */
-import {startNOMAD} from './platform.js?v192';
+import {startNOMAD} from './platform.js?v193';
 startNOMAD();

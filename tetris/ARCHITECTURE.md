@@ -190,3 +190,27 @@ popup wall intensities (.36/.27/.15/.15), along with original width, are
 preserved. Existing stored settings migrate unchanged. No new GPU passes,
 Canvas textures or settings pages. Canvas repaint remains deferred during
 settings adjustment; changing these controls redraws the board on menu exit.
+
+
+## Double-height directional board inset (v193)
+
+The v192 four-gradient inset has been replaced by a cached, analytical
+black-alpha shadow for the recessed board aperture. It reads the exact same
+saved Drop Shadows angle, toggle, distance, blur, bias and opacity as pieces.
+The board is twice as deep: its throw and Gaussian softness each use **2x**
+the piece profile's resolved CSS-pixel values. Neither doubles nor attenuates
+opacity. The darkest visible interior sample is normalized to alpha 1, so the
+opacity slider still controls peak darkness, independent of blur width.
+
+The board frame is the occluder; rotating the light direction moves the
+interior shadow to the opposite rim (rightward cast shades the LEFT rim,
+downward shades the TOP, etc.). The rectangular-aperture Gaussian is evaluated
+with an O(width+height) normal CDF and composed into a cached Canvas stamp.
+Directional anisotropy/bias uses projected Gaussian variance and mean rather
+than a full-size directional convolution, minimizing CPU cost on phones.
+
+The regular game board and the sharp pause/game-over overlay use the *same*
+cached stamp; the secondary overlay retains its existing restrained 62%
+intensity. Opacity/toggle changes reuse the stamp; changing orientation,
+blur, distance or bias rebuilds it once. No new WebGL pass, CanvasTexture,
+viewport, user setting, gameplay logic or tile artwork has been introduced.

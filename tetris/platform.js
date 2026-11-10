@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,paintBoardInsetShadow,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v192';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v193';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v192';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v193';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -777,6 +777,7 @@ if(document.fonts?.load){
 // Approved pixel motifs remain a fallback during SVG loading/errors.
 const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR,
  getSettings:()=>settings.effects});
+const boardInsetShadows=createBoardInsetShadowRenderer({getSettings:()=>settings.effects});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,
  onReady:()=>{
@@ -887,8 +888,7 @@ function stage(r,drawPieces=true){
  }
  // Recessed board walls share the piece-shadow controls; only the interior
  // is darkened, preserving the aperture and shadow-box bloom separation.
- paintBoardInsetShadow(g,{x:offX,y:offY,w:w-4,h:h-4,tile},
-  settings.effects);
+ boardInsetShadows.draw(g,offX,offY,w-4,h-4,tile);
  g.restore();
 }
 // The stage's inset shadow is blurred along with gameplay. Redraw a
@@ -897,8 +897,7 @@ function stage(r,drawPieces=true){
 function drawSharpBoardInsetShadow(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  const innerW=w-4,innerH=h-4;
- paintBoardInsetShadow(g,{x:x+2,y:y+2,w:innerW,h:innerH,
-  tile:innerW/10},settings.effects,true);
+ boardInsetShadows.draw(g,x+2,y+2,innerW,innerH,innerW/10,.62);
 }
 function paintBoardPopup(r){
  // A freshly rendered status snapshot prevents START GAME from persisting
@@ -1459,6 +1458,7 @@ appLifecycle=createAppLifecycle({
   ['input',()=>inputController?.dispose()],
   ['vector-tiles',()=>vectorTiles.dispose()],
   ['piece-shadows',()=>pieceShadows.dispose()],
+  ['board-inset-shadows',()=>boardInsetShadows.dispose()],
   ['shadow-preview',()=>modalUI.dispose()],
   ['brick-frame',()=>brickFrame.dispose()],
   ['gpu-button-fallback-material',()=>controlsFallbackMaterial.dispose()],
