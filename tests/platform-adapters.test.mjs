@@ -41,3 +41,14 @@ test('published entry delegates to platform while remaining a stable URL',()=>{
  assert.match(platform,/export function startNOMAD\(\)/);
  assert.ok(source.length<500,'the historical entry is no longer an application monolith');
 });
+
+test('device adapters live inside platform and share a viewport observer',()=>{
+ const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ assert.match(source,/function observeVisualViewport/);
+ assert.match(source,/const appleAdapter=Object.freeze/);
+ assert.match(source,/const androidAdapter=Object.freeze/);
+ assert.match(source,/const genericAdapter=Object.freeze/);
+ assert.equal(source.includes("from './platform/ios.js'"),false);
+ assert.equal(source.includes("from './platform/android.js'"),false);
+ assert.equal(source.includes("from './platform/generic.js'"),false);
+});

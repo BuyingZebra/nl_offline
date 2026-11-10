@@ -5,9 +5,38 @@ import {createPerfMonitor,createTextureUploadProfiler,formatDebugReport,createDe
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v183';
 
-import {appleAdapter} from './platform/ios.js';
-import {androidAdapter} from './platform/android.js';
-import {genericAdapter} from './platform/generic.js';
+
+// Private device adapters: share the same viewport subscription mechanism.
+function observeVisualViewport(win={},resize=()=>{}){
+ const view=win.visualViewport;
+ if(!view?.addEventListener)return ()=>{};
+ view.addEventListener('resize',resize);
+ return ()=>view.removeEventListener?.('resize',resize);
+}
+
+const appleAdapter=Object.freeze({
+ id:'ios',
+ matches(nav={}){return /iPhone|iPad|iPod/i.test(String(nav.userAgent||''))||(nav.platform==='MacIntel'&&Number(nav.maxTouchPoints)>1);},
+ standalone(nav={},win={}){return nav.standalone===true||Boolean(win.matchMedia?.('(display-mode: standalone)')?.matches);},
+ applyRootMode(nav={},win={},doc={}){if(nav.standalone===true)doc.documentElement?.classList?.add?.('ios-standalone');},
+ attach:observeVisualViewport
+});
+
+const androidAdapter=Object.freeze({
+ id:'android',
+ matches(nav={}){return /Android/i.test(String(nav.userAgent||''));},
+ standalone(nav={},win={}){return Boolean(win.matchMedia?.('(display-mode: standalone)')?.matches);},
+ applyRootMode(nav={},win={},doc={}){if(this.standalone(nav,win))doc.documentElement?.classList?.add?.('android-standalone');},
+ attach:observeVisualViewport
+});
+
+const genericAdapter=Object.freeze({
+ id:'generic',
+ matches:()=>true,
+ standalone(nav={},win={}){return Boolean(win.matchMedia?.('(display-mode: standalone)')?.matches);},
+ applyRootMode:()=>{},
+ attach:()=>()=>{}
+});
 
 export function selectDeviceAdapter(win={}){
  const nav=win.navigator||{};
