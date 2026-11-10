@@ -1411,7 +1411,7 @@ function frame(now){
    else{layers.mark('modal');layers.reason('scroll');}
   }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
-  const phosphorOn=settings.effects.persistence===true;
+  const phosphorOn=settings.effects.persistence===true&&!screenManager.isLight;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
