@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v191';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,paintBoardInsetShadow,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v192';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v191';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v192';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -885,27 +885,10 @@ function stage(r,drawPieces=true){
   text(label,x+w/2,y+h/2,Math.min(21,w*.1),C.bright,'center',w*.60);
  }
  }
- // V144: a soft, clipped inner drop shadow makes the playfield feel inset.
- // Overlay only the inside edges; board shape, grid geometry and pieces stay put.
- g.save();
- const innerW=w-4,innerH=h-4;
- const depth=Math.min(20,Math.max(8,tile*.8));
- const insetShade=(x0,y0,x1,y1,rx,ry,rw,rh,alpha)=>{
-  const fade=g.createLinearGradient(x0,y0,x1,y1);
-  fade.addColorStop(0,'rgba(0,0,0,'+alpha+')');
-  fade.addColorStop(1,'rgba(0,0,0,0)');
-  g.fillStyle=fade;
-  g.fillRect(rx,ry,rw,rh);
- };
- insetShade(offX,offY,offX,offY+depth,
-  offX,offY,innerW,depth,.58);
- insetShade(offX,offY,offX+depth,offY,
-  offX,offY,depth,innerH,.42);
- insetShade(offX,offY+innerH,offX,offY+innerH-depth,
-  offX,offY+innerH-depth,innerW,depth,.24);
- insetShade(offX+innerW,offY,offX+innerW-depth,offY,
-  offX+innerW-depth,offY,depth,innerH,.24);
- g.restore();
+ // Recessed board walls share the piece-shadow controls; only the interior
+ // is darkened, preserving the aperture and shadow-box bloom separation.
+ paintBoardInsetShadow(g,{x:offX,y:offY,w:w-4,h:h-4,tile},
+  settings.effects);
  g.restore();
 }
 // The stage's inset shadow is blurred along with gameplay. Redraw a
@@ -913,23 +896,9 @@ function stage(r,drawPieces=true){
 // Keep the same four-sided 2px inset without touching stage geometry.
 function drawSharpBoardInsetShadow(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
- const offX=x+2,offY=y+2,innerW=w-4,innerH=h-4;
- if(innerW<=0||innerH<=0)return;
- const tile=innerW/10,depth=Math.min(20,Math.max(8,tile*.8));
- g.save();g.beginPath();g.rect(offX,offY,innerW,innerH);g.clip();
- const shade=(x0,y0,x1,y1,rx,ry,rw,rh,alpha)=>{
-  const fade=g.createLinearGradient(x0,y0,x1,y1);
-  fade.addColorStop(0,'rgba(0,0,0,'+alpha+')');
-  fade.addColorStop(1,'rgba(0,0,0,0)');
-  g.fillStyle=fade;g.fillRect(rx,ry,rw,rh);
- };
- shade(offX,offY,offX,offY+depth,offX,offY,innerW,depth,.36);
- shade(offX,offY,offX+depth,offY,offX,offY,depth,innerH,.27);
- shade(offX,offY+innerH,offX,offY+innerH-depth,
-  offX,offY+innerH-depth,innerW,depth,.15);
- shade(offX+innerW,offY,offX+innerW-depth,offY,
-  offX+innerW-depth,offY,depth,innerH,.15);
- g.restore();
+ const innerW=w-4,innerH=h-4;
+ paintBoardInsetShadow(g,{x:x+2,y:y+2,w:innerW,h:innerH,
+  tile:innerW/10},settings.effects,true);
 }
 function paintBoardPopup(r){
  // A freshly rendered status snapshot prevents START GAME from persisting
