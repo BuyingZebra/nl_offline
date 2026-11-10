@@ -8,6 +8,7 @@ import {renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,ori
 import Core from '../tetris/game.js';
 import {BRICK_UNIT,brickShapes,renderBrickSVG,brickRailGeometry,createBrickFrame} from '../tetris/assets/frames/brick-pattern.mjs';
 import Layout from '../tetris/render.js';
+import {directionalShadowAlpha,normalizeVisibleShadowAlpha} from '../tetris/shadows.js';
 
 describe('Sprite masters and SVG artwork',()=>{
  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../tetris/assets/tiles');
@@ -912,6 +913,38 @@ describe('Piece shadows',()=>{
   assert.equal(shadows.stats.builds,2);
   shadows.dispose();assert.equal(shadows.cacheSize,0);
   assert.equal(shadows.stats.cacheKiB,0);
+ });
+
+ test('v191: black Gaussian shadow reaches full visible coverage at 100% opacity even with 6px blur',()=>{
+  // Actual renderer uses half-resolution masks: 6px CSS blur => 3px Gaussian.
+  const width=90,height=85,mask=new Float32Array(width*height);
+  const cells=[[1,0],[0,1],[1,1],[2,1]],tile=12;
+  for(const [cx,cy] of cells){
+   for(let y=18+cy*tile;y<18+(cy+1)*tile;y++)
+    for(let x=18+cx*tile;x<18+(cx+1)*tile;x++)
+     mask[y*width+x]=1;
+  }
+  const gaussian=directionalShadowAlpha(mask,width,height,{
+   angle:55,distance:6.5,blur:3,bias:1
+  });
+  let originalPeak=0;
+  for(let i=0;i<gaussian.length;i++)
+   originalPeak=Math.max(originalPeak,gaussian[i]*(1-mask[i]));
+  assert.ok(originalPeak>0&&originalPeak<1,'the uncorrected Gaussian is partially transparent');
+  const visible=normalizeVisibleShadowAlpha(gaussian,mask);
+  const opaquePeak=Math.max(...visible);
+  assert.ok(Math.abs(opaquePeak-1)<1e-6,'100% opacity must have a black visible core');
+  assert.equal(visible[0],0,'far background remains unaffected');
+  assert.equal(visible[30*width+30],0,'original tile silhouette remains protected');
+  assert.ok(visible.some(value=>value>0&&value<.8),'blur still has soft edges');
+  const example=normalizeVisibleShadowAlpha(
+   new Float32Array([.8,.4,.2,0]),new Float32Array([1,0,0,0]));
+  assert.deepEqual(Array.from(example),[0,1,.5,0],
+   'the highest visible alpha is 1, the Gaussian falloff remains proportional');
+  const overlap=normalizeVisibleShadowAlpha(
+   new Float32Array([1,.5]),new Float32Array([1,1]));
+  assert.deepEqual(Array.from(overlap),[0,0],
+   'a completely hidden shadow must not be promoted into an artificial halo');
  });
 
  test('v190 settings modify shadow direction and blur without disturbing shape caching',()=>{
