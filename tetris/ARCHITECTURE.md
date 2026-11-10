@@ -3,8 +3,8 @@
 | Script | Owns |
 | --- | --- |
 | `game.js` | Board, movement, gravity, scoring, sessions, settings, action dispatch and personal-best logic |
-| `render.js` | Visual layout, hitbox geometry, UI, art, CRT effects, frame timing and GPU diagnostics |
-| `platform.js` | Application coordinator, device input, clipboard, browser lifecycle, WebGL ownership and private Apple/Android/generic adapters |
+| `render.js` | Visual layout, hitbox geometry, Canvas/Three.js scene ownership, CRT effects, WebGL recovery, disposal and GPU diagnostics |
+| `platform.js` | Application coordination, input, clipboard, page lifecycle, storage and private Apple/Android/generic device adapters |
 | `three-v027.js` | Tiny stable browser entry that starts the platform coordinator |
 | `sw.js` | Versioned offline installation |
 
@@ -15,6 +15,20 @@ The three device adapters are internal compartments of platform.js, sharing one 
 The gameplay is identical across devices. Apple Home Screen compatibility stays behind an iOS adapter; the Android adapter observes supported viewport resize events. Device detection does not determine game rules.
 
 The layout works in CSS pixels and caps render DPR at 2. The installed app requests portrait. Short landscape screens with a coarse pointer show the rotation prompt and pause an active run. Backgrounding also pauses active play and preserves graphics resources for a return from the browser's page cache. Final page exit releases owned resources. Resuming play requires explicit input.
+
+## The supporting scripts and the graphics resource inventory
+
+The three main engines remain the primary source-code structure. Think of `game.js` as the simulation, `render.js` as Blender's collection of display objects, and `platform.js` as the operator coordinating them.
+
+- **`game.js`**: pieces, rules, score, menus, user settings and the device-local best record. It does not create graphics.
+- **`render.js`**: seven Canvas2D sources, seven GPU CanvasTextures, scene planes, established Three.js compositor, WebGL context recovery and final resource cleanup. A single frozen resource inventory now supplies both texture restoration and disposal.
+- **`platform.js`**: app startup, browser events, keyboard/touch, animation scheduling, storage access, platform adapters and offline update checks. It requests resources from the renderer rather than constructing Three.js objects.
+- **`three-v027.js`**: tiny compatibility entry for the established game URL.
+- **`sw.js`**: independent service worker that pins a complete offline release. It is not gameplay or graphics code and must remain its own script.
+- **`tools/build-tetris-release.mjs`**: development-only generator ensuring the release marker and offline asset list match.
+- **`tools/build-tetris-vendor.mjs`**: development-only tool assembling the pinned Three.js dependency bundle. The shipped bundle/license are separate.
+
+The platform still coordinates individual drawing operations; the remaining rendering orchestration can be untangled later. This pass changes only resource ownership and its inventory, **not** the compositor implementation, shader logic, SVG source, sprites, or gameplay.
 
 ## Offline releases
 

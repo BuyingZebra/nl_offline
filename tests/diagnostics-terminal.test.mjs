@@ -507,8 +507,8 @@ describe('Terminal repaint regions',()=>{
    renderer.indexOf('function paintTerminalLayer(){'));
   assert.doesNotMatch(controls,/drawTerminalLog/);
   assert.match(controls,/drawControls/);
-  assert.match(renderer,/terminalTexture,modalTexture,boardPopupTexture/);
-  assert.match(renderer,/terminalCanvas,modalCanvas,boardPopupCanvas/);
+  assert.match(source('render.js'),/terminalTexture,modalTexture,boardPopupTexture/);
+  assert.match(source('render.js'),/terminalCanvas,modalCanvas,boardPopupCanvas/);
  });
 
  test('terminal source instrumentation is independent and appears in debug report',()=>{
@@ -540,6 +540,7 @@ describe('Terminal repaint regions',()=>{
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('font-ready'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('context-restored'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('resize'\)/);
-  assert.match(renderer,/for\(const source of \[texture,boardTexture,sidebarTexture,controlsTexture,\s*terminalTexture,modalTexture,boardPopupTexture\]\)/);
+  assert.match(renderer,/for\(const source of visualScene\.textures\)source\.needsUpdate=true/);
+   assert.match(source('render.js'),/const textures=Object\.freeze\(\[texture,boardTexture,sidebarTexture,controlsTexture/);
  });
 });
