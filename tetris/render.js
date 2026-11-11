@@ -2146,33 +2146,44 @@ function drawControls(r){
  * State is limited to menu scroll, scanline picker, status and view hit area.
  * No WebGL, frame-scheduler, or gameplay dependencies.
  */
-// Shared geometry for PAUSED and HIGH SCORE. START GAME remains unchanged:
- // its primary action begins at the playfield midpoint on normal screens.
+// Shared PAUSED / HIGH SCORE geometry; START GAME keeps its original layout.
+// The three-row classic scoreboard is centered within the clear band between
+// the shared upper title and the unchanged primary-action anchor.
 function boardOverlaySlots({x,y,w,h},UI_SPACE){
  const buttonW=w*UI_SPACE.overlayButtonWidthScale;
  const buttonX=x+(w-buttonW)/2;
  const titleY=y+Math.max(15,Math.min(26,h*.07));
- const scoreY=y+Math.max(40,Math.min(56,h*.155));
- const scoreH=Math.max(24,Math.min(38,h*.105));
- const detailsTop=scoreY+scoreH+10;
  const primaryY=y+h/2;
- const detailH=Math.max(17,Math.min(27,(primaryY-detailsTop-11)/2));
+ const titleBottom=titleY+Math.min(21,w*.079)/2;
+ const rowH=Math.max(12,Math.min(34,(primaryY-titleBottom-18)/3));
+ const scoreH=rowH*3;
+ const scoreY=(titleBottom+primaryY-scoreH)/2;
+ const inset=Math.max(12,2*UI_SPACE.unit);
  return {
   titleX:x+w/2,titleY,
-  score:{x:buttonX,y:scoreY,w:buttonW,h:scoreH},
-  detailLeft:x+Math.max(12,2*UI_SPACE.unit),
-  detailRight:x+w-Math.max(12,2*UI_SPACE.unit),
-  detailY:[detailsTop+detailH/2,detailsTop+detailH*1.5],
+  score:{x:x+inset,y:scoreY,w:w-2*inset,h:scoreH},
   actionX:buttonX,actionY:primaryY,actionW:buttonW
  };
 }
-// Identical double-framed terminal readout on both menu screens.
-function drawMenuScoreBox({panel,text,C,fmt},box,score){
- const {x,y,w,h}=box;
- panel(x,y,w,h,0,C.button,C.border);
- if(w>8&&h>8)panel(x+3,y+3,w-6,h-6,0,null,C.bright);
- text('SCORE',x+12,y+h/2,12,C.weak,'left',w*.36,'terminal');
- text(fmt(score),x+w-12,y+h/2,16,C.bright,'right',w*.58,'terminal');
+// Restore the original unframed SCORE / LINES / LEVEL terminal rows and dots.
+function drawMenuScoreBox({text,rect,C},box,record){
+ const {x,y,w,h}=box,rowH=h/3;
+ const labelSize=Math.max(11,Math.min(14,(w+24)*.053));
+ const valueSize=Math.max(12,Math.min(16,(w+24)*.061));
+ const rows=[
+  ['SCORE',String(record?.score??0).padStart(6,'0')],
+  ['LINES',String(record?.lines??0).padStart(2,'0')],
+  ['LEVEL',String(record?.level??0).padStart(2,'0')]
+ ];
+ rows.forEach(([label,value],i)=>{
+  const ry=y+i*rowH,middle=ry+rowH*.39;
+  text(label,x,middle,labelSize,C.ink,'left',w*.43,'terminal');
+  text(value,x+w,middle,valueSize,C.bright,'right',w*.56,'terminal');
+  if(i<2){
+   const dividerY=ry+rowH-2;
+   for(let dx=0;dx<w;dx+=5)rect(x+dx,dividerY,1.5,.8,C.bright);
+  }
+ });
 }
 
 function createModalUI({
@@ -2556,23 +2567,14 @@ function drawOptions(q){
  // Keep scroll input and momentum; omit decorative scrollbar/row separators.
 }
 function drawScores(q){
- // The same shared title, score display and primary-action slots as PAUSED.
- // The unchanged TETRIS home screen supplies the primary button's Y anchor.
+ // The shared upper title and START GAME action anchor remain unchanged.
  const {W,H}=getViewport(),{x,y,w,h}=q;
  clearRegions();region(0,0,W,H,'block');
  panel(x,y,w,h,5,null,C.border);
  const best=getBest(),slots=boardOverlaySlots(q,UI_SPACE);
  const titleSize=Math.min(21,Math.max(15,w*.079));
  text('HIGH SCORE',slots.titleX,slots.titleY,titleSize,C.bright,'center',w-18);
- drawMenuScoreBox({panel,text,C,fmt},slots.score,best?.score??0);
- const labelSize=Math.max(11,Math.min(14,w*.053));
- const valueSize=Math.max(12,Math.min(16,w*.061));
- [['LINES',fmt(best?.lines??0,2)],['LEVEL',fmt(best?.level??0,2)]]
-  .forEach(([label,value],i)=>{
-   const cy=slots.detailY[i];
-   text(label,slots.detailLeft,cy,labelSize,C.ink,'left',w*.44,'terminal');
-   text(value,slots.detailRight,cy,valueSize,C.bright,'right',w*.44,'terminal');
-  });
+ drawMenuScoreBox({text,rect,C},slots.score,best);
  // Same size, position, font and leading arrow as RESUME / START GAME.
  key('RETURN',slots.actionX,slots.actionY,slots.actionW,q.buttonH,
   'close',{light:true,arrow:true});

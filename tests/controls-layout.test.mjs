@@ -22,11 +22,13 @@ describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
    assert.equal(slots.actionY,box.y+box.h/2);
    assert.equal(slots.actionW,box.w*.85);
    assert.equal(slots.actionX,box.x+(box.w-slots.actionW)/2);
-   assert.equal(slots.score.x,slots.actionX);
-   assert.equal(slots.score.w,slots.actionW);
-   assert.ok(slots.titleY<slots.score.y);
+   assert.equal(slots.score.x,box.x+12);
+   assert.equal(slots.score.w,box.w-24);
+   const titleBottom=slots.titleY+Math.min(21,box.w*.079)/2;
+   assert.ok(titleBottom<slots.score.y);
    assert.ok(slots.score.y+slots.score.h<slots.actionY);
-   assert.ok(slots.detailY[1]<slots.actionY);
+   // The score block's center is halfway between title bottom and action top.
+   assert.ok(Math.abs((slots.score.y+slots.score.h/2)-(titleBottom+slots.actionY)/2)<.01);
   });
  }
  test('both menu renderers share score geometry and exact primary action height',()=>{
@@ -35,11 +37,14 @@ describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
   const pause=app.slice(app.indexOf('function paintBoardPopup('),app.indexOf('function insets()'));
   const scores=render.slice(render.indexOf('function drawScores(q){'),render.indexOf('function paintModal(q){'));
   assert.match(pause,/boardOverlaySlots\(\{x,y,w,h\},UI_SPACE\)/);
-  assert.match(pause,/drawMenuScoreBox\(\{panel,text,C,fmt\},slots.score,game.score\)/);
+  assert.match(pause,/drawMenuScoreBox\(\{text,rect,C\},slots.score,\{score:game.score,lines:game.lines,level:game.level\}\)/);
   assert.match(scores,/boardOverlaySlots\(q,UI_SPACE\)/);
-  assert.match(scores,/drawMenuScoreBox\(\{panel,text,C,fmt\},slots.score,best\?\.score\?\?0\)/);
+  assert.match(scores,/drawMenuScoreBox\(\{text,rect,C\},slots.score,best\)/);
   assert.match(scores,/slots.actionW,q.buttonH/);
   assert.match(scores,/arrow:true/);
+  assert.match(render,/\['SCORE',String\(record\?\.score\?\?0\)\.padStart\(6,'0'\)\]/);
+  assert.match(render,/\['LINES',String\(record\?\.lines\?\?0\)\.padStart\(2,'0'\)\]/);
+  assert.match(render,/\['LEVEL',String\(record\?\.level\?\?0\)\.padStart\(2,'0'\)\]/);
  });
 });
 

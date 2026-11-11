@@ -421,3 +421,8 @@ background. Light Control, settings, and gameplay behaviour are unchanged.
 The title-screen TETRIS menu and all exterior NOMAD header/sidebar/controls are deliberately unchanged. PAUSED and HIGH SCORE alone now call `boardOverlaySlots` from render.js to anchor their primary actions at the unchanged START GAME playfield midpoint, with matching 85%-wide action buttons. RETURN now uses the same arrow, type size, and full primary-button height as RESUME and START GAME. On unusually short playfields the PAUSED three-action stack can move up to remain fully visible.
 
 Both screens share the same upper title position and `drawMenuScoreBox` double-framed terminal readout. PAUSED displays live `game.score`; HIGH SCORE displays the persistent `best.score`, with LINES and LEVEL underneath. No additional horizontal separators or theme changes were introduced. The score screen's former dotted statistics separators have been removed; its existing record and backing game state remain intact. The original CRT compositor, piece shadows, board aperture and PWA input controls have not been changed.
+
+
+## Restored original menu statistics (v204)
+
+PAUSED and HIGH SCORE use the earlier, unframed three-row terminal scoreboard: SCORE, LINES, LEVEL, with zero-padded values and the original fine dotted dividers between rows. PAUSED reads live score/lines/level; HIGH SCORE reads the saved personal record. One shared renderer and geometry helper center the complete three-row block vertically between the common upper heading and the existing primary action. The double-framed SCORE box from v203 is removed. No new heading separator, action changes, Home screen changes, theme changes, or gameplay changes.
