@@ -106,7 +106,7 @@ describe('CRT composition',()=>{
   assert.equal(composer.passes.length,12,'no new full-screen pass added');
   pipeline.dispose();
  });
- test('v201 piece-face mask suppresses bloom extraction, without another pass or changing original RGB',()=>{
+ test('v202 piece-face mask preserves half the normal bloom without another pass or changing original RGB',()=>{
   const {pipeline,composer,externalPieceMask}=setup({pieceMask:true});
   update(pipeline);
   const bloom=composer.passes[5],tint=composer.passes[6];
@@ -120,7 +120,12 @@ describe('CRT composition',()=>{
   ]);
   const source=bloom.materialHighPassFilter.fragmentShader;
   assert.match(source,/uniform sampler2D tDiffuse,uPieceMask/);
-  assert.match(source,/brightness\*=1\.0-inMask\*clamp\(face,0\.0,1\.0\)/);
+  assert.match(source,/brightness\*=1\.0-0\.5\*inMask\*clamp\(face,0\.0,1\.0\)/);
+  // Where the mask equals 1, the extraction multiplier is 0.5; where
+  // it equals 0, the original bloom source is unchanged.
+  const contribution=face=>1-0.5*face;
+  assert.equal(contribution(0),1,'other luminous features keep full bloom');
+  assert.equal(contribution(1),.5,'piece faces keep half their bloom');
   assert.match(source,/texture2D\(uPieceMask,clamp\(local/);
   assert.match(source,/gl_FragColor=vec4\(brightness\*\(1\.0-inside\),brightness\*inside,0\.0,1\.0\)/);
   assert.match(tint.fragmentShader,/float original=encoded\.b/,'source artwork remains sharp and untouched');
@@ -1159,13 +1164,14 @@ describe('v200 context-only light property deck',()=>{
  });
 });
 
-describe('v201 grid and piece bloom mask wiring',()=>{
- test('only grid stroke luminance increases by about 17%; panel and source alpha unchanged',()=>{
+describe('v202 grid and piece bloom mask wiring',()=>{
+ test('board background and grid strokes brighten independently by about 10%; geometry and alpha unchanged',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(p,/grid:'#323232'/);
-  assert.match(p,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
+  assert.match(p,/grid:'#373737'/);
+  assert.match(p,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
   assert.match(p,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid;g\.lineWidth=\.6/);
-  assert.ok(Math.abs((50/43-1)*100-17)<1,'integer 17% approximation');
+  assert.equal(55/50,1.1,'grid stroke source rises exactly 10%');
+  assert.ok(Math.abs(26/24-1.1)<.02,'board background rises by the nearest integer to 10%');
  });
  test('piece mask paints occupied faces but not shadows or the background',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
