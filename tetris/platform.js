@@ -1235,27 +1235,38 @@ function paintLightDirectionOverlay(){
  // The scoreboard is disabled at its drawing source and its cropped GPU
  // plane is hidden. Do not draw an opaque masking rectangle here: the extra
  // full-screen phosphor/bloom composite would expose the mask's edge.
- // The dashed full-screen crosshair is drawn once in the existing FINAL
- // compositor shader, after text, bloom and CRT patterns. Its 206-luminance
- // guide is attenuated ONLY by edge vignette, never by surrounding glyphs.
- // The light marker itself remains clipped to the board aperture.
+ // These are two distinct source elements rather than one full-screen line.
+ // (1) The game-board crosshairs are clipped to the recessed aperture.
+ // Use the light ring's exact, fully opaque 206/255 source luminance:
+ // the old .27-alpha, 0.7px crosshair was washed out by CRT effects.
  g.save();
  g.beginPath();g.rect(b.x,b.y,b.w,b.h);g.clip();
+ g.strokeStyle=C.bright;g.lineWidth=1;
+ g.setLineDash([3,7]);g.beginPath();
+ g.moveTo(p.x,b.y);g.lineTo(p.x,b.y+b.h);
+ g.moveTo(b.x,p.y);g.lineTo(b.x+b.w,p.y);
+ g.stroke();g.setLineDash([]);
  const halo=g.createRadialGradient(p.x,p.y,0,p.x,p.y,28);
  halo.addColorStop(0,'rgba(230,230,230,.19)');
  halo.addColorStop(.3,'rgba(215,215,215,.08)');
  halo.addColorStop(1,'rgba(215,215,215,0)');
  g.fillStyle=halo;g.fillRect(p.x-28,p.y-28,56,56);
- g.strokeStyle='rgba(224,224,224,.88)';g.lineWidth=1;
+ g.strokeStyle=C.bright;g.lineWidth=1;
  g.beginPath();g.arc(p.x,p.y,11,0,2*Math.PI);g.stroke();
  g.fillStyle='rgba(235,235,235,.96)';
  g.beginPath();g.arc(p.x,p.y,3.5,0,2*Math.PI);g.fill();
  g.restore();
- // The label and precise angle straddle the horizontal guide, following
- // it vertically without rotating. Both are centered in the masked sidebar.
- // No extra divider is painted: the existing crosshair dashes ARE the divider.
+ // (2) A separate DASHED DIVIDER lives solely inside the now-empty sidebar.
+ // It shares the board guide's y coordinate and 206/255 luminance, but cannot
+ // cross the brick rail or overlap the labels above and below it.
  if(r.sideW>25){
   const sideCenter=r.sideX+r.sideW/2,readoutWidth=r.sideW-4;
+  g.save();
+  g.beginPath();g.rect(r.sideX,r.boardY,r.sideW,r.boardH);g.clip();
+  g.strokeStyle=C.bright;g.lineWidth=1;
+  g.setLineDash([3,7]);g.beginPath();
+  g.moveTo(r.sideX+2,p.y);g.lineTo(r.sideX+r.sideW-2,p.y);
+  g.stroke();g.restore();
   text('LIGHT ANGLE',sideCenter,p.y-13,9,C.weak,'center',readoutWidth);
   text(Number(settings.effects.shadowAngle).toFixed(2)+'°',
    sideCenter,p.y+14,12,C.bright,'center',readoutWidth,'terminal');
@@ -1353,8 +1364,7 @@ function syncFX(){
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
-  isolateLightWindow:screenManager.isLight,
-  lightGuide:screenManager.isLight?lightMarkerPosition():null});
+  isolateLightWindow:screenManager.isLight});
 }
 function cancelPendingFrame(){
  if(frameHandle!==null){cancelAnimationFrame(frameHandle);frameHandle=null;}
