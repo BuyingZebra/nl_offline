@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v197';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v198';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v197';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v198';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -731,7 +731,7 @@ const screenManager=createScreenManager({
   if(previous==='scores'||next==='scores')layers.mark('base');
   if(previous==='light'||next==='light'){
    if(next==='light')lightPosition=null;
-   layers.mark('base','board','modal');
+   layers.mark('base','board','sidebar','modal');
   }
   // Entering/re-entering Options needs a fresh full menu; leaving it must
   // discard any pending modal dirtiness even if another screen is selected.
@@ -1103,7 +1103,9 @@ function paintBaseGame(){
  // Static 75%-cell brick rails, exactly one control-gap outside either edge.
  // Draw on the base layer, not inside the cropped board texture.
  brickFrame.draw(g,r);
- drawSidebar(r);
+ // Light Control hides the sidebar at its source, not under a painted mask.
+ // The bricks are independently drawn by brickFrame and always remain visible.
+ if(!screenManager.isLight)drawSidebar(r);
  drawControls(r);
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
@@ -1227,13 +1229,9 @@ function paintLightDirectionOverlay(){
   x:clamp(cx-Math.cos(angle)*radius,b.x+6,b.x+b.w-6),
   y:clamp(cy-Math.sin(angle)*radius,b.y+6,b.y+b.h-6)
  };
- // Mask only the scoreboard/sidebar contents; the adjacent brick rail
- // belongs to the base artwork and must remain fully visible. The actual
- // game sidebar is left unchanged underneath this temporary modal plane.
- g.save();
- g.fillStyle=C.bg;
- g.fillRect(r.sideX,r.boardY,r.sideW,r.boardH);
- g.restore();
+ // The scoreboard is disabled at its drawing source and its cropped GPU
+ // plane is hidden. Do not draw an opaque masking rectangle here: the extra
+ // full-screen phosphor/bloom composite would expose the mask's edge.
  // Crosshairs reach the FULL screen, deliberately outside the aperture.
  // Its horizontal dashed line doubles as the separator for the readout.
  // The luminous source itself is clipped to the playfield window.
@@ -1259,7 +1257,7 @@ function paintLightDirectionOverlay(){
  // No extra divider is painted: the existing crosshair dashes ARE the divider.
  if(r.sideW>25){
   const sideCenter=r.sideX+r.sideW/2,readoutWidth=r.sideW-4;
-  text('DIRECTION',sideCenter,p.y-13,9,C.weak,'center',readoutWidth);
+  text('LIGHT ANGLE',sideCenter,p.y-13,9,C.weak,'center',readoutWidth);
   text(Number(settings.effects.shadowAngle).toFixed(2)+'°',
    sideCenter,p.y+14,12,C.bright,'center',readoutWidth,'terminal');
  }
@@ -1274,8 +1272,10 @@ function paintModalOverlay(){
  // Options is now its own screen: hide the game rather than darken it.
  const standaloneSettings=screenManager.isOptions;
  surface.visible=!standaloneSettings;boardPlane.visible=!standaloneSettings;
- sidebarPlane.visible=!standaloneSettings;controlsPlane.visible=!standaloneSettings;
- terminalPlane.visible=!standaloneSettings;
+ // Do not display a previously cached/sidebar texture in the light lab.
+ // Visibility is a property of the independent sidebar layer, Blender-style.
+ sidebarPlane.visible=!standaloneSettings&&!screenManager.isLight;
+ controlsPlane.visible=!standaloneSettings;terminalPlane.visible=!standaloneSettings;
  const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){
