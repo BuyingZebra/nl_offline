@@ -1001,7 +1001,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
    platform.indexOf('function paintGame('));
   const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
    platform.indexOf('inputController=createInputController('));
-  assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)drawSidebar\(r\)/);
+  assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)\{\s*drawSidebar\(r\);\s*drawControls\(r\);\s*\}/);
   assert.match(modal,/sidebarPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
   assert.match(platform,/if\(previous==='light'\|\|next==='light'\)\{/);
