@@ -1016,7 +1016,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(lab,/g\.rect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\);g\.clip\(\)/);
   assert.match(lab,/g\.moveTo\(r\.sideX\+2,p\.y\);g\.lineTo\(r\.sideX\+r\.sideW-2,p\.y\)/);
   assert.doesNotMatch(lab,/g\.moveTo\(p\.x,0\)|g\.lineTo\(p\.x,H\)|g\.lineTo\(W,p\.y\)/);
-  assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/);
+  assert.match(lab,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'lightDone'\)/);
  });
 
  test('v198 dashes and light ring use the same opaque 206 luminance; readout straddles separator',()=>{
@@ -1042,7 +1042,7 @@ describe('v199 smooth halo and padded light travel',()=>{
   const body=s.slice(start,end);
   return Function('LIGHT_LABEL_Y','LIGHT_LABEL_SIZE','LIGHT_VALUE_Y',
    'LIGHT_VALUE_SIZE','LIGHT_EDGE_PADDING','LIGHT_HORIZONTAL_INSET',
-   body+';return lightTravelBounds;')(13,9,14,12,6,12);
+   body+';return lightTravelBounds;')(13,9,14,12,0,12);
  };
  test('actual radial Canvas gradient is 1.5x larger and fades continuously to transparent',()=>{
   const s=source(),lab=s.slice(s.indexOf('function paintLightDirectionOverlay('),
@@ -1057,14 +1057,14 @@ describe('v199 smooth halo and padded light travel',()=>{
   assert.match(lab,/g\.rect\(b\.x,b\.y,b\.w,b\.h\);g\.clip\(\)/,
    'halo remains clipped to the existing aperture');
  });
- test('readout has at least 6px vertical margin at both extreme light positions',()=>{
+ test('v200 readout aligns at board top and bottom without the old six-pixel pad',()=>{
   const travel=pureTravel(),b={x:32,y:101,w:280,h:560},p=travel(b);
   assert.equal(p.minX,b.x+12);
   assert.equal(p.maxX,b.x+b.w-12);
-  assert.equal(p.minY,b.y+24);
-  assert.equal(p.maxY,b.y+b.h-26);
-  assert.ok(p.minY-13-9/2>=b.y+6);
-  assert.ok(p.maxY+14+12/2<=b.y+b.h-6);
+  assert.equal(p.minY,b.y+18);
+  assert.equal(p.maxY,b.y+b.h-20);
+  assert.ok(p.minY-13-9/2>=b.y);
+  assert.ok(p.maxY+14+12/2<=b.y+b.h);
   const sourceCode=source();
   assert.match(sourceCode,/function lightMarkerPosition\(\)\{\s*const b=lightBoardBounds\(\),bounds=lightTravelBounds\(b\)/);
   assert.match(sourceCode,/function setLightPosition\(point\)\{[\s\S]*?bounds=lightTravelBounds\(b\)/);
@@ -1083,5 +1083,46 @@ describe('v199 smooth halo and padded light travel',()=>{
    assert.ok(p.minX>=b.x&&p.maxX<=b.x+b.w);
    assert.ok(p.minY>=b.y&&p.maxY<=b.y+b.h);
   }
+ });
+});
+
+describe('v200 context-only light property deck',()=>{
+ const platform=()=>fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ const renderer=()=>fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+ const gameSource=()=>fs.readFileSync(new URL('../tetris/game.js',import.meta.url),'utf8');
+ test('normal controls and options button are preserved but not painted during light mode',()=>{
+  const src=platform(),base=src.slice(src.indexOf('function paintBaseGame('),
+   src.indexOf('function paintGame('));
+  const modal=src.slice(src.indexOf('function paintModalOverlay('),
+   src.indexOf('inputController=createInputController('));
+  assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'\)/);
+  assert.match(base,/if\(!screenManager\.isLight\)\{\s*drawSidebar\(r\);\s*drawControls\(r\);\s*\}/);
+  assert.match(modal,/controlsPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
+  const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
+   src.indexOf('function paintModalOverlay('));
+  assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'lightDone'\)/);
+  assert.doesNotMatch(light,/key\('DONE'|key\('☷'/);
+ });
+ test('new property panel shares original control bounds and has exactly four integrated bars',()=>{
+  const src=platform(),deck=src.slice(src.indexOf('function paintLightPropertyPanel('),
+   src.indexOf('function paintLightDirectionOverlay('));
+  assert.match(deck,/panel\(r\.dx,r\.dy,r\.dw,r\.dh,0,C\.panel\)/);
+  assert.match(deck,/for\(let i=0;i<LIGHT_PROPERTY_CONTROLS\.length;i\+\+\)/);
+  assert.match(deck,/const fill=206,empty=Math\.round\(fill\*\.50\),darkInk=6/);
+  assert.match(deck,/rect\(barX,barY,barW,barH,gray\(empty\)\)/);
+  assert.match(deck,/rect\(barX,barY,barW\*fraction,barH,gray\(fill\)\)/);
+  assert.match(deck,/barX\+barW\/2,midY/);
+  assert.match(deck,/region\(barX,barY,barW,barH,'slider'/);
+  assert.doesNotMatch(deck,/shadowAngle|DONE|drawControls/);
+  const game=gameSource();
+  assert.match(game,/LIGHT_PROPERTY_CONTROLS=Object\.freeze\(\[/);
+  assert.doesNotMatch(game.slice(game.indexOf(" {id:'shadows'"),
+   game.indexOf(" {id:'ghost'")) ,/sliders:/);
+ });
+ test('Display System remains a launcher and has no duplicated shadow sliders',()=>{
+  const src=renderer();
+  assert.match(src,/effect\.id==='shadows'/);
+  assert.match(src,/key\('LIGHT CONTROL'/);
+  assert.match(src,/effect\.sliders\?\.length\|\|0/);
  });
 });
