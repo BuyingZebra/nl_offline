@@ -736,6 +736,51 @@ describe('Pointer and keyboard input',()=>{
   controller.dispose();
  });
 
+ test('v200 Light Control bars update shadow settings without triggering gameplay',()=>{
+  const screen=target(),document=target(),window=target();
+  let captured=null,updates=[],actions=[],lightPoints=[];
+  screen.getBoundingClientRect=()=>({left:0,top:0,width:100,height:100});
+  screen.setPointerCapture=id=>{captured=id;};
+  screen.hasPointerCapture=id=>captured===id;
+  screen.releasePointerCapture=()=>{captured=null;};
+  const controller=createInputController({
+   screen,document,window,
+   getViewport:()=>({width:100,height:100}),
+   getRegions:()=>[
+    {x:20,y:70,w:70,h:12,kind:'region',act:'slider',
+     field:'shadowDistance',min:0,max:35,step:1,trackX:20,trackW:70,
+     modalControl:true},
+    {x:80,y:2,w:16,h:16,kind:'button',act:'lightDone'}
+   ],
+   getModal:()=> 'light',getModalView:()=>null,
+   getLightBounds:()=>({x:10,y:20,w:70,h:40}),
+   onLightPoint:p=>lightPoints.push(p),
+   getOptionsScroll:()=>0,setOptionsScroll:()=>{},
+   getOptionsMaxScroll:()=>0,setScrollVelocity:()=>{},
+   setBaseDirty:()=>{},handleAction:a=>actions.push(a),
+   perform:a=>actions.push(a),setSetting:(field,value)=>updates.push([field,value]),
+   settingValue:()=>0,toggleScanlineMenu:()=>{},chooseScanline:()=>{},
+   openModal:()=>{},invalidate:()=>{},
+   clamp:(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
+  });
+  const e=(id,x,y,type)=>({
+   type,pointerType:'touch',button:0,pointerId:id,clientX:x,clientY:y,
+   timeStamp:20,preventDefault(){}
+  });
+  screen.emit('pointerdown',e(1,25,76,'pointerdown'));
+  screen.emit('pointermove',e(1,75,76,'pointermove'));
+  screen.emit('pointerup',e(1,75,76,'pointerup'));
+  assert.deepEqual(updates,[['shadowDistance',28],['shadowDistance',28]]);
+  screen.emit('pointerdown',e(2,35,34,'pointerdown'));
+  screen.emit('pointermove',e(2,45,35,'pointermove'));
+  screen.emit('pointerup',e(2,50,35,'pointerup'));
+  assert.equal(lightPoints.length,3);
+  screen.emit('pointerdown',e(3,85,8,'pointerdown'));
+  screen.emit('pointerup',e(3,85,8,'pointerup'));
+  assert.deepEqual(actions,['lightDone'],'hidden gameplay controls stay inactive');
+  controller.dispose();
+ });
+
  test('input ownership registers one matching listener for each event',()=>{
   const h=harness();
   assert.deepEqual([...h.screen.listeners.keys()],
