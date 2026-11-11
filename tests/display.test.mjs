@@ -16,7 +16,7 @@ describe('CRT composition',()=>{
  const source=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
  const compositor=source.slice(source.indexOf('const MENU_BLUR_PERCENT='),source.indexOf('const MAX_BUTTON_FLASHES='));
 
- function setup({shadowBox=true}={}){
+ function setup({shadowBox=true,pieceMask=false}={}){
   const instances=[],textures=[];
   class Vec2{constructor(x,y){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
   class Vec3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}copy(o){this.x=o.x;this.y=o.y;this.z=o.z;return this;}}
@@ -68,8 +68,10 @@ describe('CRT composition',()=>{
    (THREE,EffectComposer,RenderPass,UnrealBloomPass,ShaderPass,OutputPass,document,instrumentCompositorPasses,
     createPhosphorPersistencePass);
   const externalPopup={external:true};
-  const pipeline=factory({renderer:{},scene:{},camera:{},boardPopupTexture:externalPopup,shadowBox});
-  return {pipeline,composer:instances[0],externalPopup,instances,textures};
+  const externalPieceMask=pieceMask?{stencil:true}:null;
+  const pipeline=factory({renderer:{},scene:{},camera:{},
+   boardPopupTexture:externalPopup,pieceBloomMaskTexture:externalPieceMask,shadowBox});
+  return {pipeline,composer:instances[0],externalPopup,externalPieceMask,instances,textures};
  }
  const states={
   phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
@@ -102,6 +104,36 @@ describe('CRT composition',()=>{
   assert.deepEqual([box.x,box.y,box.z,box.w],
    Object.values(phosphor.uniforms.uBoardRect.value));
   assert.equal(composer.passes.length,12,'no new full-screen pass added');
+  pipeline.dispose();
+ });
+ test('v201 piece-face mask suppresses bloom extraction, without another pass or changing original RGB',()=>{
+  const {pipeline,composer,externalPieceMask}=setup({pieceMask:true});
+  update(pipeline);
+  const bloom=composer.passes[5],tint=composer.passes[6];
+  assert.equal(composer.passes.length,12);
+  assert.equal(bloom.highPassUniforms.uPieceMask.value,externalPieceMask);
+  assert.equal(bloom.materialHighPassFilter.uniforms.uPieceMask.value,externalPieceMask);
+  assert.equal(bloom.highPassUniforms.uPieceMaskEnabled.value,1);
+  const span=bloom.highPassUniforms.uPieceMaskRect.value;
+  assert.deepEqual([span.x,span.y,span.z,span.w],[
+   11/393,1-(120+469)/852,(11+234.5)/393,1-120/852
+  ]);
+  const source=bloom.materialHighPassFilter.fragmentShader;
+  assert.match(source,/uniform sampler2D tDiffuse,uPieceMask/);
+  assert.match(source,/brightness\*=1\.0-inMask\*clamp\(face,0\.0,1\.0\)/);
+  assert.match(source,/texture2D\(uPieceMask,clamp\(local/);
+  assert.match(source,/gl_FragColor=vec4\(brightness\*\(1\.0-inside\),brightness\*inside,0\.0,1\.0\)/);
+  assert.match(tint.fragmentShader,/float original=encoded\.b/,'source artwork remains sharp and untouched');
+  // A settings page hides the board: its unrelated pixels must never be masked.
+  pipeline.syncFX({fx:states,theme:'green',width:393,height:852,dpr:3,
+   boardStatus:'paused',popupStatus:'paused',modalOpen:true,
+   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469},
+   pieceMaskEnabled:false});
+  assert.equal(bloom.highPassUniforms.uPieceMaskEnabled.value,0);
+  update(pipeline,{bloom:false});
+  assert.equal(bloom.highPassUniforms.uPieceMaskEnabled.value,0);
+  update(pipeline);
+  assert.equal(bloom.highPassUniforms.uPieceMaskEnabled.value,1);
   pipeline.dispose();
  });
  test('v189 A/B switch makes the window mask empty, recreating global bloom',()=>{
@@ -1124,5 +1156,44 @@ describe('v200 context-only light property deck',()=>{
   assert.match(src,/effect\.id==='shadows'/);
   assert.match(src,/key\('LIGHT CONTROL'/);
   assert.match(src,/effect\.sliders\?\.length\|\|0/);
+ });
+});
+
+describe('v201 grid and piece bloom mask wiring',()=>{
+ test('only grid stroke luminance increases by about 17%; panel and source alpha unchanged',()=>{
+  const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  assert.match(p,/grid:'#323232'/);
+  assert.match(p,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
+  assert.match(p,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid;g\.lineWidth=\.6/);
+  assert.ok(Math.abs((50/43-1)*100-17)<1,'integer 17% approximation');
+ });
+ test('piece mask paints occupied faces but not shadows or the background',()=>{
+  const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const stage=p.slice(p.indexOf('function stage('),p.indexOf('function drawSharpBoardInsetShadow('));
+  const board=p.slice(p.indexOf('function paintBoardLayer('),p.indexOf('// Keep all original drawing commands'));
+  assert.match(stage,/function stage\(r,drawPieces=true,pieceMask=null\)/);
+  assert.match(stage,/pieceMask\.rect\(offX,offY,w-4,h-4\);pieceMask\.clip\(\)/);
+  assert.match(stage,/maskTile\(offX\+rx\*tile,offY\+ry\*tile\)/);
+  assert.match(stage,/maskTile\(px,py,rw,rh\)/);
+  assert.match(stage,/maskTile\(offX\+col\*tile,offY\+row\*tile\)/);
+  assert.match(stage,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
+  assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
+  assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
+  assert.ok(stage.indexOf('pieceShadows.draw(')<stage.indexOf('displayBoard.forEach('));
+  assert.match(board,/stage\(r,true,pieceBloomMaskContext\)/);
+  assert.match(board,/pieceBloomMaskTexture\.needsUpdate=true/);
+  assert.match(board,/pieceBloomMaskCanvas\.width=maskW/);
+  assert.match(board,/const mx=maskW\/Math\.max\(1,w\),my=maskH\/Math\.max\(1,h\)/);
+ });
+ test('no bloom-mask GPU plane or extra pass, and source mask is not used for other views',()=>{
+  const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const r=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  assert.match(p,/pieceMaskEnabled:boardPlane\.visible/);
+  assert.match(p,/if\(settings\.effects\.bloom\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
+  assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
+  assert.match(r,/const pieceBloomMaskTexture=new THREE\.CanvasTexture\(pieceBloomMaskCanvas\)/);
+  assert.doesNotMatch(r,/new THREE\.Mesh\(.*pieceBloomMaskTexture/);
+  assert.match(r,/const canvases=Object\.freeze\(\[input,boardCanvas,pieceBloomMaskCanvas/);
+  assert.match(r,/const textures=Object\.freeze\(\[texture,boardTexture,pieceBloomMaskTexture/);
  });
 });
