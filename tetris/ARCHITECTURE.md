@@ -336,3 +336,35 @@ board border**: top inset 24px, bottom inset 26px. On boards too small to fit
 the full text stack, bounds collapse safely toward centre. Light movement
 still controls only the saved shadow angle; no shadow mechanics, rendering
 layers, dashes, sidebar masks, or gameplay controls are modified.
+
+
+## Context-only Light Control header and deck (v200)
+
+During the paused Light Control mode, the regular base HUD skips drawing the
+existing menu icon and gameplay controls; it does not modify their design,
+layout dimensions, input actions or assets. The independent cropped gameplay
+controls plane is also hidden, just like the already-hidden scoreboard plane.
+The full-screen transparent modal draws a *replacement* checkmark button at
+the exact coordinates and size of the old menu icon, with the same panel/key
+text primitive; this triggers the existing `lightDone` action returning to
+Display System without automatically resuming gameplay. The other original
+header button and all board artwork remain untouched.
+
+The modal also paints four editable light-property bars inside a container at
+exactly `r.dx,r.dy,r.dw,r.dh`, matching the original deck's full dimensions.
+Properties are DISTANCE (0–35 px), GAUSSIAN BLUR (0–30 px), BIAS (0–100%) and
+OPACITY (0–100%), sharing the same persistent settings and shadow renderers
+as before. Angle is controlled only by dragging the light marker. Every bar
+has a flat 206-luminance fill, a 50%-luminance unfilled remainder with **no
+outline**, and a centred near-black (6 luminance) value drawn directly on the
+same bar using the approved negative-space button text treatment. There are
+no separate value boxes or ornamental headers. Actual slider hitboxes live
+in the modal, not in the hidden gameplay controls; the existing pointer
+adapter writes them through `actions.setSetting` and redraws the paused
+board and modal live. The four sliders are removed from the Display System's
+DROP SHADOWS entry; its toggle and LIGHT CONTROL launcher remain available.
+
+The previously requested 6px *extra vertical clearance* beyond the LIGHT
+ANGLE readout is also removed: the text can now reach the board top/bottom
+without crossing it. Horizontal light travel still has a 12px inset. All
+other graphics and gameplay logic remain unchanged.
