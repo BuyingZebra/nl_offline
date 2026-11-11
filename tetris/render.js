@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v201';
+import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v202';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
@@ -711,9 +711,11 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   const rect={value:new THREE.Vector4(0,0,0,0)};
   glow.highPassUniforms.uBoardRect=rect;
   glow.materialHighPassFilter.uniforms.uBoardRect=rect;
-  // A light-weight board-local stencil excludes tetromino faces from ONLY
-  // bloom extraction. Their RGB pixels, cast shadows, grid and CRT passes
-  // remain in the original RenderPass texture. No second bloom pass.
+  // The board-local stencil halves tetromino-face contribution to
+  // bloom extraction. Their actual RGB pixels, textures, cast shadows, grid
+  // and CRT passes remain in the original RenderPass texture.
+  // Outside the piece mask, bloom stays at its normal intensity.
+  // This reuses the single existing bloom pass.
   const pieces={value:pieceBloomMaskTexture};
   const piecesRect={value:new THREE.Vector4(0,0,0,0)};
   const piecesEnabled={value:pieceBloomMaskTexture?1:0};
@@ -723,7 +725,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   glow.materialHighPassFilter.uniforms.uPieceMaskRect=piecesRect;
   glow.highPassUniforms.uPieceMaskEnabled=piecesEnabled;
   glow.materialHighPassFilter.uniforms.uPieceMaskEnabled=piecesEnabled;
-  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse,uPieceMask;\nuniform float luminosityThreshold,smoothWidth,uPieceMaskEnabled;\nuniform vec4 uBoardRect,uPieceMaskRect;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n if(uPieceMaskEnabled>.5){\n  vec2 maskSpan=max(vec2(.000001),uPieceMaskRect.zw-uPieceMaskRect.xy);\n  vec2 local=(vUv-uPieceMaskRect.xy)/maskSpan;\n  float inMask=step(uPieceMaskRect.x,vUv.x)*step(vUv.x,uPieceMaskRect.z)*\n               step(uPieceMaskRect.y,vUv.y)*step(vUv.y,uPieceMaskRect.w);\n  float face=texture2D(uPieceMask,clamp(local,vec2(0.0),vec2(1.0))).r;\n  brightness*=1.0-inMask*clamp(face,0.0,1.0);\n }\n gl_FragColor=vec4(brightness*(1.0-inside),brightness*inside,0.0,1.0);\n}";
+  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse,uPieceMask;\nuniform float luminosityThreshold,smoothWidth,uPieceMaskEnabled;\nuniform vec4 uBoardRect,uPieceMaskRect;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n if(uPieceMaskEnabled>.5){\n  vec2 maskSpan=max(vec2(.000001),uPieceMaskRect.zw-uPieceMaskRect.xy);\n  vec2 local=(vUv-uPieceMaskRect.xy)/maskSpan;\n  float inMask=step(uPieceMaskRect.x,vUv.x)*step(vUv.x,uPieceMaskRect.z)*\n               step(uPieceMaskRect.y,vUv.y)*step(vUv.y,uPieceMaskRect.w);\n  float face=texture2D(uPieceMask,clamp(local,vec2(0.0),vec2(1.0))).r;\n  brightness*=1.0-0.5*inMask*clamp(face,0.0,1.0);\n }\n gl_FragColor=vec4(brightness*(1.0-inside),brightness*inside,0.0,1.0);\n}";
   glow.materialHighPassFilter.needsUpdate=true;
  }
 
