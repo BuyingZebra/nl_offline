@@ -317,3 +317,22 @@ The regular edge vignette and other existing CRT processing remain intact;
 there are no new WebGL passes or shadow-rendering changes. DONE remains in its
 existing place pending a separate interface refinement, and the idea of
 moving other light controls into this view is intentionally deferred.
+
+
+## Smooth light halo and safe movement bounds (v199)
+
+The Light Control pointer uses an actual, continuously interpolated Canvas2D
+`createRadialGradient`—not a circle image, blur filter, step-based sprite,
+or new rendering pass. Its radius increases from 28 to 42 CSS pixels (1.5x),
+with just two endpoints: light neutral at 19% alpha in the centre, completely
+transparent at the edge. The 84×84 source rectangle and existing playfield
+clip are updated accordingly. Existing CRT and bloom settings remain intact.
+
+Pointer/initial light placement now share the same inset travel bounds.
+Horizontally the light centre stays 12px from each board edge. Vertically,
+the clamps derive from the 9px LIGHT ANGLE label at y−13 and 12px angle value
+at y+14, with **6px extra clearance between the outer glyph bounds and the
+board border**: top inset 24px, bottom inset 26px. On boards too small to fit
+the full text stack, bounds collapse safely toward centre. Light movement
+still controls only the saved shadow angle; no shadow mechanics, rendering
+layers, dashes, sidebar masks, or gameplay controls are modified.
