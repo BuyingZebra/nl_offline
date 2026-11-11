@@ -1026,9 +1026,62 @@ describe('v195–v198 interactive lighting laboratory',()=>{
    'board guides, sidebar separator and circle ring all use 206 at full alpha');
   assert.equal((lab.match(/g\.setLineDash\(\[3,7\]\)/g)||[]).length,2);
   assert.doesNotMatch(lab,/rgba\(180,180,180,\.27\)/);
-  assert.match(lab,/text\('LIGHT ANGLE',sideCenter,p\.y-13,9,C\.weak,'center',readoutWidth\)/);
-  assert.match(lab,/text\(Number\(settings\.effects\.shadowAngle\)\.toFixed\(2\)\+'°',\s*sideCenter,p\.y\+14,12,C\.bright,'center',readoutWidth,'terminal'\)/);
+  assert.match(lab,/text\('LIGHT ANGLE',sideCenter,p\.y-LIGHT_LABEL_Y,LIGHT_LABEL_SIZE,\s*C\.weak,'center',readoutWidth\)/);
+  assert.match(lab,/text\(Number\(settings\.effects\.shadowAngle\)\.toFixed\(2\)\+'°',\s*sideCenter,p\.y\+LIGHT_VALUE_Y,LIGHT_VALUE_SIZE,C\.bright,\s*'center',readoutWidth,'terminal'\)/);
   assert.match(platform,/actions\.setSetting\('shadowAngle',Number\(angle\.toFixed\(2\)\)\)/);
   assert.doesNotMatch(lab,/text\('LIGHT DIRECTION'|text\('DIRECTION'/);
+ });
+});
+
+describe('v199 smooth halo and padded light travel',()=>{
+ const source=()=>fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ const pureTravel=()=>{
+  const s=source(),start=s.indexOf('function lightTravelBounds(b){');
+  const end=s.indexOf('function lightMarkerPosition()',start);
+  assert.ok(start>0&&end>start);
+  const body=s.slice(start,end);
+  return Function('LIGHT_LABEL_Y','LIGHT_LABEL_SIZE','LIGHT_VALUE_Y',
+   'LIGHT_VALUE_SIZE','LIGHT_EDGE_PADDING','LIGHT_HORIZONTAL_INSET',
+   body+';return lightTravelBounds;')(13,9,14,12,6,12);
+ };
+ test('actual radial Canvas gradient is 1.5x larger and fades continuously to transparent',()=>{
+  const s=source(),lab=s.slice(s.indexOf('function paintLightDirectionOverlay('),
+   s.indexOf('function paintModalOverlay('));
+  assert.match(s,/const LIGHT_HALO_RADIUS=42; \/\/ v198: 28px \* 1\.5/);
+  assert.match(lab,/createRadialGradient\(p\.x,p\.y,0,p\.x,p\.y,LIGHT_HALO_RADIUS\)/);
+  assert.match(lab,/halo\.addColorStop\(0,'rgba\(230,230,230,0\.19\)'\)/);
+  assert.match(lab,/halo\.addColorStop\(1,'rgba\(230,230,230,0\)'\)/);
+  assert.equal((lab.match(/halo\.addColorStop\(/g)||[]).length,2,
+   'only two endpoints: no hard/stepped intermediate bands');
+  assert.match(lab,/g\.fillRect\(p\.x-LIGHT_HALO_RADIUS,p\.y-LIGHT_HALO_RADIUS,\s*LIGHT_HALO_RADIUS\*2,LIGHT_HALO_RADIUS\*2\)/);
+  assert.match(lab,/g\.rect\(b\.x,b\.y,b\.w,b\.h\);g\.clip\(\)/,
+   'halo remains clipped to the existing aperture');
+ });
+ test('readout has at least 6px vertical margin at both extreme light positions',()=>{
+  const travel=pureTravel(),b={x:32,y:101,w:280,h:560},p=travel(b);
+  assert.equal(p.minX,b.x+12);
+  assert.equal(p.maxX,b.x+b.w-12);
+  assert.equal(p.minY,b.y+24);
+  assert.equal(p.maxY,b.y+b.h-26);
+  assert.ok(p.minY-13-9/2>=b.y+6);
+  assert.ok(p.maxY+14+12/2<=b.y+b.h-6);
+  const sourceCode=source();
+  assert.match(sourceCode,/function lightMarkerPosition\(\)\{\s*const b=lightBoardBounds\(\),bounds=lightTravelBounds\(b\)/);
+  assert.match(sourceCode,/function setLightPosition\(point\)\{[\s\S]*?bounds=lightTravelBounds\(b\)/);
+  assert.match(sourceCode,/const y=clamp\(point\.y,bounds\.minY,bounds\.maxY\)/);
+ });
+ test('light marker remains reachable on short and narrow boards',()=>{
+  const travel=pureTravel();
+  for(const b of [
+   {x:0,y:0,w:12,h:24},
+   {x:0,y:15,w:48,h:48},
+   {x:20,y:40,w:190,h:290}
+  ]){
+   const p=travel(b);
+   assert.ok(p.minX<=p.maxX&&p.minY<=p.maxY,
+    'clamp ranges must never be inverted');
+   assert.ok(p.minX>=b.x&&p.maxX<=b.x+b.w);
+   assert.ok(p.minY>=b.y&&p.maxY<=b.y+b.h);
+  }
  });
 });
