@@ -1268,7 +1268,7 @@ function paintLightPropertyPanel(r){
  const labelW=Math.min(125,Math.max(80,contentW*.29));
  const barX=contentX+labelW+gap;
  const barW=Math.max(1,contentX+contentW-barX);
- const fill=206,empty=Math.round(fill*.25),darkInk=6;
+ const fill=206,empty=Math.round(fill*.50),darkInk=6;
  for(let i=0;i<LIGHT_PROPERTY_CONTROLS.length;i++){
   const setting=LIGHT_PROPERTY_CONTROLS[i];
   const y=r.dy+inset+i*(rowH+rowGap);
@@ -1276,7 +1276,8 @@ function paintLightPropertyPanel(r){
   const value=Number(settings.settingValue(setting.field));
   const fraction=clamp((value-setting.min)/(setting.max-setting.min),0,1);
   const barY=midY-barH/2;
-  // A single unframed rectangular bar: 206 filled, 25% of 206 empty.
+  // A single unframed rectangular bar: 206 filled, 50% empty. The
+  // dim half-luminance retains readable inverse text at low fill levels.
   rect(barX,barY,barW,barH,gray(empty));
   rect(barX,barY,barW*fraction,barH,gray(fill));
   text(setting.label,contentX,midY,Math.min(11,Math.max(8,rowH*.44)),
