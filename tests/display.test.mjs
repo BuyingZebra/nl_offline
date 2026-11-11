@@ -965,10 +965,15 @@ describe('Allocation-aware button feedback',()=>{
  });
 });
 
-describe('v195 interactive lighting laboratory',()=>{
- test('light view is a modal over the live board, with isolated aperture and no popup scrim',()=>{
-  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+describe('v195–v198 interactive lighting laboratory',()=>{
+ const readPlatform=()=>fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+ const readRenderer=()=>fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+ const readLab=()=>{const source=readPlatform();return source.slice(
+  source.indexOf('function paintLightDirectionOverlay('),
+  source.indexOf('function paintModalOverlay('));};
+
+ test('paused lab uses the real Gaussian piece/inset shadows and existing display passes',()=>{
+  const platform=readPlatform(),renderer=readRenderer();
   const game=fs.readFileSync(new URL('../tetris/game.js',import.meta.url),'utf8');
   assert.match(game,/LIGHT:'light'/);
   assert.match(game,/openLight:\(\)=>openWithPause\(SCREENS\.LIGHT\)/);
@@ -976,66 +981,54 @@ describe('v195 interactive lighting laboratory',()=>{
   assert.match(platform,/scrimPlane\.visible=!standaloneSettings&&!screenManager\.isScores&&!screenManager\.isLight/);
   assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
   assert.match(renderer,/shadowBox&&\(!modalOpen\|\|isolateLightWindow\)/);
- });
- test('light marker is clipped but faint crosshairs span the screen',()=>{
-  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const lab=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
-   platform.indexOf('function paintModalOverlay('));
-  assert.match(lab,/g\.moveTo\(p\.x,0\);g\.lineTo\(p\.x,H\)/);
-  assert.match(lab,/g\.moveTo\(0,p\.y\);g\.lineTo\(W,p\.y\)/);
-  assert.match(lab,/g\.rect\(b\.x,b\.y,b\.w,b\.h\);g\.clip\(\)/);
-  assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/);
- });
- test('v196 light direction uses the actual saved Gaussian shadows, without duplicate preview elements',()=>{
-  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  assert.match(platform,/actions\.setSetting\('shadowAngle',Number\(angle\.toFixed\(2\)\)\)/);
-  // Both existing renderers receive the same persisted effect object.
   assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:\(\)=>settings\.effects\}\)/);
   assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
-  assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects/);
-  assert.doesNotMatch(platform,/getSettings:lightFX/);
-  // Only the paused-board popup is hidden; real shadow blur and global softness
-  // retain their stored values. Persistence still pauses to avoid ghost trails.
+  assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects|getSettings:lightFX/);
   assert.match(platform,/\{\.\.\.settings\.effects,persistence:false\}:settings\.effects/);
-  assert.doesNotMatch(platform,/softness:false,persistence:false/);
   assert.match(renderer,/boardStatus!=='playing'&&\(!modalOpen\|\|scoresOverlay\)/);
   const stage=platform.slice(platform.indexOf('function stage('),
    platform.indexOf('function drawSharpBoardInsetShadow('));
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
   assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
-  assert.match(platform,/if\(screenManager\.isLight\)paintLightDirectionOverlay\(\)/);
   assert.match(platform,/if\(getModal\(\)==='light'\)\{/);
   assert.match(platform,/if\(touch\.mode==='light'\)\{/);
   assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
  });
-});
 
-describe('v197 lighting direction sidebar readout',()=>{
- test('sidebar mask covers score, level, next and hold but never the brick rails',()=>{
-  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const lab=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
-   platform.indexOf('function paintModalOverlay('));
-  assert.match(lab,/const r=layout\(\),b=lightBoardBounds\(\)/);
-  assert.match(lab,/g\.fillStyle=C\.bg;\s*g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
-  assert.doesNotMatch(lab,/g\.fillRect\(r\.boardX|brickFrame\.|sidebarPlane\.visible/);
-  const mask=lab.indexOf('g.fillRect(r.sideX,r.boardY,r.sideW,r.boardH)');
-  const guide=lab.indexOf('g.moveTo(0,p.y);g.lineTo(W,p.y)');
-  const readout=lab.indexOf("text('DIRECTION'");
-  assert.ok(mask>=0&&mask<guide&&guide<readout,
-   'mask underlying sidebar first; draw one dashed separator, then the readout');
+ test('v198 hides real sidebar art/texture at source instead of covering it with a mask',()=>{
+  const platform=readPlatform(),lab=readLab();
+  const base=platform.slice(platform.indexOf('function paintBaseGame('),
+   platform.indexOf('function paintGame('));
+  const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
+   platform.indexOf('inputController=createInputController('));
+  assert.match(base,/brickFrame\.draw\(g,r\);\s*if\(!screenManager\.isLight\)drawSidebar\(r\)/);
+  assert.match(modal,/sidebarPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
+  assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
+  assert.match(platform,/if\(previous==='light'\|\|next==='light'\)\{/);
+  assert.match(platform,/layers\.mark\('base','board','sidebar','modal'\)/);
  });
- test('direction stays centered and upright above the horizontal guide with two-decimal value beneath',()=>{
-  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const lab=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
-   platform.indexOf('function paintModalOverlay('));
-  assert.match(lab,/const sideCenter=r\.sideX\+r\.sideW\/2,readoutWidth=r\.sideW-4/);
-  assert.match(lab,/text\('DIRECTION',sideCenter,p\.y-13,9,C\.weak,'center',readoutWidth\)/);
+
+ test('v198 dashed crosshairs stay within the board and the separator stays within the sidebar',()=>{
+  const lab=readLab();
+  assert.match(lab,/g\.rect\(b\.x,b\.y,b\.w,b\.h\);g\.clip\(\)/);
+  assert.match(lab,/g\.moveTo\(p\.x,b\.y\);g\.lineTo\(p\.x,b\.y\+b\.h\)/);
+  assert.match(lab,/g\.moveTo\(b\.x,p\.y\);g\.lineTo\(b\.x\+b\.w,p\.y\)/);
+  assert.match(lab,/g\.rect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\);g\.clip\(\)/);
+  assert.match(lab,/g\.moveTo\(r\.sideX\+2,p\.y\);g\.lineTo\(r\.sideX\+r\.sideW-2,p\.y\)/);
+  assert.doesNotMatch(lab,/g\.moveTo\(p\.x,0\)|g\.lineTo\(p\.x,H\)|g\.lineTo\(W,p\.y\)/);
+  assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/);
+ });
+
+ test('v198 dashes and light ring use the same opaque 206 luminance; readout straddles separator',()=>{
+  const platform=readPlatform(),lab=readLab();
+  assert.match(platform,/bright:'#cecece'/);
+  assert.equal((lab.match(/g\.strokeStyle=C\.bright;g\.lineWidth=1;/g)||[]).length,3,
+   'board guides, sidebar separator and circle ring all use 206 at full alpha');
+  assert.equal((lab.match(/g\.setLineDash\(\[3,7\]\)/g)||[]).length,2);
+  assert.doesNotMatch(lab,/rgba\(180,180,180,\.27\)/);
+  assert.match(lab,/text\('LIGHT ANGLE',sideCenter,p\.y-13,9,C\.weak,'center',readoutWidth\)/);
   assert.match(lab,/text\(Number\(settings\.effects\.shadowAngle\)\.toFixed\(2\)\+'°',\s*sideCenter,p\.y\+14,12,C\.bright,'center',readoutWidth,'terminal'\)/);
-  assert.doesNotMatch(lab,/text\('LIGHT DIRECTION'/,
-   'old free-floating header label must not overlap NOMAD');
   assert.match(platform,/actions\.setSetting\('shadowAngle',Number\(angle\.toFixed\(2\)\)\)/);
-  assert.match(lab,/key\('DONE',exitX,exitY,exitW,exitH,'lightDone'\)/,
-   'the existing paused exit action must remain intact');
+  assert.doesNotMatch(lab,/text\('LIGHT DIRECTION'|text\('DIRECTION'/);
  });
 });
