@@ -1,4 +1,4 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v202';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v202';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -549,7 +549,7 @@ const UI_GAP=6;
 const LETTER_SPACING_EM=.13; // Global 13%-of-font-size tracking; no exceptions.
 const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
 const BUTTON_ICON_FONT_SIZE=18;
-const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN']);
+const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN','RETURN']);
 const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷','X','✓','!']);
 const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
@@ -1019,28 +1019,31 @@ function paintBoardPopup(r){
   const type=status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
-  // Align every primary button's TOP to the play-board midpoint, not its
-  // center. On unusually short screens, keep the pause stack in bounds.
   const inset=UI_SPACE.unit,headingGap=2*UI_SPACE.unit;
   const primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
-  const bw=w*UI_SPACE.overlayButtonWidthScale,bx=x+(w-bw)/2;
-  const midpoint=y+h/2,clusterH=primaryH+2*secondaryH+2*inset;
-  const by=type==='paused'?Math.min(midpoint,y+h-inset-clusterH):midpoint;
+  const slots=boardOverlaySlots({x,y,w,h},UI_SPACE);
+  // START GAME is unchanged: the pause action uses its same midpoint anchor.
+  // A very short playfield may shift the pause stack upward to keep it visible.
+  const clusterH=primaryH+2*secondaryH+2*inset;
+  const by=type==='paused'?
+   Math.min(slots.actionY,y+h-inset-clusterH):slots.actionY;
+  const bx=slots.actionX,bw=slots.actionW;
   const headingSize=Math.min(21,w*.079);
-  // A compact 12px gap (twice the standard 6px panel gap) between title
-  // and button. The start-screen tagline retains two such compact gaps.
   if(type==='ready'){
+   // Home screen artwork and layout are intentionally untouched.
    const subSize=10;
    const subY=by-headingGap-subSize/2;
    const titleY=subY-subSize/2-headingGap-headingSize/2;
    text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
    text('SURVIVE THE SOVIET CHALLENGE',x+w/2,subY,subSize,C.weak,'center',w-18);
+  }else if(type==='paused'){
+   text(title,slots.titleX,slots.titleY,headingSize,C.bright,'center',w-18);
+   drawMenuScoreBox({panel,text,C,fmt},slots.score,game.score);
   }else{
+   // Game-over layout is outside this menu-alignment pass.
    const titleY=by-headingGap-headingSize/2;
    text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
   }
-  // Popup buttons retain their approved 85%-width scale and standard 6px
-  // spacing between RESUME, RESTART, and HIGH SCORE actions.
   key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true});
   if(type==='paused'){
    key('RESTART',bx,by+primaryH+inset,bw,secondaryH,'restart');
