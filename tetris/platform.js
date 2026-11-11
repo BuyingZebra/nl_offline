@@ -702,6 +702,15 @@ function lightBoardBounds(){
  const r=layout();
  return {x:r.boardX+2,y:r.boardY+2,w:r.boardW-4,h:r.boardH-4};
 }
+function lightMarkerPosition(){
+ const b=lightBoardBounds(),cx=b.x+b.w/2,cy=b.y+b.h/2;
+ const angle=(Number(settings.effects.shadowAngle)||0)*Math.PI/180;
+ const radius=Math.min(b.w,b.h)*.34;
+ return lightPosition||{
+  x:clamp(cx-Math.cos(angle)*radius,b.x+6,b.x+b.w-6),
+  y:clamp(cy-Math.sin(angle)*radius,b.y+6,b.y+b.h-6)
+ };
+}
 function setLightPosition(point){
  if(!screenManager.isLight)return;
  const b=lightBoardBounds(),margin=6;
@@ -1222,25 +1231,15 @@ function copyDebugReport(){
 }
 function paintLightDirectionOverlay(){
  regions=[];
- const r=layout(),b=lightBoardBounds(),cx=b.x+b.w/2,cy=b.y+b.h/2;
- const angle=(Number(settings.effects.shadowAngle)||0)*Math.PI/180;
- const radius=Math.min(b.w,b.h)*.34;
- const p=lightPosition||{
-  x:clamp(cx-Math.cos(angle)*radius,b.x+6,b.x+b.w-6),
-  y:clamp(cy-Math.sin(angle)*radius,b.y+6,b.y+b.h-6)
- };
+ const r=layout(),b=lightBoardBounds(),p=lightMarkerPosition();
  // The scoreboard is disabled at its drawing source and its cropped GPU
  // plane is hidden. Do not draw an opaque masking rectangle here: the extra
  // full-screen phosphor/bloom composite would expose the mask's edge.
- // Crosshairs reach the FULL screen, deliberately outside the aperture.
- // Its horizontal dashed line doubles as the separator for the readout.
- // The luminous source itself is clipped to the playfield window.
+ // The dashed full-screen crosshair is drawn once in the existing FINAL
+ // compositor shader, after text, bloom and CRT patterns. Its 206-luminance
+ // guide is attenuated ONLY by edge vignette, never by surrounding glyphs.
+ // The light marker itself remains clipped to the board aperture.
  g.save();
- g.strokeStyle='rgba(180,180,180,.27)';g.lineWidth=.7;
- g.setLineDash([3,7]);g.beginPath();
- g.moveTo(p.x,0);g.lineTo(p.x,H);
- g.moveTo(0,p.y);g.lineTo(W,p.y);g.stroke();
- g.setLineDash([]);
  g.beginPath();g.rect(b.x,b.y,b.w,b.h);g.clip();
  const halo=g.createRadialGradient(p.x,p.y,0,p.x,p.y,28);
  halo.addColorStop(0,'rgba(230,230,230,.19)');
@@ -1354,7 +1353,8 @@ function syncFX(){
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
-  isolateLightWindow:screenManager.isLight});
+  isolateLightWindow:screenManager.isLight,
+  lightGuide:screenManager.isLight?lightMarkerPosition():null});
 }
 function cancelPendingFrame(){
  if(frameHandle!==null){cancelAnimationFrame(frameHandle);frameHandle=null;}
