@@ -4,11 +4,44 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
-import {createHudDrawing,fitPreviewCells} from '../tetris/render.js';
+import {createHudDrawing,fitPreviewCells,boardOverlaySlots} from '../tetris/render.js';
 import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
+
+describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
+ const spacing={unit:6,overlayButtonWidthScale:.85};
+ for(const box of [
+  {x:25,y:118,w:254,h:336},
+  {x:18,y:90,w:280,h:250},
+  {x:65,y:20,w:320,h:330}
+ ]){
+  test('common slots at '+box.w+'×'+box.h,()=>{
+   const slots=boardOverlaySlots(box,spacing);
+   assert.equal(slots.actionY,box.y+box.h/2);
+   assert.equal(slots.actionW,box.w*.85);
+   assert.equal(slots.actionX,box.x+(box.w-slots.actionW)/2);
+   assert.equal(slots.score.x,slots.actionX);
+   assert.equal(slots.score.w,slots.actionW);
+   assert.ok(slots.titleY<slots.score.y);
+   assert.ok(slots.score.y+slots.score.h<slots.actionY);
+   assert.ok(slots.detailY[1]<slots.actionY);
+  });
+ }
+ test('both menu renderers share score geometry and exact primary action height',()=>{
+  const app=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const pause=app.slice(app.indexOf('function paintBoardPopup('),app.indexOf('function insets()'));
+  const scores=render.slice(render.indexOf('function drawScores(q){'),render.indexOf('function paintModal(q){'));
+  assert.match(pause,/boardOverlaySlots\(\{x,y,w,h\},UI_SPACE\)/);
+  assert.match(pause,/drawMenuScoreBox\(\{panel,text,C,fmt\},slots.score,game.score\)/);
+  assert.match(scores,/boardOverlaySlots\(q,UI_SPACE\)/);
+  assert.match(scores,/drawMenuScoreBox\(\{panel,text,C,fmt\},slots.score,best\?\.score\?\?0\)/);
+  assert.match(scores,/slots.actionW,q.buttonH/);
+  assert.match(scores,/arrow:true/);
+ });
+});
 
 describe('Responsive geometry',()=>{
  const {computeLayout}=Layout;
