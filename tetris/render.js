@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v200';
+import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v201';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
@@ -696,7 +696,7 @@ function boardBlurParams(){
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
 }
 
-function createCompositor({renderer,scene,camera,boardPopupTexture,shadowBox=true,onPassTiming=()=>{}}){
+function createCompositor({renderer,scene,camera,boardPopupTexture,pieceBloomMaskTexture=null,shadowBox=true,onPassTiming=()=>{}}){
  const composer=new EffectComposer(renderer);
  composer.addPass(new RenderPass(scene,camera));
  // Extract bloom from grayscale luminance before colourization.
@@ -711,7 +711,19 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   const rect={value:new THREE.Vector4(0,0,0,0)};
   glow.highPassUniforms.uBoardRect=rect;
   glow.materialHighPassFilter.uniforms.uBoardRect=rect;
-  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse;\nuniform float luminosityThreshold,smoothWidth;\nuniform vec4 uBoardRect;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n gl_FragColor=vec4(brightness*(1.0-inside),brightness*inside,0.0,1.0);\n}";
+  // A light-weight board-local stencil excludes tetromino faces from ONLY
+  // bloom extraction. Their RGB pixels, cast shadows, grid and CRT passes
+  // remain in the original RenderPass texture. No second bloom pass.
+  const pieces={value:pieceBloomMaskTexture};
+  const piecesRect={value:new THREE.Vector4(0,0,0,0)};
+  const piecesEnabled={value:pieceBloomMaskTexture?1:0};
+  glow.highPassUniforms.uPieceMask=pieces;
+  glow.materialHighPassFilter.uniforms.uPieceMask=pieces;
+  glow.highPassUniforms.uPieceMaskRect=piecesRect;
+  glow.materialHighPassFilter.uniforms.uPieceMaskRect=piecesRect;
+  glow.highPassUniforms.uPieceMaskEnabled=piecesEnabled;
+  glow.materialHighPassFilter.uniforms.uPieceMaskEnabled=piecesEnabled;
+  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse,uPieceMask;\nuniform float luminosityThreshold,smoothWidth,uPieceMaskEnabled;\nuniform vec4 uBoardRect,uPieceMaskRect;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n if(uPieceMaskEnabled>.5){\n  vec2 maskSpan=max(vec2(.000001),uPieceMaskRect.zw-uPieceMaskRect.xy);\n  vec2 local=(vUv-uPieceMaskRect.xy)/maskSpan;\n  float inMask=step(uPieceMaskRect.x,vUv.x)*step(vUv.x,uPieceMaskRect.z)*\n               step(uPieceMaskRect.y,vUv.y)*step(vUv.y,uPieceMaskRect.w);\n  float face=texture2D(uPieceMask,clamp(local,vec2(0.0),vec2(1.0))).r;\n  brightness*=1.0-inMask*clamp(face,0.0,1.0);\n }\n gl_FragColor=vec4(brightness*(1.0-inside),brightness*inside,0.0,1.0);\n}";
   glow.materialHighPassFilter.needsUpdate=true;
  }
 
@@ -1010,7 +1022,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
@@ -1034,6 +1046,11 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001||faded<1;
  glow.enabled=fx.bloom;
  glow.strength=fx.bloomStrength;
+ // Never mask a full-page settings screen or other view where the piece
+ // board is hidden. With bloom disabled, the stencil is not sampled.
+ if(glow.highPassUniforms?.uPieceMaskEnabled)
+  glow.highPassUniforms.uPieceMaskEnabled.value=
+   fx.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
  edgeSoftness.enabled=fx.softness;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
@@ -1063,6 +1080,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
    edgeSoftness.uniforms.uBoardRect]){
    uniform?.value.set(x0,y0,x1,y1);
   }
+  // Piece-mask coordinates track the ENTIRE cropped board texture, while
+  // bloom aperture still uses its 2px inner window.
+  glow.highPassUniforms?.uPieceMaskRect?.value.set(
+   layoutInfo.boardX/W,1-(layoutInfo.boardY+layoutInfo.boardH)/H,
+   (layoutInfo.boardX+layoutInfo.boardW)/W,1-layoutInfo.boardY/H
+  );
  }
  edgeVignette.enabled=fx.vignette;
  edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
@@ -3190,6 +3213,10 @@ function createVisualScene({document,window,screen,fatal,onControlsFallback=()=>
 const input=document.createElement('canvas'),baseContext=input.getContext('2d',{alpha:false});
 const boardCanvas=document.createElement('canvas');
 const boardContext=boardCanvas.getContext('2d',{alpha:false});
+// A tiny board-local luminance stencil, not another scene plane or image pass.
+const pieceBloomMaskCanvas=document.createElement('canvas');
+pieceBloomMaskCanvas.width=1;pieceBloomMaskCanvas.height=1;
+const pieceBloomMaskContext=pieceBloomMaskCanvas.getContext('2d',{alpha:false});
 const sidebarCanvas=document.createElement('canvas');
 const sidebarContext=sidebarCanvas.getContext('2d',{alpha:false});
 const controlsCanvas=document.createElement('canvas');
@@ -3203,13 +3230,17 @@ const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getC
 // Sharp board popup UI is a separate grayscale layer composed after GPU blur.
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
-if(!g||!boardContext||!sidebarContext||!controlsContext||!terminalContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+if(!g||!boardContext||!pieceBloomMaskContext||!sidebarContext||!controlsContext||!terminalContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const boardTexture=new THREE.CanvasTexture(boardCanvas);
 boardTexture.colorSpace=THREE.SRGBColorSpace;
 boardTexture.minFilter=THREE.LinearFilter;boardTexture.magFilter=THREE.LinearFilter;
 boardTexture.generateMipmaps=false;
+const pieceBloomMaskTexture=new THREE.CanvasTexture(pieceBloomMaskCanvas);
+pieceBloomMaskTexture.minFilter=THREE.LinearFilter;
+pieceBloomMaskTexture.magFilter=THREE.LinearFilter;
+pieceBloomMaskTexture.generateMipmaps=false;
 const sidebarTexture=new THREE.CanvasTexture(sidebarCanvas);
 const controlsTexture=new THREE.CanvasTexture(controlsCanvas);
 const terminalTexture=new THREE.CanvasTexture(terminalCanvas);
@@ -3292,12 +3323,12 @@ modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.0
 modalPlane.visible=false;scene.add(modalPlane);
 
 
- const canvases=Object.freeze([input,boardCanvas,sidebarCanvas,controlsCanvas,
+ const canvases=Object.freeze([input,boardCanvas,pieceBloomMaskCanvas,sidebarCanvas,controlsCanvas,
   terminalCanvas,modalCanvas,boardPopupCanvas]);
- const textures=Object.freeze([texture,boardTexture,sidebarTexture,controlsTexture,
+ const textures=Object.freeze([texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,
   terminalTexture,modalTexture,boardPopupTexture]);
  return Object.freeze({
-  input,baseContext,boardCanvas,boardContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls,
+  input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls,
   get controlsGpuEnabled(){return controlsGpuEnabled;},
   canvases,textures
  });

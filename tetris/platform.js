@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v200';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v201';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v200';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v201';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -530,7 +530,7 @@ const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')
 // Lift panels by 3 percentage points of the 0–255 grayscale scale (21 -> 29).
 const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
- bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#2b2b2b',dark:'#060606'};
+ bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#323232',dark:'#060606'};
 // Fonts follow Fallout 4's UI/terminal roles; original icons stay intact.
 const ICON_FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const FONT='"Roboto Condensed",'+ICON_FONT;
@@ -600,7 +600,7 @@ const presentedBoardStatus=()=>lineClearFX?.finalPoints?'playing':game.status;
 const visualScene=createVisualScene({document,window,screen,fatal,
  onControlsFallback:()=>{layers.mark('controls');invalidate('gpu-controls-fallback');}
 });
-const {input,baseContext,boardCanvas,boardContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls}=visualScene;
+const {input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls}=visualScene;
 let g=baseContext; // Current Canvas2D drawing target.
 
 // Source-owned button brightness; no fullscreen press overlay or extra glow.
@@ -615,7 +615,8 @@ const textureUploads=createTextureUploadProfiler({renderer,
  onTiming:(kind,elapsed,source)=>perf.recordUpload(kind,elapsed,source)});
 // Developer A/B: ?shadowbox=off restores v188's unrestricted bloom.
 const shadowBox=new URLSearchParams(window.location.search).get('shadowbox')!=='off';
-const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,shadowBox,
+const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
+ pieceBloomMaskTexture,shadowBox,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
 const {SCANLINE_PRESETS}=compositor;
 const graphicsHealth=createGraphicsHealth({
@@ -895,15 +896,24 @@ function cell(x,y,col,row,size,kind,isGhost=false){
  }
  tileFace(px,py,size,size,kind);
 }
-function stage(r,drawPieces=true){
+function stage(r,drawPieces=true,pieceMask=null){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  panel(x,y,w,h,7,C.panel);
  const offX=x+2,offY=y+2,tile=(w-4)/10;
+ // Record occupied piece-face footprints only while painting the actual
+ // board. This mask is not a second piece rendering or shadow layer.
+ const maskTile=(px,py,pw=tile,ph=tile)=>{
+  if(pieceMask&&pw>0&&ph>0)pieceMask.fillRect(px,py,pw,ph);
+ };
+ if(pieceMask){
+  pieceMask.save();pieceMask.beginPath();
+  pieceMask.rect(offX,offY,w-4,h-4);pieceMask.clip();
+ }
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
  rect(offX,offY,w-4,h-4,'#181818');
- // V158: increase the visible grid by another ~10%. The board background
- // is 18/255 (up from 16/255); grid opacity is 0.68305068 x 1.10 and
- // its source luminance is 43 (up from 41). Geometry/thickness are unchanged.
+ // V201: brighten ONLY grid strokes by approximately 17% (43 -> 50/255).
+ // Board background remains #181818, source alpha remains 0.751355748,
+ // and grid geometry, line count and thickness stay exactly unchanged.
  g.globalAlpha=.751355748;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
@@ -932,27 +942,40 @@ function stage(r,drawPieces=true){
    const px=offX+rx*tile,py=offY+ry*tile;
    g.save();g.strokeStyle=C.border;g.globalAlpha=.42;g.lineWidth=.7;
    g.strokeRect(px+2,py+2,tile-4,tile-4);g.restore();
-  }else if(kind!=='I')cell(offX,offY,rx,ry,tile,kind);
+  }else if(kind!=='I'){
+   cell(offX,offY,rx,ry,tile,kind);
+   maskTile(offX+rx*tile,offY+ry*tile);
+  }
  }));
  for(const run of iRuns){
   const vertical=(run.rotation&1)===1;
-  vectorTiles.drawIFragment(g,offX+run.x*tile,offY+run.y*tile,
-   (vertical?1:run.length)*tile,(vertical?run.length:1)*tile,
+  const rw=(vertical?1:run.length)*tile,rh=(vertical?run.length:1)*tile;
+  const px=offX+run.x*tile,py=offY+run.y*tile;
+  vectorTiles.drawIFragment(g,px,py,rw,rh,
    {sourceOffset:run.sourceOffset,length:run.length,rotation:run.rotation});
+  maskTile(px,py,rw,rh);
  }
  if(!lineClearFX&&game.current&&game.status!=='over'){
   const p=game.current;
   if(settings.pieceGhost&&(game.status==='playing'||game.status==='paused')){
    const target=game.ghostY();
-   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{if(kind)cell(offX,offY,p.x+rx,target+ry,tile,kind,true);}));
+   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
+    if(!kind)return;
+    const col=p.x+rx,r=target+ry;
+    cell(offX,offY,col,r,tile,kind,true);
+    if(col>=0&&col<10&&r>=0&&r<20)maskTile(offX+col*tile,offY+r*tile);
+   }));
   }
   const activeTiles=[];
   p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
    if(!kind)return;
+   const col=p.x+rx,row=p.y+ry;
    if(p.kind==='I')activeTiles.push({
-    x:offX+(p.x+rx)*tile,y:offY+(p.y+ry)*tile,size:tile
+    x:offX+col*tile,y:offY+row*tile,size:tile
    });
-   else cell(offX,offY,p.x+rx,p.y+ry,tile,kind);
+   else cell(offX,offY,col,row,tile,kind);
+   if(col>=0&&col<10&&row>=0&&row<20)
+    maskTile(offX+col*tile,offY+row*tile);
   }));
   if(p.kind==='I')vectorTiles.drawPiece(g,activeTiles,'I',{rotation:p.rotation});
  }
@@ -966,6 +989,7 @@ function stage(r,drawPieces=true){
  // is darkened, preserving the aperture and shadow-box bloom separation.
  boardInsetShadows.draw(g,offX,offY,w-4,h-4,tile);
  g.restore();
+ if(pieceMask)pieceMask.restore();
 }
 // The stage's inset shadow is blurred along with gameplay. Redraw a
 // restrained copy on the separate popup layer, composed AFTER Gaussian blur.
@@ -1034,6 +1058,18 @@ function layout(){
 function paintBoardLayer(){
  const r=layout(),x=r.boardX,y=r.boardY,w=r.boardW,h=r.boardH;
  const pixelW=Math.max(1,Math.round(w*DPR)),pixelH=Math.max(1,Math.round(h*DPR));
+ // The stencil runs at CSS resolution: a few hundred KB, not an additional
+ // DPR-scaled colour framebuffer. Sampling remains aligned with board UVs.
+ const maskW=Math.max(1,Math.round(w)),maskH=Math.max(1,Math.round(h));
+ if(pieceBloomMaskCanvas.width!==maskW||pieceBloomMaskCanvas.height!==maskH){
+  pieceBloomMaskCanvas.width=maskW;pieceBloomMaskCanvas.height=maskH;
+ }
+ pieceBloomMaskContext.setTransform(1,0,0,1,0,0);
+ pieceBloomMaskContext.fillStyle='#000';
+ pieceBloomMaskContext.fillRect(0,0,maskW,maskH);
+ const mx=maskW/Math.max(1,w),my=maskH/Math.max(1,h);
+ pieceBloomMaskContext.setTransform(mx,0,0,my,-x*mx,-y*my);
+ pieceBloomMaskContext.fillStyle='#fff';
  if(boardCanvas.width!==pixelW||boardCanvas.height!==pixelH){
   boardCanvas.width=pixelW;boardCanvas.height=pixelH;
  }
@@ -1041,11 +1077,12 @@ function paintBoardLayer(){
  const previous=g;g=boardContext;
  try{
   rect(x,y,w,h,C.bg);
-  stage(r);
+  stage(r,true,pieceBloomMaskContext);
  }finally{g=previous;}
  boardPlane.scale.set(w/W,h/H,1);
  boardPlane.position.set(-1+(2*x+w)/W,1-(2*y+h)/H,.01);
  boardTexture.needsUpdate=true;
+ pieceBloomMaskTexture.needsUpdate=true;
  perf.textureChanged('board');
 }
 // Keep all original drawing commands and labels; only their render target changes.
@@ -1439,7 +1476,8 @@ function syncFX(){
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
-  isolateLightWindow:screenManager.isLight});
+  isolateLightWindow:screenManager.isLight,
+  pieceMaskEnabled:boardPlane.visible});
 }
 function cancelPendingFrame(){
  if(frameHandle!==null){cancelAnimationFrame(frameHandle);frameHandle=null;}
@@ -1557,7 +1595,11 @@ function frame(now){
    syncFX();
    perf.recordDuration('sync',performance.now()-syncStarted);
    if(surface.visible)textureUploads.upload(texture,'base');
-   if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
+   if(boardPlane.visible){
+    textureUploads.upload(boardTexture,'board');
+    if(settings.effects.bloom)
+     textureUploads.upload(pieceBloomMaskTexture,'piece-mask');
+   }
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');

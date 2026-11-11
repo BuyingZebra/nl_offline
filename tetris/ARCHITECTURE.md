@@ -368,3 +368,30 @@ The previously requested 6px *extra vertical clearance* beyond the LIGHT
 ANGLE readout is also removed: the text can now reach the board top/bottom
 without crossing it. Horizontal light travel still has a 12px inset. All
 other graphics and gameplay logic remain unchanged.
+
+
+## Selective tetromino bloom and +17% board grid (v201)
+
+NOMAD now excludes **actual game-board tetromino faces** (locked tiles,
+active falling piece, continuous I fragments, and ghost-outline cells) from
+**bloom extraction only**, using a tiny CSS-resolution black/white stencil
+built alongside the existing board draw calls. The stencil is not a second
+copy of the tile artwork, geometry plane, shadow renderer, or bloom pass.
+The existing custom UnrealBloomPass high-pass shader samples that mask in
+board-local UV coordinates and zeros bloom-source luminance only wherever
+piece faces are painted; the original RGB source (including pixel textures,
+colours, grid, drop shadows and inset shadows) passes through unchanged.
+Other elements—including light target, brick rails, labels and the ordinary
+board border—retain bloom. The isolated board/cover shadow-box bloom
+boundary, tint, CRT overlay, and all existing settings remain unchanged.
+The stencil is disabled on the full-screen settings view when the board is
+hidden. Its texture uploads only on actual board repaints and only when bloom
+is enabled. There is still exactly **one UnrealBloomPass**, with 12 compositor
+passes total; no extra WebGL render or postprocess pass. Small independent
+sidebar NEXT/HOLD previews remain on the usual UI pipeline.
+
+The only grid change is the stroke's grayscale source luminance from 43/255
+(#2b2b2b) to 50/255 (#323232), a +16.3% integer approximation to 17%.
+Grid opacity (0.751355748), width (0.6 CSS px), placement and cell count
+remain unchanged, as does the board background (#181818). No shader settings,
+gameplay, scene layout, input interactions or controls are changed.
