@@ -781,6 +781,49 @@ describe('Pointer and keyboard input',()=>{
   controller.dispose();
  });
 
+ test('v200 deck slider drags persist shadow settings without triggering game or light movement',()=>{
+  const screen=target(),document=target(),window=target();
+  screen.getBoundingClientRect=()=>({left:0,top:0,width:400,height:800});
+  screen.setPointerCapture=()=>{};
+  screen.hasPointerCapture=()=>false;
+  screen.releasePointerCapture=()=>{};
+  const changes=[],actions=[],points=[];
+  const property={x:130,y:640,w:250,h:20,act:'slider',
+   field:'shadowOpacity',min:0,max:100,step:1,
+   trackX:130,trackW:250,modalControl:true};
+  const done={x:345,y:45,w:42,h:42,act:'lightDone',kind:'button'};
+  const controller=createInputController({
+   screen,document,window,getViewport:()=>({width:400,height:800}),
+   getRegions:()=>[property,done],getModal:()=> 'light',getModalView:()=>null,
+   getLightBounds:()=>({x:45,y:200,w:235,h:400}),
+   onLightPoint:p=>points.push(p),onLightExit:()=>actions.push('escape'),
+   getOptionsScroll:()=>0,setOptionsScroll:()=>{},
+   getOptionsMaxScroll:()=>0,setScrollVelocity:()=>{},
+   setBaseDirty:()=>{},handleAction:a=>actions.push(a),
+   perform:a=>actions.push(a),
+   setSetting:(k,v)=>changes.push([k,v]),settingValue:()=>0,
+   toggleScanlineMenu:()=>{},chooseScanline:()=>{},openModal:()=>{},
+   invalidate:()=>{},clamp:(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
+  });
+  const ev=(type,id,x,y)=>({type,pointerType:'touch',button:0,pointerId:id,
+   clientX:x,clientY:y,timeStamp:20,preventDefault(){}});
+  screen.emit('pointerdown',ev('pointerdown',1,155,649));
+  screen.emit('pointermove',ev('pointermove',1,350,649));
+  screen.emit('pointerup',ev('pointerup',1,350,649));
+  assert.deepEqual(changes,[['shadowOpacity',88],['shadowOpacity',88]]);
+  assert.deepEqual(actions,[]);
+  assert.deepEqual(points,[]);
+  screen.emit('pointerdown',ev('pointerdown',2,360,60));
+  screen.emit('pointerup',ev('pointerup',2,360,60));
+  assert.deepEqual(actions,['lightDone']);
+  screen.emit('pointerdown',ev('pointerdown',3,80,330));
+  screen.emit('pointermove',ev('pointermove',3,100,350));
+  screen.emit('pointerup',ev('pointerup',3,100,350));
+  assert.equal(points.length,3);
+  assert.equal(changes.length,2);
+  controller.dispose();
+ });
+
  test('input ownership registers one matching listener for each event',()=>{
   const h=harness();
   assert.deepEqual([...h.screen.listeners.keys()],
