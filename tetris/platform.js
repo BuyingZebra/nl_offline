@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v198';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v199';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v198';
+import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v199';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -698,24 +698,46 @@ const unsubscribeGameEvents=game.onEvent(event=>{
 // five shadow parameters in the lightweight thumbnail until exit.
 let shadowBoardNeedsPaint=false;
 let lightPosition=null;
+// Light Control geometry is shared between touch clamping and visual
+// placement. The tracked readout uses 9px / 12px centered glyphs 13px above
+// and 14px below the crosshair. Reserve 6px beyond the glyph bounding boxes.
+const LIGHT_LABEL_Y=13,LIGHT_LABEL_SIZE=9;
+const LIGHT_VALUE_Y=14,LIGHT_VALUE_SIZE=12;
+const LIGHT_EDGE_PADDING=6,LIGHT_HORIZONTAL_INSET=12;
+const LIGHT_HALO_RADIUS=42; // v198: 28px * 1.5
 function lightBoardBounds(){
  const r=layout();
  return {x:r.boardX+2,y:r.boardY+2,w:r.boardW-4,h:r.boardH-4};
 }
+function lightTravelBounds(b){
+ const insetTop=Math.ceil(LIGHT_LABEL_Y+LIGHT_LABEL_SIZE/2+LIGHT_EDGE_PADDING);
+ const insetBottom=Math.ceil(LIGHT_VALUE_Y+LIGHT_VALUE_SIZE/2+LIGHT_EDGE_PADDING);
+ // Short landscape layouts: preserve a reachable marker inside the board
+ // even when the label+number stack cannot fit at full size.
+ const middleY=b.y+b.h/2;
+ const minY=Math.min(b.y+insetTop,middleY);
+ const maxY=Math.max(b.y+b.h-insetBottom,middleY);
+ const middleX=b.x+b.w/2;
+ return {
+  minX:Math.min(b.x+LIGHT_HORIZONTAL_INSET,middleX),
+  maxX:Math.max(b.x+b.w-LIGHT_HORIZONTAL_INSET,middleX),
+  minY,maxY
+ };
+}
 function lightMarkerPosition(){
- const b=lightBoardBounds(),cx=b.x+b.w/2,cy=b.y+b.h/2;
+ const b=lightBoardBounds(),bounds=lightTravelBounds(b),cx=b.x+b.w/2,cy=b.y+b.h/2;
  const angle=(Number(settings.effects.shadowAngle)||0)*Math.PI/180;
  const radius=Math.min(b.w,b.h)*.34;
  return lightPosition||{
-  x:clamp(cx-Math.cos(angle)*radius,b.x+6,b.x+b.w-6),
-  y:clamp(cy-Math.sin(angle)*radius,b.y+6,b.y+b.h-6)
+  x:clamp(cx-Math.cos(angle)*radius,bounds.minX,bounds.maxX),
+  y:clamp(cy-Math.sin(angle)*radius,bounds.minY,bounds.maxY)
  };
 }
 function setLightPosition(point){
  if(!screenManager.isLight)return;
- const b=lightBoardBounds(),margin=6;
- const x=clamp(point.x,b.x+margin,b.x+b.w-margin);
- const y=clamp(point.y,b.y+margin,b.y+b.h-margin);
+ const b=lightBoardBounds(),bounds=lightTravelBounds(b);
+ const x=clamp(point.x,bounds.minX,bounds.maxX);
+ const y=clamp(point.y,bounds.minY,bounds.maxY);
  lightPosition={x,y};
  // One direction for the ENTIRE board. This is not a point light:
  // the marker's radius never affects shadow length, blur or intensity.
@@ -1246,11 +1268,15 @@ function paintLightDirectionOverlay(){
  g.moveTo(p.x,b.y);g.lineTo(p.x,b.y+b.h);
  g.moveTo(b.x,p.y);g.lineTo(b.x+b.w,p.y);
  g.stroke();g.setLineDash([]);
- const halo=g.createRadialGradient(p.x,p.y,0,p.x,p.y,28);
- halo.addColorStop(0,'rgba(230,230,230,.19)');
- halo.addColorStop(.3,'rgba(215,215,215,.08)');
- halo.addColorStop(1,'rgba(215,215,215,0)');
- g.fillStyle=halo;g.fillRect(p.x-28,p.y-28,56,56);
+ // A Canvas2D radial gradient is continuously interpolated between its
+ // centre and transparent edge: two stops, no visible concentric bands.
+ // The original 28px radius is now exactly 1.5x larger (42px).
+ const halo=g.createRadialGradient(p.x,p.y,0,p.x,p.y,LIGHT_HALO_RADIUS);
+ halo.addColorStop(0,'rgba(230,230,230,0.19)');
+ halo.addColorStop(1,'rgba(230,230,230,0)');
+ g.fillStyle=halo;
+ g.fillRect(p.x-LIGHT_HALO_RADIUS,p.y-LIGHT_HALO_RADIUS,
+  LIGHT_HALO_RADIUS*2,LIGHT_HALO_RADIUS*2);
  g.strokeStyle=C.bright;g.lineWidth=1;
  g.beginPath();g.arc(p.x,p.y,11,0,2*Math.PI);g.stroke();
  g.fillStyle='rgba(235,235,235,.96)';
@@ -1267,9 +1293,11 @@ function paintLightDirectionOverlay(){
   g.setLineDash([3,7]);g.beginPath();
   g.moveTo(r.sideX+2,p.y);g.lineTo(r.sideX+r.sideW-2,p.y);
   g.stroke();g.restore();
-  text('LIGHT ANGLE',sideCenter,p.y-13,9,C.weak,'center',readoutWidth);
+  text('LIGHT ANGLE',sideCenter,p.y-LIGHT_LABEL_Y,LIGHT_LABEL_SIZE,
+   C.weak,'center',readoutWidth);
   text(Number(settings.effects.shadowAngle).toFixed(2)+'°',
-   sideCenter,p.y+14,12,C.bright,'center',readoutWidth,'terminal');
+   sideCenter,p.y+LIGHT_VALUE_Y,LIGHT_VALUE_SIZE,C.bright,
+   'center',readoutWidth,'terminal');
  }
  const safe=insets();
  const exitW=94,exitH=34;
