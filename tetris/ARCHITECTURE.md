@@ -291,3 +291,29 @@ header label/degree counter is removed. Dragging records angle precision to
 controls the existing piece and inset shadows, with no new light simulation
 or renderer. The original DONE control, pause logic and settings return are
 unchanged.
+
+
+## Light Angle guide and layer cleanup (v198)
+
+The v197 modal's opaque rectangle over the right-hand scoreboard caused a
+visible composite/bloom boundary. v198 removes that rectangle entirely. In
+Light Control, `paintBaseGame()` skips drawing the actual sidebar, and the
+independent cached `sidebarPlane` is hidden. The decorative brick rail is
+rendered by `brickFrame` and remains visible. Both the base and sidebar
+layers are invalidated when switching to/from Light Control, restoring the
+normal sidebar without changing its saved data or normal rendering behaviour.
+
+The v197 full-screen dashed crosshair used a 0.7px stroke and only 27% alpha,
+so anti-aliasing, bloom, CRT patterns and nearby brighter glyphs made it
+appear inconsistent. v198 uses **fully opaque 206/255** for the guides,
+identical to the light-ring stroke (the existing `C.bright` value), at 1px
+source width. The vertical and horizontal crosshairs are **clipped to the
+playfield**; they no longer cross the header, footer, buttons or sidebar.
+The sidebar has its **own independent** horizontal dashed separator with
+identical luminance, pattern and vertical coordinate, confined to the sidebar
+bounds to avoid the right brick rail. Its label is now **LIGHT ANGLE**, centered
+above the separator, and the same two-decimal angle remains centered beneath.
+The regular edge vignette and other existing CRT processing remain intact;
+there are no new WebGL passes or shadow-rendering changes. DONE remains in its
+existing place pending a separate interface refinement, and the idea of
+moving other light controls into this view is intentionally deferred.
