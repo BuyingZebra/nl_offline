@@ -2146,6 +2146,35 @@ function drawControls(r){
  * State is limited to menu scroll, scanline picker, status and view hit area.
  * No WebGL, frame-scheduler, or gameplay dependencies.
  */
+// Shared geometry for PAUSED and HIGH SCORE. START GAME remains unchanged:
+ // its primary action begins at the playfield midpoint on normal screens.
+function boardOverlaySlots({x,y,w,h},UI_SPACE){
+ const buttonW=w*UI_SPACE.overlayButtonWidthScale;
+ const buttonX=x+(w-buttonW)/2;
+ const titleY=y+Math.max(15,Math.min(26,h*.07));
+ const scoreY=y+Math.max(40,Math.min(56,h*.155));
+ const scoreH=Math.max(24,Math.min(38,h*.105));
+ const detailsTop=scoreY+scoreH+10;
+ const primaryY=y+h/2;
+ const detailH=Math.max(17,Math.min(27,(primaryY-detailsTop-11)/2));
+ return {
+  titleX:x+w/2,titleY,
+  score:{x:buttonX,y:scoreY,w:buttonW,h:scoreH},
+  detailLeft:x+Math.max(12,2*UI_SPACE.unit),
+  detailRight:x+w-Math.max(12,2*UI_SPACE.unit),
+  detailY:[detailsTop+detailH/2,detailsTop+detailH*1.5],
+  actionX:buttonX,actionY:primaryY,actionW:buttonW
+ };
+}
+// Identical double-framed terminal readout on both menu screens.
+function drawMenuScoreBox({panel,text,C,fmt},box,score){
+ const {x,y,w,h}=box;
+ panel(x,y,w,h,0,C.button,C.border);
+ if(w>8&&h>8)panel(x+3,y+3,w-6,h-6,0,null,C.bright);
+ text('SCORE',x+12,y+h/2,12,C.weak,'left',w*.36,'terminal');
+ text(fmt(score),x+w-12,y+h/2,16,C.bright,'right',w*.58,'terminal');
+}
+
 function createModalUI({
  document,SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
  getViewport,layout,insets,clearRegions,getContext,
@@ -2527,42 +2556,26 @@ function drawOptions(q){
  // Keep scroll input and momentum; omit decorative scrollbar/row separators.
 }
 function drawScores(q){
- // One local personal record, displayed over the existing blurred playfield.
- // Rendered as neutral grayscale for the unchanged green/amber CRT compositor.
- const {W,H}=getViewport(),{x,y,w,h,pad,gap}=q;
+ // The same shared title, score display and primary-action slots as PAUSED.
+ // The unchanged TETRIS home screen supplies the primary button's Y anchor.
+ const {W,H}=getViewport(),{x,y,w,h}=q;
  clearRegions();region(0,0,W,H,'block');
  panel(x,y,w,h,5,null,C.border);
- const best=getBest();
- const inset=Math.max(12,pad*2),inner=w-2*inset;
- const titleSize=Math.min(21,Math.max(15,w*.081));
- const titleH=titleSize+10;
- const rowH=Math.max(35,Math.min(51,h*.087));
- const buttonH=q.secondaryH,buttonW=w*UI_SPACE.overlayButtonWidthScale;
- const contentH=titleH+gap*3+3*rowH;
- const top=y+Math.max(inset,(h-contentH-buttonH-gap*3)/2);
- text('HIGH SCORE',x+w/2,top+titleH/2,titleSize,C.bright,'center',inner);
- const rows=[
-  ['SCORE',String(best?.score??0).padStart(6,'0')],
-  ['LINES',String(best?.lines??0).padStart(2,'0')],
-  ['LEVEL',String(best?.level??0).padStart(2,'0')]
- ];
- const rowTop=top+titleH+gap*2;
+ const best=getBest(),slots=boardOverlaySlots(q,UI_SPACE);
+ const titleSize=Math.min(21,Math.max(15,w*.079));
+ text('HIGH SCORE',slots.titleX,slots.titleY,titleSize,C.bright,'center',w-18);
+ drawMenuScoreBox({panel,text,C,fmt},slots.score,best?.score??0);
  const labelSize=Math.max(11,Math.min(14,w*.053));
  const valueSize=Math.max(12,Math.min(16,w*.061));
- rows.forEach(([label,value],i)=>{
-  const ry=rowTop+i*rowH;
-  const middle=ry+rowH*.39;
-  text(label,x+inset,middle,labelSize,C.ink,'left',inner*.43,'terminal');
-  text(value,x+w-inset,middle,valueSize,C.bright,'right',inner*.56,'terminal');
-  if(i<2){
-   const dividerY=ry+rowH-2;
-   // Thin dotted terminal separators, not the old ranking-table borders.
-   for(let dx=0;dx<inner;dx+=5)rect(x+inset+dx,dividerY,1.5,.8,C.bright);
-  }
- });
- const bx=x+(w-buttonW)/2;
- const by=Math.min(y+h-inset-buttonH,rowTop+3*rowH+gap*3);
- key('RETURN',bx,by,buttonW,buttonH,'close',{light:true});
+ [['LINES',fmt(best?.lines??0,2)],['LEVEL',fmt(best?.level??0,2)]]
+  .forEach(([label,value],i)=>{
+   const cy=slots.detailY[i];
+   text(label,slots.detailLeft,cy,labelSize,C.ink,'left',w*.44,'terminal');
+   text(value,slots.detailRight,cy,valueSize,C.bright,'right',w*.44,'terminal');
+  });
+ // Same size, position, font and leading arrow as RESUME / START GAME.
+ key('RETURN',slots.actionX,slots.actionY,slots.actionW,q.buttonH,
+  'close',{light:true,arrow:true});
 }
 function paintModal(q){
  const modal=getModal();
@@ -2887,7 +2900,7 @@ function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  ctx.restore();
 }
 
-return {createCanvasUI,fitPreviewCells,createHudDrawing,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
+return {createCanvasUI,fitPreviewCells,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
 })();
 // Device-independent CSS-pixel visual geometry.
 const Layout=(()=>{
@@ -3053,7 +3066,7 @@ return api;
 })();
 export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
-export const {createCanvasUI,fitPreviewCells,createHudDrawing,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
+export const {createCanvasUI,fitPreviewCells,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
 export const {createPerfMonitor,createTextureUploadProfiler,formatDebugReport}=RenderDiagnostics;
 export {instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};
