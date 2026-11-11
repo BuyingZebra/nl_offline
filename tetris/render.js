@@ -1022,7 +1022,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
@@ -1046,6 +1046,11 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001||faded<1;
  glow.enabled=fx.bloom;
  glow.strength=fx.bloomStrength;
+ // Never mask a full-page settings screen or other view where the piece
+ // board is hidden. With bloom disabled, the stencil is not sampled.
+ if(glow.highPassUniforms?.uPieceMaskEnabled)
+  glow.highPassUniforms.uPieceMaskEnabled.value=
+   fx.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
  edgeSoftness.enabled=fx.softness;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
