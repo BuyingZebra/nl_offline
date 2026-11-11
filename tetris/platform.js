@@ -699,11 +699,11 @@ const unsubscribeGameEvents=game.onEvent(event=>{
 let shadowBoardNeedsPaint=false;
 let lightPosition=null;
 // Light Control geometry is shared between touch clamping and visual
-// placement. The tracked readout uses 9px / 12px centered glyphs 13px above
-// and 14px below the crosshair. Reserve 6px beyond the glyph bounding boxes.
+// placement. The label and value may now align flush with the top/bottom
+// board bounds; there is no additional 6px text clearance.
 const LIGHT_LABEL_Y=13,LIGHT_LABEL_SIZE=9;
 const LIGHT_VALUE_Y=14,LIGHT_VALUE_SIZE=12;
-const LIGHT_EDGE_PADDING=6,LIGHT_HORIZONTAL_INSET=12;
+const LIGHT_EDGE_PADDING=0,LIGHT_HORIZONTAL_INSET=12;
 const LIGHT_HALO_RADIUS=42; // v198: 28px * 1.5
 function lightBoardBounds(){
  const r=layout();
