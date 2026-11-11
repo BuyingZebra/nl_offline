@@ -414,3 +414,10 @@ No change to stroke opacity (0.751355748), stroke width (0.6px), grid
 position/spacing/count, board border, or any other background or UI surface.
 Both adjustments are localized to the game board, not the global CRT
 background. Light Control, settings, and gameplay behaviour are unchanged.
+
+
+## Shared PAUSED / HIGH SCORE menu slots (v203)
+
+The title-screen TETRIS menu and all exterior NOMAD header/sidebar/controls are deliberately unchanged. PAUSED and HIGH SCORE alone now call `boardOverlaySlots` from render.js to anchor their primary actions at the unchanged START GAME playfield midpoint, with matching 85%-wide action buttons. RETURN now uses the same arrow, type size, and full primary-button height as RESUME and START GAME. On unusually short playfields the PAUSED three-action stack can move up to remain fully visible.
+
+Both screens share the same upper title position and `drawMenuScoreBox` double-framed terminal readout. PAUSED displays live `game.score`; HIGH SCORE displays the persistent `best.score`, with LINES and LEVEL underneath. No additional horizontal separators or theme changes were introduced. The score screen's former dotted statistics separators have been removed; its existing record and backing game state remain intact. The original CRT compositor, piece shadows, board aperture and PWA input controls have not been changed.
