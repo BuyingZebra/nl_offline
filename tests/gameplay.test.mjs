@@ -1,6 +1,6 @@
 import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
-import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS,DISPLAY_EFFECTS} from '../tetris/game.js';
+import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS,DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS} from '../tetris/game.js';
 import fs from 'node:fs';
 import {createAppLifecycle,runCleanupTasks} from '../tetris/platform.js';
 import {createGraphicsHealth} from '../tetris/render.js';
@@ -738,13 +738,24 @@ describe('Saved preferences',()=>{
   settings.setSetting('shadowDistance',Infinity);
   assert.equal(settings.effects.shadowDistance,13);
  });
- test('v190 properties expose the five actual shadow engine controls',()=>{
-  const names=DISPLAY_EFFECTS.find(e=>e.id==='shadows');
-  assert.ok(names);
-  assert.equal(names.toggle,'shadows');
-  assert.deepEqual(names.sliders.map(s=>s[1]),[
-   'shadowAngle','shadowDistance','shadowBlur','shadowBias','shadowOpacity'
+ test('v200 shadow properties exist only in the paused Light Control deck',()=>{
+  const shadows=DISPLAY_EFFECTS.find(e=>e.id==='shadows');
+  assert.ok(shadows);
+  assert.equal(shadows.toggle,'shadows');
+  assert.equal(shadows.sliders,undefined,'Display System must not duplicate the light sliders');
+  assert.deepEqual(LIGHT_PROPERTY_CONTROLS.map(p=>p.field),[
+   'shadowDistance','shadowBlur','shadowBias','shadowOpacity'
   ]);
+  assert.deepEqual(LIGHT_PROPERTY_CONTROLS.map(p=>[p.min,p.max,p.step]),[
+   [0,35,1],[0,30,1],[0,100,1],[0,100,1]
+  ]);
+  assert.equal(LIGHT_PROPERTY_CONTROLS.some(p=>p.field==='shadowAngle'),false,
+   'angle remains controlled by the draggable light marker');
+  const manager=createSettingsManager(memoryStorage());
+  for(const p of LIGHT_PROPERTY_CONTROLS){
+   manager.setSetting(p.field,p.max);
+   assert.equal(manager.settingValue(p.field),p.max,'same persistent setting in light mode');
+  }
  });
  test('all historical preference storage keys remain compatible',()=>{
   const storage=memoryStorage();

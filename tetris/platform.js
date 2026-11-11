@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v199';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v200';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v199';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v200';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -699,11 +699,11 @@ const unsubscribeGameEvents=game.onEvent(event=>{
 let shadowBoardNeedsPaint=false;
 let lightPosition=null;
 // Light Control geometry is shared between touch clamping and visual
-// placement. The tracked readout uses 9px / 12px centered glyphs 13px above
-// and 14px below the crosshair. Reserve 6px beyond the glyph bounding boxes.
+// placement. The label and value may now align flush with the top/bottom
+// board bounds; there is no additional 6px text clearance.
 const LIGHT_LABEL_Y=13,LIGHT_LABEL_SIZE=9;
 const LIGHT_VALUE_Y=14,LIGHT_VALUE_SIZE=12;
-const LIGHT_EDGE_PADDING=6,LIGHT_HORIZONTAL_INSET=12;
+const LIGHT_EDGE_PADDING=0,LIGHT_HORIZONTAL_INSET=12;
 const LIGHT_HALO_RADIUS=42; // v198: 28px * 1.5
 function lightBoardBounds(){
  const r=layout();
@@ -1129,15 +1129,20 @@ function paintBaseGame(){
  text('TETRIS SYSTEM',titleX,r.hy+r.hh/2+11,
   10,C.weak,'left',titleWidth);
  key('◐',tx,ty,th,th,'theme');
- key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
+ // The menu button exists only in the regular game interface. Light Control
+ // draws its confirmation glyph at these SAME coordinates on the modal layer.
+ if(!screenManager.isLight)
+  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  stage(r,false);
  // Static 75%-cell brick rails, exactly one control-gap outside either edge.
  // Draw on the base layer, not inside the cropped board texture.
  brickFrame.draw(g,r);
  // Light Control hides the sidebar at its source, not under a painted mask.
  // The bricks are independently drawn by brickFrame and always remain visible.
- if(!screenManager.isLight)drawSidebar(r);
- drawControls(r);
+ if(!screenManager.isLight){
+  drawSidebar(r);
+  drawControls(r);
+ }
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
@@ -1251,6 +1256,43 @@ function copyDebugReport(){
   modalUI.debugCopyState='failed';invalidate();
  });
 }
+function paintLightPropertyPanel(r){
+ // Exactly the original controls container geometry; no new layout height,
+ // overlay backdrop, or persistent alternate gameplay controls asset.
+ panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ const gap=UI_SPACE.unit;
+ const inset=r.deckPad,contentX=r.dx+inset;
+ const contentW=Math.max(1,r.dw-2*inset);
+ const rowGap=Math.min(gap,Math.max(2,r.dh*.045));
+ const rowH=Math.max(1,(r.dh-2*inset-rowGap*3)/4);
+ const labelW=Math.min(125,Math.max(80,contentW*.29));
+ const barX=contentX+labelW+gap;
+ const barW=Math.max(1,contentX+contentW-barX);
+ const fill=206,empty=Math.round(fill*.50),darkInk=6;
+ for(let i=0;i<LIGHT_PROPERTY_CONTROLS.length;i++){
+  const setting=LIGHT_PROPERTY_CONTROLS[i];
+  const y=r.dy+inset+i*(rowH+rowGap);
+  const midY=y+rowH/2,barH=Math.max(9,Math.min(24,rowH*.76));
+  const value=Number(settings.settingValue(setting.field));
+  const fraction=clamp((value-setting.min)/(setting.max-setting.min),0,1);
+  const barY=midY-barH/2;
+  // A single unframed rectangular bar: 206 filled, 50% empty. The
+  // dim half-luminance retains readable inverse text at low fill levels.
+  rect(barX,barY,barW,barH,gray(empty));
+  rect(barX,barY,barW*fraction,barH,gray(fill));
+  text(setting.label,contentX,midY,Math.min(11,Math.max(8,rowH*.44)),
+   C.ink,'left',Math.max(1,labelW-2));
+  // The numeric value is not a separate box. It uses the same 6-luminance
+  // negative-space ink as the normal solid DROP button.
+  text(String(Math.round(value))+setting.unit,
+   barX+barW/2,midY,Math.min(13,Math.max(9,barH*.64)),
+   gray(darkInk),'center',Math.max(1,barW-8),'terminal');
+  region(barX,barY,barW,barH,'slider',{
+   field:setting.field,min:setting.min,max:setting.max,step:setting.step,
+   trackX:barX,trackW:barW,modalControl:true
+  });
+ }
+}
 function paintLightDirectionOverlay(){
  regions=[];
  const r=layout(),b=lightBoardBounds(),p=lightMarkerPosition();
@@ -1299,10 +1341,12 @@ function paintLightDirectionOverlay(){
    sideCenter,p.y+LIGHT_VALUE_Y,LIGHT_VALUE_SIZE,C.bright,
    'center',readoutWidth,'terminal');
  }
- const safe=insets();
- const exitW=94,exitH=34;
- const exitX=W-exitW-16,exitY=Math.max(safe.top+28,layout().hy+8);
- key('DONE',exitX,exitY,exitW,exitH,'lightDone');
+ // Only Light Control receives the alternate controls panel and checkmark.
+ // The header check replaces (not accompanies) the old menu icon.
+ paintLightPropertyPanel(r);
+ const th=r.headerButtonH,tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
+ const ty=r.hy+(r.hh-th)/2;
+ key('✓',tx+th+UI_SPACE.headIconGap,ty,th,th,'lightDone');
 }
 function paintModalOverlay(){
  // Repaint exactly one active dialog. Always clear the entire backing image
@@ -1313,7 +1357,10 @@ function paintModalOverlay(){
  // Do not display a previously cached/sidebar texture in the light lab.
  // Visibility is a property of the independent sidebar layer, Blender-style.
  sidebarPlane.visible=!standaloneSettings&&!screenManager.isLight;
- controlsPlane.visible=!standaloneSettings;terminalPlane.visible=!standaloneSettings;
+ // The original cropped controls texture stays unchanged in memory; the
+ // equally-sized Light Control properties panel replaces it only in this view.
+ controlsPlane.visible=!standaloneSettings&&!screenManager.isLight;
+ terminalPlane.visible=!standaloneSettings;
  const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
  if(modalCanvas.width!==cw||modalCanvas.height!==ch){

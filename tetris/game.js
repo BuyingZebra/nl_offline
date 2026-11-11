@@ -481,12 +481,9 @@ export const DISPLAY_EFFECTS=[
   sliders:[['','vignetteAmount',0,100,1,'%']]},
  {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
   sliders:[['','bloomStrength',0,100,1,'%']]},
- {id:'shadows',title:'DROP SHADOWS',toggle:'shadows',
-  sliders:[['ANGLE','shadowAngle',0,360,5,'°'],
-   ['DIST','shadowDistance',0,35,1,'px'],
-   ['BLUR','shadowBlur',0,30,1,'px'],
-   ['BIAS','shadowBias',0,100,5,'%'],
-   ['OPACITY','shadowOpacity',0,100,5,'%']]},
+ // Light-specific sliders live only in the paused Light Control deck.
+ // The Display System retains the effect toggle and launcher.
+ {id:'shadows',title:'DROP SHADOWS',toggle:'shadows'},
  {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
   sliders:[['X','ghostX',-32,32,1,'px'],
    ['Y','ghostY',-32,32,1,'px'],
@@ -503,6 +500,12 @@ export const SHADOW_RANGES=Object.freeze({
  shadowBias:[0,1],shadowOpacity:[0,1]
 });
 export const SHADOW_SETTING_KEYS=Object.freeze(['shadows',...Object.keys(SHADOW_RANGES)]);
+export const LIGHT_PROPERTY_CONTROLS=Object.freeze([
+ Object.freeze({label:'DISTANCE',field:'shadowDistance',min:0,max:35,step:1,unit:'px'}),
+ Object.freeze({label:'GAUSSIAN BLUR',field:'shadowBlur',min:0,max:30,step:1,unit:'px'}),
+ Object.freeze({label:'BIAS',field:'shadowBias',min:0,max:100,step:1,unit:'%'}),
+ Object.freeze({label:'OPACITY',field:'shadowOpacity',min:0,max:100,step:1,unit:'%'})
+]);
 export function scanlineChoices(presets){
  return [{id:'off',name:'OFF'},...presets.map(p=>({id:p.id,name:p.name}))];
 }

@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v199';
+import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v200';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
@@ -2330,8 +2330,8 @@ function settingsContentHeight(effect,gap){
 }
 function settingsRows(buttonH,gap,width){
  const image=settingsPreviewSize(width),rows=[];let offset=0;
- // Preserve the existing uniform row height for every established effect.
- // The five shadow sliders occupy ONE taller row instead of inflating all rows.
+ // Preserve existing row sizes. Shadow properties now live in the light
+ // laboratory; the Display System contains just a toggle and launch action.
  const standardMax=Math.max(...DISPLAY_EFFECTS.filter(e=>e.id!=='shadows')
   .map(effect=>settingsContentHeight(effect,gap)));
  const standardRowHeight=Math.max(image,standardMax+2*gap);
@@ -2463,7 +2463,7 @@ function drawOptions(q){
    // Launch a temporary, paused directional-light view. It is an ACTION,
    // not a saved display effect, and does not replace angle precision input.
    const lightY=blockTop+SETTINGS_TITLE_H+
-    effect.sliders.length*(SETTINGS_CONTROL_H+gap)+gap;
+    (effect.sliders?.length||0)*(SETTINGS_CONTROL_H+gap)+gap;
    key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light',
     {modalControl:true});
   }
