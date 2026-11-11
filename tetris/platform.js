@@ -1,6 +1,6 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v201';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v202';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v201';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -530,7 +530,7 @@ const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')
 // Lift panels by 3 percentage points of the 0–255 grayscale scale (21 -> 29).
 const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
- bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#323232',dark:'#060606'};
+ bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#373737',dark:'#060606'};
 // Fonts follow Fallout 4's UI/terminal roles; original icons stay intact.
 const ICON_FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const FONT='"Roboto Condensed",'+ICON_FONT;
@@ -910,10 +910,10 @@ function stage(r,drawPieces=true,pieceMask=null){
   pieceMask.rect(offX,offY,w-4,h-4);pieceMask.clip();
  }
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
- rect(offX,offY,w-4,h-4,'#181818');
- // V201: brighten ONLY grid strokes by approximately 17% (43 -> 50/255).
- // Board background remains #181818, source alpha remains 0.751355748,
- // and grid geometry, line count and thickness stay exactly unchanged.
+ rect(offX,offY,w-4,h-4,'#1a1a1a');
+ // V202: lift both the playfield background (24 -> 26/255, +8.3%)
+ // and grid strokes (50 -> 55/255, +10%) without changing geometry,
+ // stroke opacity (0.751355748), or grid line width (0.6px).
  g.globalAlpha=.751355748;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
