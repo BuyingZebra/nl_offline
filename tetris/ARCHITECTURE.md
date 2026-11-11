@@ -395,3 +395,22 @@ The only grid change is the stroke's grayscale source luminance from 43/255
 Grid opacity (0.751355748), width (0.6 CSS px), placement and cell count
 remain unchanged, as does the board background (#181818). No shader settings,
 gameplay, scene layout, input interactions or controls are changed.
+
+
+## Partial piece bloom and balanced grid lift (v202)
+
+The v201 selective high-pass mask is retained, but occupied piece faces are
+no longer excluded from bloom entirely. The **existing UnrealBloomPass** now
+multiplies the masked source's contribution by **0.5**, retaining 50% of the
+normal piece-face bloom while leaving all unmasked scene luminance at 100%.
+The original tile artwork (colour, pixel patterns, and source luminance),
+cast shadows, recess shadows, separate bloom domains, CRT, and phosphor
+settings are not changed. No extra bloom pass, duplicated art, or scene mesh.
+
+The board's **background itself** increases from #181818 (24/255) to #1a1a1a
+(26/255, +8.3%, nearest discrete step to +10%), and the **grid strokes**
+increase separately from #323232 (50/255) to #373737 (55/255, exactly +10%).
+No change to stroke opacity (0.751355748), stroke width (0.6px), grid
+position/spacing/count, board border, or any other background or UI surface.
+Both adjustments are localized to the game board, not the global CRT
+background. Light Control, settings, and gameplay behaviour are unchanged.
