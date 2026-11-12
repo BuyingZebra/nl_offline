@@ -1,11 +1,11 @@
 /* NOMAD v209 — device pointer and keyboard input; UI supplies hitbox geometry. */
-import {findRegionAt,sliderValueAt} from './render.js?v209';
+import {findRegionAt,sliderValueAt} from './render.js?v210';
 export function createInputController({screen,document,window,
  getViewport,getRegions,getModal,getModalView,getOptionsScroll,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
- getLightBounds=()=>null,onLightPoint=()=>{},onLightExit=()=>{},
+ getLightBounds=()=>null,onLightPoint=()=>{},
  onButtonPress=()=>{},onButtonRelease=()=>{}}){
  let pressed=null,repeatDelay=null,repeatInterval=null,disposed=false;
  const listeners=[];
@@ -157,7 +157,7 @@ const KEYS={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'cw',KeyX:'cw',
 listen(document,'keydown',e=>{
  if(disposed||!canInteract())return;
  if(getModal()){
-  if(e.code==='Escape'){e.preventDefault();if(getModal()==='light')onLightExit();else openModal(null);}
+  if(e.code==='Escape'){e.preventDefault();openModal(null);}
   return;
  }
  const a=KEYS[e.code];

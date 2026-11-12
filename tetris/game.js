@@ -500,6 +500,27 @@ export const SHADOW_RANGES=Object.freeze({
  shadowBias:[0,1],shadowOpacity:[0,1]
 });
 export const SHADOW_SETTING_KEYS=Object.freeze(['shadows',...Object.keys(SHADOW_RANGES)]);
+export const SCANLINE_PRESET_IDS=Object.freeze(['original','horizontal','aperture','slot','dot']);
+export const EFFECT_NUMBER_RANGES=Object.freeze({
+ bloomStrength:[0,1],ghostX:[-32,32],ghostY:[-32,32],ghostStrength:[0,100],
+ scanlineOpacity:[0,100],softnessStrength:[0,1],softnessRadius:[0,10],
+ vignetteAmount:[0,1],persistenceMs:[10,120],...SHADOW_RANGES
+});
+// Validate persisted, migrated and user-submitted effects using one schema.
+export function normalizeEffectValue(key,value){
+ if(!Object.prototype.hasOwnProperty.call(DEFAULT_EFFECTS,key))return undefined;
+ const fallback=DEFAULT_EFFECTS[key];
+ if(typeof fallback==='boolean')return typeof value==='boolean'?value:fallback;
+ if(key==='scanlinePreset')
+  return typeof value==='string'&&SCANLINE_PRESET_IDS.includes(value)?value:fallback;
+ if(typeof fallback==='number'){
+  if(typeof value!=='number'||!Number.isFinite(value))return fallback;
+  if(key==='persistenceMs')return normalizePersistenceMs(value);
+  const range=EFFECT_NUMBER_RANGES[key];
+  return range?Math.max(range[0],Math.min(range[1],value)):fallback;
+ }
+ return fallback;
+}
 export const LIGHT_PROPERTY_CONTROLS=Object.freeze([
  Object.freeze({label:'DISTANCE',field:'shadowDistance',min:0,max:35,step:1,unit:'px'}),
  Object.freeze({label:'GAUSSIAN BLUR',field:'shadowBlur',min:0,max:30,step:1,unit:'px'}),
@@ -545,19 +566,10 @@ export function createSettingsManager(storage){
  let effects={...DEFAULT_EFFECTS};
  try{
   const saved=JSON.parse(read(STORAGE_KEYS.effects,'null'));
-  if(saved&&typeof saved==='object'){
-   for(const [key,value] of Object.entries(DEFAULT_EFFECTS)){
-    if(typeof saved[key]===typeof value)effects[key]=saved[key];
-   }
-  }
- }catch(e){}
- // Match the existing V084 migration of out-of-range historical bloom values.
- effects.bloomStrength=clamp(Number(effects.bloomStrength)||0,0,1);
- effects.persistenceMs=normalizePersistenceMs(effects.persistenceMs);
- for(const [key,[lo,hi]] of Object.entries(SHADOW_RANGES)){
-  const n=Number(effects[key]);
-  effects[key]=Number.isFinite(n)?clamp(n,lo,hi):DEFAULT_EFFECTS[key];
- }
+  if(saved&&typeof saved==='object'&&!Array.isArray(saved))
+   for(const key of Object.keys(DEFAULT_EFFECTS))
+    effects[key]=normalizeEffectValue(key,saved[key]);
+ }catch(e){/* Corrupt/disabled storage keeps documented defaults. */}
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
  // Restore the original green/amber-only phosphor selection. A saved
@@ -581,22 +593,21 @@ export function createSettingsManager(storage){
    write(STORAGE_KEYS.sound,soundOn?'yes':'no');
    return;
   }
-  if(key==='persistenceMs')value=normalizePersistenceMs(value);
   if(Object.prototype.hasOwnProperty.call(DEFAULT_EFFECTS,key)){
-   const converted=effectSettingToStored(key,value,clamp);
-   const range=SHADOW_RANGES[key];
-   if(range){
-    const n=Number(converted);
-    value=Number.isFinite(n)?clamp(n,range[0],range[1]):DEFAULT_EFFECTS[key];
-   }else value=converted;
-   effects[key]=value;
+   // Nonfinite input must not saturate the slider through percent clamping.
+   const converted=typeof DEFAULT_EFFECTS[key]==='number'&&
+    (typeof value!=='number'||!Number.isFinite(value))?
+    DEFAULT_EFFECTS[key]:effectSettingToStored(key,value,clamp);
+   effects[key]=normalizeEffectValue(key,converted);
    persistEffects();
   }
  }
  function chooseScanline(id){
+  if(id!=='off'&&!SCANLINE_PRESET_IDS.includes(id))return false;
   effects.scanlines=id!=='off';
   if(id!=='off')effects.scanlinePreset=id;
   persistEffects();
+  return true;
  }
  function toggleTheme(){
   theme=theme==='green'?'amber':'green';
@@ -664,7 +675,9 @@ export function createScreenManager({getGameStatus,pauseGame,onChange}){
   get isOptions(){return active===SCREENS.OPTIONS;},
   get isLight(){return active===SCREENS.LIGHT;},
   get paintsModalLayer(){return active!==null&&active!==SCREENS.SCORES;},
-  close:()=>open(null),
+  // A single close operation returns Light Control to its parent Display
+  // System; all other menus go back to the paused game.
+  close:()=>open(active===SCREENS.LIGHT?SCREENS.OPTIONS:null),
   openOptions:()=>openWithPause(SCREENS.OPTIONS),
   openLight:()=>openWithPause(SCREENS.LIGHT),
   openScores:()=>openWithPause(SCREENS.SCORES)
@@ -788,7 +801,6 @@ export function createActionController({
   if(action==='copyDebug'){onCopyDebug();return;}
   if(action==='options'){screens.openOptions();return;}
   if(action==='light'){screens.openLight();return;}
-  if(action==='lightDone'){screens.openOptions();return;}
   if(action==='scores'){
    const saved=scores.read(storage);
    if(saved&&(!best||saved.score>best.score))best=saved;

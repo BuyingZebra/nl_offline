@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v209';
-export {createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from './diagnostics.js?v209';
+import {instrumentCompositorPasses} from './diagnostics.js?v210';
+export {createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from './diagnostics.js?v210';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
