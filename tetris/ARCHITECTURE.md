@@ -446,3 +446,10 @@ Strict render order: game board background/grid → piece shadows → pieces →
 ## 3-cell I symbol in HOLD / NEXT (v208)
 
 The only change is the I-piece visual in HOLD and NEXT. One immutable `PREVIEW_I_SHAPE` containing three consecutive I cells is selected by `previewPieceShape`; all other shapes return their canonical matrix. The same preview sizing, cell dimensions, layout, vectors, artwork and continuous I-fragment renderer remain unchanged, and the fragment is naturally drawn at length 3. Gameplay's 4-cell I, controls, shadow rendering, rules and stored scores are untouched.
+
+
+## v209 high-priority consolidation
+
+Single visual owner: the board, sidebar and controls draw only on their respective cropped layers; the base paints the header and brick frame. `visitControlButtons` supplies exactly the same dimensions to the controls painter and the hitbox-only registrar. HIGH SCORE paints only on the existing post-blur popup layer, not also on the modal layer. This removes duplicate pixels and one unnecessary full-screen transparent texture repaint while that screen is open; HIGH SCORE may become less luminous because it was accidentally composited twice.
+
+Modules: frame diagnostics and the platform-independent input controller are extracted to `diagnostics.js` and `input.js`, with existing public exports preserved. These modules reuse the same game rules, input timings, CRT compositor, shadow order, textures, button dimensions, and storage. No new GPU pass, image texture or gameplay rule is introduced. Both new files are pinned in the offline release cache.
