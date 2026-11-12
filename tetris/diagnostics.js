@@ -296,7 +296,7 @@ function createTextureUploadProfiler({renderer,onTiming=()=>{},now=()=>performan
 /* Tetris System — diagnostics exported only by explicit user action.
  * Pure formatter: no network, storage, automatic sharing or mutable state.
  */
-function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,samples=[],current}={}){
+function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,idlePacing,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -307,6 +307,7 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
   'State: '+value(game?.status)+' / level '+value(game?.level)+' / score '+value(game?.score)+' / lines '+value(game?.lines),
   'Display: '+value(display?.theme)+' phosphor / '+value(display?.orientation)+' / '+value(display?.phosphor?'on':'off')+' tint',
   'Controls rendering: '+value(buttonRenderer),
+  'Idle scheduling: '+value(idlePacing),
   '',
   'RECENT FRAME SAMPLES (2-second windows, newest last)',
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',

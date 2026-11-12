@@ -963,5 +963,7 @@ describe('PWA frame scheduling policy',()=>{
   assert.match(source,/if\(keepAnimating\)requestFrame\(\);\n  else if\(game.status!=='playing'&&\!document.hidden\)/);
   assert.match(source,/terminalTimer=window\.setTimeout\(\(\)=>\{[\s\S]*?\},idleFrameDelayMs\(\{/);
   assert.match(source,/terminalDelayMs:terminalLog\.nextDelay\(now\)/);
+  assert.match(source,/legacyIdleRAF&&phosphorOn/);
+  assert.match(source,/idlepacing'\)==='off'/);
  });
 });

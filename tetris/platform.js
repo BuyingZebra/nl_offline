@@ -438,6 +438,9 @@ const textureUploads=createTextureUploadProfiler({renderer,
  onTiming:(kind,elapsed,source)=>perf.recordUpload(kind,elapsed,source)});
 // Developer A/B: ?shadowbox=off restores v188's unrestricted bloom.
 const shadowBox=new URLSearchParams(window.location.search).get('shadowbox')!=='off';
+// v211 A/B: ?idlepacing=off restores v210's continuous idle RAF, without
+// altering any rendering pass, source artwork or stored preference.
+const legacyIdleRAF=new URLSearchParams(window.location.search).get('idlepacing')==='off';
 const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
  pieceBloomMaskTexture,shadowBox,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
@@ -1081,6 +1084,7 @@ function createDebugReport(){
   geometries:memory?.geometries,programs:renderer.info.programs?.length};
  return formatDebugReport({
   version:THREE_BUILD_VERSION,createdAt:new Date().toISOString(),
+  idlePacing:legacyIdleRAF?'legacy continuous RAF':'paced idle timer',
   buttonRenderer:visualScene.controlsGpuEnabled?'GPU uniforms':'Canvas2D fallback',
   platform:navigator.userAgent,
   viewport:{width:W,height:H,dpr:DPR,deviceDpr:Math.max(1,window.devicePixelRatio||1)},
@@ -1456,7 +1460,7 @@ function frame(now){
    gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
    redrawPending:layers.needsRender(),scrolling:Math.abs(scrollVelocity)>.015,
    buttonsActive:buttonSparks.length>0
-  });
+  })||(legacyIdleRAF&&phosphorOn);
   // A continuously active RAF already advances the terminal. Scheduling a
   // second timeout for the same work wastes callbacks and timer allocations.
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
