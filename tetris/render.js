@@ -2030,6 +2030,12 @@ function key(label,x,y,w,h,act,opts={}){
  * Caller supplies drawing primitives, live game state and existing button
  * registrar; the same UI can draw on the cached base or cropped canvases.
  */
+// A three-cell I is a PREVIEW-ONLY glyph. Gameplay keeps its four-block I;
+// drawPiece still supplies the same original continuous gravel SVG artwork.
+const PREVIEW_I_SHAPE=Object.freeze([Object.freeze(['I','I','I'])]);
+function previewPieceShape(kind,shapes){
+ return kind==='I'?PREVIEW_I_SHAPE:shapes?.[kind];
+}
 // Square tetromino cells at every preview aspect ratio, including narrow phones.
 function fitPreviewCells(shape,x,y,w,h,role='next',targetCell=null){
  if(!Array.isArray(shape)||!(w>0)||!(h>0))return [];
@@ -2920,7 +2926,7 @@ function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  ctx.restore();
 }
 
-return {createCanvasUI,fitPreviewCells,createHudDrawing,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
+return {createCanvasUI,previewPieceShape,fitPreviewCells,createHudDrawing,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
 })();
 // Device-independent CSS-pixel visual geometry.
 const Layout=(()=>{
@@ -3086,7 +3092,7 @@ return api;
 })();
 export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
-export const {createCanvasUI,fitPreviewCells,createHudDrawing,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
+export const {createCanvasUI,previewPieceShape,fitPreviewCells,createHudDrawing,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
 export const {createPerfMonitor,createTextureUploadProfiler,formatDebugReport}=RenderDiagnostics;
 export {instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};

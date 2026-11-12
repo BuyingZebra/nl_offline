@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
-import {createHudDrawing,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
+import {createHudDrawing,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
+import {Core} from '../tetris/game.js';
 import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
@@ -431,6 +432,32 @@ describe('HUD layout and viewport rules',()=>{
    assert.ok(Math.abs(piece[6]-((r.boardW-4)/10)*.75)<1e-8,
     'preview targets exactly 75% game tile size');
   }
+ });
+ test('I symbol is three full-size contiguous cells ONLY in NEXT and HOLD',()=>{
+  assert.equal(Core.SHAPES.I.flat().filter(Boolean).length,4,'gameplay I is still four cells');
+  const glyph=previewPieceShape('I',Core.SHAPES);
+  assert.deepEqual(glyph,[['I','I','I']]);
+  assert.equal(glyph.flat().filter(Boolean).length,3);
+  assert.notStrictEqual(glyph,Core.SHAPES.I);
+  for(const kind of ['J','L','O','S','T','Z'])
+   assert.strictEqual(previewPieceShape(kind,Core.SHAPES),Core.SHAPES[kind]);
+  const r=computeLayout(393,852,{top:59,bottom:34},ui),pad=5;
+  for(const role of ['next','hold']){
+   const frame=role==='next'?r.nextPanel:r.holdPanel;
+   const cells=fitPreviewCells(glyph,frame.x+pad,frame.y+pad,
+    frame.w-2*pad,frame.h-2*pad,role,r.previewCell);
+   assert.equal(cells.length,3);
+   assert.ok(cells.every(c=>Math.abs(c.size-r.previewCell)<1e-6),
+    role+' keeps existing preview cell size; no scaling');
+   assert.ok(cells.every(c=>c.x>=frame.x+pad-.001 &&
+    c.x+c.size<=frame.x+frame.w-pad+.001 &&
+    c.y>=frame.y+pad-.001 && c.y+c.size<=frame.y+frame.h-pad+.001));
+   assert.ok(Math.abs((cells[2].x+cells[2].size-cells[0].x)-
+    3*r.previewCell)<1e-6,'three connected blocks at the original dimensions');
+  }
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  assert.match(platform,/previewPieceShape\(kind,Core\.SHAPES\)/,
+   'both HOLD and NEXT use the preview-only shape');
  });
  test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
   const shapes=[

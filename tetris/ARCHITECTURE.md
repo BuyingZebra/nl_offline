@@ -441,3 +441,8 @@ The two menus already reuse the same board/popup CanvasTextures, shadow renderer
 ## Single post-blur board inset shadow (v207)
 
 Strict render order: game board background/grid → piece shadows → pieces → optional board Gaussian blur → ONE board inset shadow → menu content. Blur is OFF while playing; the same existing popup compositor still paints only that one sharp inset. READY, PAUSED and HIGH SCORE share the same two-pass blur (when enabled), one popup texture, and one inset renderer, with only the title/score data and buttons varying. Light Control paints that same cached inset on its existing modal canvas before its controls with no blur. There is no board inset inside the blurred board source and no extra GPU passes or textures. Shadow values and graphics defaults remain unchanged.
+
+
+## 3-cell I symbol in HOLD / NEXT (v208)
+
+The only change is the I-piece visual in HOLD and NEXT. One immutable `PREVIEW_I_SHAPE` containing three consecutive I cells is selected by `previewPieceShape`; all other shapes return their canonical matrix. The same preview sizing, cell dimensions, layout, vectors, artwork and continuous I-fragment renderer remain unchanged, and the fragment is naturally drawn at length 3. Gameplay's 4-cell I, controls, shadow rendering, rules and stored scores are untouched.
