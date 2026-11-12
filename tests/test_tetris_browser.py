@@ -409,13 +409,16 @@ with sync_playwright() as p:
     # 60Hz RAF/gravity phase that happened to run in the headless browser.
     for _ in range(40):
         page.keyboard.press("ArrowDown")
+        page.wait_for_timeout(90)  # allow the 450ms grounded lock to complete
         if page.evaluate(read_best) > best_before_rotation:
             break
     else:
         raise AssertionError(
             f"Soft drops did not score after resume: "
             f"status={page.evaluate('() => window.testGame?.status')} "
-            f"best={page.evaluate(read_best)} prior={best_before_rotation}"
+            f"best={page.evaluate(read_best)} prior={best_before_rotation} "
+            f"pieceY={page.evaluate('() => window.testGame?.current?.y')} "
+            f"pieces={page.evaluate('() => window.testGame?.pieces')}"
         )
     best_before_rotation = page.evaluate(read_best)
     # The CSS notice can change before the media-query event reaches the game.
@@ -441,13 +444,16 @@ with sync_playwright() as p:
     page.wait_for_function("() => window.testGame?.status === 'playing'", timeout=8000)
     for _ in range(40):
         page.keyboard.press("ArrowDown")
+        page.wait_for_timeout(90)  # allow the 450ms grounded lock to complete
         if page.evaluate(read_best) > best_before_rotation:
             break
     else:
         raise AssertionError(
             f"Soft drops did not score after rotation: "
             f"status={page.evaluate('() => window.testGame?.status')} "
-            f"best={page.evaluate(read_best)} prior={best_before_rotation}"
+            f"best={page.evaluate(read_best)} prior={best_before_rotation} "
+            f"pieceY={page.evaluate('() => window.testGame?.current?.y')} "
+            f"pieces={page.evaluate('() => window.testGame?.pieces')}"
         )
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
