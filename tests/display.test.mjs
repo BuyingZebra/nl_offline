@@ -1059,12 +1059,14 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(platform,/if\(screenManager\.isLight\)paintLightDirectionOverlay\(\)/);
   assert.match(platform,/scrimPlane\.visible=!standaloneSettings&&!screenManager\.isScores&&!screenManager\.isLight/);
   assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
-  assert.match(renderer,/shadowBox&&\(!modalOpen\|\|isolateLightWindow\)/);
+  assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
+  assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
   assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:\(\)=>settings\.effects\}\)/);
   assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
   assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects|getSettings:lightFX/);
   assert.match(platform,/\{\.\.\.settings\.effects,persistence:false\}:settings\.effects/);
-  assert.match(renderer,/boardStatus!=='playing'&&\(!modalOpen\|\|scoresOverlay\)/);
+  assert.match(renderer,/const boardBackdropVisible=!modalOpen\|\|scoresOverlay/);
+  assert.match(renderer,/boardStatus!=='playing'&&boardBackdropVisible/);
   const stage=platform.slice(platform.indexOf('function stage('),
    platform.indexOf('function drawSharpBoardInsetShadow('));
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
