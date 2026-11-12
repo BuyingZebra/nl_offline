@@ -1665,7 +1665,7 @@ function drawSidebar(r){
   const pad=5;
   smallPiece(kind,box.x+pad,box.y+pad,
    Math.max(0,box.w-2*pad),Math.max(0,box.h-2*pad),
-   r.previewCell);
+   role,r.previewCell);
  };
  preview(next,game.queue[0],'next');
  // Three independent flat LCD readouts, not one combined score panel.

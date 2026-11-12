@@ -707,7 +707,7 @@ const brickFrame=createBrickFrame({
 function tileFace(x,y,w,h,kind){
  vectorTiles.drawTile(g,x,y,w,h,kind);
 }
-function smallPiece(kind,x,y,w,h,cellSize){
+function smallPiece(kind,x,y,w,h,role='next',cellSize=null){
  if(!kind)return;
  // A short three-cell I appears ONLY in NEXT and HOLD. All cell sizes,
  // sprite artwork and all six other previews follow the existing path.
