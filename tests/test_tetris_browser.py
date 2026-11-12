@@ -403,8 +403,20 @@ with sync_playwright() as p:
     # Rotation must preserve the open run, pause it, and require explicit resume.
     best_before_rotation = page.evaluate(read_best)
     page.keyboard.press("Enter")
-    page.keyboard.press("ArrowDown")
-    page.wait_for_function(f"score => ({read_best})() > score", arg=best_before_rotation)
+    page.wait_for_function("() => window.testGame?.status === 'playing'", timeout=8000)
+    # The test may hit a piece just before it locks. Multiple real soft-drop
+    # keypresses verify score progression without depending on the exact
+    # 60Hz RAF/gravity phase that happened to run in the headless browser.
+    for _ in range(40):
+        page.keyboard.press("ArrowDown")
+        if page.evaluate(read_best) > best_before_rotation:
+            break
+    else:
+        raise AssertionError(
+            f"Soft drops did not score after resume: "
+            f"status={page.evaluate('() => window.testGame?.status')} "
+            f"best={page.evaluate(read_best)} prior={best_before_rotation}"
+        )
     best_before_rotation = page.evaluate(read_best)
     # The CSS notice can change before the media-query event reaches the game.
     next_paint = """() => new Promise(done => {
@@ -426,8 +438,17 @@ with sync_playwright() as p:
     page.keyboard.press("ArrowDown")
     assert page.evaluate(read_best) == best_before_rotation
     page.keyboard.press("Enter")
-    page.keyboard.press("ArrowDown")
-    page.wait_for_function(f"score => ({read_best})() > score", arg=best_before_rotation)
+    page.wait_for_function("() => window.testGame?.status === 'playing'", timeout=8000)
+    for _ in range(40):
+        page.keyboard.press("ArrowDown")
+        if page.evaluate(read_best) > best_before_rotation:
+            break
+    else:
+        raise AssertionError(
+            f"Soft drops did not score after rotation: "
+            f"status={page.evaluate('() => window.testGame?.status')} "
+            f"best={page.evaluate(read_best)} prior={best_before_rotation}"
+        )
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     assert not errors, errors
     print(f"{browser_name}: portrait sizing and rotation pause/resume passed")
