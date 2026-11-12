@@ -48,6 +48,22 @@ const CORE_ASSETS=Object.freeze([
  './vendor/three/three.bundle.js',
 ]);
 const ALLOWED_PATHS=new Set(CORE_ASSETS.map(asset=>new URL(asset,SCOPE).pathname));
+// Never install a new shell with older critical JS from a partial deployment.
+const PINNED_IMPORTS=Object.freeze([
+ ['./three-v027.js','./platform.js'],
+ ['./platform.js','./input.js'],
+ ['./platform.js','./render.js'],
+ ['./input.js','./render.js'],
+ ['./render.js','./diagnostics.js']
+]);
+async function verifyPinnedModules(cache){
+ const build=CACHE_VERSION.slice(1);
+ for(const [module,dependency] of PINNED_IMPORTS){
+  const response=await cache.match(new URL(module,SCOPE));
+  if(!response?.ok||!(await response.text()).includes(dependency+'?v'+build))
+   throw Error('NOMAD staged module version mismatch: '+module+' -> '+dependency);
+ }
+}
 
 async function warmOptionalFonts(cache){
  // Font assets affect visual fidelity but never gate installation/offline play.
@@ -80,6 +96,7 @@ self.addEventListener('install',event=>{
    const html=shell?.ok?await shell.text():'';
    const build=html.match(/<meta\s+name=["']tetris-build["']\s+content=["']([0-9]{3})["']/i)?.[1];
    if(build!==CACHE_VERSION.slice(1))throw Error('NOMAD offline shell version mismatch');
+   await verifyPinnedModules(cache);
    // Clean-URL hosts redirect the .html request during precache. Store
    // the validated body as a direct response for offline navigation.
    if(shell.redirected){

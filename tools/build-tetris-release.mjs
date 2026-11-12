@@ -36,6 +36,25 @@ const assets = ['./', ...[
   ...files('assets/tiles/vector', /\.svg$/),
   ...files('vendor/three', /\.js$/, true),
 ].sort().map(path => `./${path}`)];
+// Critical runtime imports are versioned from one release generator. The
+// worker also verifies the version links from the staged network responses.
+const pinnedImports = [
+ ['three-v027.js',['platform.js']],
+ ['platform.js',['input.js','render.js']],
+ ['input.js',['render.js']],
+ ['render.js',['diagnostics.js']]
+];
+const updatedModules = pinnedImports.map(([module,dependencies]) => {
+ const file = join(root,module);
+ const original = readFileSync(file,'utf8');
+ let updated = original;
+ for(const dependency of dependencies){
+  const re=new RegExp('(\\./'+dependency.replaceAll('.','\\.')+'\\?v)\\d{3}','g');
+  if(!re.test(updated))throw Error('Missing pinned import: '+module+' -> '+dependency);
+  updated=updated.replace(re,(_,prefix)=>prefix+build);
+ }
+ return {file,original,updated};
+});
 const generated = `const CORE_ASSETS=Object.freeze([\n${assets.map(path => ` '${path}',`).join('\n')}\n]);`;
 const nextWorker = worker
   .replace(/^(\/\* NOMAD Tetris V)\d{3}/, (_, prefix) => prefix + build)
@@ -43,7 +62,10 @@ const nextWorker = worker
   .replace(assetBlock, generated);
 if (command === '--check') {
   if (nextWorker !== worker) throw Error('Offline manifest is stale. Run the release generator with the build number.');
+  for(const {file,original,updated} of updatedModules)
+   if(updated!==original)throw Error('Module version is stale: '+file);
 } else {
   writeFileSync(shellPath, shell.replace(marker, (_, prefix, previous, suffix) => prefix + build + suffix));
+  for(const {file,updated} of updatedModules)writeFileSync(file,updated);
   writeFileSync(workerPath, nextWorker);
 }
