@@ -1033,15 +1033,27 @@ describe('Piece shadows',()=>{
   assert.equal(shadow.stats.cached,false);
  });
 
- test('v193 active inset and sharp pause overlay both share the new renderer',()=>{
+ test('v207 single inset is drawn after optional blur, never inside the board source',()=>{
   const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const section=platform.slice(platform.indexOf('function stage('),
+  const stage=platform.slice(platform.indexOf('function stage('),
+   platform.indexOf('function drawSharpBoardInsetShadow('));
+  const inset=platform.slice(platform.indexOf('function drawSharpBoardInsetShadow('),
    platform.indexOf('function paintBoardPopup('));
-  assert.match(section,/boardInsetShadows\.draw\(g,offX,offY,w-4,h-4,tile\)/);
-  assert.match(section,/boardInsetShadows\.draw\(g,x\+2,y\+2,innerW,innerH,innerW\/10,\.62\)/);
+  const popup=platform.slice(platform.indexOf('function paintBoardPopup('),
+   platform.indexOf('// Pure layout calculation'));
+  const light=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
+   platform.indexOf('function paintModalOverlay('));
+  assert.doesNotMatch(stage,/boardInsetShadows\.draw\(/);
+  assert.match(stage,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
+  assert.match(inset,/boardInsetShadows\.draw\(g,x\+2,y\+2,innerW,innerH,innerW\/10\)/);
+  assert.equal((platform.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
+  assert.equal((popup.match(/drawSharpBoardInsetShadow\(r\);/g)||[]).length,1);
+  assert.ok(popup.indexOf('drawSharpBoardInsetShadow(r);')<
+   popup.indexOf("if(status==='playing')return"));
+  assert.equal((light.match(/drawSharpBoardInsetShadow\(r\);/g)||[]).length,1);
   assert.match(platform,/getSettings:\(\)=>settings\.effects/);
   assert.match(platform,/\['board-inset-shadows',\(\)=>boardInsetShadows\.dispose\(\)\]/);
-  assert.doesNotMatch(section,/paintBoardInsetShadow\(|const insetShade=|const shade=/);
+  assert.doesNotMatch(stage,/paintBoardInsetShadow\(|const insetShade=|const shade=/);
  });
 
  test('v190 settings modify shadow direction and blur without disturbing shape caching',()=>{
