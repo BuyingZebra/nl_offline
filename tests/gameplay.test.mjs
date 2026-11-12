@@ -1,6 +1,6 @@
 import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
-import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS,DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS} from '../tetris/game.js';
+import Core,{Scores,createActionController,GAME_ACTIONS,createScreenManager,SCREENS,createSettingsManager,STORAGE_KEYS,DEFAULT_EFFECTS,DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,SCANLINE_PRESET_IDS,EFFECT_NUMBER_RANGES,normalizeEffectValue} from '../tetris/game.js';
 import fs from 'node:fs';
 import {createAppLifecycle,runCleanupTasks} from '../tetris/platform.js';
 import {createGraphicsHealth} from '../tetris/render.js';
@@ -653,6 +653,22 @@ describe('Menus and pause state',()=>{
   assert.equal(h.pauses,0);
  });
 
+ test('one contextual close handles all menus without changing game status',()=>{
+  const h=harness('playing');
+  assert.equal(h.screens.openOptions(),true);
+  assert.equal(h.status,'paused');
+  assert.equal(h.screens.openLight(),true);
+  assert.equal(h.screens.isLight,true);
+  assert.equal(h.screens.close(),true);
+  assert.equal(h.screens.isOptions,true,'Light Control closes to its parent');
+  assert.equal(h.status,'paused','closing Light Control does not resume game');
+  assert.equal(h.screens.close(),true);
+  assert.equal(h.screens.screen,SCREENS.GAME,'Display System returns to paused game');
+  assert.equal(h.screens.openScores(),true);
+  assert.equal(h.screens.close(),true);
+  assert.equal(h.screens.hasModal,false);
+  assert.equal(h.status,'paused','High Score closing does not resume game');
+ });
  test('Screen Manager has no render or gameplay state ownership',()=>{
   const h=harness('ready');
   assert.equal(Object.isFrozen(h.screens),true);
@@ -811,6 +827,54 @@ describe('Saved preferences',()=>{
   assert.equal(settings.theme,'amber');
  });
 
+ test('saved effects are finite, range-bounded and constrained to valid CRT presets',()=>{
+  const raw={...DEFAULT_EFFECTS,
+   bloomStrength:4,ghostX:-990,ghostY:120,ghostStrength:-2,
+   scanlineOpacity:999,softnessStrength:-9,softnessRadius:900,
+   vignetteAmount:300,persistenceMs:199,
+   shadowDistance:1e8,shadowBlur:-20,shadowAngle:-200,
+   shadowOpacity:1e9,shadowBias:-500,
+   scanlinePreset:'unknown',ghost:'false',persistence:'yes'};
+  const storage=memoryStorage({[STORAGE_KEYS.effects]:JSON.stringify(raw)});
+  const s=createSettingsManager(storage);
+  for(const [key,limits] of Object.entries(EFFECT_NUMBER_RANGES)){
+   const val=s.effects[key];
+   assert.ok(Number.isFinite(val),key+' must be finite');
+   assert.ok(val>=limits[0]&&val<=limits[1],key+' must stay in range');
+  }
+  assert.equal(s.effects.scanlinePreset,DEFAULT_EFFECTS.scanlinePreset);
+  assert.equal(s.effects.ghost,DEFAULT_EFFECTS.ghost);
+  assert.equal(s.effects.persistence,DEFAULT_EFFECTS.persistence);
+  assert.deepEqual([
+   s.effects.bloomStrength,s.effects.ghostX,s.effects.ghostY,
+   s.effects.ghostStrength,s.effects.scanlineOpacity,s.effects.softnessRadius,
+   s.effects.shadowDistance,s.effects.shadowBlur
+  ],[1,-32,32,0,100,10,35,0]);
+  s.setSetting('ghostStrength',Infinity);
+  assert.equal(s.effects.ghostStrength,DEFAULT_EFFECTS.ghostStrength);
+  s.setSetting('bloomStrength',Infinity);
+  assert.equal(s.effects.bloomStrength,DEFAULT_EFFECTS.bloomStrength);
+  s.setSetting('softnessRadius',NaN);
+  assert.equal(s.effects.softnessRadius,DEFAULT_EFFECTS.softnessRadius);
+  s.setSetting('ghostX',-500);
+  assert.equal(s.effects.ghostX,-32);
+  const saved=JSON.parse(storage.data.get(STORAGE_KEYS.effects));
+  assert.ok(Object.values(saved).every(v=>typeof v!=='number'||Number.isFinite(v)));
+  assert.equal(SCANLINE_PRESET_IDS.includes(s.effects.scanlinePreset),true);
+  const prior=JSON.stringify(s.effects);
+  assert.equal(s.chooseScanline('unrecognized'),false);
+  assert.equal(JSON.stringify(s.effects),prior);
+ });
+ test('valid historical numeric effects and supported masks retain exact values',()=>{
+  const saved={...DEFAULT_EFFECTS,bloomStrength:.325,softnessRadius:3.5,
+   ghostStrength:22,ghostX:-2,ghostY:3,scanlineOpacity:49,
+   shadowBias:.45,shadowOpacity:.65,scanlinePreset:'slot'};
+  const s=createSettingsManager(memoryStorage({[STORAGE_KEYS.effects]:JSON.stringify(saved)}));
+  assert.deepEqual(s.effects,saved);
+  for(const key of SCANLINE_PRESET_IDS)assert.equal(normalizeEffectValue('scanlinePreset',key),key);
+  assert.equal(normalizeEffectValue('scanlinePreset','__proto__'),'aperture');
+  assert.equal(normalizeEffectValue('ghostStrength',-Infinity),DEFAULT_EFFECTS.ghostStrength);
+ });
  test('score initials remain at their original preference key',()=>{
   const storage=memoryStorage();
   const settings=createSettingsManager(storage);
@@ -989,7 +1053,7 @@ describe('Gameplay integration',()=>{
   assert.equal(sessionState.screens.isLight,true);
   sessionState.actions.setSetting('shadowAngle',135);
   assert.equal(sessionState.settings.effects.shadowAngle,135);
-  sessionState.actions.dispatch('lightDone');
+  sessionState.actions.dispatch('close');
   assert.equal(sessionState.screens.isOptions,true);
   assert.equal(sessionState.game.status,'paused');
   sessionState.lifecycle.dispose();

@@ -1111,7 +1111,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(lab,/g\.rect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\);g\.clip\(\)/);
   assert.match(lab,/g\.moveTo\(r\.sideX\+2,p\.y\);g\.lineTo\(r\.sideX\+r\.sideW-2,p\.y\)/);
   assert.doesNotMatch(lab,/g\.moveTo\(p\.x,0\)|g\.lineTo\(p\.x,H\)|g\.lineTo\(W,p\.y\)/);
-  assert.match(lab,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'lightDone'\)/);
+  assert.match(lab,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close'\)/);
  });
 
  test('v198 dashes and light ring use the same opaque 206 luminance; readout straddles separator',()=>{
@@ -1195,7 +1195,7 @@ describe('v200 context-only light property deck',()=>{
   assert.match(modal,/controlsPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));
-  assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'lightDone'\)/);
+  assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close'\)/);
   assert.doesNotMatch(light,/key\('DONE'|key\('☷'/);
  });
  test('new property panel shares original control bounds and has exactly four integrated bars',()=>{

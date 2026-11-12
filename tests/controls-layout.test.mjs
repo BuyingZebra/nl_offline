@@ -68,7 +68,7 @@ describe('Overlay theme and confirmation controls',()=>{
   const part=src.slice(src.indexOf('function paintLightDirectionOverlay(){'),src.indexOf('function paintModalOverlay(){'));
   assert.match(part,/regions=\[\]/);
   assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
-  assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'lightDone'\)/);
+  assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'close'\)/);
  });
  test('Display System close control uses checkmark but retains action',()=>{
   const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
@@ -819,18 +819,18 @@ describe('Pointer and keyboard input',()=>{
    screen,document,window,
    getViewport:()=>({width:100,height:60}),
    getRegions:()=>[
-    {x:85,y:2,w:14,h:10,act:'lightDone',kind:'button'},
+    {x:85,y:2,w:14,h:10,act:'close',kind:'button'},
     {x:10,y:15,w:70,h:40,act:'left',kind:'button'}
    ],
    getModal:()=> 'light',getModalView:()=>null,
    getLightBounds:()=>({x:10,y:15,w:70,h:40}),
-   onLightPoint:p=>pointSamples.push(p),onLightExit:()=>{exits++;},
+   onLightPoint:p=>pointSamples.push(p),
    getOptionsScroll:()=>0,setOptionsScroll:()=>{},
    getOptionsMaxScroll:()=>0,setScrollVelocity:()=>{},
    setBaseDirty:()=>{},handleAction:a=>actions.push(a),
    perform:a=>actions.push(a),setSetting:()=>{},
    settingValue:()=>0,toggleScanlineMenu:()=>{},chooseScanline:()=>{},
-   openModal:()=>{},invalidate:()=>{},clamp:(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
+   openModal:()=>{exits++;},invalidate:()=>{},clamp:(n,lo,hi)=>Math.min(hi,Math.max(lo,n))
   });
   const e=(id,x,y,type='pointerdown')=>({
    type,pointerType:'touch',button:0,pointerId:id,
@@ -844,7 +844,7 @@ describe('Pointer and keyboard input',()=>{
   assert.equal(captured,null);
   screen.emit('pointerdown',e(2,90,7));
   screen.emit('pointerup',e(2,90,7,'pointerup'));
-  assert.deepEqual(actions,['lightDone'],'the exit button remains clickable');
+  assert.deepEqual(actions,['close'],'the exit button remains clickable');
   document.emit('keydown',{code:'Escape',preventDefault(){}});
   assert.equal(exits,1,'Escape also leaves the lighting laboratory');
   controller.dispose();
@@ -864,7 +864,7 @@ describe('Pointer and keyboard input',()=>{
     {x:20,y:70,w:70,h:12,kind:'region',act:'slider',
      field:'shadowDistance',min:0,max:35,step:1,trackX:20,trackW:70,
      modalControl:true},
-    {x:80,y:2,w:16,h:16,kind:'button',act:'lightDone'}
+    {x:80,y:2,w:16,h:16,kind:'button',act:'close'}
    ],
    getModal:()=> 'light',getModalView:()=>null,
    getLightBounds:()=>({x:10,y:20,w:70,h:40}),
@@ -891,7 +891,7 @@ describe('Pointer and keyboard input',()=>{
   assert.equal(lightPoints.length,3);
   screen.emit('pointerdown',e(3,85,8,'pointerdown'));
   screen.emit('pointerup',e(3,85,8,'pointerup'));
-  assert.deepEqual(actions,['lightDone'],'hidden gameplay controls stay inactive');
+  assert.deepEqual(actions,['close'],'hidden gameplay controls stay inactive');
   controller.dispose();
  });
 

@@ -668,7 +668,7 @@ describe('Offline installation and release switching',()=>{
 
  function workerHarness({redirectShell=false}={}){
   const events=new Map(),storage=new Map(),deleted=[],claims=[],promotions=[];
-  let online=true,failPath=null,version='old',shellBuild=currentBuild;
+  let online=true,failPath=null,version='old',shellBuild=currentBuild,staleModule=null;
   const asURL=item=>typeof item==='string'?new URL(item,scope).href:
    item instanceof URL?item.href:item.url;
   async function fetchMock(item){
@@ -677,7 +677,12 @@ describe('Offline installation and release switching',()=>{
    if(url.origin!==new URL(scope).origin)throw Error('Optional fonts unavailable');
    const html=url.pathname.endsWith('/three-v027.html')?
     '<meta name="tetris-build" content="'+shellBuild+'">':'';
-   const response=new Response(version+' '+url.pathname+' '+html,{status:200});
+   const localPath=url.pathname.split('/tetris/')[1];
+   let script=localPath&&/^[a-z0-9-]+\.js$/.test(localPath)?
+    fs.readFileSync(path.join(dir,localPath),'utf8'):'';
+   if(localPath===staleModule)
+    script=script.replaceAll('?v'+currentBuild,'?v'+String(Number(currentBuild)-1).padStart(3,'0'));
+   const response=new Response(version+' '+url.pathname+' '+html+'\n'+script,{status:200});
    if(redirectShell&&html){
     // Model the final response to the host's .html -> clean URL redirect.
     Object.defineProperty(response,'redirected',{value:true});
@@ -731,7 +736,7 @@ describe('Offline installation and release switching',()=>{
   }
   return {emit,assets,storage,caches,claims,deleted,promotions,
    setOnline:x=>online=x,setVersion:x=>version=x,setFailPath:x=>failPath=x,
-   setShellBuild:x=>shellBuild=x,
+   setShellBuild:x=>shellBuild=x,setStaleModule:x=>staleModule=x,
    get cache(){return storage.get('nomad-tetris-offline-v'+currentBuild);}
   };
  }
@@ -844,6 +849,19 @@ describe('Offline installation and release switching',()=>{
   const h=workerHarness();h.setShellBuild('097');
   await assert.rejects(h.emit('install'),/version mismatch/);
   assert.equal(h.cache,undefined);
+ });
+ test('a stale module import rejects installation without deleting the previous release',async()=>{
+  for(const file of ['three-v027.js','platform.js','input.js','render.js']){
+   const h=workerHarness();
+   const old='nomad-tetris-offline-v'+String(Number(currentBuild)-1);
+   const prior=await h.caches.open(old);
+   await prior.put(new URL('./game.js',scope),new Response('previous game'));
+   h.setStaleModule(file);
+   await assert.rejects(h.emit('install'),/staged module version mismatch/);
+   assert.equal(h.cache,undefined,'incomplete new release must be removed');
+   assert.ok(await prior.match(new URL('./game.js',scope)),
+    'previous fully installed version remains available');
+  }
  });
  test('a missing pinned runtime file fails closed instead of fetching another version',async()=>{
   const h=workerHarness();await h.emit('install');h.setVersion('new');
