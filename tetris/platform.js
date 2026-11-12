@@ -1,4 +1,4 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v204';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v205';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -1151,9 +1151,7 @@ function paintBaseGame(){
  panel(r.hx,r.hy,r.hw,r.hh,0,C.panel);
  // The logo, wordmark, and subtitle use the EXISTING font and luminance
  // palette. Only the title organization changes; header buttons stay put.
- const th=r.headerButtonH;
- const tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
- const ty=r.hy+(r.hh-th)/2;
+ const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
  const markX=r.hx+Math.max(6,UI_SPACE.headTitleInset*.48);
  const available=Math.max(20,tx-markX-5);
  const markW=Math.min(74,Math.max(30,available*.34));
@@ -1336,6 +1334,9 @@ function paintLightPropertyPanel(r){
 function paintLightDirectionOverlay(){
  regions=[];
  const r=layout(),b=lightBoardBounds(),p=lightMarkerPosition();
+ // Keep the visible colour control interactive alongside shadow sliders.
+ const theme=headerThemeBounds(r,UI_SPACE);
+ region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
  // The scoreboard is disabled at its drawing source and its cropped GPU
  // plane is hidden. Do not draw an opaque masking rectangle here: the extra
  // full-screen phosphor/bloom composite would expose the mask's edge.
@@ -1384,8 +1385,7 @@ function paintLightDirectionOverlay(){
  // Only Light Control receives the alternate controls panel and checkmark.
  // The header check replaces (not accompanies) the old menu icon.
  paintLightPropertyPanel(r);
- const th=r.headerButtonH,tx=r.hx+r.hw-UI_SPACE.headRightPad-th*2-UI_SPACE.headIconGap;
- const ty=r.hy+(r.hh-th)/2;
+ const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
  key('✓',tx+th+UI_SPACE.headIconGap,ty,th,th,'lightDone');
 }
 function paintModalOverlay(){

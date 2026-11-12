@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
-import {createHudDrawing,fitPreviewCells,boardOverlaySlots} from '../tetris/render.js';
+import {createHudDrawing,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
 import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
@@ -45,6 +45,35 @@ describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
   assert.match(render,/\['SCORE',String\(record\?\.score\?\?0\)\.padStart\(6,'0'\)\]/);
   assert.match(render,/\['LINES',String\(record\?\.lines\?\?0\)\.padStart\(2,'0'\)\]/);
   assert.match(render,/\['LEVEL',String\(record\?\.level\?\?0\)\.padStart\(2,'0'\)\]/);
+ });
+});
+
+describe('Overlay theme and confirmation controls',()=>{
+ const r={hx:24,hy:165,hw:390,hh:80,headerButtonH:46};
+ const u={headRightPad:6,headIconGap:6};
+ test('colour button shares its exact game-header location',()=>{
+  assert.deepEqual(headerThemeBounds(r,u),{x:310,y:182,w:46,h:46});
+ });
+ test('High Score restores theme input after the blocker',()=>{
+  const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const part=src.slice(src.indexOf('function drawScores(q){'),src.indexOf('function paintModal(q){'));
+  assert.match(part,/clearRegions\(\);region\(0,0,W,H,'block'\)/);
+  assert.match(part,/const theme=headerThemeBounds\(layout\(\),UI_SPACE\)/);
+  assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
+  assert.ok(part.indexOf("region(theme.x")>part.indexOf("region(0,0,W,H,'block')"));
+ });
+ test('Light Control restores theme input independently of sliders and DONE',()=>{
+  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const part=src.slice(src.indexOf('function paintLightDirectionOverlay(){'),src.indexOf('function paintModalOverlay(){'));
+  assert.match(part,/regions=\[\]/);
+  assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
+  assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'lightDone'\)/);
+ });
+ test('Display System close control uses checkmark but retains action',()=>{
+  const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const part=src.slice(src.indexOf('function drawOptions(q){'),src.indexOf('function drawScores(q){'));
+  assert.match(part,/key\('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close'\)/);
+  assert.doesNotMatch(part,/key\('X',closeX/);
  });
 });
 

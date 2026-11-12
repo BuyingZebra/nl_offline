@@ -2146,6 +2146,13 @@ function drawControls(r){
  * State is limited to menu scroll, scanline picker, status and view hit area.
  * No WebGL, frame-scheduler, or gameplay dependencies.
  */
+// Shared geometry of the visible theme button. Only restore this hitbox
+// after score/light overlays clear the underlying game input regions.
+function headerThemeBounds(r,UI_SPACE){
+ const h=r.headerButtonH;
+ return {x:r.hx+r.hw-UI_SPACE.headRightPad-2*h-UI_SPACE.headIconGap,
+  y:r.hy+(r.hh-h)/2,w:h,h};
+}
 // Shared PAUSED / HIGH SCORE geometry; START GAME keeps its original layout.
 // The three-row classic scoreboard is centered within the clear band between
 // the shared upper title and the unchanged primary-action anchor.
@@ -2475,7 +2482,7 @@ function drawOptions(q){
   text(debugCopyState==='copied'?'✓':'!',debugX+q.buttonH/2,
    headerButtonY+q.buttonH/2,BUTTON_ICON_FONT_SIZE,debugLum,'center');
  else drawDebugBug(debugX+q.buttonH/2,headerButtonY+q.buttonH/2,debugLum);
- key('X',closeX,headerButtonY,q.buttonH,q.buttonH,'close');
+ key('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close');
  const restoreW=Math.min(pageW-2*pad,
   r.boardW*UI_SPACE.overlayButtonWidthScale);
  const restoreY=H-q.safeBottom-gap-r.extraH;
@@ -2578,6 +2585,10 @@ function drawScores(q){
  // Same size, position, font and leading arrow as RESUME / START GAME.
  key('RETURN',slots.actionX,slots.actionY,slots.actionW,q.buttonH,
   'close',{light:true,arrow:true});
+ // The base header is still visible; register just its colour button above
+ // this menu's full-screen input blocker, with no duplicate button drawing.
+ const theme=headerThemeBounds(layout(),UI_SPACE);
+ region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
 }
 function paintModal(q){
  const modal=getModal();
@@ -2902,7 +2913,7 @@ function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  ctx.restore();
 }
 
-return {createCanvasUI,fitPreviewCells,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
+return {createCanvasUI,fitPreviewCells,createHudDrawing,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
 })();
 // Device-independent CSS-pixel visual geometry.
 const Layout=(()=>{
@@ -3068,7 +3079,7 @@ return api;
 })();
 export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
-export const {createCanvasUI,fitPreviewCells,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
+export const {createCanvasUI,fitPreviewCells,createHudDrawing,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
 export const {createPerfMonitor,createTextureUploadProfiler,formatDebugReport}=RenderDiagnostics;
 export {instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};

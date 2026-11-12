@@ -426,3 +426,8 @@ Both screens share the same upper title position and `drawMenuScoreBox` double-f
 ## Restored original menu statistics (v204)
 
 PAUSED and HIGH SCORE use the earlier, unframed three-row terminal scoreboard: SCORE, LINES, LEVEL, with zero-padded values and the original fine dotted dividers between rows. PAUSED reads live score/lines/level; HIGH SCORE reads the saved personal record. One shared renderer and geometry helper center the complete three-row block vertically between the common upper heading and the existing primary action. The double-framed SCORE box from v203 is removed. No new heading separator, action changes, Home screen changes, theme changes, or gameplay changes.
+
+
+## Modal colour toggle and confirmation glyph (v205)
+
+The existing header colour toggle is re-registered for input in High Score and Light Control after those screens clear background hitboxes, using the same shared geometry as the visible header control. Only the theme button is restored: background game controls remain blocked. Display System's existing X close button now displays ✓ without changing its dimensions or action. Scoreboard and graphics effects remain unchanged.
