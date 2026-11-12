@@ -316,13 +316,20 @@ with sync_playwright() as p:
     idle_raf = idle_counts["raf"]
     print(f"IDLE SCHEDULER PROBE: {browser_name} 2s={idle_counts}")
     assert idle_raf >= 1, "The terminal cursor stopped updating while idle"
-    # Fresh profile has persistence enabled: continuous RAF handles terminal
-    # advancement; redundant terminal timeouts must not be recreated per frame.
-    assert idle_counts["timeoutCreated"] <= 8, (
-        f"Excess idle terminal timer scheduling: {idle_counts}"
+    # v211: idle phosphor uses one paced timeout per RAF instead of a
+    # continuous 60Hz loop. Browser background/headless throttling may
+    # reduce the count further, so assert no runaway callbacks or duplicates.
+    assert idle_raf <= 90, (
+        f"Idle RAF pacing exceeded the expected <=~30Hz budget: {idle_counts}"
+    )
+    assert idle_counts["timeoutCreated"] <= idle_raf + 3, (
+        f"More than one idle wake timer was scheduled per RAF: {idle_counts}"
+    )
+    assert idle_counts["timeoutCreated"] <= 90, (
+        f"Runaway idle timers: {idle_counts}"
     )
     assert idle_counts["timeoutCleared"] <= 8, (
-        f"Excess idle timer cancellation: {idle_counts}"
+        f"Redundant idle timer cancellations: {idle_counts}"
     )
 
     page.mouse.click(353, 103)
