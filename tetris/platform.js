@@ -1,5 +1,5 @@
 import {createInputController} from './input.js?v211';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v211';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v212';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -707,12 +707,12 @@ const brickFrame=createBrickFrame({
 function tileFace(x,y,w,h,kind){
  vectorTiles.drawTile(g,x,y,w,h,kind);
 }
-function smallPiece(kind,x,y,w,h,role='next',targetCell=null){
+function smallPiece(kind,x,y,w,h,cellSize){
  if(!kind)return;
  // A short three-cell I appears ONLY in NEXT and HOLD. All cell sizes,
  // sprite artwork and all six other previews follow the existing path.
  vectorTiles.drawPiece(g,fitPreviewCells(
-  previewPieceShape(kind,Core.SHAPES),x,y,w,h,role,targetCell),kind);
+  previewPieceShape(kind,Core.SHAPES),x,y,w,h,cellSize),kind);
 }
 function cell(x,y,col,row,size,kind,isGhost=false){
  if(!kind||col<0||row<0||col>=10||row>=20)return;
