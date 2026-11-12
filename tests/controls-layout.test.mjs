@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
-import {createHudDrawing,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
+import {createHudDrawing,registerControlHitboxes,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
 import {Core} from '../tetris/game.js';
 import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
@@ -359,6 +359,32 @@ describe('HUD layout and viewport rules',()=>{
   });
   return {hud,painted,game};
  }
+ test('base control hitboxes exactly equal the cropped control artwork at every layout',()=>{
+  for(const [W,H,safe] of [
+   [393,852,{top:59,bottom:34}],
+   [320,568,{top:20,bottom:0}],
+   [844,390,{left:59,right:59,bottom:21}],
+  ]){
+   const r=computeLayout(W,H,safe,ui);
+   const {hud,painted}=makeHUD();
+   hud.drawControls(r);
+   const hitboxes=[];
+   registerControlHitboxes(r,ui,(x,y,w,h,act,opts)=>hitboxes.push({x,y,w,h,act,opts}));
+   assert.equal(hitboxes.length,painted.keys.length);
+   for(let i=0;i<hitboxes.length;i++){
+    const [label,x,y,w,h,act,opts={}]=painted.keys[i];
+    const hit=hitboxes[i];
+    assert.deepEqual([hit.x,hit.y,hit.w,hit.h,hit.act],[x,y,w,h,act]);
+    assert.equal(hit.opts.kind,'button');
+    assert.equal(hit.opts.light,Boolean(opts.light));
+    assert.equal(hit.opts.repeat,Boolean(opts.repeat));
+   }
+  }
+  const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const base=source.slice(source.indexOf('function paintBaseGame(){'),source.indexOf('function paintGame(){'));
+  assert.match(base,/registerControlHitboxes\(r,UI_SPACE,region\)/);
+  assert.doesNotMatch(base,/stage\(r,false\)|drawSidebar\(r\)|drawControls\(r\)/);
+ });
  test('NEXT, SCORE, LEVEL, LINES and HOLD share square double borders',()=>{
   const r=computeLayout(393,852,{top:59,bottom:34},ui);
   const {hud,painted}=makeHUD();
@@ -528,7 +554,7 @@ describe('HUD layout and viewport rules',()=>{
   const html=fs.readFileSync(new URL('../tetris/three-v027.html',import.meta.url),'utf8');
   assert.match(source,/text\('NOMAD'/);
   assert.match(source,/text\('TETRIS SYSTEM'/);
-  assert.match(source,/function stage\(r,drawPieces=true\)/);
+  assert.match(source,/function stage\(r,drawPieces=true,pieceMask=null\)/);
   assert.match(source,/const FONT='"Roboto Condensed"/);
   assert.match(source,/const TERMINAL_FONT='"Share Tech Mono"/);
   assert.doesNotMatch(source,/const footerLeft=|ruleStart,r\.footerY|rect\(r\.off\+11,r\.footerY-12/);
@@ -616,33 +642,27 @@ describe('HUD layout and viewport rules',()=>{
   assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
   assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
   assert.equal(fs.existsSync(new URL('../tetris/assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
-  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
+  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
  });
 
- test('V162 stamps independently owned and rotating piece shadows onto the board',()=>{
+ test('piece shadows stay below pieces and the board inset remains post-blur',()=>{
   const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
-  const start=renderer.indexOf('function stage(r,drawPieces=true){');
-  const end=renderer.indexOf('function paintBoardPopup(r)',start);
-  const board=renderer.slice(start,end);
-  assert.ok(start>=0&&end>start,'inset shadow belongs to board renderer');
-  assert.match(board,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid/);
-  assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
-  assert.match(renderer,/grid:'#2b2b2b'/);
-  assert.match(renderer,/collectPieceShadowGroups,createPieceShadowRenderer/);
-  assert.match(board,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
-  assert.match(board,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
-  assert.doesNotMatch(board,/g\.shadowBlur=5\.5|g\.shadowOffsetY=4\.5/);
+  const start=renderer.indexOf('function stage(r,drawPieces=true,pieceMask=null){');
+  const end=renderer.indexOf('function drawSharpBoardInsetShadow(r)',start);
+  assert.ok(start>=0&&end>start);
+  const stage=renderer.slice(start,end);
+  assert.match(stage,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
+  assert.match(stage,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid/);
+  assert.match(stage,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
+  assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
+  assert.ok(stage.indexOf('pieceShadows.draw(')<stage.indexOf('displayBoard.forEach('));
+  assert.ok(stage.indexOf('pieceShadows.draw(')<stage.indexOf('vectorTiles.drawIFragment('));
+  assert.doesNotMatch(stage,/boardInsetShadows\.draw\(/);
+  assert.match(renderer,/boardInsetShadows\.draw\(g,x\+2,y\+2,innerW,innerH,innerW\/10\)/);
+  assert.match(renderer,/grid:'#373737'/);
   assert.match(sw,/\.\/render\.js/);
-  assert.match(renderer,/terminalLog\.enqueue\('BUILD: VERSION V'\+THREE_BUILD_VERSION,/);
-  assert.match(board,/for\(const run of iRuns\)/);
-  assert.match(board,/const depth=Math\.min\(20,Math\.max\(8,tile\*\.8\)\)/);
-  assert.equal((board.match(/insetShade\(/g)||[]).length,4,
-   'top, left, bottom and right inner shadow strips');
-  assert.match(board,/g\.createLinearGradient/);
-  assert.match(board,/g\.fillRect\(rx,ry,rw,rh\)/);
-  assert.match(board,/g\.rect\(offX,offY,w-4,h-4\);g\.clip\(\)/);
-  assert.match(board,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
+  assert.doesNotMatch(stage,/g\.shadowBlur=5\.5|g\.shadowOffsetY=4\.5/);
  });
 });
 

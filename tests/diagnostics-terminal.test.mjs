@@ -541,7 +541,7 @@ describe('Terminal repaint regions',()=>{
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('context-restored'\)/);
   assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','terminal'\);\s*invalidate\('resize'\)/);
   assert.match(renderer,/for\(const source of visualScene\.textures\)source\.needsUpdate=true/);
-   assert.match(source('render.js'),/const textures=Object\.freeze\(\[texture,boardTexture,sidebarTexture,controlsTexture/);
+   assert.match(source('render.js'),/const textures=Object\.freeze\(\[texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture/);
  });
 });
 

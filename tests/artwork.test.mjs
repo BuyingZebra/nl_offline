@@ -313,7 +313,7 @@ describe('Monochrome tile patterns',()=>{
   const code=readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(code,/vectorTiles\.drawPiece\(g,fitPreviewCells\(/);
   assert.match(code,/if\(p.kind==='I'\)vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
-  assert.match(code,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
+  assert.match(code,/vectorTiles\.drawIFragment\(g,px,py,rw,rh,/);
   assert.match(code,/tileFace\(px,py,size,size,kind\)/);
   assert.match(code,/g.globalAlpha=\.751355748;g.strokeStyle=C.grid/);
  });
@@ -432,7 +432,7 @@ describe('Piece identity and fragments',()=>{
  test('rendering selects piece-instance fragments, not same-type adjacency',()=>{
   const js=readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(js,/collectIFragments\(displayBoard,displayMeta,/);
-  assert.match(js,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
+  assert.match(js,/vectorTiles\.drawIFragment\(g,px,py,rw,rh,/);
   assert.match(js,/lineClearFX=\{board:event\.board,boardMeta:event\.boardMeta/);
   assert.doesNotMatch(js,/while\(visibleI\(/);
  });
@@ -563,7 +563,7 @@ describe('Vector rendering and pixel fallback',()=>{
   assert.match(js,/vectorTiles\.preload\(\)/);
   assert.match(js,/vectorTiles\.drawTile\(g,x,y,w,h,kind\)/);
   assert.match(js,/vectorTiles\.drawPiece\(g,fitPreviewCells\(/);
-  assert.match(js,/vectorTiles\.drawIFragment\(g,offX\+run\.x\*tile,offY\+run\.y\*tile,/);
+  assert.match(js,/vectorTiles\.drawIFragment\(g,px,py,rw,rh,/);
   assert.match(js,/vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
   assert.match(js,/vectorTiles\.dispose\(\)/);
   const build=html.match(/name="tetris-build" content="([0-9]{3})"/)?.[1];
@@ -708,7 +708,10 @@ describe('Brick rails',()=>{
    renderer.indexOf('function paintBoardPopup('));
   assert.doesNotMatch(stage,/brickFrame\.draw/);
   assert.equal((renderer.match(/brickFrame\.draw\(g,r\)/g)||[]).length,1);
-  assert.match(renderer,/stage\(r,false\);[\s\S]*brickFrame\.draw\(g,r\);/);
+  assert.doesNotMatch(renderer.slice(renderer.indexOf('function paintBaseGame('),
+    renderer.indexOf('function paintGame(')),/stage\(r,false\)/,
+    'base may not duplicate the cropped board');
+   assert.match(renderer,/brickFrame\.draw\(g,r\)/);
   assert.match(renderer,/const offX=x\+2,offY=y\+2,tile=\(w-4\)\/10/);
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   for(const item of [

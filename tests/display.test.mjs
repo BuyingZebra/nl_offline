@@ -769,11 +769,23 @@ describe('Modal repaint regions',()=>{
   assert.equal(modalPaints,1);
  });
 
+ test('HIGH SCORE is painted only once into the post-blur board popup',()=>{
+  const code=source();
+  const popup=code.slice(code.indexOf('function paintBoardPopup(r){'),
+   code.indexOf('// Pure layout calculation'));
+  const modal=code.slice(code.indexOf('function paintModalOverlay(){'),
+   code.indexOf('inputController=createInputController('));
+  assert.match(popup,/if\(screenManager\.isScores\)\{\s*modalUI\.paintModal\(modalUI\.modalBounds\('scores'\)\)/);
+  assert.match(modal,/if\(screenManager\.isScores\)\{[\s\S]*?modalPlane\.visible=false;regions=baseRegions;[\s\S]*?return;/);
+  assert.ok(modal.indexOf('if(screenManager.isScores)')<
+   modal.indexOf('modalContext.clearRect('));
+  assert.match(code,/boardPopupPass\.enabled=boardBackdropVisible|boardPopupTexture/);
+ });
  test('renderer only repaints modal on dirty state, first show or base repaint',()=>{
   const s=source();
   const paint=s.slice(s.indexOf('function paintGame(){'),s.indexOf('const SCANLINE_CHOICES='));
   assert.match(paint,/if\(paintedBase\)layers\.mark\('modal'\)/);
-  assert.match(paint,/if\(layers\.consume\('modal'\)\|\|!modalPlane\.visible\)/);
+  assert.match(paint,/if\(layers\.consume\('modal'\)\|\|\(!modalPlane\.visible&&!screenManager\.isScores\)\)/);
   assert.match(paint,/paintModalOverlay\(\)/);
   assert.match(paint,/layers\.consume\('modal'\);/);
   assert.doesNotMatch(paint,/if\(screenManager\.paintsModalLayer\)\{\s*const started=performance\.now\(\)/);
@@ -1073,8 +1085,8 @@ describe('v195–v198 interactive lighting laboratory',()=>{
    platform.indexOf('function drawSharpBoardInsetShadow('));
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
   assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,0,'no board inset in the blurred source');
-  assert.match(platform,/if\(getModal\(\)==='light'\)\{/);
-  assert.match(platform,/if\(touch\.mode==='light'\)\{/);
+  assert.match(fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8'),/if\(getModal\(\)==='light'\)\{/);
+  assert.match(fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8'),/if\(touch\.mode==='light'\)\{/);
   assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
  });
 
@@ -1084,7 +1096,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
    platform.indexOf('function paintGame('));
   const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
    platform.indexOf('inputController=createInputController('));
-  assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)\{\s*drawSidebar\(r\);\s*drawControls\(r\);\s*\}/);
+  assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
   assert.match(modal,/sidebarPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
   assert.match(platform,/if\(previous==='light'\|\|next==='light'\)\{/);
@@ -1179,7 +1191,7 @@ describe('v200 context-only light property deck',()=>{
   const modal=src.slice(src.indexOf('function paintModalOverlay('),
    src.indexOf('inputController=createInputController('));
   assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'\)/);
-  assert.match(base,/if\(!screenManager\.isLight\)\{\s*drawSidebar\(r\);\s*drawControls\(r\);\s*\}/);
+  assert.match(base,/if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
   assert.match(modal,/controlsPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));

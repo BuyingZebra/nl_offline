@@ -8,6 +8,12 @@ on:
       - 'tests/**'
       - 'tools/build-tetris-*.mjs'
       - '.github/workflows/test-tetris.yml'
+  pull_request:
+    paths:
+      - 'tetris/**'
+      - 'tests/**'
+      - 'tools/build-tetris-*.mjs'
+      - '.github/workflows/test-tetris.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,6 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify offline release metadata and asset list
+        run: node tools/build-tetris-release.mjs --check
       - name: Run Tetris checks
         run: node --test tests/*.test.mjs
 
