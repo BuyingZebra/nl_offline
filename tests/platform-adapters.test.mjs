@@ -56,10 +56,10 @@ test('device adapters live inside platform and share a viewport observer',()=>{
 test('visual input geometry and device event handling have distinct owners',()=>{
  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
  const visual=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
- assert.match(platform,/export \{createInputController\} from '\.\/input\.js\?v210'/);
+ assert.match(platform,/export \{createInputController\} from '\.\/input\.js\?v211'/);
  const input=fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8');
  assert.match(input,/export function createInputController/);
- assert.match(input,/import \{findRegionAt,sliderValueAt\} from '\.\/render\.js\?v210'/);
+ assert.match(input,/import \{findRegionAt,sliderValueAt\} from '\.\/render\.js\?v211'/);
  assert.match(visual,/const InteractionGeometry=/);
  assert.match(visual,/export \{instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt\}/);
 });
@@ -70,6 +70,6 @@ test('render diagnostics and browser clipboard have distinct owners',()=>{
  const diag=fs.readFileSync(new URL('../tetris/diagnostics.js',import.meta.url),'utf8');
  assert.match(diag,/function createPerfMonitor/);
  assert.match(diag,/function instrumentCompositorPasses/);
- assert.match(visual,/from '\.\/diagnostics\.js\?v210'/);
+ assert.match(visual,/from '\.\/diagnostics\.js\?v211'/);
  assert.doesNotMatch(visual,/const RenderDiagnostics=/);
 });

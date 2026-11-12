@@ -485,6 +485,19 @@ describe('HUD layout and viewport rules',()=>{
   assert.match(platform,/previewPieceShape\(kind,Core\.SHAPES\)/,
    'both HOLD and NEXT use the preview-only shape');
  });
+ test('layout remains identical without stale HOLD NEXT and STATS height hints',()=>{
+  const bare={...ui};
+  delete bare.holdHeight;delete bare.nextHeight;delete bare.statsHeight;
+  for(const [W,H,safe] of [
+   [320,568,{top:20,bottom:0}],
+   [393,852,{top:59,bottom:34}],
+   [844,390,{left:59,right:59,bottom:21}]
+  ])assert.deepEqual(computeLayout(W,H,safe,bare),computeLayout(W,H,safe,ui));
+  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const space=platform.slice(platform.indexOf('const UI_SPACE='),platform.indexOf('let storage,scoreDatabase'));
+  for(const field of ['holdHeight','nextHeight','statsHeight'])
+   assert.equal(space.includes(field),false,'dead configuration removed: '+field);
+ });
  test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
   const shapes=[
    [[1,1,1,1]],[[1,1],[1,1]],

@@ -1,5 +1,5 @@
 import {describe,test} from 'node:test';
-import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks,needsContinuousFrame} from '../tetris/platform.js';
+import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks,needsContinuousFrame,idleFrameDelayMs} from '../tetris/platform.js';
 import {createGraphicsCleanup,createGraphicsHealth} from '../tetris/render.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -934,13 +934,24 @@ describe('Offline installation and release switching',()=>{
 
 
 describe('PWA frame scheduling policy',()=>{
- test('running game and phosphor feedback retain continuous animation frames',()=>{
+ test('gameplay and direct interaction retain continuous RAF while idle persistence is paced',()=>{
   assert.equal(needsContinuousFrame({gameStatus:'playing'}),true);
-  assert.equal(needsContinuousFrame({persistence:true}),true);
+  assert.equal(needsContinuousFrame({persistence:true}),false,
+   'idle phosphor should use a paced wake instead of continuous RAF');
   assert.equal(needsContinuousFrame({buttonsActive:true}),true);
   assert.equal(needsContinuousFrame({lineClearPending:true}),true);
   assert.equal(needsContinuousFrame({redrawPending:true}),true);
   assert.equal(needsContinuousFrame({scrolling:true}),true);
+ });
+ test('idle persistence keeps its ~30Hz render cadence with fewer RAF callbacks',()=>{
+  assert.equal(idleFrameDelayMs({persistence:true,lastRenderAt:1000,now:1000,terminalDelayMs:480}),25);
+  assert.equal(idleFrameDelayMs({persistence:true,lastRenderAt:1000,now:1018,terminalDelayMs:480}),16);
+  assert.equal(idleFrameDelayMs({persistence:true,lastRenderAt:1000,now:1000,terminalDelayMs:18}),18);
+  assert.equal(idleFrameDelayMs({persistence:false,now:1000,terminalDelayMs:480}),480);
+  assert.equal(idleFrameDelayMs({persistence:true,now:1000,lastRenderAt:1000,terminalDelayMs:Infinity}),25);
+  assert.equal(idleFrameDelayMs({persistence:false,terminalDelayMs:0}),16);
+  assert.equal(needsContinuousFrame({gameStatus:'playing',persistence:true}),true);
+  assert.equal(needsContinuousFrame({scrolling:true,persistence:true}),true);
  });
  test('static idle state uses the scheduled terminal wake instead',()=>{
   assert.equal(needsContinuousFrame(),false);
@@ -950,5 +961,7 @@ describe('PWA frame scheduling policy',()=>{
  test('terminal timeout is armed only in the non-continuous branch',()=>{
   const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(source,/if\(keepAnimating\)requestFrame\(\);\n  else if\(game.status!=='playing'&&\!document.hidden\)/);
+  assert.match(source,/terminalTimer=window\.setTimeout\(\(\)=>\{[\s\S]*?\},idleFrameDelayMs\(\{/);
+  assert.match(source,/terminalDelayMs:terminalLog\.nextDelay\(now\)/);
  });
 });

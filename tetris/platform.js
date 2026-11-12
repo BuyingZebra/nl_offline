@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v210';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v210';
+import {createInputController} from './input.js?v211';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v211';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -266,12 +266,26 @@ export function runCleanupTasks(tasks){
 /* Pure frame demand: physics, visual changes and CRT history drive RAF.
  * The terminal timer is only armed if this function returns false.
  */
+// Gameplay and active input need normal RAF cadence. Stationary phosphor
+// history is driven by a paced one-shot wake instead of continuous 60Hz RAF.
 export function needsContinuousFrame({
  gameStatus='ready',lineClearPending=false,redrawPending=false,
- scrolling=false,buttonsActive=false,persistence=false
+ scrolling=false,buttonsActive=false
 }={}){
  return gameStatus==='playing'||lineClearPending||redrawPending||
-  scrolling||buttonsActive||persistence;
+  scrolling||buttonsActive;
+}
+// Match the original ~30Hz phosphor refresh, allowing 8ms for the upcoming
+// RAF to begin. Terminal typing/cursor can request an earlier wake; interactive
+// events still request immediate frames. Shader and actual decay are unchanged.
+export function idleFrameDelayMs({
+ persistence=false,lastRenderAt=0,now=0,terminalDelayMs=480
+}={}){
+ const elapsed=Number.isFinite(now)&&Number.isFinite(lastRenderAt)?
+  Math.max(0,now-lastRenderAt):0;
+ const untilPhosphor=persistence?Math.max(16,33-elapsed-8):Infinity;
+ const untilTerminal=Number.isFinite(terminalDelayMs)?terminalDelayMs:480;
+ return Math.max(16,Math.min(untilPhosphor,untilTerminal));
 }
 
 /* Top-level application coordination is owned by the platform runtime.
@@ -281,7 +295,7 @@ export function needsContinuousFrame({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v210';
+export {createInputController} from './input.js?v211';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -366,7 +380,7 @@ const UI_SPACE=Object.freeze({
  headTitleInset:17,
  deckBottom:30,deckPad:UI_GAP,scoreHeight:45,deckGap:UI_GAP,
  padGap:UI_GAP,padHeight:53,extrasHeight:44,extrasGap:UI_GAP,
- holdHeight:88,nextHeight:162,statsHeight:92
+ 
 });
 let storage,scoreDatabase;
 try{storage=window.localStorage;}catch(error){/* The storage getter can be disabled. */}
@@ -1441,7 +1455,7 @@ function frame(now){
   const keepAnimating=needsContinuousFrame({
    gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
    redrawPending:layers.needsRender(),scrolling:Math.abs(scrollVelocity)>.015,
-   buttonsActive:buttonSparks.length>0,persistence:phosphorOn
+   buttonsActive:buttonSparks.length>0
   });
   // A continuously active RAF already advances the terminal. Scheduling a
   // second timeout for the same work wastes callbacks and timer allocations.
@@ -1451,7 +1465,10 @@ function frame(now){
    terminalTimer=window.setTimeout(()=>{
     terminalTimer=null;
     if(!document.hidden)requestFrame();
-   },terminalLog.nextDelay(now));
+   },idleFrameDelayMs({
+    persistence:phosphorOn,lastRenderAt:lastHistoryRender,now,
+    terminalDelayMs:terminalLog.nextDelay(now)
+   }));
   }
  }catch(e){
   graphicsHealth.recordFailure(e);
