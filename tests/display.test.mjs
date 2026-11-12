@@ -776,7 +776,7 @@ describe('Modal repaint regions',()=>{
   const modal=code.slice(code.indexOf('function paintModalOverlay(){'),
    code.indexOf('inputController=createInputController('));
   assert.match(popup,/if\(screenManager\.isScores\)\{\s*modalUI\.paintModal\(modalUI\.modalBounds\('scores'\)\)/);
-  assert.match(modal,/if\(screenManager\.isScores\)\{[\s\S]*?modalPlane\.visible=false;regions=baseRegions;[\s\S]*?return;/);
+  assert.match(modal,/if\(screenManager\.isScores\)\{[\s\S]*?modalPlane\.visible=false;\s*regions=baseRegions;[\s\S]*?return;/);
   assert.ok(modal.indexOf('if(screenManager.isScores)')<
    modal.indexOf('modalContext.clearRect('));
   assert.match(code,/boardPopupPass\.enabled=boardBackdropVisible|boardPopupTexture/);

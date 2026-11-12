@@ -1119,6 +1119,6 @@ describe('Piece shadows',()=>{
   const faces=section.indexOf('displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{',cast);
   assert.ok(grid>=0&&cast>grid&&faces>cast);
   assert.doesNotMatch(section,/drawPieceShadowGradients\(|pieceShadowOccupancy\(/);
-  assert.match(src,/rect\(offX,offY,w-4,h-4,'#181818'\)/);
+  assert.match(src,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
  });
 });
