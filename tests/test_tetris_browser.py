@@ -48,15 +48,25 @@ def check_worker_handoff(browser):
             def do_GET(self):
                 self.directory = str(prior_root if use_prior_release and not published else root)
                 path = urlsplit(self.path).path
-                if not published and not use_prior_release and path in (
-                    f"/tetris/{shell}", "/tetris/sw.js"
+                # A fake earlier release must be coherent across the shell,
+                # worker AND imported modules. Otherwise the v210 staged-module
+                # validation correctly rejects the test's synthetic v209 build.
+                prior_module_paths = {
+                    "/tetris/three-v027.js", "/tetris/platform.js",
+                    "/tetris/input.js", "/tetris/render.js"
+                }
+                if not published and not use_prior_release and (
+                    path in (f"/tetris/{shell}", "/tetris/sw.js")
+                    or path in prior_module_paths
                 ):
                     source = (root / path.lstrip("/")).read_text()
                     if path.endswith(".html"):
                         source = re.sub(marker, rf"\g<1>{previous}", source, count=1)
-                    else:
+                    elif path.endswith("sw.js"):
                         source = source.replace(f"CACHE_VERSION='v{current}'",
                                                 f"CACHE_VERSION='v{previous}'", 1)
+                    else:
+                        source = source.replace(f"?v{current}", f"?v{previous}")
                     data = source.encode()
                     self.send_response(200)
                     self.send_header("Content-Type",
