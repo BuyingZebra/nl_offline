@@ -865,6 +865,18 @@ describe('Saved preferences',()=>{
   assert.equal(s.chooseScanline('unrecognized'),false);
   assert.equal(JSON.stringify(s.effects),prior);
  });
+ test('one effect schema covers every numeric default and every actual CRT mask',()=>{
+  assert.deepEqual(Object.keys(DEFAULT_EFFECTS).filter(
+   key=>typeof DEFAULT_EFFECTS[key]==='number').sort(),
+   Object.keys(EFFECT_NUMBER_RANGES).sort());
+  const renderer=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const start=renderer.indexOf('const SCANLINE_PRESETS=[');
+  const end=renderer.indexOf(' ];',start);
+  const block=renderer.slice(start,end>start?end:renderer.indexOf('];',start));
+  const ids=[...block.matchAll(/\{id:'([^']+)'/g)].map(m=>m[1]);
+  assert.deepEqual(ids,SCANLINE_PRESET_IDS,
+   'the settings validation list must match the supported renderer masks');
+ });
  test('valid historical numeric effects and supported masks retain exact values',()=>{
   const saved={...DEFAULT_EFFECTS,bloomStrength:.325,softnessRadius:3.5,
    ghostStrength:22,ghostX:-2,ghostY:3,scanlineOpacity:49,
