@@ -436,3 +436,8 @@ The existing header colour toggle is re-registered for input in High Score and L
 ## Shared PAUSED / HIGH SCORE shadow-box treatment (v206)
 
 The two menus already reuse the same board/popup CanvasTextures, shadow renderer, 12-pass compositor and CRT effects. Two state-dependent exceptions caused the visual difference: opening HIGH SCORE disabled the board aperture mask for the optical passes, and omitted the sharp inset shadow after popup blur. The `boardBackdropVisible` / `boardWindowVisible` policy now preserves the same aperture for both menu modes while retaining the existing Light Control and full-page Display System behavior. The existing inset shadow renderer draws behind both score readouts. No new assets, passes, default settings, shader code or artwork are introduced. The compositor regression now asserts matching aperture uniforms and the same pass objects and popup texture while toggling modes.
+
+
+## Single post-blur board inset shadow (v207)
+
+Strict render order: game board background/grid → piece shadows → pieces → optional board Gaussian blur → ONE board inset shadow → menu content. Blur is OFF while playing; the same existing popup compositor still paints only that one sharp inset. READY, PAUSED and HIGH SCORE share the same two-pass blur (when enabled), one popup texture, and one inset renderer, with only the title/score data and buttons varying. Light Control paints that same cached inset on its existing modal canvas before its controls with no blur. There is no board inset inside the blurred board source and no extra GPU passes or textures. Shadow values and graphics defaults remain unchanged.

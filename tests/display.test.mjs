@@ -259,8 +259,10 @@ describe('CRT composition',()=>{
   // Never blur active play, even when scoresOverlay is passed unexpectedly.
   state.boardStatus='playing';
   pipeline.syncFX(state);
-  assert.equal(composer.passes[1].enabled,false);
-  assert.equal(composer.passes[2].enabled,false);
+  assert.equal(composer.passes[1].enabled,false,'no horizontal blur during play');
+  assert.equal(composer.passes[2].enabled,true,'post-blur shadow compositing remains on');
+  assert.equal(composer.passes[2].uniforms.uSigma.value,0,'no vertical blur during play');
+  assert.equal(composer.passes[2].uniforms.uFade.value,0,'no menu fade during play');
  });
  test('PAUSED and HIGH SCORE share the same shadow-box domain and compositor objects',()=>{
   const {pipeline,composer,externalPopup}=setup();
@@ -1070,7 +1072,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   const stage=platform.slice(platform.indexOf('function stage('),
    platform.indexOf('function drawSharpBoardInsetShadow('));
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
-  assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
+  assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,0,'no board inset in the blurred source');
   assert.match(platform,/if\(getModal\(\)==='light'\)\{/);
   assert.match(platform,/if\(touch\.mode==='light'\)\{/);
   assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
@@ -1228,7 +1230,7 @@ describe('v202 grid and piece bloom mask wiring',()=>{
   assert.match(stage,/maskTile\(offX\+col\*tile,offY\+row\*tile\)/);
   assert.match(stage,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
-  assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
+  assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,0,'no board inset in the blurred source');
   assert.ok(stage.indexOf('pieceShadows.draw(')<stage.indexOf('displayBoard.forEach('));
   assert.match(board,/stage\(r,true,pieceBloomMaskContext\)/);
   assert.match(board,/pieceBloomMaskTexture\.needsUpdate=true/);

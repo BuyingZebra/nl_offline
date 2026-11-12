@@ -1,4 +1,4 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v206';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v207';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -985,31 +985,28 @@ function stage(r,drawPieces=true,pieceMask=null){
   text(label,x+w/2,y+h/2,Math.min(21,w*.1),C.bright,'center',w*.60);
  }
  }
- // Recessed board walls share the piece-shadow controls; only the interior
- // is darkened, preserving the aperture and shadow-box bloom separation.
- boardInsetShadows.draw(g,offX,offY,w-4,h-4,tile);
+ // The inset shadow is now composited only AFTER optional board blur.
+ // No inset shadow inside the blurred board source.
  g.restore();
  if(pieceMask)pieceMask.restore();
 }
-// The stage's inset shadow is blurred along with gameplay. Redraw a
-// restrained copy on the separate popup layer, composed AFTER Gaussian blur.
-// Keep the same four-sided 2px inset without touching stage geometry.
+// ONE cached inset, drawn after optional blur and before menu art.
 function drawSharpBoardInsetShadow(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  const innerW=w-4,innerH=h-4;
- boardInsetShadows.draw(g,x+2,y+2,innerW,innerH,innerW/10,.62);
+ boardInsetShadows.draw(g,x+2,y+2,innerW,innerH,innerW/10);
 }
 function paintBoardPopup(r){
  // A freshly rendered status snapshot prevents START GAME from persisting
  // when the engine transitions to PAUSED or GAME OVER.
  const status=presentedBoardStatus();
  lastPaintedBoardPopupStatus=status;
- if(status==='playing')return;
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  g=boardPopupContext;
  try{
   // Reuse the same post-blur inset shadow behind both menu readouts.
   drawSharpBoardInsetShadow(r);
+  if(status==='playing')return;
   // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
   // Do not draw PAUSED/GAME OVER controls beneath the score screen.
   if(screenManager.isScores){
@@ -1138,13 +1135,11 @@ function paintTerminalLayer(){
 }
 function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
- // The popup isn't sampled while playing. Avoid clearing and uploading
- // an entire full-resolution transparent texture for every falling piece.
- if(presentedBoardStatus()!=='playing'){
-  boardPopupContext.setTransform(1,0,0,1,0,0);
-  boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
-  boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
- }
+ // One popup source: single board shadow during play, plus menu content
+ // when not playing. Redraw only when the base is dirty.
+ boardPopupContext.setTransform(1,0,0,1,0,0);
+ boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
+ boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
  g=baseContext;
  rect(0,0,W,H,C.bg);
  // The stray shaded sub-footer is removed; the log prints on bare black.
@@ -1187,10 +1182,8 @@ function paintBaseGame(){
  baseRegions=regions;
  texture.needsUpdate=true;
  perf.textureChanged('base');
- if(presentedBoardStatus()!=='playing'){
-  boardPopupTexture.needsUpdate=true;
-  perf.textureChanged('popup');
- }
+ boardPopupTexture.needsUpdate=true;
+ perf.textureChanged('popup');
 }
 function paintGame(){
  if(presentedBoardStatus()!==lastPaintedBoardPopupStatus)layers.mark('base');
@@ -1334,6 +1327,9 @@ function paintLightPropertyPanel(r){
 function paintLightDirectionOverlay(){
  regions=[];
  const r=layout(),b=lightBoardBounds(),p=lightMarkerPosition();
+ // Light Control uses the SAME cached board shadow on its existing modal
+ // canvas, before painting the light-guide and property UI, with no blur.
+ drawSharpBoardInsetShadow(r);
  // Keep the visible colour control interactive alongside shadow sliders.
  const theme=headerThemeBounds(r,UI_SPACE);
  region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
@@ -1607,7 +1603,7 @@ function frame(now){
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if((!screenManager.hasModal||screenManager.isScores)&&presentedBoardStatus()!=='playing')
+   if(!screenManager.hasModal||screenManager.isScores)
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();

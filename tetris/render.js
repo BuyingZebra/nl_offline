@@ -1063,13 +1063,15 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  const boardWindowVisible=boardBackdropVisible||isolateLightWindow;
  const boardOverlayActive=boardStatus!=='playing'&&boardBackdropVisible&&
   popupStatus===boardStatus;
+ // The Gaussian is OFF during gameplay. This SAME final popup pass
+ // still composites the one sharp board inset after the unblurred pieces.
  boardBlurHorizontal.enabled=boardOverlayActive;
- boardPopupPass.enabled=boardOverlayActive;
+ boardPopupPass.enabled=boardBackdropVisible;
  for(const pass of popupPasses){
-  pass.uniforms.uSigma.value=popupBlur.sigma;
+  pass.uniforms.uSigma.value=boardOverlayActive?popupBlur.sigma:0;
   pass.uniforms.uStep.value=popupBlur.step;
  }
- boardPopupPass.uniforms.uFade.value=BOARD_POPUP_FADE;
+ boardPopupPass.uniforms.uFade.value=boardOverlayActive?BOARD_POPUP_FADE:0;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){
