@@ -1056,7 +1056,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  edgeSoftness.enabled=fx.softness;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
- const boardOverlayActive=boardStatus!=='playing'&&(!modalOpen||scoresOverlay)&&
+ // One board-visibility rule for PAUSED, HIGH SCORE and the light lab.
+ // Display System hides the board; Light Control keeps the aperture but
+ // suppresses popup blur. All screens use the same source textures and passes.
+ const boardBackdropVisible=!modalOpen||scoresOverlay;
+ const boardWindowVisible=boardBackdropVisible||isolateLightWindow;
+ const boardOverlayActive=boardStatus!=='playing'&&boardBackdropVisible&&
   popupStatus===boardStatus;
  boardBlurHorizontal.enabled=boardOverlayActive;
  boardPopupPass.enabled=boardOverlayActive;
@@ -1074,7 +1079,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   }
   // Board content is the light source only when the recessed window is visible.
   // Zero rect restores v188 global bloom for the optional A/B query parameter.
-  const active=shadowBox&&(!modalOpen||isolateLightWindow)&&w>0&&h>0;
+  const active=shadowBox&&boardWindowVisible&&w>0&&h>0;
   const x0=active?x/W:0,y0=active?1-(y+h)/H:0;
   const x1=active?(x+w)/W:0,y1=active?1-y/H:0;
   for(const uniform of [glow.highPassUniforms?.uBoardRect,

@@ -262,6 +262,42 @@ describe('CRT composition',()=>{
   assert.equal(composer.passes[1].enabled,false);
   assert.equal(composer.passes[2].enabled,false);
  });
+ test('PAUSED and HIGH SCORE share the same shadow-box domain and compositor objects',()=>{
+  const {pipeline,composer,externalPopup}=setup();
+  const common={
+   fx:states,theme:'green',width:393,height:852,dpr:3,
+   boardStatus:'paused',popupStatus:'paused',
+   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}
+  };
+  const aperture=()=>[5,6,4,7].map(i=>{
+   const r=i===5?composer.passes[i].highPassUniforms.uBoardRect.value:
+    composer.passes[i].uniforms.uBoardRect.value;
+   return [r.x,r.y,r.z,r.w];
+  });
+  const passRefs=[...composer.passes],popup=composer.passes[2];
+  pipeline.syncFX({...common,modalOpen:false});
+  const paused=aperture();
+  assert.ok(paused.every(r=>r[2]>r[0]&&r[3]>r[1]));
+  assert.equal(composer.passes[1].enabled,true);
+  assert.equal(popup.enabled,true);
+  pipeline.syncFX({...common,modalOpen:true,scoresOverlay:true});
+  assert.deepEqual(aperture(),paused,'score menu must preserve the board aperture');
+  assert.equal(composer.passes[1].enabled,true);
+  assert.equal(popup.enabled,true);
+  assert.strictEqual(popup.uniforms.uPopup.value,externalPopup,'reuse live popup texture');
+  assert.equal(composer.passes.length,passRefs.length,'no new render passes');
+  passRefs.forEach((p,i)=>assert.strictEqual(composer.passes[i],p));
+  pipeline.syncFX({...common,modalOpen:true,scoresOverlay:false});
+  assert.deepEqual(aperture(),Array.from({length:4},()=>[0,0,0,0]),
+   'full-screen Display System hides the game aperture');
+  assert.equal(composer.passes[1].enabled,false);
+  pipeline.syncFX({...common,modalOpen:true,isolateLightWindow:true});
+  assert.deepEqual(aperture(),paused,'Light Control still isolates the board');
+  assert.equal(composer.passes[1].enabled,false,'light lab keeps popup blur off');
+  pipeline.syncFX({...common,modalOpen:false});
+  assert.deepEqual(aperture(),paused,'return to PAUSED restores the same masks');
+  pipeline.dispose();
+ });
  test('CRT patterns have stable original order and fallback',()=>{
   const {pipeline}=setup();
   assert.deepEqual(pipeline.SCANLINE_PRESETS.map(p=>p.id),
@@ -620,7 +656,13 @@ describe('Menus and visual controls',()=>{
   const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const hud=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(renderer,/function drawSharpBoardInsetShadow\(r\)/);
-  assert.match(renderer,/if\(!screenManager\.isScores\)drawSharpBoardInsetShadow\(r\)/);
+  const popup=renderer.slice(renderer.indexOf('function paintBoardPopup(r){'),
+   renderer.indexOf('// Pure layout calculation'));
+  assert.match(popup,/drawSharpBoardInsetShadow\(r\);/);
+  assert.doesNotMatch(popup,/if\(!screenManager\.isScores\)drawSharpBoardInsetShadow/);
+  assert.ok(popup.indexOf('drawSharpBoardInsetShadow(r);')<
+   popup.indexOf('if(screenManager.isScores)'),
+   'the inset shadow is drawn before either sharp menu readout');
   assert.match(renderer,/g=boardPopupContext;/);
   assert.match(renderer,/key\('RESTART'.*'restart'\)/);
   assert.doesNotMatch(renderer,/key\('NEW GAME'/);

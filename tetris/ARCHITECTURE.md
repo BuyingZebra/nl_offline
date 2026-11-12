@@ -431,3 +431,8 @@ PAUSED and HIGH SCORE use the earlier, unframed three-row terminal scoreboard: S
 ## Modal colour toggle and confirmation glyph (v205)
 
 The existing header colour toggle is re-registered for input in High Score and Light Control after those screens clear background hitboxes, using the same shared geometry as the visible header control. Only the theme button is restored: background game controls remain blocked. Display System's existing X close button now displays ✓ without changing its dimensions or action. Scoreboard and graphics effects remain unchanged.
+
+
+## Shared PAUSED / HIGH SCORE shadow-box treatment (v206)
+
+The two menus already reuse the same board/popup CanvasTextures, shadow renderer, 12-pass compositor and CRT effects. Two state-dependent exceptions caused the visual difference: opening HIGH SCORE disabled the board aperture mask for the optical passes, and omitted the sharp inset shadow after popup blur. The `boardBackdropVisible` / `boardWindowVisible` policy now preserves the same aperture for both menu modes while retaining the existing Light Control and full-page Display System behavior. The existing inset shadow renderer draws behind both score readouts. No new assets, passes, default settings, shader code or artwork are introduced. The compositor regression now asserts matching aperture uniforms and the same pass objects and popup texture while toggling modes.

@@ -1,4 +1,4 @@
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v205';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v206';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -1008,8 +1008,8 @@ function paintBoardPopup(r){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  g=boardPopupContext;
  try{
-  // Reapply the inset shadow above the blur, but not above the score screen.
-  if(!screenManager.isScores)drawSharpBoardInsetShadow(r);
+  // Reuse the same post-blur inset shadow behind both menu readouts.
+  drawSharpBoardInsetShadow(r);
   // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
   // Do not draw PAUSED/GAME OVER controls beneath the score screen.
   if(screenManager.isScores){
