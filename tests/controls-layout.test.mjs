@@ -459,31 +459,44 @@ describe('HUD layout and viewport rules',()=>{
     'preview targets exactly 75% game tile size');
   }
  });
- test('I symbol is three full-size contiguous cells ONLY in NEXT and HOLD',()=>{
-  assert.equal(Core.SHAPES.I.flat().filter(Boolean).length,4,'gameplay I is still four cells');
-  const glyph=previewPieceShape('I',Core.SHAPES);
-  assert.deepEqual(glyph,[['I','I','I']]);
-  assert.equal(glyph.flat().filter(Boolean).length,3);
-  assert.notStrictEqual(glyph,Core.SHAPES.I);
+ test('I preview has three cells at exactly the same size as all other preview blocks',()=>{
+  assert.equal(Core.SHAPES.I.flat().filter(Boolean).length,4,
+   'gameplay I must remain four blocks');
+  const shortI=previewPieceShape('I',Core.SHAPES);
+  assert.deepEqual(shortI,[['I','I','I']]);
+  assert.notStrictEqual(shortI,Core.SHAPES.I);
+  assert.equal(shortI.flat().length,3);
   for(const kind of ['J','L','O','S','T','Z'])
    assert.strictEqual(previewPieceShape(kind,Core.SHAPES),Core.SHAPES[kind]);
-  const r=computeLayout(393,852,{top:59,bottom:34},ui),pad=5;
-  for(const role of ['next','hold']){
-   const frame=role==='next'?r.nextPanel:r.holdPanel;
-   const cells=fitPreviewCells(glyph,frame.x+pad,frame.y+pad,
-    frame.w-2*pad,frame.h-2*pad,role,r.previewCell);
-   assert.equal(cells.length,3);
-   assert.ok(cells.every(c=>Math.abs(c.size-r.previewCell)<1e-6),
-    role+' keeps existing preview cell size; no scaling');
-   assert.ok(cells.every(c=>c.x>=frame.x+pad-.001 &&
-    c.x+c.size<=frame.x+frame.w-pad+.001 &&
-    c.y>=frame.y+pad-.001 && c.y+c.size<=frame.y+frame.h-pad+.001));
-   assert.ok(Math.abs((cells[2].x+cells[2].size-cells[0].x)-
-    3*r.previewCell)<1e-6,'three connected blocks at the original dimensions');
+
+  for(const [W,H,safe] of [
+   [393,852,{top:59,bottom:34}],
+   [320,568,{top:20,bottom:0}],
+   [375,667,{top:20,bottom:0}],
+   [428,926,{top:59,bottom:34}],
+   [844,390,{left:59,right:59,bottom:21}],
+  ]){
+   const r=computeLayout(W,H,safe,ui),pad=5;
+   const block=(r.boardW-4)/10;
+   assert.ok(Math.abs(r.previewCell-block*.75)<1e-8);
+   for(const role of ['next','hold']){
+    const frame=role==='next'?r.nextPanel:r.holdPanel;
+    for(const kind of ['I','J','L','O','S','T','Z']){
+     const shape=previewPieceShape(kind,Core.SHAPES);
+     const cells=fitPreviewCells(shape,frame.x+pad,frame.y+pad,
+      frame.w-2*pad,frame.h-2*pad,r.previewCell);
+     assert.equal(cells.length,kind==='I'?3:4);
+     assert.ok(cells.every(c=>Math.abs(c.size-r.previewCell)<1e-8),
+      role+' '+kind+' must use the SAME 75% block size');
+     assert.ok(cells.every(c=>c.x>=frame.x+pad-.001 &&
+      c.x+c.size<=frame.x+frame.w-pad+.001 &&
+      c.y>=frame.y+pad-.001 && c.y+c.size<=frame.y+frame.h-pad+.001),
+      role+' '+kind+' remains inside the unchanged container at '+W+'x'+H);
+    }
+   }
   }
   const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(platform,/previewPieceShape\(kind,Core\.SHAPES\)/,
-   'both HOLD and NEXT use the preview-only shape');
+  assert.match(platform,/previewPieceShape\(kind,Core\.SHAPES\)/);
  });
  test('layout remains identical without stale HOLD NEXT and STATS height hints',()=>{
   const bare={...ui};
@@ -498,53 +511,28 @@ describe('HUD layout and viewport rules',()=>{
   for(const field of ['holdHeight','nextHeight','statsHeight'])
    assert.equal(space.includes(field),false,'dead configuration removed: '+field);
  });
- test('all seven tetrominoes fit without distortion in NEXT and HOLD',()=>{
-  const shapes=[
-   [[1,1,1,1]],[[1,1],[1,1]],
-   [[0,1,0],[1,1,1]],[[1,0],[1,0],[1,1]],
-   [[0,1],[0,1],[1,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]
+ test('preview placement centres shapes but never scales their individual cells',()=>{
+  const samples=[
+   {shape:previewPieceShape('I',Core.SHAPES),count:3},
+   ...['J','L','O','S','T','Z'].map(kind=>({
+    shape:previewPieceShape(kind,Core.SHAPES),count:4
+   }))
   ];
-  for(const role of ['next','hold']){
-   for(const frame of [
-    {x:10,y:20,w:80,h:80},{x:3,y:8,w:36,h:36},
-    {x:20,y:30,w:120,h:48},{x:10,y:0,w:38,h:95}
-   ]){
-    for(const shape of shapes){
-     const cells=fitPreviewCells(shape,frame.x,frame.y,frame.w,frame.h,role);
-     assert.equal(cells.length,4,'each tetromino has four square cells');
-     for(const tile of cells){
-      assert.ok(tile.size>0);
-      assert.ok(tile.x>=frame.x-.001&&tile.y>=frame.y-.001);
-      assert.ok(tile.x+tile.size<=frame.x+frame.w+.001);
-      assert.ok(tile.y+tile.size<=frame.y+frame.h+.001);
-     }
-    }
+  // Even if the box is unnaturally cramped, a tetromino must not be
+  // squeezed smaller than the board-relative cell. Real supported panels
+  // are independently verified to fit all seven shapes.
+  for(const {shape,count} of samples){
+   const size=18;
+   for(const frame of [{x:3,y:5,w:90,h:90},{x:3,y:5,w:30,h:26}]){
+    const cells=fitPreviewCells(shape,frame.x,frame.y,frame.w,frame.h,size);
+    assert.equal(cells.length,count);
+    assert.ok(cells.every(cell=>cell.size===size),
+     'no piece-wide or emergency cell-size scaling');
    }
   }
- });
- test('all seven tetrominoes use exactly 75% of game tile on normal panels',()=>{
-  const shapes=[
-   [[1,1,1,1]],[[1,1],[1,1]],
-   [[0,1,0],[1,1,1]],[[1,0],[1,0],[1,1]],
-   [[0,1],[0,1],[1,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]
-  ];
-  const r=computeLayout(393,852,{top:59,bottom:34},ui);
-  for(const role of ['next','hold']){
-   const frame=role==='next'?r.nextPanel:r.holdPanel;
-   const inset=5,inner=frame.w-2*inset;
-   for(const shape of shapes){
-    const cells=fitPreviewCells(shape,frame.x+inset,frame.y+inset,
-     inner,frame.h-2*inset,role,r.previewCell);
-    assert.equal(cells.length,4);
-    for(const tile of cells){
-     assert.ok(Math.abs(tile.size-r.previewCell)<.000001,
-      'each block is 0.75 × board tile size');
-     assert.ok(tile.x>=frame.x+inset-.001&&tile.y>=frame.y+inset-.001);
-     assert.ok(tile.x+tile.size<=frame.x+frame.w-inset+.001);
-     assert.ok(tile.y+tile.size<=frame.y+frame.h-inset+.001);
-    }
-   }
-  }
+  assert.deepEqual(fitPreviewCells([[1]],0,0,90,90,undefined),[],
+   'a preview must receive an explicit board-relative cell size');
+  assert.deepEqual(fitPreviewCells([[1]],0,0,90,90,-1),[]);
  });
  test('approved 6 game controls retain button arrangement and positions',()=>{
   const r=computeLayout(393,852,{top:59,bottom:34},ui);

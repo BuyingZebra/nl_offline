@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v211';
-export {createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from './diagnostics.js?v211';
+import {instrumentCompositorPasses} from './diagnostics.js?v212';
+export {createPerfMonitor,createTextureUploadProfiler,formatDebugReport} from './diagnostics.js?v212';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1577,9 +1577,13 @@ const PREVIEW_I_SHAPE=Object.freeze([Object.freeze(['I','I','I'])]);
 function previewPieceShape(kind,shapes){
  return kind==='I'?PREVIEW_I_SHAPE:shapes?.[kind];
 }
-// Square tetromino cells at every preview aspect ratio, including narrow phones.
-function fitPreviewCells(shape,x,y,w,h,role='next',targetCell=null){
- if(!Array.isArray(shape)||!(w>0)||!(h>0))return [];
+// Each occupied preview cell has ONE size: 75% of the gameplay cell,
+// supplied by computeLayout(). Only the PIECE'S POSITION varies with its
+// footprint. Never scale a whole tetromino to fit the preview container.
+// The fixed three-cell I uses this same size as every four-cell tetromino.
+function fitPreviewCells(shape,x,y,w,h,cellSize){
+ if(!Array.isArray(shape)||!(w>0)||!(h>0)||
+    !Number.isFinite(cellSize)||!(cellSize>0))return [];
  const points=[];
  for(let row=0;row<shape.length;row++){
   const values=shape[row];
@@ -1590,22 +1594,10 @@ function fitPreviewCells(shape,x,y,w,h,role='next',targetCell=null){
  const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
  const minX=Math.min(...xs),minY=Math.min(...ys);
  const cols=Math.max(...xs)-minX+1,rows=Math.max(...ys)-minY+1;
- let size;
- if(Number.isFinite(targetCell)&&targetCell>0){
-  // Exactly 75% of a gameplay cell on normal viewports; shrink only when
-  // a constrained panel cannot contain the entire four-block piece.
-  size=Math.min(targetCell,w/cols,h/rows);
- }else{
-  // Preserve the legacy fit for external callers without a board-cell target.
-  const sourceH=role==='hold'?90:75;
-  const sourceCell=Math.min(21,(120-12)/cols,(sourceH-10)/rows);
-  const scale=Math.min(w/120,h/sourceH);
-  size=Math.min(sourceCell*scale,Math.max(0,w-4)/cols,Math.max(0,h-4)/rows);
- }
- if(!(size>0))return [];
- const startX=x+(w-size*cols)/2,startY=y+(h-size*rows)/2;
+ const startX=x+(w-cellSize*cols)/2,startY=y+(h-cellSize*rows)/2;
  return points.map(([col,row])=>({
-  x:startX+(col-minX)*size,y:startY+(row-minY)*size,size
+  x:startX+(col-minX)*cellSize,
+  y:startY+(row-minY)*cellSize,size:cellSize
  }));
 }
 
