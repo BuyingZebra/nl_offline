@@ -1054,7 +1054,7 @@ describe('Piece shadows',()=>{
   assert.ok(popup.indexOf('drawSharpBoardInsetShadow(r);')<
    popup.indexOf("if(status==='playing')return"));
   assert.equal((light.match(/drawSharpBoardInsetShadow\(r\);/g)||[]).length,1);
-  assert.match(platform,/getSettings:previewShadowSettings/);
+  assert.match(platform,/getSettings:\(\)=>settings\.effects/);
   assert.match(platform,/\['board-inset-shadows',\(\)=>boardInsetShadows\.dispose\(\)\]/);
   assert.doesNotMatch(stage,/paintBoardInsetShadow\(|const insetShade=|const shade=/);
  });

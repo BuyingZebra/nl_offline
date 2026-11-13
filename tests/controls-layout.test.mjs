@@ -700,7 +700,7 @@ describe('Shared hitboxes and slider geometry',()=>{
   assert.match(render,/effect\.id==='shadows'\?/);
   assert.match(platform,/let shadowBoardNeedsPaint=false/);
   assert.match(platform,/if\(shadowBoardNeedsPaint\)\{layers\.mark\('board'\)/);
-  assert.match(platform,/getSettings:previewShadowSettings/);
+  assert.match(platform,/getSettings:\(\)=>settings\.effects/);
   assert.match(platform,/shadow-preview.*modalUI\.dispose\(\)/);
  });
  test('slider describes painted track, handle and hit region as one geometry',()=>{

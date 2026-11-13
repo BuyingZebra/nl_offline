@@ -40,7 +40,7 @@ const assets = ['./', ...[
 // worker also verifies the version links from the staged network responses.
 const pinnedImports = [
  ['three-v027.js',['platform.js']],
- ['platform.js',['input.js','render.js','game.js']],
+ ['platform.js',['input.js','render.js']],
  ['input.js',['render.js']],
  ['render.js',['diagnostics.js']]
 ];

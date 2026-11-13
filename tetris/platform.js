@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v215';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v215';
+import {createInputController} from './input.js?v216';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v216';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v215';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v215';
+export {createInputController} from './input.js?v216';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -387,70 +387,6 @@ try{storage=window.localStorage;}catch(error){/* The storage getter can be disab
 try{scoreDatabase=window.indexedDB;}catch(error){/* Fall back to local storage. */}
 const settings=createSettingsManager(storage);
 const game=new Core.Game();
-const propertyPages=['bloom','softness','shadows'].map(id=>DISPLAY_EFFECTS.find(effect=>effect.id===id));
-propertyPages.push({id:'system',title:'SYSTEM SETTINGS'});
-let propertyPage=0,propertiesWipe=null,scopeFade=null,advancedFromProperties=false;
-const propertyPiece={kind:'Z',x:3,y:8,rotation:0,matrix:Core.SHAPES.Z};
-const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
-function selectedProperty(){return propertyPages[propertyPage];}
-function startPropertiesWipe(duration,direction){
- if(reduceMotion.matches||!wipeContext||!modalPlane.visible)return;
- wipeCanvas.width=modalCanvas.width;wipeCanvas.height=modalCanvas.height;
- wipeContext.drawImage(modalCanvas,0,0);
- wipeTexture.needsUpdate=true;
- propertiesWipe={start:performance.now(),duration,direction,progress:0,from:selectedProperty().id};
-}
-function propertyPreview(id){
- if(!screenManager.usesPropertiesBoard)return 0;
- const selected=selectedProperty().id===id?1:0;
- if(!propertiesWipe)return selected;
- return (propertiesWipe.from===id?1:0)*(1-propertiesWipe.progress)+selected*propertiesWipe.progress;
-}
-function propertyScreenAmount(id){
- const target=Number(settings.effects[id]);
- return scopeFade?.id===id?scopeFade.from+(target-scopeFade.from)*scopeFade.progress:target;
-}
-function openProperties(){
- propertyPage=0;
- screenManager.openProperties();
-}
-function closeSettings(){
- if(screenManager.isOptions&&advancedFromProperties){
-  advancedFromProperties=false;
-  screenManager.openProperties();
- }else screenManager.close();
-}
-function propertyAction(act){
- if(lineClearFX?.finalPoints)return false;
- if(act==='options'&&!screenManager.hasModal){openProperties();return true;}
- if(act==='close'&&screenManager.hasModal){closeSettings();return true;}
- if(!screenManager.isProperties)return false;
- if(act==='options'){
-  advancedFromProperties=true;
-  screenManager.openOptions();return true;
- }
- if(act==='propertyPrevious'||act==='propertyNext'){
-  const direction=act==='propertyNext'?1:-1;
-  startPropertiesWipe(180,direction);
-  propertyPage=(propertyPage+direction+propertyPages.length)%propertyPages.length;
-  layers.mark('modal','board');invalidate();return true;
- }
- if(act==='propertyPreview'||act==='propertyScreen'){
-  const id=selectedProperty().toggle,enabled=act==='propertyScreen';
-  if(id&&settings.settingValue(id)!==enabled){
-   scopeFade=reduceMotion.matches?null:{id,start:performance.now(),from:propertyScreenAmount(id),progress:0};
-   actions.setSetting(id,enabled);
-   layers.mark('modal');invalidate();
-  }
-  return true;
- }
- return false;
-}
-function previewShadowSettings(){
- if(!screenManager.usesPropertiesBoard)return settings.effects;
- const strength=Math.max(propertyScreenAmount('shadows'),propertyPreview('shadows'));
- return {...settings.effects,shadows:strength>0,shadowOpacity:settings.effects.shadowOpacity*strength};
-}
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
 let inputController=null;
 let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
@@ -488,8 +424,6 @@ const presentedBoardStatus=()=>lineClearFX?.finalPoints?'playing':game.status;
 const visualScene=createVisualScene({document,window,screen,fatal,
  onControlsFallback:()=>{layers.mark('controls');invalidate('gpu-controls-fallback');}
 });
-const {wipeCanvas,wipeTexture,modalWipe}=visualScene;
-const wipeContext=wipeCanvas.getContext('2d');
 const {input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls}=visualScene;
 let g=baseContext; // Current Canvas2D drawing target.
 
@@ -646,12 +580,6 @@ const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
  pauseGame:()=>actions.perform('pause'),
  onChange:(previous,next)=>{
-  if(previous==='properties'&&next==='light')startPropertiesWipe(360,1);
-  if(previous==='light'&&next==='properties')startPropertiesWipe(360,-1);
-  if(previous==='properties'||next==='properties'){
-   if(next!=='light'&&next!=='properties'){propertiesWipe=null;scopeFade=null;}
-   layers.mark('base','board','sidebar','controls','terminal','modal');
-  }
   // Preserve menu-local reset, touch capture and score popup invalidation.
   // Preserve the scrolled shadow-settings row while entering/leaving the
   // temporary light lab, so DONE returns to the same controls.
@@ -751,9 +679,9 @@ if(document.fonts?.load){
 // V121: higher-contrast smooth SVG sprites, raster-cached at display DPR.
 // Approved pixel motifs remain a fallback during SVG loading/errors.
 const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR,
- getSettings:previewShadowSettings});
+ getSettings:()=>settings.effects});
 const boardInsetShadows=createBoardInsetShadowRenderer({
- getSettings:previewShadowSettings});
+ getSettings:()=>settings.effects});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,
  onReady:()=>{
@@ -821,20 +749,19 @@ function stage(r,drawPieces=true,pieceMask=null){
  // Blink freshly completed rows between the detailed tiles and empty
  // outlined cubes before revealing the core's already-cleared board.
  if(drawPieces){
- const preview=screenManager.usesPropertiesBoard;
- const displayBoard=preview?[]:lineClearFX?.board||game.board;
+ const displayBoard=lineClearFX?.board||game.board;
  const clearIsEmpty=lineClearFX&&Math.floor(lineClearFX.elapsed/LINE_FLASH_TOGGLE_MS)%2===1;
  // Join only consecutive original cells from ONE locked piece. Adjacent I
  // pieces keep independent frames; clearing rows never re-seeds the gravel.
- const displayMeta=preview?[]:lineClearFX?.boardMeta||game.boardMeta;
- const activePiece=preview?propertyPiece:!lineClearFX&&game.status!=='over'?game.current:null;
+ const displayMeta=lineClearFX?.boardMeta||game.boardMeta;
  const iRuns=collectIFragments(displayBoard,displayMeta,{
   hiddenRows:clearIsEmpty?lineClearFX.rows:null
  });
  // V188: draw each piece's cached v06 directional-Gaussian silhouette below
  // the original SVG art; identities and rotation remain piece-correct.
  // This reuses the existing board CanvasTexture and requires no new GPU pass.
- const shadowGroups=collectPieceShadowGroups(displayBoard,displayMeta,activePiece,
+ const shadowGroups=collectPieceShadowGroups(displayBoard,displayMeta,
+  !lineClearFX&&game.status!=='over'?game.current:null,
   clearIsEmpty?lineClearFX.rows:null);
  pieceShadows.draw(g,shadowGroups,offX,offY,tile);
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
@@ -856,9 +783,9 @@ function stage(r,drawPieces=true,pieceMask=null){
    {sourceOffset:run.sourceOffset,length:run.length,rotation:run.rotation});
   maskTile(px,py,rw,rh);
  }
- if(activePiece){
-  const p=activePiece;
-  if(!preview&&settings.pieceGhost&&(game.status==='playing'||game.status==='paused')){
+ if(!lineClearFX&&game.current&&game.status!=='over'){
+  const p=game.current;
+  if(settings.pieceGhost&&(game.status==='playing'||game.status==='paused')){
    const target=game.ghostY();
    p.matrix.forEach((row,ry)=>row.forEach((kind,rx)=>{
     if(!kind)return;
@@ -880,7 +807,7 @@ function stage(r,drawPieces=true,pieceMask=null){
   }));
   if(p.kind==='I')vectorTiles.drawPiece(g,activeTiles,'I',{rotation:p.rotation});
  }
- if(!preview&&lineClearFX?.finalPoints){
+ if(lineClearFX?.finalPoints){
   const label='+'+lineClearFX.finalPoints;
   rect(x+w*.17,y+h*.45,w*.66,h*.10,C.bg);
   text(label,x+w/2,y+h/2,Math.min(21,w*.1),C.bright,'center',w*.60);
@@ -1065,7 +992,7 @@ function paintBaseGame(){
  key('◐',tx,ty,th,th,'theme');
  // The menu button exists only in the regular game interface. Light Control
  // draws its confirmation glyph at these SAME coordinates on the modal layer.
- if(!screenManager.isLight&&!screenManager.isProperties)
+ if(!screenManager.isLight)
   key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
  // Dedicated board plane owns board pixels; don't render it to base.
  // Static 75%-cell brick rails, exactly one control-gap outside either edge.
@@ -1073,7 +1000,7 @@ function paintBaseGame(){
  brickFrame.draw(g,r);
  // The independent sidebar/controls planes own their pixels. Register
  // controls for input without painting duplicates into the base canvas.
- if(!screenManager.isLight&&!screenManager.isProperties)registerControlHitboxes(r,UI_SPACE,region);
+ if(!screenManager.isLight)registerControlHitboxes(r,UI_SPACE,region);
  // Re-render the sharp popup from the CURRENT status, registering its hitboxes
  // after all other controls so overlays take input priority.
  paintBoardPopup(r);
@@ -1187,25 +1114,6 @@ function copyDebugReport(){
   modalUI.debugCopyState='failed';invalidate();
  });
 }
-function paintPropertySlider(setting,x,y,w,rowH){
- const gap=UI_SPACE.unit,labelW=Math.min(125,Math.max(80,w*.29));
- const barX=x+labelW+gap,barW=Math.max(1,x+w-barX);
- const midY=y+rowH/2,barH=Math.max(9,Math.min(24,rowH*.76));
- const value=Number(settings.settingValue(setting.field));
- const fraction=clamp((value-setting.min)/(setting.max-setting.min),0,1);
- const barY=midY-barH/2;
- rect(barX,barY,barW,barH,gray(103));
- rect(barX,barY,barW*fraction,barH,gray(206));
- text(setting.label,x,midY,Math.min(11,Math.max(8,rowH*.44)),
-  C.ink,'left',Math.max(1,labelW-2));
- text(String(setting.step<1?value:Math.round(value))+setting.unit,
-  barX+barW/2,midY,Math.min(13,Math.max(9,barH*.64)),
-  gray(6),'center',Math.max(1,barW-8),'terminal');
- region(barX,y,barW,rowH,'slider',{
-  field:setting.field,min:setting.min,max:setting.max,step:setting.step,
-  trackX:barX,trackW:barW,modalControl:true
- });
-}
 function paintLightPropertyPanel(r){
  // Exactly the original controls container geometry; no new layout height,
  // overlay backdrop, or persistent alternate gameplay controls asset.
@@ -1215,37 +1123,33 @@ function paintLightPropertyPanel(r){
  const contentW=Math.max(1,r.dw-2*inset);
  const rowGap=Math.min(gap,Math.max(2,r.dh*.045));
  const rowH=Math.max(1,(r.dh-2*inset-rowGap*3)/4);
+ const labelW=Math.min(125,Math.max(80,contentW*.29));
+ const barX=contentX+labelW+gap;
+ const barW=Math.max(1,contentX+contentW-barX);
+ const fill=206,empty=Math.round(fill*.50),darkInk=6;
  for(let i=0;i<LIGHT_PROPERTY_CONTROLS.length;i++){
+  const setting=LIGHT_PROPERTY_CONTROLS[i];
   const y=r.dy+inset+i*(rowH+rowGap);
-  paintPropertySlider(LIGHT_PROPERTY_CONTROLS[i],contentX,y,contentW,rowH);
+  const midY=y+rowH/2,barH=Math.max(9,Math.min(24,rowH*.76));
+  const value=Number(settings.settingValue(setting.field));
+  const fraction=clamp((value-setting.min)/(setting.max-setting.min),0,1);
+  const barY=midY-barH/2;
+  // A single unframed rectangular bar: 206 filled, 50% empty. The
+  // dim half-luminance retains readable inverse text at low fill levels.
+  rect(barX,barY,barW,barH,gray(empty));
+  rect(barX,barY,barW*fraction,barH,gray(fill));
+  text(setting.label,contentX,midY,Math.min(11,Math.max(8,rowH*.44)),
+   C.ink,'left',Math.max(1,labelW-2));
+  // The numeric value is not a separate box. It uses the same 6-luminance
+  // negative-space ink as the normal solid DROP button.
+  text(String(Math.round(value))+setting.unit,
+   barX+barW/2,midY,Math.min(13,Math.max(9,barH*.64)),
+   gray(darkInk),'center',Math.max(1,barW-8),'terminal');
+  region(barX,barY,barW,barH,'slider',{
+   field:setting.field,min:setting.min,max:setting.max,step:setting.step,
+   trackX:barX,trackW:barW,modalControl:true
+  });
  }
-}
-function paintProperties(r){
- regions=[];
- drawSharpBoardInsetShadow(r);
- const theme=headerThemeBounds(r,UI_SPACE);
- region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
- key('✓',theme.x+theme.w+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close');
- panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
- const effect=selectedProperty(),gap=UI_SPACE.unit;
- const x=r.dx+r.deckPad,y=r.dy+r.deckPad,w=r.dw-2*r.deckPad;
- const rows=effect.sliders?.length===2?4:3;
- const rowH=(r.dh-2*r.deckPad-gap*(rows-1))/rows;
- const rowY=i=>y+i*(rowH+gap);
- const arrowW=Math.min(44,w*.16);
- key('◀',x,y,arrowW,rowH,'propertyPrevious');
- key('▶',x+w-arrowW,y,arrowW,rowH,'propertyNext');
- text(effect.title,x+w/2,y+rowH/2,12,C.bright,'center',w-2*(arrowW+gap));
- if(effect.id==='system'){
-  key('OPEN DISPLAY SYSTEM',x,rowY(1),w,rowH,'options');
-  return;
- }
- if(effect.id==='shadows')key('ADJUST LIGHT',x,rowY(1),w,rowH,'light');
- for(const [i,[label,field,min,max,step,unit]] of (effect.sliders||[]).entries())
-  paintPropertySlider({label:label||'STRENGTH',field,min,max,step,unit},x,rowY(i+1),w,rowH);
- const enabled=settings.settingValue(effect.toggle);
- key('PREVIEW ONLY',x,rowY(rows-1),(w-gap)/2,rowH,'propertyPreview',{light:!enabled});
- key('SCREEN-WIDE',x+(w+gap)/2,rowY(rows-1),(w-gap)/2,rowH,'propertyScreen',{light:enabled});
 }
 function paintLightDirectionOverlay(){
  regions=[];
@@ -1324,10 +1228,10 @@ function paintModalOverlay(){
  surface.visible=!standaloneSettings;boardPlane.visible=!standaloneSettings;
  // Do not display a previously cached/sidebar texture in the light lab.
  // Visibility is a property of the independent sidebar layer, Blender-style.
- sidebarPlane.visible=!standaloneSettings&&!screenManager.isLight&&!screenManager.isProperties;
+ sidebarPlane.visible=!standaloneSettings&&!screenManager.isLight;
  // The original cropped controls texture stays unchanged in memory; the
  // equally-sized Light Control properties panel replaces it only in this view.
- controlsPlane.visible=!standaloneSettings&&!screenManager.isLight&&!screenManager.isProperties;
+ controlsPlane.visible=!standaloneSettings&&!screenManager.isLight;
  terminalPlane.visible=!standaloneSettings;
  const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
@@ -1339,13 +1243,9 @@ function paintModalOverlay(){
  modalContext.setTransform(DPR,0,0,DPR,0,0);
  modalPlane.visible=true;
  // Don't dim the HUD while the score list occupies the board.
- scrimPlane.visible=!standaloneSettings&&!screenManager.isScores&&!screenManager.isLight&&!screenManager.isProperties;
+ scrimPlane.visible=!standaloneSettings&&!screenManager.isScores&&!screenManager.isLight;
  g=modalContext;
- try{
-  if(screenManager.isProperties)paintProperties(layout());
-  else if(screenManager.isLight)paintLightDirectionOverlay();
-  else modalUI.paintModal(q);
- }
+ try{if(screenManager.isLight)paintLightDirectionOverlay();else modalUI.paintModal(q);}
  finally{g=baseContext;}
  modalTexture.needsUpdate=true;
  perf.textureChanged('modal');
@@ -1365,7 +1265,6 @@ inputController=createInputController({
   else if(act&&!visualScene.controlsGpuEnabled)layers.mark('controls');
  },
  handleAction:act=>{
-  if(propertyAction(act))return;
   const previous=game.status;
   const result=actions.dispatch(act);
   // PAUSE must retain its active button until release, even though
@@ -1381,48 +1280,38 @@ inputController=createInputController({
   if(game.status!==previous&&act!=='pause')buttonFeedback.clear();
   return result;
  },
- setSetting:(field,value)=>{
-  actions.setSetting(field,value);
-  if(screenManager.usesPropertiesBoard)layers.mark('modal');
- },settingValue,
+ setSetting:actions.setSetting,settingValue,
  getLightBounds:lightBoardBounds,onLightPoint:setLightPosition,
  
  toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
  chooseScanline:id=>modalUI.chooseScanline(id),
- openModal:closeSettings,invalidate,clamp,
+ openModal:()=>screenManager.close(),invalidate,clamp,
  onButtonPress:(hit,now,held)=>{
   if(buttonFeedback.press(hit,now,held))invalidate('button-press');
  },
  onButtonRelease:(hit,now)=>{
   if(buttonFeedback.release(hit,now))invalidate('button-release');
  },
- canInteract:()=> (!propertiesWipe||performance.now()>=propertiesWipe.start+propertiesWipe.duration)&&
-  !portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
+ canInteract:()=>!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 // Browser and installed-app lifecycle, viewport and update polling are delegated
 // to Platform Manager. The renderer retains only its drawing responsibilities.
 function syncFX(){
- modalWipe.value.set(propertiesWipe?.progress??1,propertiesWipe?.direction??1);
  const scoreBounds=screenManager.isScores?modalUI.modalBounds('scores'):null;
  const blurredLayout=scoreBounds?.landscapeFallback?{
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
- // Keep phosphor continuous from Properties into the light rig. The
- // original Display System launcher keeps its immediate light feedback.
+ // Light Control uses the SAME saved rendering effects as gameplay,
+ // except phosphor persistence is paused so dragging remains immediate.
  // The paused-board popup blur is suppressed separately in the compositor.
- compositor.syncFX({fx:screenManager.isLight&&!screenManager.usesPropertiesBoard?
+ compositor.syncFX({fx:screenManager.isLight?
   {...settings.effects,persistence:false}:settings.effects,
   theme:settings.theme,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
-  isolateLightWindow:screenManager.isLight||screenManager.isProperties,
-  propertiesEffects:screenManager.usesPropertiesBoard?{
-   bloomScreen:propertyScreenAmount('bloom'),bloomPreview:propertyPreview('bloom'),
-   softnessScreen:propertyScreenAmount('softness'),
-   softnessPreview:propertyPreview('softness')
-  }:undefined,
+  isolateLightWindow:screenManager.isLight,
   pieceMaskEnabled:boardPlane.visible});
 }
 function cancelPendingFrame(){
@@ -1442,20 +1331,6 @@ function frame(now){
  const frameStarted=perf.startFrame();
  try{
   const dt=clamp(now-lastTime,0,100);lastTime=now;
-  if(propertiesWipe){
-   propertiesWipe.progress=clamp((now-propertiesWipe.start)/propertiesWipe.duration,0,1);
-   if((propertiesWipe.from==='shadows')!==(selectedProperty().id==='shadows')&&!settings.effects.shadows)
-    layers.mark('board','modal');
-   if(propertiesWipe.progress===1)propertiesWipe=null;
-   layers.reason('properties-transition');
-  }
-  if(scopeFade){
-   const progress=clamp((now-scopeFade.start)/180,0,1);
-   scopeFade.progress=progress*progress*(3-2*progress);
-   if(scopeFade.id==='shadows')layers.mark('board','modal');
-   if(progress===1)scopeFade=null;
-   layers.reason('properties-transition');
-  }
   const prior=captureGameVisualState(game);
   // Only redraw gameplay pixels when the *visible state* really changes.
   // Gravity timers may advance on every RAF tick without moving a piece.
@@ -1510,8 +1385,7 @@ function frame(now){
    else{layers.mark('modal');layers.reason('scroll');}
   }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
-  const phosphorOn=settings.effects.persistence===true&&
-   (!screenManager.isLight||screenManager.usesPropertiesBoard);
+  const phosphorOn=settings.effects.persistence===true&&!screenManager.isLight;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
@@ -1558,7 +1432,7 @@ function frame(now){
    if(surface.visible)textureUploads.upload(texture,'base');
    if(boardPlane.visible){
     textureUploads.upload(boardTexture,'board');
-    if(settings.effects.bloom||propertyPreview('bloom')>0)
+    if(settings.effects.bloom)
      textureUploads.upload(pieceBloomMaskTexture,'piece-mask');
    }
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
@@ -1593,7 +1467,7 @@ function frame(now){
    gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
    redrawPending:layers.needsRender(),scrolling:Math.abs(scrollVelocity)>.015,
    buttonsActive:buttonSparks.length>0
-  })||Boolean(propertiesWipe||scopeFade)||(legacyIdleRAF&&phosphorOn);
+  })||(legacyIdleRAF&&phosphorOn);
   // A continuously active RAF already advances the terminal. Scheduling a
   // second timeout for the same work wastes callbacks and timer allocations.
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
