@@ -26,8 +26,24 @@ def check_worker_handoff(browser):
     current_html = (root / "tetris" / shell).read_text()
     current = re.search(marker, current_html)[2]
     previous = f"{int(current) - 1:03}"
+    previous_commit = subprocess.run(
+        ["git", "log", "-n", "1", "--format=%H", "HEAD^", "--", f"tetris/{shell}"],
+        cwd=root, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    # A release can contain follow-up commits before promotion to main.
+    while previous_commit:
+        prior_html = subprocess.run(
+            ["git", "show", f"{previous_commit}:tetris/{shell}"], cwd=root,
+            capture_output=True, text=True, check=True,
+        ).stdout
+        if re.search(marker, prior_html)[2] != current:
+            break
+        previous_commit = subprocess.run(
+            ["git", "log", "-n", "1", "--format=%H", f"{previous_commit}^", "--", f"tetris/{shell}"],
+            cwd=root, capture_output=True, text=True,
+        ).stdout.strip()
     archive = subprocess.run(
-        ["git", "archive", "HEAD^", "tetris"], cwd=root,
+        ["git", "archive", previous_commit or "HEAD^", "tetris"], cwd=root,
         capture_output=True, check=False,
     )
     with tempfile.TemporaryDirectory() as temp:
