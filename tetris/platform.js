@@ -1396,7 +1396,8 @@ inputController=createInputController({
  onButtonRelease:(hit,now)=>{
   if(buttonFeedback.release(hit,now))invalidate('button-release');
  },
- canInteract:()=>!propertiesWipe&&!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
+ canInteract:()=> (!propertiesWipe||performance.now()>=propertiesWipe.start+propertiesWipe.duration)&&
+  !portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 // Browser and installed-app lifecycle, viewport and update polling are delegated
 // to Platform Manager. The renderer retains only its drawing responsibilities.

@@ -378,7 +378,13 @@ with sync_playwright() as p:
     page.mouse.click(*wait_label("next"))
     light_x, light_y = wait_label("ADJUST LIGHT")
     page.wait_for_timeout(650)
-    page.mouse.click(light_x, light_y)
+    # The software compositor can leave pointerdown and pointerup queued
+    # behind a long frame. Exercise the same tap again if it was dropped.
+    for _ in range(4):
+        if page.evaluate("() => Boolean(window.propertyLabels.DISTANCE)"):
+            break
+        page.mouse.click(light_x, light_y)
+        page.wait_for_timeout(1000)
     wait_label("DISTANCE")
     page.wait_for_timeout(650)
     page.evaluate("() => { delete window.propertyLabels['ADJUST LIGHT']; }")
