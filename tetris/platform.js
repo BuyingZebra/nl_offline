@@ -421,6 +421,7 @@ function closeSettings(){
  }else screenManager.close();
 }
 function propertyAction(act){
+ if(lineClearFX?.finalPoints)return false;
  if(act==='options'&&!screenManager.hasModal){openProperties();return true;}
  if(act==='close'&&screenManager.hasModal){closeSettings();return true;}
  if(!screenManager.isProperties)return false;
@@ -1406,10 +1407,10 @@ function syncFX(){
   ...layoutInfo,boardX:scoreBounds.x,boardY:scoreBounds.y,
   boardW:scoreBounds.w,boardH:scoreBounds.h
  }:layoutInfo;
- // Light Control uses the SAME saved rendering effects as gameplay,
- // except phosphor persistence is paused so dragging remains immediate.
+ // Keep phosphor continuous from Properties into the light rig. The
+ // original Display System launcher keeps its immediate light feedback.
  // The paused-board popup blur is suppressed separately in the compositor.
- compositor.syncFX({fx:screenManager.isLight?
+ compositor.syncFX({fx:screenManager.isLight&&!screenManager.usesPropertiesBoard?
   {...settings.effects,persistence:false}:settings.effects,
   theme:settings.theme,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
@@ -1508,7 +1509,8 @@ function frame(now){
    else{layers.mark('modal');layers.reason('scroll');}
   }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
-  const phosphorOn=settings.effects.persistence===true&&!screenManager.isLight;
+  const phosphorOn=settings.effects.persistence===true&&
+   (!screenManager.isLight||screenManager.usesPropertiesBoard);
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
