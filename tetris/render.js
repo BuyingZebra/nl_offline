@@ -2922,7 +2922,7 @@ modalPlane.material.onBeforeCompile=shader=>{
  shader.uniforms.uModalWipe=modalWipe;
  shader.uniforms.uPreviousModal={value:wipeTexture};
  shader.fragmentShader='uniform vec2 uModalWipe;uniform sampler2D uPreviousModal;\n'+shader.fragmentShader;
- shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`\n+ #include <map_fragment>
+ shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
  if(uModalWipe.x<1.0){
   float position=uModalWipe.y>0.0?vMapUv.x:1.0-vMapUv.x;
   float edge=1.004*uModalWipe.x-.002;
