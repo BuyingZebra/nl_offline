@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v213';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v213';
+import {instrumentCompositorPasses} from './diagnostics.js?v215';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v215';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -266,7 +266,10 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
   glow.materialHighPassFilter.uniforms.uPieceMaskRect=piecesRect;
   glow.highPassUniforms.uPieceMaskEnabled=piecesEnabled;
   glow.materialHighPassFilter.uniforms.uPieceMaskEnabled=piecesEnabled;
-  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse,uPieceMask;\nuniform float luminosityThreshold,smoothWidth,uPieceMaskEnabled;\nuniform vec4 uBoardRect,uPieceMaskRect;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n if(uPieceMaskEnabled>.5){\n  vec2 maskSpan=max(vec2(.000001),uPieceMaskRect.zw-uPieceMaskRect.xy);\n  vec2 local=(vUv-uPieceMaskRect.xy)/maskSpan;\n  float inMask=step(uPieceMaskRect.x,vUv.x)*step(vUv.x,uPieceMaskRect.z)*\n               step(uPieceMaskRect.y,vUv.y)*step(vUv.y,uPieceMaskRect.w);\n  float face=texture2D(uPieceMask,clamp(local,vec2(0.0),vec2(1.0))).r;\n  brightness*=1.0-0.5*inMask*clamp(face,0.0,1.0);\n }\n gl_FragColor=vec4(brightness*(1.0-inside),brightness*inside,0.0,1.0);\n}";
+  const coverage={value:new THREE.Vector2(1,1)};
+  glow.highPassUniforms.uBloomCoverage=coverage;
+  glow.materialHighPassFilter.uniforms.uBloomCoverage=coverage;
+  glow.materialHighPassFilter.fragmentShader="precision highp float;\nvarying vec2 vUv;\nuniform sampler2D tDiffuse,uPieceMask;\nuniform float luminosityThreshold,smoothWidth,uPieceMaskEnabled;\nuniform vec4 uBoardRect,uPieceMaskRect;uniform vec2 uBloomCoverage;\nvoid main(){\n vec3 rgb=texture2D(tDiffuse,vUv).rgb;\n float luminance=dot(rgb,vec3(.2126,.7152,.0722));\n float brightness=luminance*smoothstep(luminosityThreshold,\n   luminosityThreshold+smoothWidth,luminance);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n if(uPieceMaskEnabled>.5){\n  vec2 maskSpan=max(vec2(.000001),uPieceMaskRect.zw-uPieceMaskRect.xy);\n  vec2 local=(vUv-uPieceMaskRect.xy)/maskSpan;\n  float inMask=step(uPieceMaskRect.x,vUv.x)*step(vUv.x,uPieceMaskRect.z)*\n               step(uPieceMaskRect.y,vUv.y)*step(vUv.y,uPieceMaskRect.w);\n  float face=texture2D(uPieceMask,clamp(local,vec2(0.0),vec2(1.0))).r;\n  brightness*=1.0-0.5*inMask*clamp(face,0.0,1.0);\n }\n gl_FragColor=vec4(brightness*(1.0-inside)*uBloomCoverage.x,brightness*inside*uBloomCoverage.y,0.0,1.0);\n}";
   glow.materialHighPassFilter.needsUpdate=true;
  }
 
@@ -370,11 +373,11 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
 
  // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
  const edgeSoftness=new ShaderPass({
-  uniforms:{tDiffuse:{value:null},uAmount:{value:.65},uRadius:{value:4},uSize:{value:new THREE.Vector2(1,1)},uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
+  uniforms:{tDiffuse:{value:null},uAmount:{value:.65},uRadius:{value:4},uSize:{value:new THREE.Vector2(1,1)},uBoardRect:{value:new THREE.Vector4(0,0,0,0)},uSoftnessCoverage:{value:new THREE.Vector2(1,0)}},
   vertexShader:passVertex,
   fragmentShader:`
    varying vec2 vUv;uniform sampler2D tDiffuse;
-   uniform float uAmount,uRadius;uniform vec2 uSize;uniform vec4 uBoardRect;
+   uniform float uAmount,uRadius;uniform vec2 uSize,uSoftnessCoverage;uniform vec4 uBoardRect;
    // This is exactly the same separable Gaussian kernel (sigma=1.25),
    // with its constant weights calculated once instead of 49 exp() calls
    // per pixel. Keep 7x7 sampling and all edge falloff settings unchanged.
@@ -388,12 +391,14 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     vec4 sharp=texture2D(tDiffuse,vUv);
     vec2 distPx=min(vUv,1.0-vUv)*uSize;
     float d=min(distPx.x,distPx.y);
-    float amount=clamp(uAmount*(1.0-smoothstep(0.0,min(uSize.x,uSize.y)*.36,d)),0.0,1.0);
+    float currentIn=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*
+      step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);
+    float falloff=1.0-smoothstep(0.0,min(uSize.x,uSize.y)*.36,d);
+    float amount=clamp(uAmount*(uSoftnessCoverage.x*falloff+
+      currentIn*uSoftnessCoverage.y*(1.0-uSoftnessCoverage.x*falloff)),0.0,1.0);
     if(amount<.001||uRadius<.001){gl_FragColor=sharp;return;}
     vec2 pixel=1.0/max(vec2(1.0),uSize);
     float interval=max(.001,uRadius)/3.0;
-    float currentIn=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*
-      step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);
     vec4 sum=vec4(0.0);float weights=0.0;
     for(int y=-3;y<=3;y++){
      float wy=gaussianWeight(y);
@@ -565,7 +570,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,propertiesEffects,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
@@ -587,14 +592,20 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  bootRoll.uniforms.uContentLuminance.value=faded;
  bootRoll.enabled=(bootRoll.uniforms.uOffset.value>0.00001&&
   bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001||faded<1;
- glow.enabled=fx.bloom;
+ const bloomScreen=propertiesEffects?.bloomScreen??Number(fx.bloom);
+ const bloomBoard=Math.max(bloomScreen,propertiesEffects?.bloomPreview??0);
+ glow.highPassUniforms?.uBloomCoverage?.value.set(bloomScreen,bloomBoard);
+ glow.enabled=bloomBoard>0;
  glow.strength=fx.bloomStrength;
  // Never mask a full-page settings screen or other view where the piece
  // board is hidden. With bloom disabled, the stencil is not sampled.
  if(glow.highPassUniforms?.uPieceMaskEnabled)
   glow.highPassUniforms.uPieceMaskEnabled.value=
-   fx.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
- edgeSoftness.enabled=fx.softness;
+   glow.enabled&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
+ const softnessScreen=propertiesEffects?.softnessScreen??Number(fx.softness);
+ const softnessPreview=propertiesEffects?.softnessPreview??0;
+ edgeSoftness.uniforms.uSoftnessCoverage.value.set(softnessScreen,softnessPreview);
+ edgeSoftness.enabled=softnessScreen>0||softnessPreview>0;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
  // One board-visibility rule for PAUSED, HIGH SCORE and the light lab.
@@ -622,7 +633,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   }
   // Board content is the light source only when the recessed window is visible.
   // Zero rect restores v188 global bloom for the optional A/B query parameter.
-  const active=shadowBox&&boardWindowVisible&&w>0&&h>0;
+  const active=(shadowBox||propertiesEffects)&&boardWindowVisible&&w>0&&h>0;
   const x0=active?x/W:0,y0=active?1-(y+h)/H:0;
   const x1=active?(x+w)/W:0,y1=active?1-y/H:0;
   for(const uniform of [glow.highPassUniforms?.uBoardRect,
@@ -2900,6 +2911,28 @@ modalTexture.generateMipmaps=false;
 const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:modalTexture,transparent:true,depthTest:false,
   depthWrite:false}));
+const wipeCanvas=document.createElement('canvas');
+wipeCanvas.width=1;wipeCanvas.height=1;
+const wipeTexture=new THREE.CanvasTexture(wipeCanvas);
+wipeTexture.colorSpace=THREE.SRGBColorSpace;wipeTexture.minFilter=THREE.LinearFilter;
+wipeTexture.generateMipmaps=false;
+// Both images stay on the GPU during a wipe. Only its edge moves each frame.
+const modalWipe={value:new THREE.Vector2(1,1)};
+modalPlane.material.onBeforeCompile=shader=>{
+ shader.uniforms.uModalWipe=modalWipe;
+ shader.uniforms.uPreviousModal={value:wipeTexture};
+ shader.fragmentShader='uniform vec2 uModalWipe;uniform sampler2D uPreviousModal;\n'+shader.fragmentShader;
+ shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`\n+ #include <map_fragment>
+ if(uModalWipe.x<1.0){
+  float position=uModalWipe.y>0.0?vMapUv.x:1.0-vMapUv.x;
+  float edge=1.004*uModalWipe.x-.002;
+  float reveal=1.0-smoothstep(edge-.002,edge+.002,position);
+  vec4 previous=texture2D(uPreviousModal,vMapUv);
+  float alpha=mix(previous.a,diffuseColor.a,reveal);
+  vec3 color=mix(previous.rgb*previous.a,diffuseColor.rgb*diffuseColor.a,reveal);
+  diffuseColor=vec4(color/max(alpha,.0001),alpha);
+ }`);
+};
 // The transparent modal texture spans the entire screen. Keeping its image
 // dimensions stable across dialog types prevents stale cropped texture data.
 modalPlane.frustumCulled=false;modalPlane.renderOrder=2;modalPlane.position.z=.03;
@@ -2907,12 +2940,13 @@ modalPlane.visible=false;scene.add(modalPlane);
 
 
  const canvases=Object.freeze([input,boardCanvas,pieceBloomMaskCanvas,sidebarCanvas,controlsCanvas,
-  terminalCanvas,modalCanvas,boardPopupCanvas]);
+  terminalCanvas,modalCanvas,boardPopupCanvas,wipeCanvas]);
  const textures=Object.freeze([texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,
-  terminalTexture,modalTexture,boardPopupTexture]);
+  terminalTexture,modalTexture,boardPopupTexture,wipeTexture]);
  return Object.freeze({
   input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls,
   get controlsGpuEnabled(){return controlsGpuEnabled;},
+  wipeCanvas,wipeTexture,modalWipe,
   canvases,textures
  });
 }

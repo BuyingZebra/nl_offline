@@ -32,13 +32,14 @@ def check_worker_handoff(browser):
     )
     with tempfile.TemporaryDirectory() as temp:
         prior_root = Path(temp)
+        use_prior_release = False
         if archive.returncode == 0:
             with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as bundle:
                 bundle.extractall(prior_root, filter="data")
         prior_shell = prior_root / "tetris" / shell
-        use_prior_release = (
-            prior_shell.exists() and re.search(marker, prior_shell.read_text())[2] == previous
-        )
+        if prior_shell.exists():
+            previous = re.search(marker, prior_shell.read_text())[2]
+            use_prior_release = previous != current
         published = False
 
         class ReleaseHandler(SimpleHTTPRequestHandler):
@@ -332,10 +333,45 @@ with sync_playwright() as p:
         f"Redundant idle timer cancellations: {idle_counts}"
     )
 
+    page.evaluate("""() => {
+        window.propertyLabels = {};
+        const original = CanvasRenderingContext2D.prototype.fillText;
+        const region = CanvasRenderingContext2D.prototype.roundRect;
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, ...rest) {
+            this.lastPanel = [x + w / 2, y + h / 2];
+            return region.call(this, x, y, w, h, ...rest);
+        };
+        CanvasRenderingContext2D.prototype.fillText = function(label, x, y, ...rest) {
+            window.propertyLabels[label] = [x, y];
+            if (label === 'PHOSPHOR BLOOM' || label === 'EDGE SOFTNESS')
+                window.propertyLabels.next = this.lastPanel;
+            return original.call(this, label, x, y, ...rest);
+        };
+    }""")
+    def wait_label(label):
+        page.wait_for_function("label => window.propertyLabels[label]", arg=label)
+        return page.evaluate("label => window.propertyLabels[label]", label)
+
     page.mouse.click(353, 103)
-    page.wait_for_timeout(150)
+    wait_label("PHOSPHOR BLOOM")
     settings_screen = page.screenshot()
-    assert settings_screen != ready.read_bytes(), "Options did not change the screen"
+    assert settings_screen != ready.read_bytes(), "Properties did not change the screen"
+    page.mouse.click(*wait_label("next"))
+    wait_label("EDGE SOFTNESS")
+    page.wait_for_timeout(400)
+    page.mouse.click(*wait_label("next"))
+    page.wait_for_timeout(450)
+    light_x, light_y = wait_label("ADJUST LIGHT")
+    page.mouse.click(light_x, light_y)
+    wait_label("LIGHT ANGLE")
+    page.wait_for_timeout(650)
+    page.evaluate("() => { delete window.propertyLabels['ADJUST LIGHT']; }")
+    page.mouse.click(353, 103)
+    wait_label("ADJUST LIGHT")
+    page.wait_for_timeout(650)
+    assert not errors, errors
+    assert not [e for e in console_errors if "WebGLProgram" in e], console_errors
+    print(f"{browser_name}: Properties arrows and Light Control round trip passed")
     page.keyboard.press("Escape")
     page.wait_for_timeout(150)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()

@@ -127,7 +127,7 @@ describe('CRT composition',()=>{
   assert.equal(contribution(0),1,'other luminous features keep full bloom');
   assert.equal(contribution(1),.5,'piece faces keep half their bloom');
   assert.match(source,/texture2D\(uPieceMask,clamp\(local/);
-  assert.match(source,/gl_FragColor=vec4\(brightness\*\(1\.0-inside\),brightness\*inside,0\.0,1\.0\)/);
+  assert.match(source,/gl_FragColor=vec4\(brightness\*\(1\.0-inside\)\*uBloomCoverage\.x,brightness\*inside\*uBloomCoverage\.y,0\.0,1\.0\)/);
   assert.match(tint.fragmentShader,/float original=encoded\.b/,'source artwork remains sharp and untouched');
   // A settings page hides the board: its unrelated pixels must never be masked.
   pipeline.syncFX({fx:states,theme:'green',width:393,height:852,dpr:3,
@@ -386,7 +386,7 @@ describe('Phosphor persistence',()=>{
    source.indexOf('// All game commands'));
   assert.ok(!menu.includes('resetPersistence'), 'menu changes must not clear CRT glow');
   const callbacks=source.slice(source.indexOf('handleAction:act=>{'),
-   source.indexOf('setSetting:actions.setSetting'));
+   source.indexOf('setSetting:(field,value)=>{'));
   assert.ok(!callbacks.includes('resetPersistence'), 'pause/play action must not clear CRT glow');
   const status=source.slice(source.indexOf('if(game.status!==prior.status){'),
    source.indexOf("layers.reason('gravity')"));
@@ -1074,9 +1074,9 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(platform,/scrimPlane\.visible=!standaloneSettings&&!screenManager\.isScores&&!screenManager\.isLight/);
   assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
   assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
-  assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
-  assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:\(\)=>settings\.effects\}\)/);
-  assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
+  assert.match(renderer,/const active=\(shadowBox\|\|propertiesEffects\)&&boardWindowVisible&&w>0&&h>0/);
+  assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:previewShadowSettings\}\)/);
+  assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:previewShadowSettings\}\)/);
   assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects|getSettings:lightFX/);
   assert.match(platform,/\{\.\.\.settings\.effects,persistence:false\}:settings\.effects/);
   assert.match(renderer,/const boardBackdropVisible=!modalOpen\|\|scoresOverlay/);
@@ -1096,7 +1096,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
    platform.indexOf('function paintGame('));
   const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
    platform.indexOf('inputController=createInputController('));
-  assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
+  assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight&&!screenManager\.isProperties\)registerControlHitboxes\(r,UI_SPACE,region\)/);
   assert.match(modal,/sidebarPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
   assert.match(platform,/if\(previous==='light'\|\|next==='light'\)\{/);
@@ -1190,8 +1190,8 @@ describe('v200 context-only light property deck',()=>{
    src.indexOf('function paintGame('));
   const modal=src.slice(src.indexOf('function paintModalOverlay('),
    src.indexOf('inputController=createInputController('));
-  assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'\)/);
-  assert.match(base,/if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
+  assert.match(base,/if\(!screenManager\.isLight&&!screenManager\.isProperties\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'\)/);
+  assert.match(base,/if\(!screenManager\.isLight&&!screenManager\.isProperties\)registerControlHitboxes\(r,UI_SPACE,region\)/);
   assert.match(modal,/controlsPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));
@@ -1203,11 +1203,13 @@ describe('v200 context-only light property deck',()=>{
    src.indexOf('function paintLightDirectionOverlay('));
   assert.match(deck,/panel\(r\.dx,r\.dy,r\.dw,r\.dh,0,C\.panel\)/);
   assert.match(deck,/for\(let i=0;i<LIGHT_PROPERTY_CONTROLS\.length;i\+\+\)/);
-  assert.match(deck,/const fill=206,empty=Math\.round\(fill\*\.50\),darkInk=6/);
-  assert.match(deck,/rect\(barX,barY,barW,barH,gray\(empty\)\)/);
-  assert.match(deck,/rect\(barX,barY,barW\*fraction,barH,gray\(fill\)\)/);
-  assert.match(deck,/barX\+barW\/2,midY/);
-  assert.match(deck,/region\(barX,barY,barW,barH,'slider'/);
+  const slider=src.slice(src.indexOf('function paintPropertySlider('),
+   src.indexOf('function paintLightPropertyPanel('));
+  assert.match(deck,/paintPropertySlider\(LIGHT_PROPERTY_CONTROLS\[i\]/);
+  assert.match(slider,/rect\(barX,barY,barW,barH,gray\(103\)\)/);
+  assert.match(slider,/rect\(barX,barY,barW\*fraction,barH,gray\(206\)\)/);
+  assert.match(slider,/barX\+barW\/2,midY/);
+  assert.match(slider,/region\(barX,y,barW,rowH,'slider'/);
   assert.doesNotMatch(deck,/shadowAngle|DONE|drawControls/);
   const game=gameSource();
   assert.match(game,/LIGHT_PROPERTY_CONTROLS=Object\.freeze\(\[/);
@@ -1253,8 +1255,8 @@ describe('v202 grid and piece bloom mask wiring',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const r=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(p,/pieceMaskEnabled:boardPlane\.visible/);
-  assert.match(p,/if\(settings\.effects\.bloom\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
-  assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
+  assert.match(p,/if\(settings\.effects\.bloom\|\|propertyPreview\('bloom'\)>0\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
+  assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*glow\.enabled&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
   assert.match(r,/const pieceBloomMaskTexture=new THREE\.CanvasTexture\(pieceBloomMaskCanvas\)/);
   assert.doesNotMatch(r,/new THREE\.Mesh\(.*pieceBloomMaskTexture/);
   assert.match(r,/const canvases=Object\.freeze\(\[input,boardCanvas,pieceBloomMaskCanvas/);

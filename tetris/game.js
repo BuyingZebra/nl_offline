@@ -640,24 +640,28 @@ export function createSettingsManager(storage){
 export const SCREENS=Object.freeze({
  GAME:'game',
  OPTIONS:'options',
+ PROPERTIES:'properties',
  SCORES:'scores',
  LIGHT:'light'
 });
 
 const MODALS=new Set([
- null,SCREENS.OPTIONS,SCREENS.SCORES,SCREENS.LIGHT
+ null,SCREENS.OPTIONS,SCREENS.PROPERTIES,SCREENS.SCORES,SCREENS.LIGHT
 ]);
 
 export function createScreenManager({getGameStatus,pauseGame,onChange}){
  if(typeof getGameStatus!=='function'||typeof pauseGame!=='function'||
     typeof onChange!=='function')throw new TypeError('Screen Manager requires lifecycle callbacks');
  let active=null;
+ let lightParent=SCREENS.OPTIONS;
 
  // Always announce valid transitions, even when opening the same screen again:
  // the existing UI resets menu scroll, picker state and pointer capture each time.
  function open(next){
   if(!MODALS.has(next))return false;
   const previous=active;
+  if(next===SCREENS.LIGHT&&previous!==SCREENS.LIGHT)
+   lightParent=previous===SCREENS.PROPERTIES?SCREENS.PROPERTIES:SCREENS.OPTIONS;
   active=next;
   onChange(previous,next);
   return true;
@@ -673,11 +677,14 @@ export function createScreenManager({getGameStatus,pauseGame,onChange}){
   get hasModal(){return active!==null;},
   get isScores(){return active===SCREENS.SCORES;},
   get isOptions(){return active===SCREENS.OPTIONS;},
+  get isProperties(){return active===SCREENS.PROPERTIES;},
+  get usesPropertiesBoard(){return active===SCREENS.PROPERTIES||active===SCREENS.LIGHT&&lightParent===SCREENS.PROPERTIES;},
   get isLight(){return active===SCREENS.LIGHT;},
   get paintsModalLayer(){return active!==null&&active!==SCREENS.SCORES;},
   // A single close operation returns Light Control to its parent Display
   // System; all other menus go back to the paused game.
-  close:()=>open(active===SCREENS.LIGHT?SCREENS.OPTIONS:null),
+  close:()=>open(active===SCREENS.LIGHT?lightParent:null),
+  openProperties:()=>openWithPause(SCREENS.PROPERTIES),
   openOptions:()=>openWithPause(SCREENS.OPTIONS),
   openLight:()=>openWithPause(SCREENS.LIGHT),
   openScores:()=>openWithPause(SCREENS.SCORES)
