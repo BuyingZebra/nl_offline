@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v213';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v213';
+import {createInputController} from './input.js?v214';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v214';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v213';
+export {createInputController} from './input.js?v214';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -442,6 +442,8 @@ const shadowBox=new URLSearchParams(window.location.search).get('shadowbox')!=='
 // v211 A/B: ?idlepacing=off restores v210's continuous idle RAF, without
 // altering any rendering pass, source artwork or stored preference.
 const legacyIdleRAF=new URLSearchParams(window.location.search).get('idlepacing')==='off';
+const cropBoardPopup=new URLSearchParams(window.location.search).get('popupcrop')!=='off';
+let boardPopupBounds;
 const compositor=createCompositor({renderer,scene,camera,boardPopupTexture,
  pieceBloomMaskTexture,shadowBox,
  onPassTiming:(name,elapsed)=>perf.recordPass(name,elapsed)});
@@ -965,9 +967,21 @@ function paintBaseGame(){
  regions=[];const r=layout();layoutInfo=r;
  // One popup source: single board shadow during play, plus menu content
  // when not playing. Redraw only when the base is dirty.
+ const fullWidth=input.width,fullHeight=input.height;
+ const bounds=cropBoardPopup?croppedBounds([
+  {x:r.boardX,y:r.boardY,w:r.boardW,h:r.boardH},
+  screenManager.isScores?modalUI.modalBounds('scores'):null
+ ],fullWidth/DPR,fullHeight/DPR,DPR):{x:0,y:0,w:fullWidth/DPR,h:fullHeight/DPR};
+ const left=Math.round(bounds.x*DPR),top=Math.round(bounds.y*DPR);
+ const width=Math.round(bounds.w*DPR),height=Math.round(bounds.h*DPR);
+ if(boardPopupCanvas.width!==width)boardPopupCanvas.width=width;
+ if(boardPopupCanvas.height!==height)boardPopupCanvas.height=height;
+ // Match the original full-screen texture's texel centres and keep UI
+ // coordinates in screen space, including the hit regions drawn below.
+ boardPopupBounds={left,top,width,height,fullWidth,fullHeight};
  boardPopupContext.setTransform(1,0,0,1,0,0);
  boardPopupContext.clearRect(0,0,boardPopupCanvas.width,boardPopupCanvas.height);
- boardPopupContext.setTransform(DPR,0,0,DPR,0,0);
+ boardPopupContext.setTransform(DPR,0,0,DPR,-left,-top);
  g=baseContext;
  rect(0,0,W,H,C.bg);
  // The stray shaded sub-footer is removed; the log prints on bare black.
@@ -1310,7 +1324,7 @@ function syncFX(){
   theme:settings.theme,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
-  popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
+  popupStatus:lastPaintedBoardPopupStatus,popupBounds:boardPopupBounds,layoutInfo:blurredLayout,
   isolateLightWindow:screenManager.isLight,
   pieceMaskEnabled:boardPlane.visible});
 }
@@ -1566,7 +1580,6 @@ const platform=createPlatformManager({
    buttonFeedback.clear();buttonSparks=[];
   compositor.resetPersistence();
    input.width=Math.round(W*DPR);input.height=Math.round(H*DPR);
-   boardPopupCanvas.width=input.width;boardPopupCanvas.height=input.height;
    g.setTransform(DPR,0,0,DPR,0,0);
    renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);
    compositor.resize(W,H,DPR);

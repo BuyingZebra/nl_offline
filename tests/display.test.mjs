@@ -300,6 +300,28 @@ describe('CRT composition',()=>{
   assert.deepEqual(aperture(),paused,'return to PAUSED restores the same masks');
   pipeline.dispose();
  });
+ test('cropped popup keeps full-screen texel alignment independently of the blur bounds',()=>{
+  const {pipeline,composer}=setup();
+  const state={fx:states,theme:'green',width:393,height:852,dpr:2,
+   boardStatus:'paused',popupStatus:'paused',modalOpen:false,
+   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
+  const popup=composer.passes[2];
+  const coords=name=>{
+   const {x,y,z,w}=popup.uniforms[name].value;
+   return [x,y,z,w];
+  };
+  pipeline.syncFX(state);
+  const rect=coords('uRect');
+  pipeline.syncFX({...state,popupBounds:{left:18,top:236,width:477,height:946,
+   fullWidth:786,fullHeight:1704}});
+  assert.deepEqual(coords('uRect'),rect);
+  const [x0,y0,x1,y1]=coords('uPopupRect');
+  assert.ok(Math.abs(((18.5/786-x0)/(x1-x0))*477-.5)<1e-10);
+  assert.ok(Math.abs(((1-1181.5/1704-y0)/(y1-y0))*946-.5)<1e-10);
+  pipeline.syncFX(state);
+  assert.deepEqual(coords('uPopupRect'),[0,0,1,1]);
+  pipeline.dispose();
+ });
  test('CRT patterns have stable original order and fallback',()=>{
   const {pipeline}=setup();
   assert.deepEqual(pipeline.SCANLINE_PRESETS.map(p=>p.id),

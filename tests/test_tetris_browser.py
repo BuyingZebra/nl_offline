@@ -10,12 +10,47 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from urllib.parse import urlsplit
-from PIL import Image
+from PIL import Image, ImageChops
 from playwright.sync_api import sync_playwright
 
 browser_name = os.environ.get("FIELD_ATLAS_BROWSER", "chromium")
 out = Path("work/browser-test")
 out.mkdir(parents=True, exist_ok=True)
+
+
+def check_popup_crop(browser):
+    """Compare the rendered title popup in both modes at identical device DPR."""
+    with browser.new_context(viewport={"width": 393, "height": 852},
+                             device_scale_factor=2, is_mobile=True, has_touch=True,
+                             service_workers="block") as context:
+        context.route("https://fonts.*/*", lambda route: route.abort())
+        captures = []
+        for query in ("?popupcrop=off", ""):
+            page = context.new_page()
+            page.add_init_script("""const fill = CanvasRenderingContext2D.prototype.fillText;
+                CanvasRenderingContext2D.prototype.fillText = function(label, ...args) {
+                    if (label === 'SURVIVE THE SOVIET CHALLENGE') {
+                        const t = this.getTransform();
+                        window.popupCrop = {width: this.canvas.width, height: this.canvas.height,
+                            left: -t.e, top: -t.f, dpr: t.a};
+                    }
+                    return fill.call(this, label, ...args);
+                };""")
+            page.goto("http://127.0.0.1:8765/tetris/three-v027.html" + query)
+            page.wait_for_function("() => window.popupCrop")
+            page.wait_for_timeout(900)
+            assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
+            captures.append((page.evaluate("() => window.popupCrop"),
+                             Image.open(io.BytesIO(page.screenshot())).convert("RGB")))
+            page.close()
+        (full, reference), (crop, candidate) = captures
+        assert full["dpr"] == crop["dpr"] == 2
+        assert crop["width"] * crop["height"] < full["width"] * full["height"] * 0.4
+        # Isolate the title and START GAME from live terminal and piece previews.
+        region = (crop["left"] + 16, 630, crop["left"] + crop["width"] - 16, 895)
+        delta = ImageChops.difference(reference.crop(region), candidate.crop(region))
+        assert max(high for _, high in delta.getextrema()) <= 2, delta.getextrema()
+        print(f"{browser_name}: popup crop {full} -> {crop}, title pixels match")
 
 
 def check_worker_handoff(browser):
@@ -165,6 +200,7 @@ with sync_playwright() as p:
     if browser_name == "chromium" and os.environ.get("FIELD_ATLAS_USE_CHROME") == "1":
         launch_args["channel"] = "chrome"
     browser = getattr(p, browser_name).launch(**launch_args)
+    check_popup_crop(browser)
     if browser_name == "chromium":
         check_worker_handoff(browser)
     page = browser.new_page(viewport={"width": 393, "height": 852},

@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v213';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v213';
+import {instrumentCompositorPasses} from './diagnostics.js?v214';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v214';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -278,7 +278,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // the same normalized Gaussian weighting in a single 2D pass.
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
-   uniform vec4 uRect;uniform vec2 uSize,uAxis;
+   uniform vec4 uRect,uPopupRect;uniform vec2 uSize,uAxis;
    uniform float uSigma,uStep,uComposite,uFade;
    uniform vec3 uFadeTo;
    void main(){
@@ -299,8 +299,11 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     }
     if(uComposite>.5){
      if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
-     vec4 popup=texture2D(uPopup,vUv);
-     backdrop=mix(backdrop,popup.rgb,popup.a);
+     if(all(greaterThanEqual(vUv,uPopupRect.xy))&&all(lessThan(vUv,uPopupRect.zw))){
+      vec2 popupUV=(vUv-uPopupRect.xy)/(uPopupRect.zw-uPopupRect.xy);
+      vec4 popup=texture2D(uPopup,popupUV);
+      backdrop=mix(backdrop,popup.rgb,popup.a);
+     }
     }
     gl_FragColor=vec4(backdrop,1.0);
    }`;
@@ -309,6 +312,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
    uniforms:{
     tDiffuse:{value:null},uPopup:{value:boardPopupTexture},
     uRect:{value:new THREE.Vector4(0,0,0,0)},
+    uPopupRect:{value:new THREE.Vector4(0,0,1,1)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uStep:{value:1},
@@ -565,7 +569,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,popupBounds,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
@@ -615,6 +619,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  boardPopupPass.uniforms.uFade.value=boardOverlayActive?BOARD_POPUP_FADE:0;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
+ const popupRect=boardPopupPass.uniforms.uPopupRect.value;
+ if(popupBounds){
+  const {left,top,width,height,fullWidth,fullHeight}=popupBounds;
+  popupRect.set(left/fullWidth,1-(top+height)/fullHeight,
+   (left+width)/fullWidth,1-top/fullHeight);
+ }else popupRect.set(0,0,1,1);
  if(layoutInfo){
   const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
   for(const pass of popupPasses){
