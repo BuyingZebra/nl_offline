@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v212';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v212';
+import {createInputController} from './input.js?v213';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v213';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v212';
+export {createInputController} from './input.js?v213';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -414,6 +414,7 @@ const perf=createPerfMonitor({enabled:true,intervalMs:2000,log:()=>{},
   if(recentPerf.length>8)recentPerf.shift();
  }});
 const debugClipboard=createDebugClipboard({navigator,document});
+let launchDiagnostics,playedOffline=false;
 let baseRegions=[]; // Cached layout hitboxes when menus cover the board.
 // Snapshot a just-completed board before Core removes its rows, then flash it.
 const LINE_FLASH_MS=430,LINE_FLASH_TOGGLE_MS=72;
@@ -1097,6 +1098,7 @@ function createDebugReport(){
   offline:{network:navigator.onLine===false?'offline':'online',
    supported:'serviceWorker' in navigator,
    controlled:Boolean(navigator.serviceWorker?.controller)},
+  launch:launchDiagnostics&&{...launchDiagnostics,playedOffline},
   samples:recentPerf,current:perf.currentSnapshot()
  });
 }
@@ -1448,6 +1450,11 @@ function frame(now){
    lastHistoryRender=now;
    graphicsHealth.rendered(); // A successful real frame completes recovery.
    perf.endRender(renderStarted);
+   launchDiagnostics??=captureLaunchDiagnostics({performance,
+    scope:new URL('./',import.meta.url).href,
+    network:document.documentElement.dataset.launchNetwork,
+    standalone:navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches});
+   if(!playedOffline&&game.status==='playing'&&navigator.onLine===false)playedOffline=true;
    perf.recordWebglCalls(renderer.info.render.calls);
    const memory=renderer.info.memory;
    perf.setGPUStats({...compositor.passStats(),

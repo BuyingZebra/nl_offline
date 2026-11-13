@@ -1,5 +1,5 @@
 import {describe,test} from 'node:test';
-import {formatDebugReport as format,createPerfMonitor,createTextureUploadProfiler,formatDebugReport,estimateCanvasSourceBytes} from '../tetris/render.js';
+import {formatDebugReport as format,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,estimateCanvasSourceBytes} from '../tetris/render.js';
 import {createDebugClipboard as createClipboard} from '../tetris/platform.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -167,6 +167,36 @@ describe('Debug report and clipboard',()=>{
  test('offline debug section is omitted for older captures',()=>{
   const report=format({version:'091'});
   assert.equal(report.includes('OFFLINE PACKAGE'),false);
+ });
+ test('launch report counts completed game scripts and distinguishes unavailable byte sizes from cache hits',()=>{
+  const scope='https://example.com/tetris/';
+  const entry=(name,responseEnd,encodedBodySize,transferSize)=>({
+   name:new URL(name,scope).href,responseEnd,encodedBodySize,transferSize
+  });
+  const performance={now:()=>210.4,getEntriesByType:type=>type==='navigation'?
+   [{type:'reload',responseEnd:18.5,workerStart:1}]:[
+    entry('three-v027.js?build=213',35,1000,1300),
+    entry('assets/tile.mjs',48,400,0),
+    entry('platform.js',66,0,0),
+    entry('sw.js',95,300,400),
+    entry('late.js',220,200,400),
+    entry('unfinished.js',0,100,300),
+    entry('icon.svg',40,300,500),
+    entry('/map.js',50,500,800)
+   ]};
+  const launch=captureLaunchDiagnostics({performance,scope,network:'offline',standalone:true});
+  assert.deepEqual(launch.scripts,{entries:3,measured:2,encodedBytes:1400,transferBytes:1300});
+  const report=format({launch:{...launch,playedOffline:true}});
+  assert.match(report,/installed \/ navigation: reload \/ network at shell start: offline/);
+  assert.match(report,/HTML response complete 19 ms \/ first game frame submitted 210 ms/);
+  assert.match(report,/service worker: yes \/ submitted a gameplay frame while offline: yes/);
+  assert.match(report,/encoded body 1400 B \/ reported transfer 1300 B/);
+ });
+ test('launch report can be copied when browser timing entries are unavailable',()=>{
+  const launch=captureLaunchDiagnostics({performance:{now:()=>123},scope:'https://example.com/tetris/'});
+  const report=format({launch});
+  assert.match(report,/navigation: n\/a/);
+  assert.match(report,/encoded body n\/a \/ reported transfer n\/a/);
  });
 });
 

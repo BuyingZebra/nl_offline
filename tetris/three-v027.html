@@ -7,13 +7,15 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Generated with the offline asset list by tools/build-tetris-release.mjs. -->
-<meta name="tetris-build" content="212">
+<meta name="tetris-build" content="213">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="color-scheme" content="dark">
 <script>
+// Capture the network state before loading the game's module graph.
+document.documentElement.dataset.launchNetwork=navigator.onLine===false?'offline':'online';
 // iOS Home Screen mode is confirmed by navigator.standalone on this device;
 // the CSS (display-mode: standalone) media query incorrectly returns false.
 // Apply the class before styles are evaluated; Safari tabs keep 100dvh.

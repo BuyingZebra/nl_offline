@@ -293,10 +293,32 @@ function createTextureUploadProfiler({renderer,onTiming=()=>{},now=()=>performan
  return Object.freeze({upload});
 }
 
-/* Tetris System — diagnostics exported only by explicit user action.
- * Pure formatter: no network, storage, automatic sharing or mutable state.
- */
-function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,idlePacing,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,samples=[],current}={}){
+// Capture navigation and completed resources once, at the first game frame.
+function captureLaunchDiagnostics({performance,scope,network,standalone}){
+ const firstFrameMs=performance.now();
+ const navigation=performance.getEntriesByType?.('navigation')?.[0];
+ const scripts={entries:0,measured:0,encodedBytes:0,transferBytes:0};
+ for(const resource of performance.getEntriesByType?.('resource')||[]){
+  if(!resource.name.startsWith(scope)||resource.responseEnd<=0||resource.responseEnd>firstFrameMs)continue;
+  if(!/\.m?js$/.test(new URL(resource.name).pathname))continue;
+  if(resource.name.split('?')[0]===scope+'sw.js')continue;
+  scripts.entries++;
+  // A positive body size makes a zero transfer size meaningful. Some browsers
+  // omit both fields for worker-served resources, so exclude those from totals.
+  if(!(resource.encodedBodySize>0||resource.transferSize>0))continue;
+  scripts.measured++;
+  scripts.encodedBytes+=resource.encodedBodySize||0;
+  scripts.transferBytes+=resource.transferSize||0;
+ }
+ return {network,standalone,firstFrameMs:Math.round(firstFrameMs),
+  navigationType:navigation?.type,
+  shellResponseMs:navigation?.responseEnd>0?Math.round(navigation.responseEnd):undefined,
+  shellThroughWorker:navigation&&typeof navigation.workerStart==='number'?navigation.workerStart>0:undefined,
+  scripts};
+}
+
+// The report is exported only by explicit user action.
+function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,idlePacing,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,launch,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
@@ -307,8 +329,23 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
   'State: '+value(game?.status)+' / level '+value(game?.level)+' / score '+value(game?.score)+' / lines '+value(game?.lines),
   'Display: '+value(display?.theme)+' phosphor / '+value(display?.orientation)+' / '+value(display?.phosphor?'on':'off')+' tint',
   'Controls rendering: '+value(buttonRenderer),
-  'Idle scheduling: '+value(idlePacing),
-  '',
+  'Idle scheduling: '+value(idlePacing)
+ ];
+ if(launch){
+  const scripts=launch.scripts;
+  rows.push('', 'LAUNCH AND PACKAGE',
+   'Mode: '+(launch.standalone?'installed':'browser tab')+
+   ' / navigation: '+value(launch.navigationType)+' / network at shell start: '+value(launch.network),
+   'From shell navigation: HTML response complete '+value(launch.shellResponseMs,' ms')+
+   ' / first game frame submitted '+value(launch.firstFrameMs,' ms'),
+   'Shell navigation through service worker: '+(launch.shellThroughWorker===undefined?'n/a':launch.shellThroughWorker?'yes':'no')+
+   ' / submitted a gameplay frame while offline: '+(launch.playedOffline?'yes':'no'),
+   'Startup JS: '+scripts.entries+' timing entries / byte sizes available for '+scripts.measured+
+   ' / encoded body '+value(scripts.measured?scripts.encodedBytes:null,' B')+
+   ' / reported transfer '+value(scripts.measured?scripts.transferBytes:null,' B'),
+   'Startup JS covers completed same-origin game scripts before first frame. Service-worker install and update traffic is outside this measurement.');
+ }
+ rows.push('',
   'RECENT FRAME SAMPLES (2-second windows, newest last)',
   'CPU frame = JS time; GPU submit = CPU call time, not GPU shader duration.',
   'CPU p50/p95/p99 = percentiles of up to 512 recent JavaScript RAF durations.',
@@ -318,7 +355,7 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
   'DIRTY B/D/S/C/T/P/M = canvas texture refresh requests: base / board / sidebar / controls / terminal / popup / modal.',
   'PRE-UPLOAD counts = actual changed-texture initTexture calls; source MB assumes uncompressed RGBA8 (NOT VRAM).',
   'PEAK FRAME attributes the slowest JS frame in each sample; input and render causes may overlap.'
- ];
+ );
  const observed=samples.slice(-8);
  if(current&&current.frameTicks>0)observed.push(current);
  if(!observed.length)rows.push('No complete sample yet. Start a game for a few seconds, then copy again.');
@@ -458,4 +495,4 @@ function formatDebugReport({version,createdAt,platform,viewport,game,display,but
  */
 
 
-export {createPerfMonitor,instrumentCompositorPasses,createTextureUploadProfiler,formatDebugReport};
+export {createPerfMonitor,instrumentCompositorPasses,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport};
