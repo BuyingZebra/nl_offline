@@ -977,6 +977,45 @@ describe('Piece shadows',()=>{
    'a completely hidden shadow must not be promoted into an artificial halo');
  });
 
+ test('LCD retains shadow contact when scaling the stamp beneath the piece',()=>{
+  const size=90,tile=12,origin=30;
+  const mask=new Float32Array(size*size);
+  for(const [col,row] of [[2,0],[0,1],[1,1],[2,1]]){
+   for(let y=origin+row*tile;y<origin+(row+1)*tile;y++)
+    for(let x=origin+col*tile;x<origin+(col+1)*tile;x++)
+     mask[y*size+x]=1;
+  }
+  const raw=directionalShadowAlpha(mask,size,size,{angle:145,distance:4.46,blur:4.8,bias:1});
+  const crt=normalizeVisibleShadowAlpha(raw.slice(),mask);
+  const lcd=normalizeVisibleShadowAlpha(raw.slice(),mask,true);
+  for(let i=0;i<mask.length;i++)if(mask[i]===0)assert.equal(lcd[i],crt[i]);
+  const edge=(origin+8)*size+origin+2*tile;
+  const atContact=stamp=>(stamp[edge-1]+stamp[edge])/2;
+  assert.equal(crt[edge],0);
+  assert.ok(atContact(lcd)>.75,'interpolation near the piece keeps the start of the shadow');
+  assert.ok(atContact(lcd)>atContact(crt)+.3);
+  const overlap=normalizeVisibleShadowAlpha(new Float32Array([1,.5]),new Float32Array([1,1]),true);
+  assert.deepEqual(Array.from(overlap),[0,0],'a fully hidden shadow creates no halo');
+ });
+
+ test('switching display modes caches separate shadow stamps for the same piece',()=>{
+  let lcd=false;
+  const stats={created:0,uploads:0},images=[];
+  const shadows=createPieceShadowRenderer({
+   createCanvas:fakeCanvasFactory(stats),retainCoveredAlpha:()=>lcd
+  });
+  const g={globalAlpha:1,save(){},restore(){},drawImage:canvas=>images.push(canvas)};
+  const group={minX:0,minY:0,maxX:0,maxY:0,cells:[{x:0,y:0}]};
+  for(const mode of [false,true,false,true]){
+   lcd=mode;shadows.draw(g,[group],0,0,24);
+  }
+  assert.equal(shadows.stats.builds,2);
+  assert.notEqual(images[0],images[1]);
+  assert.equal(images[0],images[2]);
+  assert.equal(images[1],images[3]);
+  shadows.dispose();
+ });
+
  test('v194 the recessed aperture shares the exact piece throw and blur without changing opacity',()=>{
   const fx={shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:6,
    shadowBias:1,shadowOpacity:1};

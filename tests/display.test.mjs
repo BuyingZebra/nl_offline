@@ -1098,7 +1098,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
   assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
   assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
-  assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{pixelRatio:\(\)=>DPR,\s*getSettings:\(\)=>settings\.effects\}\)/);
+  assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects,retainCoveredAlpha:\(\)=>settings\.lcdDisplay\}\)/);
   assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
   assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects|getSettings:lightFX/);
   assert.match(platform,/\{\.\.\.settings\.effects,persistence:false\}:settings\.effects/);

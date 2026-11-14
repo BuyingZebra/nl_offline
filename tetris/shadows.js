@@ -214,24 +214,24 @@ export function directionalShadowAlpha(source,width,height,{
 /** Normalize the *visible* Gaussian alpha in place. The shadow source is
  * black already; its apparent weakness came from Gaussian convolution
  * reducing peak coverage, even when the OPACITY slider was set to 100%.
- * Mask the original opaque tiles first so the visible peak, rather than a
- * hidden portion underneath the art, reaches full coverage. This retains
- * the smooth Gaussian edge ratios and requires no extra Canvas/GPU layer.
+ * Measure the peak outside the original silhouette. When piece artwork
+ * covers the shadow, retain covered samples so scaling the stamp cannot
+ * interpolate a transparent cutout into the visible contact edge.
  */
-export function normalizeVisibleShadowAlpha(blurred,source){
+export function normalizeVisibleShadowAlpha(blurred,source,retainCoveredAlpha=false){
  if(blurred.length!==source.length)throw new RangeError('Shadow mask length mismatch');
  let peak=0;
  for(let i=0;i<blurred.length;i++){
   const coverage=Math.max(0,Math.min(1,source[i]));
   const value=Math.max(0,Math.min(1,blurred[i]))*(1-coverage);
-  blurred[i]=value;
+  if(!retainCoveredAlpha)blurred[i]=value;
   if(value>peak)peak=value;
  }
  if(peak>1e-8){
   const gain=1/peak;
   for(let i=0;i<blurred.length;i++)
-   blurred[i]=Math.min(1,blurred[i]*gain);
- }
+   blurred[i]=Math.min(1,Math.max(0,blurred[i]*gain));
+ }else if(retainCoveredAlpha)blurred.fill(0);
  return blurred;
 }
 
@@ -241,14 +241,14 @@ export function normalizeVisibleShadowAlpha(blurred,source){
  */
 export function createDirectionalShadowRenderer({
  createCanvas=()=>document.createElement('canvas'),
- getSettings=()=>null,capacity=48
+ getSettings=()=>null,retainCoveredAlpha=()=>false,capacity=48
 }={}){
  const cache=new Map();
  const limit=Math.max(1,Math.floor(capacity)||48);
  let builds=0,buildMs=0,worstBuildMs=0,cacheBytes=0,lastProfileKey=null;
  const clock=()=>typeof performance!=='undefined'&&performance.now?
   performance.now():Date.now();
- function stamp(group,tile,settings){
+ function stamp(group,tile,settings,underPiece){
   const scale=settings.resolution;
   // Changing angle/blur/distance/bias invalidates all cached silhouettes.
   // Opacity and enable/disable are draw-only: they never rerun convolution.
@@ -258,7 +258,7 @@ export function createDirectionalShadowRenderer({
   }
   const normalized=group.cells.map(c=>
    (c.x-group.minX)+','+(c.y-group.minY)).sort().join(';');
-  const key=tile.toFixed(4)+':'+normalized;
+  const key=tile.toFixed(4)+':'+normalized+':'+Number(underPiece);
   const previous=cache.get(key);
   if(previous){
    cache.delete(key);cache.set(key,previous);return previous;
@@ -287,7 +287,7 @@ export function createDirectionalShadowRenderer({
   const out=normalizeVisibleShadowAlpha(directionalShadowAlpha(alpha,sw,sh,{
    angle:settings.angle,distance:settings.distance*scale,
    blur:settings.blur*scale,bias:settings.bias
-  }),alpha);
+  }),alpha,underPiece);
   const canvas=createCanvas();canvas.width=sw;canvas.height=sh;
   const ctx=canvas.getContext('2d',{alpha:true});
   if(!ctx)return null;
@@ -295,8 +295,6 @@ export function createDirectionalShadowRenderer({
   for(let i=0;i<out.length;i++)
    image.data[i*4+3]=Math.round(Math.max(0,Math.min(1,out[i]))*255);
   ctx.putImageData(image,0,0);
-  // The opaque silhouette was already subtracted at mask resolution
-  // before normalization. Avoid another Canvas compositing pass.
   const bytes=sw*sh*4;
   const item={canvas,width,height,pad,bytes};
   if(cache.size>=limit){
@@ -312,13 +310,14 @@ export function createDirectionalShadowRenderer({
   if(!(tile>0)||!groups?.length)return 0;
   const settings=directionalShadowProfile(tile,getSettings()||{});
   if(!settings.enabled||settings.opacity<=0)return 0;
+  const underPiece=retainCoveredAlpha();
   let count=0;
   g.save();
   g.globalAlpha*=settings.opacity;
   try{
    for(const group of groups){
     if(!group.cells.length)continue;
-    const item=stamp(group,tile,settings);
+    const item=stamp(group,tile,settings,underPiece);
     if(!item)continue;
     g.drawImage(item.canvas,
      offX+group.minX*tile-item.pad,
