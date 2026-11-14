@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v218';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v218';
+import {createInputController} from './input.js?v219';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v219';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v218';
+export {createInputController} from './input.js?v219';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -633,7 +633,7 @@ const actions=createActionController({
  canInteract:()=>!lineClearFX?.finalPoints&&!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
- getContext:()=>g,getRegions:()=>regions,
+ getContext:()=>g,getRegions:()=>regions,isLCD:()=>settings.lcdDisplay,
  getButtonPower:r=>(g===controlsContext&&visualScene.controlsGpuEnabled)?0:buttonSparks.find(
   s=>s.x===r.x&&s.y===r.y&&s.w===r.w&&s.h===r.h)?.power??0,
  C,FONT,ICON_FONT,TERMINAL_FONT,LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
@@ -728,7 +728,8 @@ function cell(x,y,col,row,size,kind,isGhost=false){
 }
 function stage(r,drawPieces=true,pieceMask=null){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
- panel(x,y,w,h,7,C.panel);
+ if(settings.lcdDisplay)panel(x,y,w,h,7,C.panel,C.bright);
+ else panel(x,y,w,h,7,C.panel);
  const offX=x+2,offY=y+2,tile=(w-4)/10;
  // Record occupied piece-face footprints only while painting the actual
  // board. This mask is not a second piece rendering or shadow layer.
@@ -977,6 +978,7 @@ function paintBaseGame(){
  // The stray shaded sub-footer is removed; the log prints on bare black.
  const onLight=settings.lcdDisplay,headerColors=onLight?LCD_BOARD:C;
  panel(r.hx,r.hy,r.hw,r.hh,0,headerColors.panel,onLight?C.bright:C.border);
+ if(onLight)panel(r.hx+3,r.hy+3,r.hw-6,r.hh-6,0,null,headerColors.bright);
  // The logo, wordmark, and subtitle use the EXISTING font and luminance
  // palette. Only the title organization changes; header buttons stay put.
  const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
@@ -1015,7 +1017,13 @@ function paintBaseGame(){
  boardPopupTexture.needsUpdate=true;
  perf.textureChanged('popup');
 }
+let lastControlsLCD=null;
 function paintGame(){
+ // The control deck also needs a repaint when its frame style changes.
+ if(lastControlsLCD!==settings.lcdDisplay){
+  lastControlsLCD=settings.lcdDisplay;
+  layers.mark('controls');
+ }
  if(presentedBoardStatus()!==lastPaintedBoardPopupStatus)layers.mark('base');
  let paintedBase=false;
  if(layers.consume('base')){
@@ -1122,7 +1130,8 @@ function copyDebugReport(){
 function paintLightPropertyPanel(r){
  // Exactly the original controls container geometry; no new layout height,
  // overlay backdrop, or persistent alternate gameplay controls asset.
- panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ if(settings.lcdDisplay)panel(r.dx,r.dy,r.dw,r.dh,0,C.panel,C.bright);
+ else panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
  const gap=UI_SPACE.unit;
  const inset=r.deckPad,contentX=r.dx+inset;
  const contentW=Math.max(1,r.dw-2*inset);

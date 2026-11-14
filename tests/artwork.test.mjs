@@ -439,7 +439,7 @@ describe('Piece identity and fragments',()=>{
 });
 
 describe('Vector rendering and pixel fallback',()=>{
- function mock(){
+ function mock(isLCD=()=>false){
   const images=[],canvases=[],painted=[];
   let dpr=2,redraws=0;
   const renderer=createVectorTileRenderer({
@@ -450,11 +450,13 @@ describe('Vector rendering and pixel fallback',()=>{
    createCanvas(){
     const canvas={width:0,height:0,calls:[],getContext(){
      return {drawImage:(...args)=>canvas.calls.push(args),imageSmoothingEnabled:false,
-      imageSmoothingQuality:'medium'};
+      imageSmoothingQuality:'medium',fillRect(...args){
+       canvas.calls.push([this.globalCompositeOperation,this.fillStyle,...args]);
+      }};
     }};
     canvases.push(canvas);return canvas;
    },
-   pixelRatio:()=>dpr,
+   pixelRatio:()=>dpr,isLCD,
    onReady:()=>{redraws++;}
   });
   const g={drawImage:(...args)=>painted.push(args),fillRect(){},fillStyle:''};
@@ -494,6 +496,32 @@ describe('Vector rendering and pixel fallback',()=>{
   m.renderer.drawTile(m.g,40,20,20,20,'O');
   assert.equal(m.canvases.length,2);
   assert.equal(m.canvases[1].width,60);
+ });
+
+ test('LCD outlines back the original pixels and keep a continuous I edge',()=>{
+  let lcd=false;
+  const m=mock(()=>lcd);
+  const fragment={sourceOffset:0,length:3,rotation:0};
+  m.renderer.drawIFragment(m.g,0,0,108,36,fragment);
+  m.images[0].onload();
+  m.renderer.drawIFragment(m.g,0,0,108,36,fragment);
+  const crt=m.canvases[0];
+  assert.equal(crt.calls.length,1);
+  lcd=true;
+  m.renderer.drawIFragment(m.g,0,0,108,36,fragment);
+  const display=m.canvases[1];
+  assert.deepEqual(display.calls[0],crt.calls[0],'source face and texture are identical');
+  assert.deepEqual(display.calls.slice(1),[
+   ['source-atop','rgba(0,0,0,.31)',0,0,216,72],
+   ['destination-over','#080808',2,2,212,68]
+  ]);
+  m.renderer.drawTile(m.g,0,0,36,36,'O');
+  m.images[1].onload();
+  m.renderer.drawTile(m.g,0,0,36,36,'O');
+  assert.deepEqual(m.canvases.at(-1).calls.at(-1),['destination-over','#080808',2,2,68,68]);
+  lcd=false;
+  m.renderer.drawIFragment(m.g,0,0,108,36,fragment);
+  assert.equal(m.painted.at(-1)[0],crt,'switching back restores the original CRT raster');
  });
 
  test('NEXT, HOLD and active piece all use the same vector renderer',()=>{
