@@ -594,18 +594,6 @@ describe('Canvas button drawing',()=>{
     assert.equal(call.color,'rgb('+ink+','+ink+','+ink+')');
   }
  });
- test('LCD uses a two-pixel frame inside the same bounds as the one-pixel CRT frame',()=>{
-  let lcd=false;
-  const strokes=[],paths=[];
-  const context={beginPath(){},roundRect(...args){paths.push(args);},
-   stroke(){strokes.push(this.lineWidth);}};
-  const ui=createCanvasUI({getContext:()=>context,C:{},isLCD:()=>lcd});
-  ui.panel(10,20,80,40,0,null,'#fff');
-  lcd=true;
-  ui.panel(10,20,80,40,0,null,'#fff');
-  assert.deepEqual(strokes,[1,2]);
-  assert.deepEqual(paths,[[10.5,20.5,79,39,0],[11,21,78,38,0]]);
- });
  test('other screen buttons use the same source brightness helper',()=>{
   const {ui}=drawKey();
   assert.equal(ui.buttonLight(20,40,90,45),206);

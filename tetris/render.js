@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v219';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v219';
+import {instrumentCompositorPasses} from './diagnostics.js?v220';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v220';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1498,16 +1498,15 @@ const UI=(()=>{
 function createCanvasUI({getContext,getRegions,C,FONT,
  LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,
- getButtonPower=()=>0,isLCD=()=>false,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
+ getButtonPower=()=>0,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
 function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  const g=getContext();
  if(w<=0||h<=0)return;
  // All UI containers and buttons have square (unbeveled) corners.
- // Center each stroke inside the same panel bounds.
- const stroke=isLCD()?2:1,inset=stroke/2;
- g.beginPath();g.roundRect(x+inset,y+inset,Math.max(1,w-stroke),Math.max(1,h-stroke),0);
+ // Preserve existing fills, grayscale luminance, borders and hitbox geometry.
+ g.beginPath();g.roundRect(x+.5,y+.5,Math.max(1,w-1),Math.max(1,h-1),0);
  if(fill){g.fillStyle=fill;g.fill();}
- if(border){g.strokeStyle=border;g.lineWidth=stroke;g.stroke();}
+ if(border){g.strokeStyle=border;g.lineWidth=1;g.stroke();}
 }
 // No per-label overrides. Canvas fillText(maxWidth) compresses glyph widths,
 // so measure naturally and wrap only text that exceeds a caller's available width.
@@ -1718,8 +1717,7 @@ function drawSidebar(r){
  preview(hold,game.hold,'hold');
 }
 function drawControls(r){
- if(getLCD())panel(r.dx,r.dy,r.dw,r.dh,0,C.panel,C.bright);
- else panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
  visitControlButtons(r,UI_SPACE,key);
 }
 
