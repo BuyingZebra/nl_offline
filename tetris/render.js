@@ -1,12 +1,12 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v222';
+import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v222';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v222';
+import {instrumentCompositorPasses} from './diagnostics.js?v223';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v223';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -279,8 +279,16 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
-   uniform float uSigma,uStep,uComposite,uFade;
+   uniform float uSigma,uStep,uComposite,uFade,uCanvasBlend;
    uniform vec3 uFadeTo;
+   vec3 encodeSRGB(vec3 x){
+    return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
+     step(vec3(.0031308),x));
+   }
+   vec3 decodeSRGB(vec3 x){
+    return mix(x/12.92,pow(max((x+.055)/1.055,vec3(0.0)),vec3(2.4)),
+     step(vec3(.04045),x));
+   }
    void main(){
     vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
     float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
@@ -300,7 +308,10 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     if(uComposite>.5){
      if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
      vec4 popup=texture2D(uPopup,vUv);
-     backdrop=mix(backdrop,popup.rgb,popup.a);
+     // LCD piece shadows blend on the 2D canvas in encoded sRGB.
+     if(uCanvasBlend>.5&&popup.a>0.0&&popup.a<1.0){
+      backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
+     }else backdrop=mix(backdrop,popup.rgb,popup.a);
     }
     gl_FragColor=vec4(backdrop,1.0);
    }`;
@@ -312,7 +323,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uStep:{value:1},
-    uComposite:{value:composite?1:0},
+    uComposite:{value:composite?1:0},uCanvasBlend:{value:0},
     uFade:{value:.87},uFadeTo:{value:new THREE.Color(0x101010)}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
@@ -619,6 +630,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  }
  boardPopupPass.uniforms.uFade.value=boardOverlayActive?BOARD_POPUP_FADE:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
+ boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){

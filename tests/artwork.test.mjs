@@ -8,7 +8,7 @@ import {renderSmoothTileSVG,renderIFragmentSVG,renderIStateSVG,IFragmentRuns,ori
 import Core from '../tetris/game.js';
 import {BRICK_UNIT,brickShapes,renderBrickSVG,brickRailGeometry,createBrickFrame} from '../tetris/assets/frames/brick-pattern.mjs';
 import Layout from '../tetris/render.js';
-import {directionalShadowAlpha,normalizeVisibleShadowAlpha,boardInsetShadowProfile,directionalBoardInsetAlpha} from '../tetris/shadows.js';
+import {directionalShadowAlpha,normalizeVisibleShadowAlpha,boardInsetShadowProfile,directionalBoardInsetAlpha,directionalLCDInsetAlpha} from '../tetris/shadows.js';
 
 describe('Sprite masters and SVG artwork',()=>{
  const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../tetris/assets/tiles');
@@ -1032,6 +1032,29 @@ describe('Piece shadows',()=>{
   assert.equal(boardInsetShadowProfile(35,{...fx,shadows:false}).enabled,false);
   assert.equal(boardInsetShadowProfile(35,{...fx,shadowBlur:0}).resolution,1,
    'hard inset shadows retain one-pixel edges');
+ });
+
+ test('LCD inset matches filtering the inverse aperture with the piece shadow kernel',()=>{
+  const w=23,h=35,pad=24,width=w+2*pad,height=h+2*pad;
+  const mask=new Float32Array(width*height).fill(1);
+  for(let y=pad;y<pad+h;y++)mask.fill(0,y*width+pad,y*width+pad+w);
+  for(const options of [
+   {angle:0,distance:4.5,blur:0,bias:1},
+   {angle:145,distance:4.46,blur:4.8,bias:1},
+   {angle:231,distance:2.25,blur:2.7,bias:.4},
+   {angle:60,distance:0,blur:3,bias:0},
+   {angle:60,distance:0,blur:0,bias:0}
+  ]){
+   const filtered=directionalShadowAlpha(mask,width,height,options);
+   const expected=filtered.filter((_,i)=>
+    i%width>=pad&&i%width<pad+w&&Math.floor(i/width)>=pad&&Math.floor(i/width)<pad+h);
+   const peak=Math.max(...expected);
+   const actual=directionalLCDInsetAlpha(w,h,options);
+   for(let i=0;i<actual.length;i++){
+    assert.ok(Math.abs(actual[i]-(peak?expected[i]/peak:0))<1e-6,
+     'shared aperture and piece samples differ at '+i+' for '+JSON.stringify(options));
+   }
+  }
  });
 
  test('v193 inset cast rotates to the opposing interior wall and retains a black core',()=>{

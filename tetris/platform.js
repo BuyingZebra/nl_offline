@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v222';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v222';
+import {createInputController} from './input.js?v223';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v223';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v222';
+export {createInputController} from './input.js?v223';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -683,7 +683,7 @@ if(document.fonts?.load){
 const pieceShadows=createPieceShadowRenderer({
  getSettings:()=>settings.effects,retainCoveredAlpha:()=>settings.lcdDisplay});
 const boardInsetShadows=createBoardInsetShadowRenderer({
- getSettings:()=>settings.effects});
+ getSettings:()=>settings.effects,matchPieceKernel:()=>settings.lcdDisplay});
 const vectorTiles=createVectorTileRenderer({
  pixelRatio:()=>DPR,isLCD:()=>settings.lcdDisplay,
  onReady:()=>{
@@ -910,6 +910,9 @@ function paintBoardLayer(){
  try{
   rect(x,y,w,h,C.bg);
   stage(r,true,pieceBloomMaskContext);
+  // Light Control has no board blur. Blend the LCD frame shadow here so
+  // the guide stays above it and the shadow matches Canvas2D gameplay.
+  if(settings.lcdDisplay&&screenManager.isLight)drawSharpBoardInsetShadow(r);
  }finally{g=previous;}
  boardPlane.scale.set(w/W,h/H,1);
  boardPlane.position.set(-1+(2*x+w)/W,1-(2*y+h)/H,.01);
@@ -1159,9 +1162,8 @@ function paintLightPropertyPanel(r){
 function paintLightDirectionOverlay(){
  regions=[];
  const r=layout(),b=lightBoardBounds(),p=lightMarkerPosition();
- // Light Control uses the SAME cached board shadow on its existing modal
- // canvas, before painting the light-guide and property UI, with no blur.
- drawSharpBoardInsetShadow(r);
+ // CRT composites its inset with the existing modal overlay.
+ if(!settings.lcdDisplay)drawSharpBoardInsetShadow(r);
  // Keep the visible colour control interactive alongside shadow sliders.
  const theme=headerThemeBounds(r,UI_SPACE);
  region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});

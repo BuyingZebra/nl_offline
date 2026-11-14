@@ -103,15 +103,18 @@ describe('CRT composition',()=>{
   const crtOptics=[history,ghost,bloom,softness,vignette,mask];
   assert.ok(crtOptics.every(pass=>pass.enabled===true));
   const crtFade=popup.uniforms.uFadeTo.value;
+  assert.equal(popup.uniforms.uCanvasBlend.value,0);
   switchDisplay(true);
   assert.ok(crtOptics.every(pass=>pass.enabled===false));
   assert.equal(tint.uniforms.uLCDDpr.value,2);
   assert.equal(popup.enabled,true,'the sharp overlay and board shadow still composite');
   assert.notEqual(popup.uniforms.uFadeTo.value,crtFade);
+  assert.equal(popup.uniforms.uCanvasBlend.value,1);
   switchDisplay(false);
   assert.ok(crtOptics.every(pass=>pass.enabled===true));
   assert.equal(tint.uniforms.uLCDDpr.value,0);
   assert.equal(popup.uniforms.uFadeTo.value,crtFade);
+  assert.equal(popup.uniforms.uCanvasBlend.value,0);
   pipeline.dispose();
  });
  test('v189 bloom separates board and cover light without extra passes',()=>{
@@ -1099,7 +1102,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
   assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
   assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects,retainCoveredAlpha:\(\)=>settings\.lcdDisplay\}\)/);
-  assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects\}\)/);
+  assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects,matchPieceKernel:\(\)=>settings\.lcdDisplay\}\)/);
   assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects|getSettings:lightFX/);
   assert.match(platform,/\{\.\.\.settings\.effects,persistence:false\}:settings\.effects/);
   assert.match(renderer,/const boardBackdropVisible=!modalOpen\|\|scoresOverlay/);

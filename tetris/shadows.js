@@ -98,22 +98,63 @@ export function directionalBoardInsetAlpha(width,height,{
  return alpha;
 }
 
+/** LCD inset: filter the inverse aperture using the exact piece kernel.
+ * The integral of its impulse response makes each board sample one rectangle
+ * sum, instead of running a full directional convolution over the playfield.
+ */
+export function directionalLCDInsetAlpha(width,height,{angle,distance,blur,bias}){
+ const theta=angle*Math.PI/180,ux=Math.abs(Math.cos(theta)),uy=Math.abs(Math.sin(theta));
+ const along=kernelRadius(blur*(1+.3*bias))+Math.abs(distance);
+ const across=kernelRadius(blur*(1-.24*bias));
+ // Each of the three bilinear steps can extend the discrete support by a pixel.
+ const rx=Math.ceil(ux*along+uy*across)+3,ry=Math.ceil(uy*along+ux*across)+3;
+ const kw=2*rx+1,kh=2*ry+1,stride=kw+1;
+ const impulse=new Float32Array(kw*kh);
+ impulse[ry*kw+rx]=1;
+ const kernel=directionalShadowAlpha(impulse,kw,kh,{angle,distance,blur,bias});
+ const sums=new Float64Array(stride*(kh+1));
+ for(let y=0;y<kh;y++){
+  let row=0;
+  for(let x=0;x<kw;x++){
+   row+=kernel[y*kw+x];
+   sums[(y+1)*stride+x+1]=sums[y*stride+x+1]+row;
+  }
+ }
+ const total=sums[kh*stride+kw];
+ const alpha=new Float32Array(width*height);
+ let peak=0;
+ for(let y=0;y<height;y++){
+  const top=Math.max(0,ry+y-height+1)*stride,bottom=Math.min(kh,ry+y+1)*stride;
+  for(let x=0;x<width;x++){
+   const left=Math.max(0,rx+x-width+1),right=Math.min(kw,rx+x+1);
+   const inside=sums[bottom+right]-sums[bottom+left]-sums[top+right]+sums[top+left];
+   const value=Math.max(0,total-inside);
+   alpha[y*width+x]=value;
+   peak=Math.max(peak,value);
+  }
+ }
+ if(peak>1e-8)for(let i=0;i<alpha.length;i++)alpha[i]/=peak;
+ return alpha;
+}
+
 /** One cached inset raster, shared by active board and the sharper popup.
  * Draws only into existing Canvas layers: no added GPU texture or pass.
  */
 export function createBoardInsetShadowRenderer({
- createCanvas=()=>document.createElement('canvas'),getSettings=()=>null
+ createCanvas=()=>document.createElement('canvas'),getSettings=()=>null,matchPieceKernel=()=>false
 }={}){
  let cached=null,signature=null,builds=0;
  function stamp(width,height,tile,p){
-  const key=[width,height,tile,p.angle,p.distance,p.blur,p.bias,p.resolution]
+  const shared=matchPieceKernel(),resolution=shared?MASK_SCALE:p.resolution;
+  const key=[width,height,tile,p.angle,p.distance,p.blur,p.bias,resolution,shared]
    .map(v=>Number(v).toFixed(3)).join(':');
   if(signature===key&&cached)return cached;
-  const sw=Math.max(1,Math.ceil(width*p.resolution));
-  const sh=Math.max(1,Math.ceil(height*p.resolution));
-  const alpha=directionalBoardInsetAlpha(sw,sh,{
-   angle:p.angle,distance:p.distance*p.resolution,
-   blur:p.blur*p.resolution,bias:p.bias
+  const sw=Math.max(1,Math.ceil(width*resolution));
+  const sh=Math.max(1,Math.ceil(height*resolution));
+  const insetAlpha=shared?directionalLCDInsetAlpha:directionalBoardInsetAlpha;
+  const alpha=insetAlpha(sw,sh,{
+   angle:p.angle,distance:p.distance*resolution,
+   blur:p.blur*resolution,bias:p.bias
   });
   const canvas=createCanvas();canvas.width=sw;canvas.height=sh;
   const context=canvas.getContext('2d',{alpha:true});
@@ -151,12 +192,13 @@ export function createBoardInsetShadowRenderer({
 
 // V06 Gaussian, with asymmetric tap weights. A bias of zero is a conventional
 // symmetric Gaussian; one discards taps that would blur toward the light.
+function kernelRadius(sigma){return Math.min(96,Math.ceil(GAUSS_TRUNCATION*sigma));}
 function taps(sigma,bias){
  if(sigma<.15)return [{delta:0,weight:1}];
  const key=sigma.toFixed(4)+':'+bias.toFixed(3);
  const cached=TAP_CACHE.get(key);
  if(cached)return cached;
- const radius=Math.min(96,Math.ceil(GAUSS_TRUNCATION*sigma));
+ const radius=kernelRadius(sigma);
  const weights=[];let total=0;
  for(let k=-radius;k<=radius;k++){
   const weight=Math.exp(-(k*k)/(2*sigma*sigma))*(k<0?1-bias:1);
