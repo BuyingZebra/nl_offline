@@ -5,8 +5,8 @@ import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
 import {createHudDrawing,registerControlHitboxes,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
-import {Core} from '../tetris/game.js';
-import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt} from '../tetris/render.js';
+import {Core,createSettingsManager,DEFAULT_EFFECTS} from '../tetris/game.js';
+import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
@@ -809,6 +809,46 @@ describe('Pointer and keyboard input',()=>{
    get buttonPresses(){return buttonPresses},get buttonReleases(){return buttonReleases}
   };
  }
+ test('the fixed Display Type row can be tapped above the settings scroll viewport',()=>{
+  const screen=target(),document=target(),window=target(),regions=[];
+  const width=393,height=852,ignore=()=>{};
+  const context=new Proxy({},{get:()=>ignore});
+  const settings=createSettingsManager();
+  const modal=createModalUI({
+   document:{createElement:()=>({getContext:()=>context})},
+   SHAPES:Core.SHAPES,DISPLAY_EFFECTS:[{id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'}],
+   SCANLINE_CHOICES:[],getViewport:()=>({W:width,H:height}),
+   layout:()=>({width,off:0,hy:40,hh:70,headerButtonH:44,extraH:40,boardW:240}),
+   insets:()=>({top:0,bottom:0}),clearRegions:()=>{regions.length=0;},getContext:()=>context,
+   panel:ignore,text:ignore,rect:ignore,region:(...args)=>regions.push(makeRegion(...args)),
+   key:ignore,buttonLight:()=>206,gray:()=> '#aaa',clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
+   UI_SPACE:{unit:6,padX:12,appMax:520,headRightPad:6,headIconGap:6,
+    headTitleInset:8,overlayButtonWidthScale:.85},C:{},getFX:()=>DEFAULT_EFFECTS,
+   getModal:()=> 'options',settingValue:settings.settingValue
+  });
+  modal.paintModal(modal.modalBounds('options'));
+  const mode=regions.find(region=>region.field==='lcdDisplay');
+  assert.ok(mode.y+mode.h<modal.view.y,'the fixed row is outside the scrolling list');
+  screen.getBoundingClientRect=()=>({left:0,top:0,width,height});
+  const input=createInputController({
+   screen,document,window,getViewport:()=>({width,height}),getRegions:()=>regions,
+   getModal:()=> 'options',getModalView:()=>modal.view,getOptionsScroll:()=>modal.scroll,
+   setScrollVelocity:ignore,settingValue:settings.settingValue,setSetting:settings.setSetting,
+   handleAction:ignore,invalidate:ignore
+  });
+  const tap=()=>{
+   const pointer={pointerType:'touch',button:0,pointerId:1,clientX:mode.x+5,
+    clientY:mode.y+mode.h/2,preventDefault:ignore,timeStamp:20};
+   screen.emit('pointerdown',{...pointer,type:'pointerdown'});
+   screen.emit('pointerup',{...pointer,type:'pointerup'});
+  };
+  tap();
+  assert.equal(settings.lcdDisplay,true);
+  tap();
+  assert.equal(settings.lcdDisplay,false);
+  input.dispose();modal.dispose();
+ });
+
  test('v195 light gestures update direction but never trigger Tetris controls',()=>{
   const screen=target(),document=target(),window=target();
   let captured=null,pointSamples=[],actions=[],exits=0;

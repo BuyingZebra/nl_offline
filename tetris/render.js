@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v217';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v217';
+import {instrumentCompositorPasses} from './diagnostics.js?v218';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v218';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -2071,7 +2071,8 @@ function drawOptions(q){
  text('DISPLAY TYPE',contentX+2*gap,modeY+modeH/2,12,C.ink,'left',contentW*.52);
  text(onLight?'LCD   ↔':'CRT   ↔',contentX+contentW-2*gap,modeY+modeH/2,
   12,C.bright,'right',contentW*.42,'terminal');
- region(contentX,modeY,contentW,modeH,'toggle',{field:'lcdDisplay',modalControl:true});
+ // This row sits above the scroll viewport, like the header buttons.
+ region(contentX,modeY,contentW,modeH,'toggle',{field:'lcdDisplay'});
  const top=modeY+modeH+gap,bottom=restoreY-gap;
  const visibleH=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:visibleH};
