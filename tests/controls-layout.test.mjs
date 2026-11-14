@@ -38,9 +38,9 @@ describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
   const pause=app.slice(app.indexOf('function paintBoardPopup('),app.indexOf('function insets()'));
   const scores=render.slice(render.indexOf('function drawScores(q){'),render.indexOf('function paintModal(q){'));
   assert.match(pause,/boardOverlaySlots\(\{x,y,w,h\},UI_SPACE\)/);
-  assert.match(pause,/drawMenuScoreBox\(\{text,rect,C\},slots.score,\{score:game.score,lines:game.lines,level:game.level\}\)/);
+  assert.match(pause,/drawMenuScoreBox\(\{text,rect,C:boardColors\},slots.score,\{score:game.score,lines:game.lines,level:game.level\}\)/);
   assert.match(scores,/boardOverlaySlots\(q,UI_SPACE\)/);
-  assert.match(scores,/drawMenuScoreBox\(\{text,rect,C\},slots.score,best\)/);
+  assert.match(scores,/drawMenuScoreBox\(\{text,rect,C:boardColors\},slots.score,best\)/);
   assert.match(scores,/slots.actionW,q.buttonH/);
   assert.match(scores,/arrow:true/);
   assert.match(render,/\['SCORE',String\(record\?\.score\?\?0\)\.padStart\(6,'0'\)\]/);
@@ -68,7 +68,7 @@ describe('Overlay theme and confirmation controls',()=>{
   const part=src.slice(src.indexOf('function paintLightDirectionOverlay(){'),src.indexOf('function paintModalOverlay(){'));
   assert.match(part,/regions=\[\]/);
   assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
-  assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'close'\)/);
+  assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
  });
  test('Display System close control uses checkmark but retains action',()=>{
   const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
@@ -643,7 +643,7 @@ describe('HUD layout and viewport rules',()=>{
   assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
   assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
   assert.equal(fs.existsSync(new URL('../tetris/assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
-  assert.match(renderer,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
+  assert.match(renderer,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
  });
 
  test('piece shadows stay below pieces and the board inset remains post-blur',()=>{
@@ -653,8 +653,8 @@ describe('HUD layout and viewport rules',()=>{
   const end=renderer.indexOf('function drawSharpBoardInsetShadow(r)',start);
   assert.ok(start>=0&&end>start);
   const stage=renderer.slice(start,end);
-  assert.match(stage,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
-  assert.match(stage,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid/);
+  assert.match(stage,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
+  assert.match(stage,/g\.globalAlpha=\.751355748;g\.strokeStyle=settings\.lcdDisplay\?LCD_BOARD\.grid:C\.grid/);
   assert.match(stage,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);
   assert.ok(stage.indexOf('pieceShadows.draw(')<stage.indexOf('displayBoard.forEach('));

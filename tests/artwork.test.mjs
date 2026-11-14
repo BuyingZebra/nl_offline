@@ -315,7 +315,7 @@ describe('Monochrome tile patterns',()=>{
   assert.match(code,/if\(p.kind==='I'\)vectorTiles\.drawPiece\(g,activeTiles,'I',\{rotation:p.rotation\}\)/);
   assert.match(code,/vectorTiles\.drawIFragment\(g,px,py,rw,rh,/);
   assert.match(code,/tileFace\(px,py,size,size,kind\)/);
-  assert.match(code,/g.globalAlpha=\.751355748;g.strokeStyle=C.grid/);
+  assert.match(code,/g.globalAlpha=\.751355748;g.strokeStyle=settings\.lcdDisplay\?LCD_BOARD\.grid:C.grid/);
  });
 });
 
@@ -1119,6 +1119,6 @@ describe('Piece shadows',()=>{
   const faces=section.indexOf('displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{',cast);
   assert.ok(grid>=0&&cast>grid&&faces>cast);
   assert.doesNotMatch(section,/drawPieceShadowGradients\(|pieceShadowOccupancy\(/);
-  assert.match(src,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
+  assert.match(src,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
  });
 });

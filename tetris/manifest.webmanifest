@@ -1,7 +1,7 @@
 {
   "name": "NOMAD — Tetris System",
   "short_name": "NOMAD Tetris",
-  "description": "A standalone phosphor CRT Tetris system for mobile devices.",
+  "description": "A standalone Tetris system with CRT and LCD display modes.",
   "id": "./three-v027.html",
   "start_url": "./three-v027.html",
   "scope": "./",

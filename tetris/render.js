@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v216';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v216';
+import {instrumentCompositorPasses} from './diagnostics.js?v217';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v217';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -363,9 +363,12 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uVoltage:{value:1},
    uTint:{value:new THREE.Vector3(.2,1,.2)},
+   uLCDDpr:{value:0},
+   uLCDInk:{value:new THREE.Color(0x171910)},
+   uLCDPaper:{value:new THREE.Color(0xe1e2c5)},
    uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
   vertexShader:passVertex,
-  fragmentShader:"varying vec2 vUv;\nuniform sampler2D tDiffuse;\nuniform float uEnabled,uVoltage;\nuniform vec3 uTint;\nuniform vec4 uBoardRect;\nvoid main(){\n vec3 encoded=texture2D(tDiffuse,vUv).rgb;\n float original=encoded.b;\n float coverBloom=max(0.0,encoded.r-original);\n float boardBloom=max(0.0,encoded.g-original);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n float lit=(original+coverBloom+boardBloom*inside)*clamp(uVoltage,1.0,1.2);\n vec3 rgb=vec3(lit);\n gl_FragColor=vec4(mix(rgb,rgb*uTint,clamp(uEnabled,0.0,1.0)),1.0);\n}"
+  fragmentShader:"varying vec2 vUv;\nuniform sampler2D tDiffuse;\nuniform float uEnabled,uVoltage;\nuniform vec3 uTint,uLCDInk,uLCDPaper;\nuniform float uLCDDpr;\nuniform vec4 uBoardRect;\nvoid main(){\n vec3 encoded=texture2D(tDiffuse,vUv).rgb;\n if(uLCDDpr>0.0){\n  vec2 pixel=fract(gl_FragCoord.xy/(3.0*uLCDDpr));\n  float seam=1.0-smoothstep(0.0,0.24,min(pixel.x,pixel.y));\n  float shade=clamp(encoded.r,0.0,1.0)*(1.0-0.035*seam);\n  gl_FragColor=vec4(mix(uLCDInk,uLCDPaper,shade),1.0);\n  return;\n }\n float original=encoded.b;\n float coverBloom=max(0.0,encoded.r-original);\n float boardBloom=max(0.0,encoded.g-original);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n float lit=(original+coverBloom+boardBloom*inside)*clamp(uVoltage,1.0,1.2);\n vec3 rgb=vec3(lit);\n gl_FragColor=vec4(mix(rgb,rgb*uTint,clamp(uEnabled,0.0,1.0)),1.0);\n}"
  });
 
  // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
@@ -565,13 +568,14 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Immutable popup blur parameters and pass references need no per-frame allocation.
  const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
-function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
- const historyEnabled=fx.persistence===true;
+ const lcdPopupBase=new THREE.Color(0xd8d8d8),crtPopupBase=new THREE.Color(0x101010);
+function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+ const historyEnabled=!lcd&&fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
  persistencePass.enabled=historyEnabled;
  persistencePass.configure(fx.persistenceMs);
- ghostPass.enabled=fx.ghost;
+ ghostPass.enabled=!lcd&&fx.ghost;
  ghostPass.uniforms.uX.value=fx.ghostX;
  ghostPass.uniforms.uY.value=fx.ghostY;
  ghostPass.uniforms.uStrength.value=fx.ghostStrength/100;
@@ -581,20 +585,21 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
  tint.uniforms.uVoltage.value=clamp(voltage,1,1.2);
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
+ tint.uniforms.uLCDDpr.value=lcd?DPR:0;
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
  const faded=clamp(Number(contentLuminance),0,1);
  bootRoll.uniforms.uContentLuminance.value=faded;
  bootRoll.enabled=(bootRoll.uniforms.uOffset.value>0.00001&&
   bootRoll.uniforms.uOffset.value<.99999)||bootRoll.uniforms.uGlitch.value>0.00001||faded<1;
- glow.enabled=fx.bloom;
+ glow.enabled=!lcd&&fx.bloom;
  glow.strength=fx.bloomStrength;
  // Never mask a full-page settings screen or other view where the piece
  // board is hidden. With bloom disabled, the stencil is not sampled.
  if(glow.highPassUniforms?.uPieceMaskEnabled)
   glow.highPassUniforms.uPieceMaskEnabled.value=
    fx.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
- edgeSoftness.enabled=fx.softness;
+ edgeSoftness.enabled=!lcd&&fx.softness;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
  // One board-visibility rule for PAUSED, HIGH SCORE and the light lab.
@@ -613,6 +618,7 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
   pass.uniforms.uStep.value=popupBlur.step;
  }
  boardPopupPass.uniforms.uFade.value=boardOverlayActive?BOARD_POPUP_FADE:0;
+ boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){
@@ -637,12 +643,12 @@ function syncFX({fx,theme,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresO
    (layoutInfo.boardX+layoutInfo.boardW)/W,1-layoutInfo.boardY/H
   );
  }
- edgeVignette.enabled=fx.vignette;
+ edgeVignette.enabled=!lcd&&fx.vignette;
  edgeVignette.uniforms.uAmount.value=fx.vignetteAmount;
  edgeVignette.uniforms.uStart.value=VIGNETTE_FADE_SPREAD;
  // Static CRT scanline artwork is independent of phosphor persistence.
  // A user-enabled mask must remain visible whether history is on or off.
- scanlineOverlay.enabled=fx.scanlines&&fx.scanlineOpacity>0;
+ scanlineOverlay.enabled=!lcd&&fx.scanlines&&fx.scanlineOpacity>0;
  const scanlinePreset=activeScanlinePreset(fx.scanlinePreset);
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures[scanlinePreset.id];
  scanlineOverlay.uniforms.uPatternSize.value.set(scanlinePreset.rows[0].length,scanlinePreset.rows.length);
@@ -1264,6 +1270,7 @@ function createVectorTileRenderer({
  createImage=()=>new Image(),
  createCanvas=()=>document.createElement('canvas'),
  pixelRatio=()=>1,
+ isLCD=()=>false,
  onReady=()=>{},
  assetPrefix='./assets/tiles/vector/'
 }={}){
@@ -1299,20 +1306,30 @@ function createVectorTileRenderer({
  function draw(key,g,x,y,w,h,fallback){
   if(disposed||!(w>0&&h>0))return false;
   const asset=load(key);
-  if(asset.status!=='ready'){fallback?.();return false;}
+  const lcd=isLCD(),ready=asset.status==='ready';
+  if(!ready&&!lcd){fallback(g,x,y,w,h);return false;}
   const dpr=Math.max(1,Math.min(4,Number(pixelRatio())||1));
   const pw=Math.max(1,Math.round(w*dpr)),ph=Math.max(1,Math.round(h*dpr));
-  const cacheKey=key+'@'+pw+'x'+ph;
+  const cacheKey=key+'@'+pw+'x'+ph+(lcd?(ready?':lcd':':lcd-fallback'):'');
   let canvas=rasterized.get(cacheKey);
   if(!canvas){
    canvas=createCanvas();
    canvas.width=pw;canvas.height=ph;
    const ctx=canvas.getContext('2d',{alpha:true});
-   if(!ctx){fallback?.();return false;}
+   if(!ctx){fallback(g,x,y,w,h);return false;}
    ctx.imageSmoothingEnabled=true;
    if('imageSmoothingQuality' in ctx)ctx.imageSmoothingQuality='high';
-   try{ctx.drawImage(asset.image,0,0,pw,ph);}
-   catch(error){fallback?.();return false;}
+   try{
+    if(ready)ctx.drawImage(asset.image,0,0,pw,ph);
+    else fallback(ctx,0,0,pw,ph);
+   }catch(error){fallback(g,x,y,w,h);return false;}
+   if(lcd){
+    // Scale the authored luminance without changing sprite alpha or the
+    // light-to-dark ordering of any fill, edge, inset or gravel detail.
+    ctx.globalCompositeOperation='source-atop';
+    ctx.fillStyle='rgba(0,0,0,.31)';
+    ctx.fillRect(0,0,pw,ph);
+   }
    if(rasterized.size>=MAX_RASTERS){
     const oldest=rasterized.keys().next().value;
     rasterized.delete(oldest);
@@ -1330,12 +1347,14 @@ function createVectorTileRenderer({
   if(kind==='I')return drawVectorIFragment(g,x,y,w,h,{
    sourceOffset:0,length:1,rotation:0
   });
-  return draw(spriteIdentity(kind),g,x,y,w,h,()=>drawTileFace(g,x,y,w,h,kind));
+  return draw(spriteIdentity(kind),g,x,y,w,h,(target,px,py,pw,ph)=>
+   drawTileFace(target,px,py,pw,ph,kind));
  }
  function drawVectorIFragment(g,x,y,w,h,{sourceOffset=0,length=4,rotation=0}={}){
   const options={sourceOffset,length,rotation};
   const key=spriteIdentity('I',options);
-  return draw(key,g,x,y,w,h,()=>drawIFragment(g,x,y,w,h,options));
+  return draw(key,g,x,y,w,h,(target,px,py,pw,ph)=>
+   drawIFragment(target,px,py,pw,ph,options));
  }
  function drawPiece(g,tiles,kind,{rotation=0}={}){
   if(!Array.isArray(tiles)||!tiles.length)return;
@@ -1546,16 +1565,16 @@ function region(x,y,w,h,act,opts={}){const model=makeRegion(x,y,w,h,act,opts);ge
 function key(label,x,y,w,h,act,opts={}){
  const model=makeButtonControl(label,x,y,w,h,act,opts);
  const power=Math.max(0,Math.min(1,Number(getButtonPower(model.hitbox))||0));
- const lit=grayLevel(buttonLevel(power));
+ const lit=grayLevel(opts.onLight?28+30*power:buttonLevel(power));
  // Negative-space text in solid buttons follows the press (6→30) without
  // disappearing into the bright solid face (206→255).
- const inverseInk=grayLevel(buttonInkLevel(power));
+ const inverseInk=grayLevel(opts.onLight?227:buttonInkLevel(power));
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
  // V165: keep button artwork as a single flat face. Solid buttons
  // remain exactly the approved full luminance (206 base, 255 pressed);
  // press afterglow, text, stroke, and hitboxes are unchanged.
- panel(model.x,model.y,model.w,model.h,8,model.light?lit:C.button,lit);
+ panel(model.x,model.y,model.w,model.h,8,model.light?lit:opts.onLight?null:C.button,lit);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
   model.light?inverseInk:lit,'center',Math.max(10,model.w-14));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
@@ -1641,17 +1660,18 @@ function registerControlHitboxes(r,UI_SPACE,region){
  });
 }
 function createHudDrawing({panel,text,rect,key,smallPiece,getGame,
- C,UI_SPACE,fmt}){
+ C,UI_SPACE,fmt,getLCD=()=>false,LCD_BOARD=C}){
 function drawSidebar(r){
- const game=getGame();
+ const game=getGame(),onLight=getLCD();
+ const readoutColors=onLight?LCD_BOARD:C;
  const {nextPanel:next,statsPanel:stats,holdPanel:hold}=r;
  const inset=Math.max(3,Math.min(6,stats.w*.06));
  // V141: the same square double-border housing for all five boxes.
  const doubleFrame=(x,y,w,h)=>{
   const rim=Math.min(4,Math.max(2,(h-12)/2));
-  panel(x,y,w,h,0,C.panel,C.border);
+  panel(x,y,w,h,0,readoutColors.panel,onLight?C.bright:C.border);
   if(w>rim*2+1&&h>rim*2+1)
-   panel(x+rim,y+rim,w-rim*2,h-rim*2,0,null,C.bright);
+   panel(x+rim,y+rim,w-rim*2,h-rim*2,0,null,readoutColors.bright);
   return rim;
  };
  const preview=(box,kind,role)=>{
@@ -1685,7 +1705,7 @@ function drawSidebar(r){
   const valueInset=Math.max(10,Math.min(12,stats.w*.14));
   const digitSize=Math.max(10,Math.min(16,stats.w*.175,readoutHeight*.54));
   text(value,stats.x+valueInset,boxY+readoutHeight/2,digitSize,
-   C.ink,'left',Math.max(8,stats.w-valueInset-rim-4),'terminal');
+   readoutColors.ink,'left',Math.max(8,stats.w-valueInset-rim-4),'terminal');
  });
  preview(hold,game.hold,'hold');
 }
@@ -1754,7 +1774,7 @@ function createModalUI({
  getViewport,layout,insets,clearRegions,getContext,
  panel,text,rect,region,key,buttonLight,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
  getFX,activeScanlinePreset,settingValue,chooseScanlineSetting,invalidate,setScrollVelocity,
- getBest,getGame,getModal
+ getBest,getGame,getModal,LCD_BOARD=C
 }){
  const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
  let modalView=null,optionsScroll=0,optionsMaxScroll=0;
@@ -2045,7 +2065,14 @@ function drawOptions(q){
  key('RESTORE DEFAULTS',pageX+(pageW-restoreW)/2,restoreY,
   restoreW,r.extraH,'resetFX',{light:true});
  const contentX=pageX+pad,contentW=pageW-2*pad;
- const top=headerY+headH+gap,bottom=restoreY-gap;
+ const modeY=headerY+headH+gap,modeH=30;
+ const onLight=Boolean(settingValue('lcdDisplay'));
+ panel(contentX,modeY,contentW,modeH,0,C.panel,C.border);
+ text('DISPLAY TYPE',contentX+2*gap,modeY+modeH/2,12,C.ink,'left',contentW*.52);
+ text(onLight?'LCD   ↔':'CRT   ↔',contentX+contentW-2*gap,modeY+modeH/2,
+  12,C.bright,'right',contentW*.42,'terminal');
+ region(contentX,modeY,contentW,modeH,'toggle',{field:'lcdDisplay',modalControl:true});
+ const top=modeY+modeH+gap,bottom=restoreY-gap;
  const visibleH=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:visibleH};
  const model=settingsRows(q.buttonH,gap,contentW);
@@ -2133,14 +2160,15 @@ function drawScores(q){
  // The shared upper title and START GAME action anchor remain unchanged.
  const {W,H}=getViewport(),{x,y,w,h}=q;
  clearRegions();region(0,0,W,H,'block');
- panel(x,y,w,h,5,null,C.border);
+ const onLight=Boolean(settingValue('lcdDisplay')),boardColors=onLight?LCD_BOARD:C;
+ panel(x,y,w,h,5,null,boardColors.border);
  const best=getBest(),slots=boardOverlaySlots(q,UI_SPACE);
  const titleSize=Math.min(21,Math.max(15,w*.079));
- text('HIGH SCORE',slots.titleX,slots.titleY,titleSize,C.bright,'center',w-18);
- drawMenuScoreBox({text,rect,C},slots.score,best);
+ text('HIGH SCORE',slots.titleX,slots.titleY,titleSize,boardColors.bright,'center',w-18);
+ drawMenuScoreBox({text,rect,C:boardColors},slots.score,best);
  // Same size, position, font and leading arrow as RESUME / START GAME.
  key('RETURN',slots.actionX,slots.actionY,slots.actionW,q.buttonH,
-  'close',{light:true,arrow:true});
+  'close',{light:true,arrow:true,onLight});
  // The base header is still visible; register just its colour button above
  // this menu's full-screen input blocker, with no duplicate button drawing.
  const theme=headerThemeBounds(layout(),UI_SPACE);

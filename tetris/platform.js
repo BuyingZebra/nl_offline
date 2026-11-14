@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v216';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v216';
+import {createInputController} from './input.js?v217';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v217';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v202';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v216';
+export {createInputController} from './input.js?v217';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -354,6 +354,8 @@ const gray=n=>{const v=clamp(Math.round(n),0,255);return 'rgb('+v+','+v+','+v+')
 const SCREEN_BLACK='#080808';
 const C={bg:SCREEN_BLACK,panel:'#1d1d1d',button:SCREEN_BLACK,solid:'#303030',ink:'#e3e3e3',
  bright:'#cecece',weak:'#aeaeae',border:'#777777',subtleBorder:'#2e2e2e',grid:'#373737',dark:'#060606'};
+const LCD_BOARD={...C,panel:'#e7e7e7',ink:'#202020',bright:'#222222',
+ weak:'#424242',border:'#363636',grid:'#858585'};
 // Fonts follow Fallout 4's UI/terminal roles; original icons stay intact.
 const ICON_FONT='ui-monospace,SFMono-Regular,Menlo,Consolas,monospace';
 const FONT='"Roboto Condensed",'+ICON_FONT;
@@ -652,10 +654,10 @@ nomadMark.onload=()=>{
 nomadMark.onerror=()=>{nomadMarkReady=false;};
 nomadMark.src='./nomad-mark.svg?v110';
 function paintNomadMark(x,y,w,h){
- if(nomadMarkReady){g.drawImage(nomadMark,x,y,w,h);return;}
+ if(nomadMarkReady&&!settings.lcdDisplay){g.drawImage(nomadMark,x,y,w,h);return;}
  g.save();
  g.translate(x,y);g.scale(w/160,h/64);
- g.strokeStyle=C.bright;g.lineWidth=3.8;
+ g.strokeStyle=settings.lcdDisplay?LCD_BOARD.ink:C.bright;g.lineWidth=3.8;
  g.lineCap='round';g.lineJoin='round';
  g.beginPath();
  for(const [xa,ya,xb] of [
@@ -683,7 +685,7 @@ const pieceShadows=createPieceShadowRenderer({pixelRatio:()=>DPR,
 const boardInsetShadows=createBoardInsetShadowRenderer({
  getSettings:()=>settings.effects});
 const vectorTiles=createVectorTileRenderer({
- pixelRatio:()=>DPR,
+ pixelRatio:()=>DPR,isLCD:()=>settings.lcdDisplay,
  onReady:()=>{
   if(appLifecycle?.status==='disposed')return;
   layers.mark('board','sidebar');
@@ -719,7 +721,7 @@ function cell(x,y,col,row,size,kind,isGhost=false){
  if(!kind||col<0||row<0||col>=10||row>=20)return;
  const px=x+col*size,py=y+row*size;
  if(isGhost){
-  g.setLineDash([3,3]);g.strokeStyle='#777';g.lineWidth=1;
+  g.setLineDash([3,3]);g.strokeStyle=settings.lcdDisplay?'#575757':'#777';g.lineWidth=1;
   g.strokeRect(px+3,py+3,size-6,size-6);g.setLineDash([]);return;
  }
  tileFace(px,py,size,size,kind);
@@ -738,11 +740,11 @@ function stage(r,drawPieces=true,pieceMask=null){
   pieceMask.rect(offX,offY,w-4,h-4);pieceMask.clip();
  }
  g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
- rect(offX,offY,w-4,h-4,'#1a1a1a');
+ rect(offX,offY,w-4,h-4,settings.lcdDisplay?LCD_BOARD.panel:'#1a1a1a');
  // V202: lift both the playfield background (24 -> 26/255, +8.3%)
  // and grid strokes (50 -> 55/255, +10%) without changing geometry,
  // stroke opacity (0.751355748), or grid line width (0.6px).
- g.globalAlpha=.751355748;g.strokeStyle=C.grid;g.lineWidth=.6;g.beginPath();
+ g.globalAlpha=.751355748;g.strokeStyle=settings.lcdDisplay?LCD_BOARD.grid:C.grid;g.lineWidth=.6;g.beginPath();
  for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
@@ -768,7 +770,7 @@ function stage(r,drawPieces=true,pieceMask=null){
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
    const px=offX+rx*tile,py=offY+ry*tile;
-   g.save();g.strokeStyle=C.border;g.globalAlpha=.42;g.lineWidth=.7;
+   g.save();g.strokeStyle=settings.lcdDisplay?LCD_BOARD.border:C.border;g.globalAlpha=.42;g.lineWidth=.7;
    g.strokeRect(px+2,py+2,tile-4,tile-4);g.restore();
   }else if(kind!=='I'){
    cell(offX,offY,rx,ry,tile,kind);
@@ -841,7 +843,9 @@ function paintBoardPopup(r){
    modalUI.paintModal(modalUI.modalBounds('scores'));
    return;
   }
-  const type=status;
+  const boardColors=settings.lcdDisplay?LCD_BOARD:C;
+ const onLight=settings.lcdDisplay;
+ const type=status;
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
   const inset=UI_SPACE.unit,headingGap=2*UI_SPACE.unit;
@@ -859,20 +863,20 @@ function paintBoardPopup(r){
    const subSize=10;
    const subY=by-headingGap-subSize/2;
    const titleY=subY-subSize/2-headingGap-headingSize/2;
-   text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
-   text('SURVIVE THE SOVIET CHALLENGE',x+w/2,subY,subSize,C.weak,'center',w-18);
+   text(title,x+w/2,titleY,headingSize,boardColors.bright,'center',w-18);
+   text('SURVIVE THE SOVIET CHALLENGE',x+w/2,subY,subSize,boardColors.weak,'center',w-18);
   }else if(type==='paused'){
-   text(title,slots.titleX,slots.titleY,headingSize,C.bright,'center',w-18);
-   drawMenuScoreBox({text,rect,C},slots.score,{score:game.score,lines:game.lines,level:game.level});
+   text(title,slots.titleX,slots.titleY,headingSize,boardColors.bright,'center',w-18);
+   drawMenuScoreBox({text,rect,C:boardColors},slots.score,{score:game.score,lines:game.lines,level:game.level});
   }else{
    // Game-over layout is outside this menu-alignment pass.
    const titleY=by-headingGap-headingSize/2;
-   text(title,x+w/2,titleY,headingSize,C.bright,'center',w-18);
+   text(title,x+w/2,titleY,headingSize,boardColors.bright,'center',w-18);
   }
-  key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true});
+  key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true,onLight});
   if(type==='paused'){
-   key('RESTART',bx,by+primaryH+inset,bw,secondaryH,'restart');
-   key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores');
+   key('RESTART',bx,by+primaryH+inset,bw,secondaryH,'restart',{onLight});
+   key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores',{onLight});
   }
   }finally{g=baseContext;}
 }
@@ -916,7 +920,7 @@ function paintBoardLayer(){
 // Keep all original drawing commands and labels; only their render target changes.
 const {drawSidebar,drawControls}=createHudDrawing({
  panel,text,rect,key,smallPiece,getGame:()=>game,
- C,UI_SPACE,fmt
+ C,UI_SPACE,fmt,getLCD:()=>settings.lcdDisplay,LCD_BOARD
 });
 // Cached opaque crops cover stale duplicates on the full-screen base. The
 // temporary hitbox list prevents dynamic repaints from changing input priority.
@@ -971,7 +975,8 @@ function paintBaseGame(){
  g=baseContext;
  rect(0,0,W,H,C.bg);
  // The stray shaded sub-footer is removed; the log prints on bare black.
- panel(r.hx,r.hy,r.hw,r.hh,0,C.panel);
+ const onLight=settings.lcdDisplay,headerColors=onLight?LCD_BOARD:C;
+ panel(r.hx,r.hy,r.hw,r.hh,0,headerColors.panel,onLight?C.bright:C.border);
  // The logo, wordmark, and subtitle use the EXISTING font and luminance
  // palette. Only the title organization changes; header buttons stay put.
  const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
@@ -983,17 +988,17 @@ function paintBaseGame(){
  paintNomadMark(markX,markY,markW,markH);
  const titleX=markX+markW+Math.max(6,Math.min(11,available*.05));
  const titleWidth=Math.max(12,tx-titleX-5);
- rect(titleX-5,r.hy+r.hh*.27,1,r.hh*.46,C.bright);
+ rect(titleX-5,r.hy+r.hh*.27,1,r.hh*.46,headerColors.bright);
  text('NOMAD',titleX,r.hy+r.hh/2-9,
   r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
-  C.ink,'left',titleWidth);
+  headerColors.ink,'left',titleWidth);
  text('TETRIS SYSTEM',titleX,r.hy+r.hh/2+11,
-  10,C.weak,'left',titleWidth);
- key('◐',tx,ty,th,th,'theme');
+  10,headerColors.weak,'left',titleWidth);
+ key('◐',tx,ty,th,th,'theme',{onLight});
  // The menu button exists only in the regular game interface. Light Control
  // draws its confirmation glyph at these SAME coordinates on the modal layer.
  if(!screenManager.isLight)
-  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options');
+  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{onLight});
  // Dedicated board plane owns board pixels; don't render it to base.
  // Static 75%-cell brick rails, exactly one control-gap outside either edge.
  // Draw on the base layer, not inside the cropped board texture.
@@ -1076,7 +1081,7 @@ const modalUI=createModalUI({
  getFX:()=>settings.effects,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
  settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
  invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
- getBest:()=>actions.best,getGame:()=>game,
+ getBest:()=>actions.best,getGame:()=>game,LCD_BOARD,
  getModal:()=>screenManager.active
 });
 function createDebugReport(){
@@ -1090,7 +1095,7 @@ function createDebugReport(){
   platform:navigator.userAgent,
   viewport:{width:W,height:H,dpr:DPR,deviceDpr:Math.max(1,window.devicePixelRatio||1)},
   game:{status:game.status,level:game.level,score:game.score,lines:game.lines},
-  display:{theme:settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
+  display:{theme:settings.lcdDisplay?'lcd':settings.theme,orientation:W>H?'landscape':'portrait',phosphor:settings.effects.phosphor,
    settings:JSON.stringify({...settings.effects,pieceGhost:settings.pieceGhost,sound:settings.soundOn})},
   gpu,shadowStats:pieceShadows.stats,
   canvasMemory:estimateCanvasSourceBytes(visualScene.canvases),
@@ -1169,7 +1174,8 @@ function paintLightDirectionOverlay(){
  // the old .27-alpha, 0.7px crosshair was washed out by CRT effects.
  g.save();
  g.beginPath();g.rect(b.x,b.y,b.w,b.h);g.clip();
- g.strokeStyle=C.bright;g.lineWidth=1;
+ const guide=settings.lcdDisplay?LCD_BOARD.ink:C.bright;
+ g.strokeStyle=guide;g.lineWidth=1;
  g.setLineDash([3,7]);g.beginPath();
  g.moveTo(p.x,b.y);g.lineTo(p.x,b.y+b.h);
  g.moveTo(b.x,p.y);g.lineTo(b.x+b.w,p.y);
@@ -1178,14 +1184,15 @@ function paintLightDirectionOverlay(){
  // centre and transparent edge: two stops, no visible concentric bands.
  // The original 28px radius is now exactly 1.5x larger (42px).
  const halo=g.createRadialGradient(p.x,p.y,0,p.x,p.y,LIGHT_HALO_RADIUS);
- halo.addColorStop(0,'rgba(230,230,230,0.19)');
- halo.addColorStop(1,'rgba(230,230,230,0)');
+ const haloColor=settings.lcdDisplay?'28,28,28':'230,230,230';
+ halo.addColorStop(0,'rgba('+haloColor+',0.19)');
+ halo.addColorStop(1,'rgba('+haloColor+',0)');
  g.fillStyle=halo;
  g.fillRect(p.x-LIGHT_HALO_RADIUS,p.y-LIGHT_HALO_RADIUS,
   LIGHT_HALO_RADIUS*2,LIGHT_HALO_RADIUS*2);
- g.strokeStyle=C.bright;g.lineWidth=1;
+ g.strokeStyle=guide;g.lineWidth=1;
  g.beginPath();g.arc(p.x,p.y,11,0,2*Math.PI);g.stroke();
- g.fillStyle='rgba(235,235,235,.96)';
+ g.fillStyle=settings.lcdDisplay?guide:'rgba(235,235,235,.96)';
  g.beginPath();g.arc(p.x,p.y,3.5,0,2*Math.PI);g.fill();
  g.restore();
  // (2) A separate DASHED DIVIDER lives solely inside the now-empty sidebar.
@@ -1209,7 +1216,7 @@ function paintLightDirectionOverlay(){
  // The header check replaces (not accompanies) the old menu icon.
  paintLightPropertyPanel(r);
  const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
- key('✓',tx+th+UI_SPACE.headIconGap,ty,th,th,'close');
+ key('✓',tx+th+UI_SPACE.headIconGap,ty,th,th,'close',{onLight:settings.lcdDisplay});
 }
 function paintModalOverlay(){
  // High Score is already drawn into the board popup texture over Gaussian blur.
@@ -1307,7 +1314,7 @@ function syncFX(){
  // The paused-board popup blur is suppressed separately in the compositor.
  compositor.syncFX({fx:screenManager.isLight?
   {...settings.effects,persistence:false}:settings.effects,
-  theme:settings.theme,width:W,height:H,dpr:DPR,
+  theme:settings.theme,lcd:settings.lcdDisplay,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
@@ -1385,7 +1392,7 @@ function frame(now){
    else{layers.mark('modal');layers.reason('scroll');}
   }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
-  const phosphorOn=settings.effects.persistence===true&&!screenManager.isLight;
+  const phosphorOn=settings.effects.persistence===true&&!settings.lcdDisplay&&!screenManager.isLight;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(phosphorOn&&now-lastHistoryRender>=33)
@@ -1432,7 +1439,7 @@ function frame(now){
    if(surface.visible)textureUploads.upload(texture,'base');
    if(boardPlane.visible){
     textureUploads.upload(boardTexture,'board');
-    if(settings.effects.bloom)
+    if(settings.effects.bloom&&!settings.lcdDisplay)
      textureUploads.upload(pieceBloomMaskTexture,'piece-mask');
    }
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');

@@ -552,6 +552,7 @@ export const STORAGE_KEYS=Object.freeze({
  pieceGhost:'fieldAtlasTetrisGhost',
  sound:'fieldAtlasTetrisSound',
  theme:'fieldAtlasThemeV06',
+ lcdDisplay:'nomadTetrisLCDDisplay',
  initials:'fieldAtlasTetrisInitials'
 });
 
@@ -572,6 +573,7 @@ export function createSettingsManager(storage){
  }catch(e){/* Corrupt/disabled storage keeps documented defaults. */}
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
+ let lcdDisplay=read(STORAGE_KEYS.lcdDisplay,'no')==='yes';
  // Restore the original green/amber-only phosphor selection. A saved
  // blue preference from V160 gracefully falls back to green.
  let theme=read(STORAGE_KEYS.theme,'green')==='amber'?'amber':'green';
@@ -580,9 +582,15 @@ export function createSettingsManager(storage){
   write(STORAGE_KEYS.effects,JSON.stringify(effects));
  }
  function settingValue(key){
+  if(key==='lcdDisplay')return lcdDisplay;
   return effectSettingValue(key,effects,{ghost:pieceGhost,sound:soundOn});
  }
  function setSetting(key,value){
+  if(key==='lcdDisplay'){
+   lcdDisplay=value===true;
+   write(STORAGE_KEYS.lcdDisplay,lcdDisplay?'yes':'no');
+   return;
+  }
   if(key==='pieceGhost'){
    pieceGhost=Boolean(value);
    write(STORAGE_KEYS.pieceGhost,pieceGhost?'yes':'no');
@@ -617,7 +625,8 @@ export function createSettingsManager(storage){
  function restoreDefaults(){
   effects={...DEFAULT_EFFECTS};
   persistEffects();
-  pieceGhost=true;soundOn=true;
+  pieceGhost=true;soundOn=true;lcdDisplay=false;
+  write(STORAGE_KEYS.lcdDisplay,'no');
   write(STORAGE_KEYS.pieceGhost,'yes');
   write(STORAGE_KEYS.sound,'yes');
   // The phosphor theme is deliberately not reset in the historical behaviour.
@@ -626,6 +635,7 @@ export function createSettingsManager(storage){
   get effects(){return effects;},
   get pieceGhost(){return pieceGhost;},
   get soundOn(){return soundOn;},
+  get lcdDisplay(){return lcdDisplay;},
   get theme(){return theme;},
   settingValue,setSetting,chooseScanline,toggleTheme,restoreDefaults,
   readInitials:()=>read(STORAGE_KEYS.initials,'AAA'),
@@ -790,7 +800,8 @@ export function createActionController({
  function setSetting(key,value){
   if(!canInteract())return;
   settings.setSetting(key,value);
-  if(key==='pieceGhost'||SHADOW_SETTING_KEYS.includes(key))markLayers('board');
+  if(key==='lcdDisplay')markLayers('base','board','sidebar');
+  else if(key==='pieceGhost'||SHADOW_SETTING_KEYS.includes(key))markLayers('board');
   invalidate();
  }
 
@@ -812,8 +823,11 @@ export function createActionController({
   }
   if(action==='restart'){restart();return;}
   if(action==='resetFX'){
+   const lcdWasEnabled=settings.lcdDisplay;
    settings.restoreDefaults();onResetSettingsUI();
-   markLayers('base','board');invalidate();return;
+   if(lcdWasEnabled)markLayers('base','board','sidebar');
+   else markLayers('base','board');
+   invalidate();return;
   }
   if(GAME_ACTIONS.includes(action))perform(action);
  }

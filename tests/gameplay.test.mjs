@@ -697,6 +697,30 @@ describe('Saved preferences',()=>{
   assert.equal(settings.theme,'green');
  });
 
+ test('LCD is opt-in, persists separately, and leaves CRT preferences intact',()=>{
+  const storage=memoryStorage();
+  const settings=createSettingsManager(storage);
+  assert.equal(settings.lcdDisplay,false);
+  settings.setSetting('bloomStrength',47);
+  settings.setSetting('scanlines',false);
+  settings.toggleTheme();
+  const crtEffects=storage.getItem(STORAGE_KEYS.effects);
+
+  settings.setSetting('lcdDisplay',true);
+  const reopened=createSettingsManager(storage);
+  assert.equal(reopened.settingValue('lcdDisplay'),true);
+  assert.equal(reopened.theme,'amber');
+  assert.equal(storage.getItem(STORAGE_KEYS.effects),crtEffects);
+
+  reopened.setSetting('lcdDisplay',false);
+  assert.equal(createSettingsManager(storage).lcdDisplay,false);
+  assert.equal(reopened.settingValue('bloomStrength'),47);
+  reopened.setSetting('lcdDisplay',true);
+  reopened.restoreDefaults();
+  assert.equal(createSettingsManager(storage).lcdDisplay,false);
+  assert.equal(reopened.theme,'amber');
+ });
+
  test('slider values are stored using the original percent scaling',()=>{
   const storage=memoryStorage(),settings=createSettingsManager(storage);
   settings.setSetting('bloomStrength',35);

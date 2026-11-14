@@ -91,6 +91,29 @@ describe('CRT composition',()=>{
    'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
   ]);
  });
+ test('LCD reuses the compositor, suspends CRT optics and restores them on return',()=>{
+  const {pipeline,composer}=setup();
+  const [,,popup,history,ghost,bloom,tint,softness,vignette,mask]=composer.passes;
+  const switchDisplay=lcd=>pipeline.syncFX({
+   fx:states,theme:'amber',lcd,width:393,height:852,dpr:2,
+   boardStatus:'paused',popupStatus:'paused',modalOpen:false,
+   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}
+  });
+  switchDisplay(false);
+  const crtOptics=[history,ghost,bloom,softness,vignette,mask];
+  assert.ok(crtOptics.every(pass=>pass.enabled===true));
+  const crtFade=popup.uniforms.uFadeTo.value;
+  switchDisplay(true);
+  assert.ok(crtOptics.every(pass=>pass.enabled===false));
+  assert.equal(tint.uniforms.uLCDDpr.value,2);
+  assert.equal(popup.enabled,true,'the sharp overlay and board shadow still composite');
+  assert.notEqual(popup.uniforms.uFadeTo.value,crtFade);
+  switchDisplay(false);
+  assert.ok(crtOptics.every(pass=>pass.enabled===true));
+  assert.equal(tint.uniforms.uLCDDpr.value,0);
+  assert.equal(popup.uniforms.uFadeTo.value,crtFade);
+  pipeline.dispose();
+ });
  test('v189 bloom separates board and cover light without extra passes',()=>{
   const {pipeline,composer}=setup();
   update(pipeline);
@@ -666,11 +689,11 @@ describe('Menus and visual controls',()=>{
    popup.indexOf('if(screenManager.isScores)'),
    'the inset shadow is drawn before either sharp menu readout');
   assert.match(renderer,/g=boardPopupContext;/);
-  assert.match(renderer,/key\('RESTART'.*'restart'\)/);
+  assert.match(renderer,/key\('RESTART'.*'restart',\{onLight\}\)/);
   assert.doesNotMatch(renderer,/key\('NEW GAME'/);
   assert.doesNotMatch(modal,/START NEW GAME\?|YES, RESTART|drawRestart/);
-  assert.match(hud,/panel\(x\+rim,y\+rim,w-rim\*2,h-rim\*2,0,null,C\.bright\)/);
-  assert.match(renderer,/rect\(titleX-5,r\.hy\+r\.hh\*\.27,1,r\.hh\*\.46,C\.bright\)/);
+  assert.match(hud,/panel\(x\+rim,y\+rim,w-rim\*2,h-rim\*2,0,null,readoutColors\.bright\)/);
+  assert.match(renderer,/rect\(titleX-5,r\.hy\+r\.hh\*\.27,1,r\.hh\*\.46,headerColors\.bright\)/);
  });
 });
 
@@ -729,7 +752,7 @@ describe('Button repaint regions',()=>{
   assert.match(part,/affected\.filter\(name=>name!=='controls'\):affected/);
   assert.match(part,/layers\.mark\(\.\.\.canvasAffected\)/);
   assert.doesNotMatch(part,/layers\.mark\('base','controls'\)/);
-  assert.match(src,/key\('◐'.*'theme'\)/);
+  assert.match(src,/key\('◐'.*'theme',\{onLight\}\)/);
   assert.match(src,/drawControls\(r\)/);
  });
 });
@@ -1111,14 +1134,16 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(lab,/g\.rect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\);g\.clip\(\)/);
   assert.match(lab,/g\.moveTo\(r\.sideX\+2,p\.y\);g\.lineTo\(r\.sideX\+r\.sideW-2,p\.y\)/);
   assert.doesNotMatch(lab,/g\.moveTo\(p\.x,0\)|g\.lineTo\(p\.x,H\)|g\.lineTo\(W,p\.y\)/);
-  assert.match(lab,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close'\)/);
+  assert.match(lab,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
  });
 
  test('v198 dashes and light ring use the same opaque 206 luminance; readout straddles separator',()=>{
   const platform=readPlatform(),lab=readLab();
   assert.match(platform,/bright:'#cecece'/);
-  assert.equal((lab.match(/g\.strokeStyle=C\.bright;g\.lineWidth=1;/g)||[]).length,3,
-   'board guides, sidebar separator and circle ring all use 206 at full alpha');
+  assert.match(lab,/const guide=settings\.lcdDisplay\?LCD_BOARD\.ink:C\.bright/);
+  assert.equal((lab.match(/g\.strokeStyle=guide;g\.lineWidth=1;/g)||[]).length,2);
+  assert.equal((lab.match(/g\.strokeStyle=C\.bright;g\.lineWidth=1;/g)||[]).length,1,
+   'the sidebar separator uses the original 206 luminance on its dark background');
   assert.equal((lab.match(/g\.setLineDash\(\[3,7\]\)/g)||[]).length,2);
   assert.doesNotMatch(lab,/rgba\(180,180,180,\.27\)/);
   assert.match(lab,/text\('LIGHT ANGLE',sideCenter,p\.y-LIGHT_LABEL_Y,LIGHT_LABEL_SIZE,\s*C\.weak,'center',readoutWidth\)/);
@@ -1144,8 +1169,8 @@ describe('v199 smooth halo and padded light travel',()=>{
    s.indexOf('function paintModalOverlay('));
   assert.match(s,/const LIGHT_HALO_RADIUS=42; \/\/ v198: 28px \* 1\.5/);
   assert.match(lab,/createRadialGradient\(p\.x,p\.y,0,p\.x,p\.y,LIGHT_HALO_RADIUS\)/);
-  assert.match(lab,/halo\.addColorStop\(0,'rgba\(230,230,230,0\.19\)'\)/);
-  assert.match(lab,/halo\.addColorStop\(1,'rgba\(230,230,230,0\)'\)/);
+  assert.match(lab,/halo\.addColorStop\(0,'rgba\('\+haloColor\+',0\.19\)'\)/);
+  assert.match(lab,/halo\.addColorStop\(1,'rgba\('\+haloColor\+',0\)'\)/);
   assert.equal((lab.match(/halo\.addColorStop\(/g)||[]).length,2,
    'only two endpoints: no hard/stepped intermediate bands');
   assert.match(lab,/g\.fillRect\(p\.x-LIGHT_HALO_RADIUS,p\.y-LIGHT_HALO_RADIUS,\s*LIGHT_HALO_RADIUS\*2,LIGHT_HALO_RADIUS\*2\)/);
@@ -1190,12 +1215,12 @@ describe('v200 context-only light property deck',()=>{
    src.indexOf('function paintGame('));
   const modal=src.slice(src.indexOf('function paintModalOverlay('),
    src.indexOf('inputController=createInputController('));
-  assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'\)/);
+  assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options',\{onLight\}\)/);
   assert.match(base,/if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
   assert.match(modal,/controlsPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));
-  assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close'\)/);
+  assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
   assert.doesNotMatch(light,/key\('DONE'|key\('☷'/);
  });
  test('new property panel shares original control bounds and has exactly four integrated bars',()=>{
@@ -1226,8 +1251,8 @@ describe('v202 grid and piece bloom mask wiring',()=>{
  test('board background and grid strokes brighten independently by about 10%; geometry and alpha unchanged',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(p,/grid:'#373737'/);
-  assert.match(p,/rect\(offX,offY,w-4,h-4,'#1a1a1a'\)/);
-  assert.match(p,/g\.globalAlpha=\.751355748;g\.strokeStyle=C\.grid;g\.lineWidth=\.6/);
+  assert.match(p,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
+  assert.match(p,/g\.globalAlpha=\.751355748;g\.strokeStyle=settings\.lcdDisplay\?LCD_BOARD\.grid:C\.grid;g\.lineWidth=\.6/);
   assert.equal(55/50,1.1,'grid stroke source rises exactly 10%');
   assert.ok(Math.abs(26/24-1.1)<.02,'board background rises by the nearest integer to 10%');
  });
@@ -1253,7 +1278,7 @@ describe('v202 grid and piece bloom mask wiring',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const r=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(p,/pieceMaskEnabled:boardPlane\.visible/);
-  assert.match(p,/if\(settings\.effects\.bloom\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
+  assert.match(p,/if\(settings\.effects\.bloom&&!settings\.lcdDisplay\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
   assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
   assert.match(r,/const pieceBloomMaskTexture=new THREE\.CanvasTexture\(pieceBloomMaskCanvas\)/);
   assert.doesNotMatch(r,/new THREE\.Mesh\(.*pieceBloomMaskTexture/);
