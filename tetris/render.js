@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v220';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v220';
+import {instrumentCompositorPasses} from './diagnostics.js?v221';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v221';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1324,11 +1324,8 @@ function createVectorTileRenderer({
     else fallback(ctx,0,0,pw,ph);
    }catch(error){fallback(g,x,y,w,h);return false;}
    if(lcd){
-    // Keep the artwork's luminance ordering, then back its transparent
-    // margin with a dark edge. An I fragment gets one continuous frame.
-    ctx.globalCompositeOperation='source-atop';
-    ctx.fillStyle='rgba(0,0,0,.31)';
-    ctx.fillRect(0,0,pw,ph);
+    // CRT and LCD start with the same sprite luminance. LCD ink only
+    // backs the transparent margin, including one continuous edge on an I bar.
     // The source faces have a one-unit margin on a twelve-unit cell.
     const cell=Math.min(w,h);
     const margin=Math.max(0,cell/12-2);

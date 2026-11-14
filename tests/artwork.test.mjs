@@ -498,7 +498,7 @@ describe('Vector rendering and pixel fallback',()=>{
   assert.equal(m.canvases[1].width,60);
  });
 
- test('LCD outlines back the original pixels and keep a continuous I edge',()=>{
+ test('LCD preserves original piece tones and backs the I bar with one continuous edge',()=>{
   let lcd=false;
   const m=mock(()=>lcd);
   const fragment={sourceOffset:0,length:3,rotation:0};
@@ -512,7 +512,6 @@ describe('Vector rendering and pixel fallback',()=>{
   const display=m.canvases[1];
   assert.deepEqual(display.calls[0],crt.calls[0],'source face and texture are identical');
   assert.deepEqual(display.calls.slice(1),[
-   ['source-atop','rgba(0,0,0,.31)',0,0,216,72],
    ['destination-over','#080808',2,2,212,68]
   ]);
   m.renderer.drawTile(m.g,0,0,36,36,'O');
