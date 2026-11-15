@@ -5,8 +5,8 @@ import path from 'node:path';
 import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
 import {createHudDrawing,registerControlHitboxes,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
-import {Core,createSettingsManager,DEFAULT_EFFECTS} from '../tetris/game.js';
-import {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
+import {Core,createSettingsManager,DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices} from '../tetris/game.js';
+import {makeRegion,makeButtonControl,drawPropertySlider,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
@@ -73,7 +73,7 @@ describe('Overlay theme and confirmation controls',()=>{
  test('Display System close control uses checkmark but retains action',()=>{
   const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const part=src.slice(src.indexOf('function drawOptions(q){'),src.indexOf('function drawScores(q){'));
-  assert.match(part,/key\('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close'\)/);
+  assert.match(part,/key\('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close',\{onLight\}\)/);
   assert.doesNotMatch(part,/key\('X',closeX/);
  });
 });
@@ -696,48 +696,27 @@ describe('Shared hitboxes and slider geometry',()=>{
   const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(render,/shadowPreviewRenderer\.draw\(p,\[shadowPreviewGroup\]/);
-  assert.match(render,/const standardRowHeight=/);
-  assert.match(render,/effect\.id==='shadows'\?/);
   assert.match(platform,/let shadowBoardNeedsPaint=false/);
   assert.match(platform,/if\(shadowBoardNeedsPaint\)\{layers\.mark\('board'\)/);
   assert.match(platform,/getSettings:\(\)=>settings\.effects/);
   assert.match(platform,/shadow-preview.*modalUI\.dispose\(\)/);
  });
- test('slider describes painted track, handle and hit region as one geometry',()=>{
-  const a=makeSliderControl(100,200,220,['','bloomStrength',0,100,1,'%'],25);
-  assert.equal(a.size,15);
-  assert.equal(a.valueText,'25%');
-  assert.equal(a.trackX,107.5);
-  assert.equal(a.trackW,169);
-  assert.equal(a.fraction,.25);
-  assert.deepEqual([a.hitbox.x,a.hitbox.y,a.hitbox.w,a.hitbox.h],
-   [a.trackX-a.size/2,186,a.trackW+a.size,28]);
-  assert.equal(a.hitbox.act,'slider');
-  assert.equal(a.hitbox.modalControl,true);
-  assert.equal(a.hitbox.trackX,a.trackX);
-  assert.equal(a.hitbox.trackW,a.trackW);
- });
- test('slider label widths and decimals match approved setting values',()=>{
-  const x=100,y=200,w=220;
-  for(const [setting,value,width,digits] of [
-   [['X','ghostX',-32,32,1,'px'],2,12,'2px'],
-   [['Y','ghostY',-32,32,1,'px'],-2,12,'-2px'],
-   [['RADIUS','softnessRadius',0,10,.5,'px'],3.5,51,'3.5px'],
-   [['STRENGTH','softnessStrength',0,100,1,'%'],64,65,'64%']
-  ]){
-   const s=makeSliderControl(x,y,w,setting,value);
-   assert.equal(s.labelW,width);
-   assert.equal(s.valueText,digits);
-   assert.equal(s.hitbox.field,setting[1]);
-  }
- });
- test('slider input maps the identical model track to persisted values',()=>{
-  const s=makeSliderControl(22,120,284,['','opacity',0,100,5,'%'],50);
-  assert.equal(sliderValueAt(s.hitbox,s.trackX),0);
-  assert.equal(sliderValueAt(s.hitbox,s.trackX+s.trackW*.51),50);
-  assert.equal(sliderValueAt(s.hitbox,s.trackX+s.trackW),100);
-  assert.equal(sliderValueAt(s.hitbox,s.trackX-999),0);
-  assert.equal(sliderValueAt(s.hitbox,s.trackX+s.trackW+999),100);
+ test('property sliders paint the fill and centered value across the hit region',()=>{
+  const bars=[],labels=[];
+  let hit;
+  drawPropertySlider({rect:(...args)=>bars.push(args),text:(...args)=>labels.push(args),
+   region:(...args)=>{hit=makeRegion(...args);},ink:'#e3e3e3'},
+   {x:100,midY:200,w:220,barH:24,labelW:64,gap:6,labelSize:11,
+    setting:{label:'BLUR',field:'lcdBoardBlur',min:0,max:4,step:.5,unit:'px'},value:1.5});
+  assert.deepEqual(bars,[[170,188,150,24,'#676767'],[170,188,56.25,24,'#cecece']]);
+  assert.deepEqual(labels[1].slice(0,3),['1.5px',245,200]);
+  assert.equal(labels[1][5],'center');
+  assert.deepEqual([hit.x,hit.y,hit.w,hit.h,hit.act],[170,188,150,24,'slider']);
+  assert.equal(sliderValueAt(hit,hit.trackX),0);
+  assert.equal(sliderValueAt(hit,hit.trackX+hit.trackW*.38),1.5);
+  assert.equal(sliderValueAt(hit,hit.trackX+hit.trackW),4);
+  assert.equal(sliderValueAt(hit,hit.trackX-999),0);
+  assert.equal(sliderValueAt(hit,hit.trackX+hit.trackW+999),4);
  });
  test('input hit-tests select newest overlay and preserve inclusive boundaries',()=>{
   const a=makeRegion(0,0,300,600,'board',{board:true});
@@ -812,21 +791,25 @@ describe('Pointer and keyboard input',()=>{
  test('the fixed Display Type row can be tapped above the settings scroll viewport',()=>{
   const screen=target(),document=target(),window=target(),regions=[];
   const width=393,height=852,ignore=()=>{};
-  const context=new Proxy({},{get:()=>ignore});
+  const context=new Proxy({createRadialGradient:()=>({addColorStop:ignore}),
+   createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
+   getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},
+   {get:(target,prop)=>target[prop]??ignore});
   const settings=createSettingsManager();
   const modal=createModalUI({
    document:{createElement:()=>({getContext:()=>context})},
-   SHAPES:Core.SHAPES,DISPLAY_EFFECTS:[{id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'}],
-   SCANLINE_CHOICES:[],getViewport:()=>({W:width,H:height}),
+   SHAPES:Core.SHAPES,DISPLAY_EFFECTS,
+   SCANLINE_CHOICES:scanlineChoices([]),getViewport:()=>({W:width,H:height}),
    layout:()=>({width,off:0,hy:40,hh:70,headerButtonH:44,extraH:40,boardW:240}),
    insets:()=>({top:0,bottom:0}),clearRegions:()=>{regions.length=0;},getContext:()=>context,
    panel:ignore,text:ignore,rect:ignore,region:(...args)=>regions.push(makeRegion(...args)),
    key:ignore,buttonLight:()=>206,gray:()=> '#aaa',clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
    UI_SPACE:{unit:6,padX:12,appMax:520,headRightPad:6,headIconGap:6,
-    headTitleInset:8,overlayButtonWidthScale:.85},C:{},getFX:()=>DEFAULT_EFFECTS,
+    headTitleInset:8,overlayButtonWidthScale:.85},C:{},getFX:()=>DEFAULT_EFFECTS,activeScanlinePreset:id=>({id}),
    getModal:()=> 'options',settingValue:settings.settingValue
   });
   modal.paintModal(modal.modalBounds('options'));
+  assert.ok(regions.some(region=>region.field==='crtMenuFade'&&region.act==='slider'));
   const mode=regions.find(region=>region.field==='lcdDisplay');
   assert.ok(mode.y+mode.h<modal.view.y,'the fixed row is outside the scrolling list');
   screen.getBoundingClientRect=()=>({left:0,top:0,width,height});
@@ -844,8 +827,15 @@ describe('Pointer and keyboard input',()=>{
   };
   tap();
   assert.equal(settings.lcdDisplay,true);
+  modal.paintModal(modal.modalBounds('options'));
+  assert.ok(regions.some(region=>region.field==='lcdMenuFade'&&region.act==='slider'));
+  assert.ok(!regions.some(region=>region.field==='crtMenuFade'));
   tap();
   assert.equal(settings.lcdDisplay,false);
+  modal.scroll=modal.maxScroll;
+  modal.paintModal(modal.modalBounds('options'));
+  const sound=regions.find(region=>region.field==='sound');
+  assert.ok(sound.y>=modal.view.y&&sound.y+sound.h<=modal.view.y+modal.view.h);
   input.dispose();modal.dispose();
  });
 

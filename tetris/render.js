@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v230';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v230';
+import {instrumentCompositorPasses} from './diagnostics.js?v231';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v231';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -27,22 +27,6 @@ function makeButtonControl(label,x,y,w,h,act,
   hitbox:makeRegion(x,y,w,h,act,{kind:'button',light,repeat,modalControl})
  };
 }
-// Slider label/value geometry and pointer hitbox must always agree.
-function makeSliderControl(x,y,w,setting,value,size=15,gap=6){
- const [label,field,min,max,step,unit]=setting;
- const digits=step<.1?2:step<1?1:0;
- const valueText=Number(value).toFixed(digits)+unit;
- const labelW=label?(label==='X'||label==='Y'?12:label==='CRT'||label==='LCD'?26:label==='RADIUS'?51:65):0;
- const valueW=Math.max(30,Math.ceil(valueText.length*6.8));
- const trackX=x+labelW+(label?gap:0)+size/2;
- const trackEnd=x+w-valueW-gap-size/2;
- const trackW=Math.max(1,trackEnd-trackX);
- const fraction=Math.max(0,Math.min(1,(value-min)/(max-min)));
- const hitbox=makeRegion(trackX-size/2,y-14,trackW+size,28,'slider',
-  {field,min,max,step,trackX,trackW,modalControl:true});
- return {kind:'slider',label,field,min,max,step,unit,value,
-  x,y,w,size,gap,valueText,labelW,valueW,trackX,trackW,fraction,hitbox};
-}
 // Last-drawn region wins, matching the existing overlay z-order.
 // A settings control must lie inside the scroll viewport vertically.
 function findRegionAt(regions,point,modal=null,modalView=null){
@@ -55,8 +39,7 @@ function findRegionAt(regions,point,modal=null,modalView=null){
  }
  return undefined;
 }
-// The handle geometry exported by makeSliderControl is used without
-// recomputing a potentially different track in the pointer controller.
+// Map pointer positions onto the same geometry used to draw the bar.
 function sliderValueAt(region,x){
  const f=Math.max(0,Math.min(1,(x-region.trackX)/Math.max(1,region.trackW)));
  const v=region.min+f*(region.max-region.min);
@@ -70,9 +53,9 @@ function sliderValueAt(region,x){
  * active pointer so they can be cancelled safely on modal transitions.
  */
 
-return {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};
+return {makeRegion,makeButtonControl,findRegionAt,sliderValueAt};
 })();
-const {makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt}=InteractionGeometry;
+const {makeRegion,makeButtonControl,findRegionAt,sliderValueAt}=InteractionGeometry;
 
 // GPU effects, compositing, rendering feedback.
 const CRT=(()=>{
@@ -1512,6 +1495,20 @@ const UI=(()=>{
  * Drawing targets and hitboxes are caller-owned and resolve on each draw,
  * allowing the same primitives to draw gameplay and modal canvases.
  */
+function drawPropertySlider({rect,text,region,ink},{x,midY,w,barH,labelW,gap,labelSize,setting,value}){
+ const {label,field,min,max,step,unit}=setting;
+ const barX=label?x+labelW+gap:x;
+ const barW=Math.max(1,x+w-barX),barY=midY-barH/2;
+ const fraction=Math.max(0,Math.min(1,(value-min)/(max-min)));
+ const digits=step<.1?2:step<1?1:0;
+ rect(barX,barY,barW,barH,'#676767');
+ rect(barX,barY,barW*fraction,barH,'#cecece');
+ if(label)text(label,x,midY,labelSize,ink,'left',Math.max(1,labelW-2));
+ text(value.toFixed(digits)+unit,barX+barW/2,midY,
+  Math.min(13,Math.max(9,barH*.64)),'#060606','center',Math.max(1,barW-8),'terminal');
+ region(barX,barY,barW,barH,'slider',{field,min,max,step,
+  trackX:barX,trackW:barW,modalControl:true});
+}
 function createCanvasUI({getContext,getRegions,C,FONT,
  LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
  MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,
@@ -1940,32 +1937,12 @@ function updateShadowPreview(){
  }
 }
 
-// Match the shared square panel outline around every thumbnail, with a
-// subtle 1px light-top/left and dark-bottom/right rim for terminal-style bevel.
 function drawEffectThumbnail(id,x,y,size){
  if(id==='shadows')updateShadowPreview();
  const g=getContext();
- panel(x,y,size,size,9,C.panel,C.border);
- const inset=3,inner=Math.max(1,size-2*inset);
- g.save();
- g.beginPath();
- g.rect(x+inset,y+inset,inner,inner);
- g.clip();
+ panel(x,y,size,size,0,C.panel,C.subtleBorder);
+ const inset=2,inner=size-2*inset;
  g.drawImage(EFFECT_PREVIEWS[id],x+inset,y+inset,inner,inner);
- g.restore();
- g.save();
- g.lineWidth=1;
- g.strokeStyle=gray(128);
- g.beginPath();
- g.moveTo(x+9,y+1.5);g.lineTo(x+size-9,y+1.5);
- g.moveTo(x+1.5,y+9);g.lineTo(x+1.5,y+size-9);
- g.stroke();
- g.strokeStyle=gray(45);
- g.beginPath();
- g.moveTo(x+9,y+size-1.5);g.lineTo(x+size-9,y+size-1.5);
- g.moveTo(x+size-1.5,y+9);g.lineTo(x+size-1.5,y+size-9);
- g.stroke();
- g.restore();
 }
 function selectedScanlineChoice(){const FX=getFX();return FX.scanlines?activeScanlinePreset(FX.scanlinePreset).id:'off';}
 function toggleScanlineMenu(){
@@ -1987,54 +1964,25 @@ function settingsExpandArrow(x,y,expanded,color){
  g.save();g.translate(x,y);if(expanded)g.rotate(Math.PI/2);
  text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');g.restore();
 }
-// Size EVERY row against the most complex effect, as approved. With
-// thumbnails centered, their edge-to-edge black space is identical.
-const SETTINGS_ROW_GAP=UI_SPACE.unit; // 6px between equal-height row slots.
-const SETTINGS_TITLE_H=20,SETTINGS_CONTROL_H=28,SETTINGS_SELECT_H=30;
-function settingsPreviewSize(width){
- return Math.min(68,Math.max(56,Math.round(width*.185)));
-}
-function settingsContentHeight(effect,gap){
- const controls=effect.id==='ghost'?2:(effect.sliders?.length||0);
- return SETTINGS_TITLE_H+controls*(SETTINGS_CONTROL_H+gap)+
-  (effect.pattern?(SETTINGS_SELECT_H+gap):0)+
-  (effect.id==='shadows'?(SETTINGS_CONTROL_H+2*gap):0);
-}
-function settingsRows(buttonH,gap,width){
- const image=settingsPreviewSize(width),rows=[];let offset=0;
- // Preserve existing row sizes. Shadow properties now live in the light
- // laboratory; the Display System contains just a toggle and launch action.
- const standardMax=Math.max(...DISPLAY_EFFECTS.filter(e=>e.id!=='shadows')
-  .map(effect=>settingsContentHeight(effect,gap)));
- const standardRowHeight=Math.max(image,standardMax+2*gap);
+const SETTINGS_TITLE_H=38,SETTINGS_BAR_H=24,SETTINGS_SELECT_H=30,SETTINGS_PREVIEW_SIZE=32;
+function settingsRows(gap,onLight){
+ const rows=[];
+ let offset=0;
  for(const effect of DISPLAY_EFFECTS){
-  const contentHeight=settingsContentHeight(effect,gap);
-  const rowHeight=effect.id==='shadows'?
-   Math.max(image,contentHeight+2*gap):standardRowHeight;
-  const choiceHeight=Math.max(34,buttonH-8);
-  const expanded=effect.pattern&&scanlineMenuOpen;
-  const height=rowHeight+(expanded?SCANLINE_CHOICES.length*(choiceHeight+gap):0);
-  rows.push({kind:'effect',effect,offset,height,rowHeight,contentHeight,choiceHeight});
-  offset+=height+SETTINGS_ROW_GAP;
+  if(effect.section){
+   rows.push({section:effect.section,offset,height:24});
+   offset+=24;
+  }
+  const sliders=(onLight?effect.lcdSliders:undefined)??effect.sliders??[];
+  const controls=sliders.length+Number(Boolean(effect.pattern||effect.id==='shadows'));
+  const choiceCount=effect.pattern&&scanlineMenuOpen?SCANLINE_CHOICES.length:0;
+  const height=SETTINGS_TITLE_H+2*gap+sliders.length*SETTINGS_BAR_H+
+   (controls+choiceCount)*gap+
+   ((effect.pattern||effect.id==='shadows')?SETTINGS_SELECT_H:0)+choiceCount*SETTINGS_SELECT_H;
+  rows.push({effect,sliders,offset,height});
+  offset+=height+gap;
  }
- return {rows,height:Math.max(0,offset-SETTINGS_ROW_GAP)};
-}
-// One uniform slider primitive everywhere: 15px square, 6px gaps, real
-// persisted values and full remaining row width from image to right inset.
-function drawSettingsSlider(x,y,w,setting){
- const ctrl=makeSliderControl(x,y,w,setting,Number(settingValue(setting[1])),
-  SETTINGS_SQUARE_SIZE,UI_SPACE.unit);
- const {label,size,labelW,trackX,trackW,fraction,valueText,valueW}=ctrl;
- if(label)text(label,x,y,10,C.ink,'left',labelW);
- rect(trackX,y-1.5,trackW,3,C.bright);
- rect(trackX,y-1.5,trackW*fraction,3,C.bright);
- rect(trackX+trackW*fraction-size/2,y-size/2,size,size,C.bright);
- text(valueText,x+w,y,10,C.bright,'right',valueW,'terminal');
- const hit=ctrl.hitbox;
- region(hit.x,hit.y,hit.w,hit.h,hit.act,{
-  field:hit.field,min:hit.min,max:hit.max,step:hit.step,
-  trackX:hit.trackX,trackW:hit.trackW,modalControl:hit.modalControl
- });
+ return {rows,height:Math.max(0,offset-gap)};
 }
 // Monochrome 16px bug glyph, so no multicolour system emoji enters our CRT.
 function drawDebugBug(cx,cy,color=C.ink){
@@ -2059,6 +2007,8 @@ function drawOptions(q){
  // rounded panel, no translucent scrim and no game artwork beneath it.
  clearRegions();region(0,0,W,H,'block');
  const r=layout(),pad=q.pad,gap=q.gap,headH=r.hh;
+ const onLight=Boolean(settingValue('lcdDisplay'));
+ const headerColors=onLight?LCD_BOARD:C;
  rect(0,0,W,H,C.bg);
  // Centre the same content column (<=520px) in portrait and landscape.
  // On phones its X coordinates are identical to the previous dialog,
@@ -2068,21 +2018,21 @@ function drawOptions(q){
  const pageX=r.off+(r.width-pageW)/2,headerY=r.hy;
  // Use the very same panel radius, fill, border, header centre, font size,
  // colour, tracking and title inset as the TETRIS SYSTEM home-screen header.
- panel(pageX,headerY,pageW,headH,12,C.panel);
+ panel(pageX,headerY,pageW,headH,0,headerColors.panel,headerColors.border);
  const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
  const closeX=pageX+pageW-UI_SPACE.headRightPad-q.buttonH;
  const debugX=closeX-q.buttonH-UI_SPACE.headIconGap;
  text('DISPLAY SYSTEM',pageX+UI_SPACE.headTitleInset,
-  headerY+headH/2,titleSize,C.ink,'left',
+  headerY+headH/2,titleSize,headerColors.ink,'left',
   Math.max(10,debugX-pageX-UI_SPACE.headTitleInset-gap));
  const headerButtonY=headerY+(headH-q.buttonH)/2;
- key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug');
- const debugLum=gray(buttonLight(debugX,headerButtonY,q.buttonH,q.buttonH));
+ key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug',{onLight});
+ const debugLum=onLight?headerColors.ink:gray(buttonLight(debugX,headerButtonY,q.buttonH,q.buttonH));
  if(debugCopyState==='copied'||debugCopyState==='failed')
   text(debugCopyState==='copied'?'✓':'!',debugX+q.buttonH/2,
    headerButtonY+q.buttonH/2,BUTTON_ICON_FONT_SIZE,debugLum,'center');
  else drawDebugBug(debugX+q.buttonH/2,headerButtonY+q.buttonH/2,debugLum);
- key('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close');
+ key('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close',{onLight});
  const restoreW=Math.min(pageW-2*pad,
   r.boardW*UI_SPACE.overlayButtonWidthScale);
  const restoreY=H-q.safeBottom-gap-r.extraH;
@@ -2090,17 +2040,17 @@ function drawOptions(q){
   restoreW,r.extraH,'resetFX',{light:true});
  const contentX=pageX+pad,contentW=pageW-2*pad;
  const modeY=headerY+headH+gap,modeH=30;
- const onLight=Boolean(settingValue('lcdDisplay'));
- panel(contentX,modeY,contentW,modeH,0,C.panel,C.border);
- text('DISPLAY TYPE',contentX+2*gap,modeY+modeH/2,12,C.ink,'left',contentW*.52);
+ panel(contentX,modeY,contentW,modeH,0,headerColors.panel,headerColors.border);
+ text('DISPLAY TYPE',contentX+2*gap,modeY+modeH/2,12,headerColors.ink,'left',contentW*.52);
  text(onLight?'LCD   ↔':'CRT   ↔',contentX+contentW-2*gap,modeY+modeH/2,
-  12,C.bright,'right',contentW*.42,'terminal');
+  12,headerColors.bright,'right',contentW*.42,'terminal');
  // This row sits above the scroll viewport, like the header buttons.
  region(contentX,modeY,contentW,modeH,'toggle',{field:'lcdDisplay'});
  const top=modeY+modeH+gap,bottom=restoreY-gap;
  const visibleH=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:visibleH};
- const model=settingsRows(q.buttonH,gap,contentW);
+ const model=settingsRows(gap,onLight);
+ const sliderGraphics={rect,text,region,ink:C.ink};
  optionsMaxScroll=Math.max(0,model.height-visibleH);
  optionsScroll=clamp(optionsScroll,0,optionsMaxScroll);
  g.save();g.beginPath();g.rect(contentX,top,contentW,visibleH);g.clip();
@@ -2108,52 +2058,42 @@ function drawOptions(q){
  for(const row of model.rows){
   const y=top+row.offset-optionsScroll;
   if(y+row.height<top||y>bottom)continue;
-  const effect=row.effect,previewSize=settingsPreviewSize(contentW);
-  const sliders=onLight&&effect.lcdSliders?effect.lcdSliders:effect.sliders;
-  // Centre thumbnail and content block independently in the SAME measured row.
-  const previewX=contentX+gap;
-  const previewY=y+(row.rowHeight-previewSize)/2;
-  drawEffectThumbnail(effect.id,previewX,previewY,previewSize);
-  const ctrlX=previewX+previewSize+gap;
-  const ctrlW=contentX+contentW-gap-ctrlX;
-  const blockTop=y+(row.rowHeight-row.contentHeight)/2;
-  const titleY=blockTop+SETTINGS_TITLE_H/2;
-  const toggleLum=gray(buttonLight(ctrlX,titleY-17,ctrlW,34));
-  let titleX=ctrlX;
+  if(row.section){
+   text(row.section,contentX+gap,y+row.height/2,11,C.weak,'left',contentW-2*gap);
+   continue;
+  }
+  const {effect,sliders}=row;
+  const ctrlX=contentX+2*gap,ctrlW=contentW-4*gap;
+  const titleY=y+gap+SETTINGS_TITLE_H/2;
+  const toggleSize=SETTINGS_SQUARE_SIZE;
+  const toggleX=ctrlX+ctrlW-toggleSize;
+  const titleX=ctrlX+SETTINGS_PREVIEW_SIZE+gap;
+  panel(contentX,y,contentW,row.height,0,C.panel,C.subtleBorder);
+  drawEffectThumbnail(effect.id,ctrlX,titleY-SETTINGS_PREVIEW_SIZE/2,SETTINGS_PREVIEW_SIZE);
+  const toggleLum=gray(buttonLight(ctrlX,y+gap,ctrlW,SETTINGS_TITLE_H));
+  text(effect.title,titleX,titleY,12,toggleLum,'left',
+   Math.max(10,(effect.toggle?toggleX-gap:ctrlX+ctrlW)-titleX));
   if(effect.toggle){
-   settingSquare(ctrlX,titleY-SETTINGS_SQUARE_SIZE/2,
-    SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)),toggleLum);
-   titleX+=SETTINGS_SQUARE_SIZE+gap;
-   region(ctrlX,titleY-17,ctrlW,34,'toggle',
+   settingSquare(toggleX,titleY-toggleSize/2,toggleSize,Boolean(settingValue(effect.toggle)),toggleLum);
+   region(ctrlX,y+gap,ctrlW,SETTINGS_TITLE_H,'toggle',
     {field:effect.toggle,modalControl:true});
   }
-  text(effect.title,titleX,titleY,12,toggleLum,
-   'left',Math.max(10,ctrlX+ctrlW-titleX));
-  const firstY=blockTop+SETTINGS_TITLE_H+gap+SETTINGS_CONTROL_H/2;
-  if(effect.id==='ghost'){
-   const half=(ctrlW-2*gap)/2;
-   drawSettingsSlider(ctrlX,firstY,half,sliders[0]);
-   drawSettingsSlider(ctrlX+half+2*gap,firstY,half,sliders[1]);
-   drawSettingsSlider(ctrlX,firstY+SETTINGS_CONTROL_H+gap,
-    ctrlW,sliders[2]);
-  }else if(sliders?.length){
-   sliders.forEach((setting,i)=>drawSettingsSlider(ctrlX,
-    firstY+i*(SETTINGS_CONTROL_H+gap),ctrlW,setting));
+  let controlY=y+SETTINGS_TITLE_H+2*gap;
+  const labelW=Math.min(125,Math.max(64,ctrlW*.29));
+  for(const [label,field,min,max,step,unit] of sliders){
+   drawPropertySlider(sliderGraphics,{x:ctrlX,midY:controlY+SETTINGS_BAR_H/2,
+    w:ctrlW,barH:SETTINGS_BAR_H,labelW,gap,labelSize:11,
+    setting:{label,field,min,max,step,unit},value:Number(settingValue(field))});
+   controlY+=SETTINGS_BAR_H+gap;
   }
   if(effect.id==='shadows'){
-   // Launch a temporary, paused directional-light view. It is an ACTION,
-   // not a saved display effect, and does not replace angle precision input.
-   const lightY=blockTop+SETTINGS_TITLE_H+
-    (sliders?.length||0)*(SETTINGS_CONTROL_H+gap)+gap;
-   key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light',
+   key('LIGHT CONTROL',ctrlX,controlY,ctrlW,SETTINGS_SELECT_H,'light',
     {modalControl:true});
   }
   if(effect.pattern){
-   // Pattern picker belongs to Scanlines; no new category or separate row.
-   const selectY=blockTop+SETTINGS_TITLE_H+gap+
-    SETTINGS_CONTROL_H+gap,selectH=SETTINGS_SELECT_H;
+   const selectY=controlY,selectH=SETTINGS_SELECT_H;
    const pickerLum=gray(buttonLight(ctrlX,selectY,ctrlW,selectH));
-   panel(ctrlX,selectY,ctrlW,selectH,5,C.button,pickerLum);
+   panel(ctrlX,selectY,ctrlW,selectH,0,C.button,pickerLum);
    const current=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
    const shortNames={horizontal:'HORIZONTAL',aperture:'APERTURE',
     slot:'SLOT MASK',dot:'DOT MASK'};
@@ -2164,18 +2104,13 @@ function drawOptions(q){
     selectY+selectH/2,scanlineMenuOpen,pickerLum);
    region(ctrlX,selectY,ctrlW,selectH,'patternSelect',{modalControl:true});
    if(scanlineMenuOpen)SCANLINE_CHOICES.forEach((option,i)=>{
-    const cy=y+row.rowHeight+i*(row.choiceHeight+gap);
+    const cy=selectY+(i+1)*(selectH+gap);
     const chosen=option.id===selectedScanlineChoice();
-    const choiceLum=gray(buttonLight(contentX+2*gap,cy,
-     contentW-4*gap,row.choiceHeight));
-    settingSquare(contentX+3*gap,
-     cy+(row.choiceHeight-SETTINGS_SQUARE_SIZE)/2,
-     SETTINGS_SQUARE_SIZE,chosen,choiceLum);
-    text(option.name,contentX+5*gap+SETTINGS_SQUARE_SIZE,
-     cy+row.choiceHeight/2,11,choiceLum,
-     'left',contentW-8*gap-SETTINGS_SQUARE_SIZE);
-    region(contentX+2*gap,cy,contentW-4*gap,row.choiceHeight,
-     'scanlineChoice',{field:option.id,modalControl:true});
+    const choiceLum=gray(buttonLight(ctrlX,cy,ctrlW,selectH));
+    text(option.name,ctrlX+gap,cy+selectH/2,11,choiceLum,
+     'left',ctrlW-3*gap-toggleSize);
+    settingSquare(toggleX,cy+(selectH-toggleSize)/2,toggleSize,chosen,choiceLum);
+    region(ctrlX,cy,ctrlW,selectH,'scanlineChoice',{field:option.id,modalControl:true});
    });
   }
  }
@@ -2523,7 +2458,7 @@ function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  ctx.restore();
 }
 
-return {createCanvasUI,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
+return {createCanvasUI,drawPropertySlider,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
 })();
 // Device-independent CSS-pixel visual geometry.
 const Layout=(()=>{
@@ -2689,9 +2624,9 @@ return api;
 })();
 export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
-export const {createCanvasUI,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
+export const {createCanvasUI,drawPropertySlider,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
-export {instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt};
+export {instrumentCompositorPasses,makeRegion,makeButtonControl,findRegionAt,sliderValueAt};
 
 /* Rendering-resource lifecycle: private implementation, public explicit hooks.
  * Platform decides WHEN to suspend or dispose; renderer owns WHAT is disposed.

@@ -6,7 +6,6 @@ import {runInNewContext} from 'node:vm';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,buttonFeedbackChanged,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/render.js';
-import {makeSliderControl,sliderValueAt} from '../tetris/render.js';
 import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/game.js';
 import {createCanvasUI,createHudDrawing} from '../tetris/render.js';
 import Layout from '../tetris/render.js';
@@ -444,9 +443,6 @@ describe('Phosphor persistence',()=>{
   const slider=effect.sliders[0];
   assert.equal(slider[1],'persistenceMs');
   assert.deepEqual(slider.slice(2),[10,120,10,'ms']);
-  const ui=makeSliderControl(90,35,180,slider,190);
-  assert.equal(sliderValueAt(ui.hitbox,ui.trackX),10);
-  assert.equal(sliderValueAt(ui.hitbox,ui.trackX+ui.trackW),120);
   assert.equal(DISPLAY_EFFECTS.some(e=>e.id==='scanRefreshHz'),false);
   assert.equal(PHOSPHOR_BOUNDS.riseMs,12);
  });
@@ -1298,22 +1294,17 @@ describe('v200 context-only light property deck',()=>{
    src.indexOf('function paintLightDirectionOverlay('));
   assert.match(deck,/panel\(r\.dx,r\.dy,r\.dw,r\.dh,0,C\.panel\)/);
   assert.match(deck,/for\(let i=0;i<LIGHT_PROPERTY_CONTROLS\.length;i\+\+\)/);
-  assert.match(deck,/const fill=206,empty=Math\.round\(fill\*\.50\),darkInk=6/);
-  assert.match(deck,/rect\(barX,barY,barW,barH,gray\(empty\)\)/);
-  assert.match(deck,/rect\(barX,barY,barW\*fraction,barH,gray\(fill\)\)/);
-  assert.match(deck,/barX\+barW\/2,midY/);
-  assert.match(deck,/region\(barX,barY,barW,barH,'slider'/);
+  assert.match(deck,/drawPropertySlider\(sliderGraphics/);
   assert.doesNotMatch(deck,/shadowAngle|DONE|drawControls/);
   const game=gameSource();
   assert.match(game,/LIGHT_PROPERTY_CONTROLS=Object\.freeze\(\[/);
-  assert.doesNotMatch(game.slice(game.indexOf(" {id:'shadows'"),
-   game.indexOf(" {id:'ghost'")) ,/sliders:/);
+  assert.equal(DISPLAY_EFFECTS.find(effect=>effect.id==='shadows').sliders,undefined);
  });
  test('Display System remains a launcher and has no duplicated shadow sliders',()=>{
   const src=renderer();
   assert.match(src,/effect\.id==='shadows'/);
   assert.match(src,/key\('LIGHT CONTROL'/);
-  assert.match(src,/effect\.sliders\?\.length\|\|0/);
+  assert.match(src,/drawPropertySlider\(sliderGraphics/);
  });
 });
 

@@ -474,12 +474,13 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
  shadowBias:1,shadowOpacity:.8});
 export const DISPLAY_EFFECTS=[
- {id:'menuBlur',title:'MENU BACKDROP',
+ {id:'menuBlur',section:'DISPLAY',title:'MENU BACKDROP',
   sliders:[['BLUR','crtMenuBlur',0,100,1,'%'],['FADE','crtMenuFade',0,100,1,'%']],
   lcdSliders:[['BLUR','lcdMenuBlur',0,100,1,'%'],['FADE','lcdMenuFade',0,100,1,'%']]},
  {id:'boardBlur',title:'GAMEPLAY BLUR',
   sliders:[['CRT','crtBoardBlur',0,4,.5,'px'],['LCD','lcdBoardBlur',0,4,.5,'px']]},
- {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
+ {id:'shadows',title:'DROP SHADOWS',toggle:'shadows'},
+ {id:'phosphor',section:'CRT EFFECTS',title:'PHOSPHOR COLOR',toggle:'phosphor'},
  {id:'persistence',title:'PHOSPHOR RESPONSE',toggle:'persistence',
   sliders:[['DECAY','persistenceMs',10,120,10,'ms']]},
  {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
@@ -488,9 +489,6 @@ export const DISPLAY_EFFECTS=[
   sliders:[['','vignetteAmount',0,100,1,'%']]},
  {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
   sliders:[['','bloomStrength',0,100,1,'%']]},
- // Light-specific sliders live only in the paused Light Control deck.
- // The Display System retains the effect toggle and launcher.
- {id:'shadows',title:'DROP SHADOWS',toggle:'shadows'},
  {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
   sliders:[['X','ghostX',-32,32,1,'px'],
    ['Y','ghostY',-32,32,1,'px'],
@@ -498,7 +496,7 @@ export const DISPLAY_EFFECTS=[
  {id:'softness',title:'EDGE SOFTNESS',toggle:'softness',
   sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
    ['RADIUS','softnessRadius',0,10,.5,'px']]},
- {id:'piece',title:'GHOST PIECE',toggle:'pieceGhost'},
+ {id:'piece',section:'GAME',title:'GHOST PIECE',toggle:'pieceGhost'},
  {id:'sound',title:'SOUND',toggle:'sound'}
 ];
 // Supported independently of renderer code so saved preferences migrate safely.

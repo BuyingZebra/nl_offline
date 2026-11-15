@@ -61,7 +61,7 @@ test('visual input geometry and device event handling have distinct owners',()=>
  assert.match(input,/export function createInputController/);
  assert.match(input,/import \{findRegionAt,sliderValueAt\} from '\.\/render\.js\?v\d{3}'/);
  assert.match(visual,/const InteractionGeometry=/);
- assert.match(visual,/export \{instrumentCompositorPasses,makeRegion,makeButtonControl,makeSliderControl,findRegionAt,sliderValueAt\}/);
+ assert.match(visual,/export \{instrumentCompositorPasses,makeRegion,makeButtonControl,findRegionAt,sliderValueAt\}/);
 });
 test('render diagnostics and browser clipboard have distinct owners',()=>{
  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');

@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v230';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v230';
+import {createInputController} from './input.js?v231';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertySlider,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v231';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v230';
+export {createInputController} from './input.js?v231';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -1136,31 +1136,14 @@ function paintLightPropertyPanel(r){
  const rowGap=Math.min(gap,Math.max(2,r.dh*.045));
  const rowH=Math.max(1,(r.dh-2*inset-rowGap*3)/4);
  const labelW=Math.min(125,Math.max(80,contentW*.29));
- const barX=contentX+labelW+gap;
- const barW=Math.max(1,contentX+contentW-barX);
- const fill=206,empty=Math.round(fill*.50),darkInk=6;
+ const sliderGraphics={rect,text,region,ink:C.ink};
  for(let i=0;i<LIGHT_PROPERTY_CONTROLS.length;i++){
   const setting=LIGHT_PROPERTY_CONTROLS[i];
   const y=r.dy+inset+i*(rowH+rowGap);
-  const midY=y+rowH/2,barH=Math.max(9,Math.min(24,rowH*.76));
-  const value=Number(settings.settingValue(setting.field));
-  const fraction=clamp((value-setting.min)/(setting.max-setting.min),0,1);
-  const barY=midY-barH/2;
-  // A single unframed rectangular bar: 206 filled, 50% empty. The
-  // dim half-luminance retains readable inverse text at low fill levels.
-  rect(barX,barY,barW,barH,gray(empty));
-  rect(barX,barY,barW*fraction,barH,gray(fill));
-  text(setting.label,contentX,midY,Math.min(11,Math.max(8,rowH*.44)),
-   C.ink,'left',Math.max(1,labelW-2));
-  // The numeric value is not a separate box. It uses the same 6-luminance
-  // negative-space ink as the normal solid DROP button.
-  text(String(Math.round(value))+setting.unit,
-   barX+barW/2,midY,Math.min(13,Math.max(9,barH*.64)),
-   gray(darkInk),'center',Math.max(1,barW-8),'terminal');
-  region(barX,barY,barW,barH,'slider',{
-   field:setting.field,min:setting.min,max:setting.max,step:setting.step,
-   trackX:barX,trackW:barW,modalControl:true
-  });
+  drawPropertySlider(sliderGraphics,{x:contentX,midY:y+rowH/2,w:contentW,
+   barH:Math.max(9,Math.min(24,rowH*.76)),labelW,gap,
+   labelSize:Math.min(11,Math.max(8,rowH*.44)),setting,
+   value:Number(settings.settingValue(setting.field))});
  }
 }
 function paintLightDirectionOverlay(){
