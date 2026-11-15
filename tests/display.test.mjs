@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,buttonFeedbackChanged,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/render.js';
 import {makeSliderControl,sliderValueAt} from '../tetris/render.js';
-import {DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/game.js';
+import {DEFAULT_EFFECTS,DISPLAY_EFFECTS,createActionController,createScreenManager,SCREENS} from '../tetris/game.js';
 import {createCanvasUI,createHudDrawing} from '../tetris/render.js';
 import Layout from '../tetris/render.js';
 
@@ -15,7 +15,7 @@ const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
 
 describe('CRT composition',()=>{
  const source=fs.readFileSync(path.join(appDir,'render.js'),'utf8');
- const compositor=source.slice(source.indexOf('const MENU_BLUR_PERCENT='),source.indexOf('const MAX_BUTTON_FLASHES='));
+ const compositor=source.slice(source.indexOf('const VIGNETTE_FADE_SPREAD='),source.indexOf('const MAX_BUTTON_FLASHES='));
 
  function setup({shadowBox=true,pieceMask=false}={}){
   const instances=[],textures=[];
@@ -75,6 +75,7 @@ describe('CRT composition',()=>{
   return {pipeline,composer:instances[0],externalPopup,externalPieceMask,instances,textures};
  }
  const states={
+  ...DEFAULT_EFFECTS,
   phosphor:true,bloom:true,bloomStrength:.3,ghost:true,ghostX:2,ghostY:0,ghostStrength:22,
   softness:true,softnessStrength:.64,softnessRadius:3,vignette:true,vignetteAmount:.39,
   scanlines:true,scanlineOpacity:20,scanlinePreset:'original',
@@ -284,6 +285,25 @@ describe('CRT composition',()=>{
   assert.equal(horizontal.enabled,false);
   pipeline.dispose();
  });
+ test('menu blur and board visibility are independent in CRT and LCD',()=>{
+  const {pipeline,composer}=setup();
+  const [,horizontal,popup]=composer.passes;
+  const state={fx:{...states,crtMenuBlur:47,crtMenuVisibility:13,
+    lcdMenuBlur:0,lcdMenuVisibility:25},
+   theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',popupStatus:'paused',
+   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
+  pipeline.syncFX(state);
+  assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.47,1.25));
+  assert.equal(popup.uniforms.uFade.value,.87);
+  pipeline.syncFX({...state,lcd:true});
+  assert.equal(horizontal.enabled,false);
+  assert.equal(popup.uniforms.uFade.value,.75);
+  pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:65,lcdMenuVisibility:100}});
+  assert.equal(horizontal.enabled,true);
+  assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.65,1.25));
+  assert.equal(popup.uniforms.uFade.value,0);
+  pipeline.dispose();
+ });
  test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
   const {pipeline,composer}=setup();
   const state={fx:states,theme:'green',width:393,height:852,dpr:3,
@@ -439,7 +459,7 @@ describe('Phosphor persistence',()=>{
   assert.ok(!status.includes('resetPersistence'), 'game status changes must preserve glow');
  });
  const pipeline=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
- const pass=pipeline.slice(pipeline.indexOf('const vertex='),pipeline.indexOf('const MENU_BLUR_PERCENT='));
+ const pass=pipeline.slice(pipeline.indexOf('const vertex='),pipeline.indexOf('const VIGNETTE_FADE_SPREAD='));
 
  test('postcomposition luminance response has no scanning logic',()=>{
   assert.match(pass,/tSource/);
@@ -575,7 +595,7 @@ describe('Button luminance',()=>{
 });
 
 describe('Canvas button drawing',()=>{
- function drawKey(light=false,power=0,arrow=false){
+ function drawKey(light=false,power=0,arrow=false,onLight=false){
   const calls=[],regions=[];
   const g={
    fillStyle:'',strokeStyle:'',
@@ -595,7 +615,7 @@ describe('Canvas button drawing',()=>{
    BUTTON_ICON_LABELS:new Set(['▶']),
    MAIN_ACTION_FONT_SIZE:16,BUTTON_FONT_SIZE:14,BUTTON_ICON_FONT_SIZE:18
   });
-  ui.key('DROP',20,40,90,45,'hard',{light,arrow});
+  ui.key('DROP',20,40,90,45,'hard',{light,arrow,onLight});
   return {calls,ui,regions};
  }
  test('unfilled buttons excite outlines, labels and optional icons without filling',()=>{
@@ -606,6 +626,14 @@ describe('Canvas button drawing',()=>{
    for(const call of calls.slice(1))assert.equal(call.color,
     'rgb('+lit+','+lit+','+lit+')',call.type);
    assert.equal(regions[0].kind,'button');
+  }
+ });
+ test('outlined LCD buttons paint an opaque face at rest and while pressed',()=>{
+  for(const power of [0,1]){
+   const {calls}=drawKey(false,power,false,true);
+   assert.equal(calls[0].type,'fill');
+   assert.equal(calls[0].color,'#e7e7e7');
+   assert.equal(calls[1].type,'stroke');
   }
  });
  test('filled buttons excite face and stroke but preserve contrasting moving glyphs',()=>{

@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v224';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v224';
+import {instrumentCompositorPasses} from './diagnostics.js?v225';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v225';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -229,11 +229,9 @@ function createPhosphorPersistencePass(){
  * Source canvases belong to the caller; internal CRT textures belong here.
  */
 
-// Fixed V049 optical constants; unchanged by modularization.
-const MENU_BLUR_PERCENT=47,BOARD_POPUP_FADE=.87;
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
-function boardBlurParams(){
- const p=MENU_BLUR_PERCENT/100;
+function boardBlurParams(percent){
+ const p=percent/100;
  return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
 }
 
@@ -576,8 +574,6 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const hues={green:new THREE.Vector3(.2,1,.2),
   amber:new THREE.Vector3(185/255,79/255,9/255)};
  let persistenceWasEnabled=false;
- // Immutable popup blur parameters and pass references need no per-frame allocation.
- const popupBlur=boardBlurParams();
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
  const lcdPopupBase=new THREE.Color(0xd8d8d8),crtPopupBase=new THREE.Color(0x101010);
 function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
@@ -624,13 +620,17 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // CRT and LCD settings. Popup blur takes over behind menus.
  const gameplaySigma=boardStatus==='playing'&&boardBackdropVisible?
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
- boardBlurHorizontal.enabled=boardOverlayActive||gameplaySigma>0;
+ const popupBlur=boardOverlayActive?
+  boardBlurParams(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):null;
+ const sigma=popupBlur?.sigma??gameplaySigma;
+ boardBlurHorizontal.enabled=sigma>.01;
  boardPopupPass.enabled=boardBackdropVisible;
  for(const pass of popupPasses){
-  pass.uniforms.uSigma.value=boardOverlayActive?popupBlur.sigma:gameplaySigma;
-  pass.uniforms.uStep.value=boardOverlayActive?popupBlur.step:1;
+  pass.uniforms.uSigma.value=sigma;
+  pass.uniforms.uStep.value=popupBlur?.step??1;
  }
- boardPopupPass.uniforms.uFade.value=boardOverlayActive?BOARD_POPUP_FADE:0;
+ boardPopupPass.uniforms.uFade.value=boardOverlayActive?
+  1-(lcd?fx.lcdMenuVisibility:fx.crtMenuVisibility)/100:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
  // Keep the live CanvasTexture bound through all update paths.
@@ -1592,7 +1592,7 @@ function key(label,x,y,w,h,act,opts={}){
  // V165: keep button artwork as a single flat face. Solid buttons
  // remain exactly the approved full luminance (206 base, 255 pressed);
  // press afterglow, text, stroke, and hitboxes are unchanged.
- panel(model.x,model.y,model.w,model.h,8,model.light?lit:opts.onLight?null:C.button,lit);
+ panel(model.x,model.y,model.w,model.h,8,model.light?lit:opts.onLight?'#e7e7e7':C.button,lit);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
   model.light?inverseInk:lit,'center',Math.max(10,model.w-14));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
@@ -1875,7 +1875,7 @@ function effectPreview(id){
   p.save();p.globalAlpha=.33;p.translate(-8,2);drawPiece();p.restore();
   p.save();p.globalAlpha=.48;p.translate(8,-2);drawPiece();p.restore();
   drawPiece();
- }else if(id==='softness'||id==='boardBlur'){
+ }else if(id==='softness'||id==='boardBlur'||id==='menuBlur'){
   p.save();p.filter='blur(4.2px)';drawPiece();p.restore();
  }else if(id==='bloom'){
   p.save();p.shadowColor=gray(240);p.shadowBlur=22;drawPiece();p.restore();
@@ -2103,6 +2103,7 @@ function drawOptions(q){
   const y=top+row.offset-optionsScroll;
   if(y+row.height<top||y>bottom)continue;
   const effect=row.effect,previewSize=settingsPreviewSize(contentW);
+  const sliders=onLight&&effect.lcdSliders?effect.lcdSliders:effect.sliders;
   // Centre thumbnail and content block independently in the SAME measured row.
   const previewX=contentX+gap;
   const previewY=y+(row.rowHeight-previewSize)/2;
@@ -2125,23 +2126,19 @@ function drawOptions(q){
   const firstY=blockTop+SETTINGS_TITLE_H+gap+SETTINGS_CONTROL_H/2;
   if(effect.id==='ghost'){
    const half=(ctrlW-2*gap)/2;
-   drawSettingsSlider(ctrlX,firstY,half,effect.sliders[0]);
-   drawSettingsSlider(ctrlX+half+2*gap,firstY,half,effect.sliders[1]);
+   drawSettingsSlider(ctrlX,firstY,half,sliders[0]);
+   drawSettingsSlider(ctrlX+half+2*gap,firstY,half,sliders[1]);
    drawSettingsSlider(ctrlX,firstY+SETTINGS_CONTROL_H+gap,
-    ctrlW,effect.sliders[2]);
-  }else if(effect.id==='softness'){
-   drawSettingsSlider(ctrlX,firstY,ctrlW,effect.sliders[0]);
-   drawSettingsSlider(ctrlX,firstY+SETTINGS_CONTROL_H+gap,
-    ctrlW,effect.sliders[1]);
-  }else if(effect.sliders?.length){
-   effect.sliders.forEach((setting,i)=>drawSettingsSlider(ctrlX,
+    ctrlW,sliders[2]);
+  }else if(sliders?.length){
+   sliders.forEach((setting,i)=>drawSettingsSlider(ctrlX,
     firstY+i*(SETTINGS_CONTROL_H+gap),ctrlW,setting));
   }
   if(effect.id==='shadows'){
    // Launch a temporary, paused directional-light view. It is an ACTION,
    // not a saved display effect, and does not replace angle precision input.
    const lightY=blockTop+SETTINGS_TITLE_H+
-    (effect.sliders?.length||0)*(SETTINGS_CONTROL_H+gap)+gap;
+    (sliders?.length||0)*(SETTINGS_CONTROL_H+gap)+gap;
    key('LIGHT CONTROL',ctrlX,lightY,ctrlW,SETTINGS_CONTROL_H,'light',
     {modalControl:true});
   }
