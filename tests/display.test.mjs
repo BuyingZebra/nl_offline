@@ -104,18 +104,15 @@ describe('CRT composition',()=>{
   switchDisplay(false);
   const crtOptics=[history,ghost,bloom,softness,vignette,mask];
   assert.ok(crtOptics.every(pass=>pass.enabled===true));
-  const crtFade=popup.uniforms.uFadeTo.value;
   assert.equal(popup.uniforms.uCanvasBlend.value,0);
   switchDisplay(true);
   assert.ok(crtOptics.every(pass=>pass.enabled===false));
   assert.equal(tint.uniforms.uLCDDpr.value,2);
   assert.equal(popup.enabled,true,'the sharp overlay and board shadow still composite');
-  assert.notEqual(popup.uniforms.uFadeTo.value,crtFade);
   assert.equal(popup.uniforms.uCanvasBlend.value,1);
   switchDisplay(false);
   assert.ok(crtOptics.every(pass=>pass.enabled===true));
   assert.equal(tint.uniforms.uLCDDpr.value,0);
-  assert.equal(popup.uniforms.uFadeTo.value,crtFade);
   assert.equal(popup.uniforms.uCanvasBlend.value,0);
   pipeline.dispose();
  });
@@ -279,7 +276,7 @@ describe('CRT composition',()=>{
     assert.equal(pass.uniforms.uSigma.value,sigma);
     assert.equal(pass.uniforms.uRect.value.x,13/393);
    }
-   assert.equal(vertical.uniforms.uFade.value,0);
+   assert.equal(vertical.uniforms.uBlurOpacity.value,1);
   }
   pipeline.syncFX({...state,lcd:true,modalOpen:true});
   assert.equal(horizontal.enabled,false);
@@ -294,20 +291,23 @@ describe('CRT composition',()=>{
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
   pipeline.syncFX(state);
   assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.47,1.25));
-  assert.equal(popup.uniforms.uFade.value,.87);
+  assert.equal(popup.uniforms.uBlurOpacity.value,.13);
   pipeline.syncFX({...state,lcd:true});
   assert.equal(horizontal.enabled,false);
-  assert.equal(popup.uniforms.uFade.value,.75);
+  assert.equal(popup.uniforms.uBlurOpacity.value,.25);
   pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:65,lcdMenuVisibility:100}});
   assert.equal(horizontal.enabled,true);
   assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.65,1.25));
-  assert.equal(popup.uniforms.uFade.value,0);
+  assert.equal(popup.uniforms.uBlurOpacity.value,1);
   pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:65,lcdMenuVisibility:10}});
-  assert.equal(popup.uniforms.uFade.value,.90);
+  assert.equal(popup.uniforms.uBlurOpacity.value,.10);
   assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.65,1.25));
   pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:100,lcdMenuVisibility:0}});
-  assert.equal(popup.uniforms.uFade.value,1);
+  assert.equal(popup.uniforms.uBlurOpacity.value,0);
   assert.equal(horizontal.enabled,false);
+  assert.equal(popup.uniforms.uSigma.value,0,'zero opacity leaves the sharp board untouched');
+  assert.match(horizontal.fragmentShader,/vec4\(backdrop,blurred\)/);
+  assert.match(popup.fragmentShader,/mix\(backdrop,vec3\(blurred\),uBlurOpacity\)/);
   pipeline.dispose();
  });
  test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
@@ -334,7 +334,7 @@ describe('CRT composition',()=>{
   assert.equal(composer.passes[1].enabled,false,'no horizontal blur during play');
   assert.equal(composer.passes[2].enabled,true,'post-blur shadow compositing remains on');
   assert.equal(composer.passes[2].uniforms.uSigma.value,0,'no vertical blur during play');
-  assert.equal(composer.passes[2].uniforms.uFade.value,0,'no menu fade during play');
+  assert.equal(composer.passes[2].uniforms.uBlurOpacity.value,1,'gameplay blur applies at full opacity');
  });
  test('PAUSED and HIGH SCORE share the same shadow-box domain and compositor objects',()=>{
   const {pipeline,composer,externalPopup}=setup();
