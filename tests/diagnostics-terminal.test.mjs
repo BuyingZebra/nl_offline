@@ -529,9 +529,9 @@ describe('Terminal repaint regions',()=>{
   assert.match(renderer,/drawTerminalLog\(g,terminalLog,r,performance\.now\(\),C\.ink,C\.bg,FONT\)/);
   assert.match(renderer,/if\(terminalPlane\.visible\)textureUploads\.upload\(terminalTexture,'terminal'\)/);
   assert.match(renderer,/layers\.mark\('terminal'\);layers\.reason\('terminal-log'\)/);
-  assert.match(renderer,/if\(layers\.consume\('terminal'\)&&!screenManager\.isOptions\)/);
-  assert.match(renderer,/terminalPlane\.visible=!standaloneSettings/);
-  assert.match(renderer,/if\(previous==='options'&&next!=='options'\)\{[\s\S]*?layers\.mark\('base','controls','terminal'\)/);
+  assert.match(renderer,/if\(layers\.consume\('terminal'\)\)/);
+  assert.match(renderer,/terminalPlane\.visible=true/);
+  assert.match(renderer,/layers\.mark\('base','board','sidebar','controls','modal','terminal'\)/);
   assert.doesNotMatch(cropped,/\{x:r\.dx\+5,y:r\.dy\+r\.dh\+1/);
   const controls=renderer.slice(renderer.indexOf('function paintControlsLayer(){'),
    renderer.indexOf('function paintTerminalLayer(){'));

@@ -333,11 +333,11 @@ with sync_playwright() as p:
     )
 
     page.mouse.click(353, 103)
-    page.wait_for_timeout(150)
+    page.wait_for_timeout(400)
     settings_screen = page.screenshot()
     assert settings_screen != ready.read_bytes(), "Options did not change the screen"
     page.keyboard.press("Escape")
-    page.wait_for_timeout(150)
+    page.wait_for_timeout(400)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     page.keyboard.press("Enter")  # START GAME
     page.wait_for_timeout(300)

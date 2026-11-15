@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v231';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v231';
+import {instrumentCompositorPasses} from './diagnostics.js?v232';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v232';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -260,7 +260,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
-   uniform float uSigma,uComposite,uCanvasBlend,uFade;
+   uniform float uSigma,uComposite,uCanvasBlend,uFade,uPopupVisible;
    uniform vec3 uFadeTo;
    vec3 encodeSRGB(vec3 x){
     return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
@@ -299,7 +299,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     }
     if(uComposite>.5){
      if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
-     vec4 popup=texture2D(uPopup,vUv);
+     vec4 popup=uPopupVisible>.5?texture2D(uPopup,vUv):vec4(0.0);
      // LCD piece shadows blend on the 2D canvas in encoded sRGB.
      if(uCanvasBlend>.5&&popup.a>0.0&&popup.a<1.0){
       backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
@@ -315,7 +315,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uFade:{value:0},uFadeTo:{value:new THREE.Color(0x101010)},
-    uComposite:{value:composite?1:0},uCanvasBlend:{value:0}
+    uComposite:{value:composite?1:0},uCanvasBlend:{value:0},uPopupVisible:{value:1}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
   });
@@ -569,7 +569,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  let persistenceWasEnabled=false;
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
  const lcdPopupBase=new THREE.Color(0xd8d8d8),crtPopupBase=new THREE.Color(0x101010);
-function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
+function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,propertiesPreview=null,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
  const historyEnabled=!lcd&&fx.persistence===true;
  if(historyEnabled!==persistenceWasEnabled)persistencePass.reset();
  persistenceWasEnabled=historyEnabled;
@@ -605,13 +605,13 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // One board-visibility rule for PAUSED, HIGH SCORE and the light lab.
  // Display System hides the board; Light Control keeps the aperture but
  // suppresses popup blur. All screens use the same source textures and passes.
- const boardBackdropVisible=!modalOpen||scoresOverlay;
+ const boardBackdropVisible=!modalOpen||scoresOverlay||Boolean(propertiesPreview);
  const boardWindowVisible=boardBackdropVisible||isolateLightWindow;
- const boardOverlayActive=boardStatus!=='playing'&&boardBackdropVisible&&
-  popupStatus===boardStatus;
+ const boardOverlayActive=propertiesPreview?propertiesPreview.backdrop:
+  boardStatus!=='playing'&&boardBackdropVisible&&popupStatus===boardStatus;
  // Use the same aperture-limited Gaussian for gameplay, with independent
  // CRT and LCD settings. Popup blur takes over behind menus.
- const gameplaySigma=boardStatus==='playing'&&boardBackdropVisible?
+ const gameplaySigma=(propertiesPreview||boardStatus==='playing')&&boardBackdropVisible?
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
  const sigma=boardOverlayActive?
   menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
@@ -622,10 +622,15 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   (lcd?fx.lcdMenuFade:fx.crtMenuFade)/100:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
+ boardPopupPass.uniforms.uPopupVisible.value=propertiesPreview?0:1;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){
-  const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
+  const r=layoutInfo,x=r.boardX+2,w=Math.max(0,r.boardW-4);
+  const boardY=r.boardY-(propertiesPreview?.offset??0);
+  const y=Math.max(boardY+2,propertiesPreview?.clipTop??-Infinity);
+  const bottom=Math.min(boardY+r.boardH-2,propertiesPreview?.clipBottom??Infinity);
+  const h=Math.max(0,bottom-y);
   for(const pass of popupPasses){
    pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
   }
@@ -642,8 +647,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   // Piece-mask coordinates track the ENTIRE cropped board texture, while
   // bloom aperture still uses its 2px inner window.
   glow.highPassUniforms?.uPieceMaskRect?.value.set(
-   layoutInfo.boardX/W,1-(layoutInfo.boardY+layoutInfo.boardH)/H,
-   (layoutInfo.boardX+layoutInfo.boardW)/W,1-layoutInfo.boardY/H
+   layoutInfo.boardX/W,1-(boardY+layoutInfo.boardH)/H,
+   (layoutInfo.boardX+layoutInfo.boardW)/W,1-boardY/H
   );
  }
  edgeVignette.enabled=!lcd&&fx.vignette;
@@ -1790,6 +1795,13 @@ function drawMenuScoreBox({text,rect,C},box,record){
  });
 }
 
+function propertyDeckGeometry(r,amount){
+ const headerBottom=r.hy+r.hh;
+ const previewHeight=Math.min(104,r.boardH*.30);
+ const expandedTop=Math.max(headerBottom+previewHeight,r.dy-r.boardH*.63);
+ const offset=Math.max(0,r.dy-expandedTop)*amount;
+ return {x:r.dx,y:r.dy-offset,w:r.dw,h:r.dh+offset,offset,headerBottom};
+}
 function createModalUI({
  document,SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
  getViewport,layout,insets,clearRegions,getContext,
@@ -1799,7 +1811,8 @@ function createModalUI({
 }){
  const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
  let modalView=null,optionsScroll=0,optionsMaxScroll=0;
- let scanlineMenuOpen=false,debugCopyState='idle';
+ let scanlineMenuOpen=false,debugCopyState='idle',propertyTab='BOARD';
+ const propertyTabs=['BOARD','SCREEN','GAME'];
 // Menu geometry shares the six-pixel unit and the existing 46/42/37px
 // phosphor/settings, HOLD and PAUSE button height.
 function modalBounds(name){
@@ -1967,12 +1980,10 @@ function settingsExpandArrow(x,y,expanded,color){
 const SETTINGS_TITLE_H=38,SETTINGS_BAR_H=24,SETTINGS_SELECT_H=30,SETTINGS_PREVIEW_SIZE=32;
 function settingsRows(gap,onLight){
  const rows=[];
- let offset=0;
+ let offset=0,tab='BOARD';
  for(const effect of DISPLAY_EFFECTS){
-  if(effect.section){
-   rows.push({section:effect.section,offset,height:24});
-   offset+=24;
-  }
+  if(effect.section)tab=effect.section==='CRT EFFECTS'?'SCREEN':effect.section==='GAME'?'GAME':'BOARD';
+  if(tab!==propertyTab)continue;
   const sliders=(onLight?effect.lcdSliders:undefined)??effect.sliders??[];
   const controls=sliders.length+Number(Boolean(effect.pattern||effect.id==='shadows'));
   const choiceCount=effect.pattern&&scanlineMenuOpen?SCANLINE_CHOICES.length:0;
@@ -2003,50 +2014,36 @@ function drawDebugBug(cx,cy,color=C.ink){
 
 function drawOptions(q){
  const {W,H}=getViewport(),g=getContext();
- // The whole WebGL surface is a separate black terminal page. No outer
- // rounded panel, no translucent scrim and no game artwork beneath it.
- clearRegions();region(0,0,W,H,'block');
- const r=layout(),pad=q.pad,gap=q.gap,headH=r.hh;
+ const r=layout(),gap=q.gap;
+ const deck=q.deck??propertyDeckGeometry(r,1);
+ const {x,y,w,h}=deck;
  const onLight=Boolean(settingValue('lcdDisplay'));
  const headerColors=onLight?LCD_BOARD:C;
- rect(0,0,W,H,C.bg);
- // Centre the same content column (<=520px) in portrait and landscape.
- // On phones its X coordinates are identical to the previous dialog,
- // retaining the approved title, X and Restore Defaults geometry.
- const pageW=Math.max(0,Math.min(r.width-2*UI_SPACE.padX,
-  UI_SPACE.appMax-2*UI_SPACE.padX));
- const pageX=r.off+(r.width-pageW)/2,headerY=r.hy;
- // Use the very same panel radius, fill, border, header centre, font size,
- // colour, tracking and title inset as the TETRIS SYSTEM home-screen header.
- panel(pageX,headerY,pageW,headH,0,headerColors.panel,headerColors.border);
- const titleSize=r.landscape?13:Math.min(21,Math.max(16,W*.05));
- const closeX=pageX+pageW-UI_SPACE.headRightPad-q.buttonH;
- const debugX=closeX-q.buttonH-UI_SPACE.headIconGap;
- text('DISPLAY SYSTEM',pageX+UI_SPACE.headTitleInset,
-  headerY+headH/2,titleSize,headerColors.ink,'left',
-  Math.max(10,debugX-pageX-UI_SPACE.headTitleInset-gap));
- const headerButtonY=headerY+(headH-q.buttonH)/2;
- key('',debugX,headerButtonY,q.buttonH,q.buttonH,'copyDebug',{onLight});
- const debugLum=onLight?headerColors.ink:gray(buttonLight(debugX,headerButtonY,q.buttonH,q.buttonH));
- if(debugCopyState==='copied'||debugCopyState==='failed')
-  text(debugCopyState==='copied'?'✓':'!',debugX+q.buttonH/2,
-   headerButtonY+q.buttonH/2,BUTTON_ICON_FONT_SIZE,debugLum,'center');
- else drawDebugBug(debugX+q.buttonH/2,headerButtonY+q.buttonH/2,debugLum);
- key('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close',{onLight});
- const restoreW=Math.min(pageW-2*pad,
-  r.boardW*UI_SPACE.overlayButtonWidthScale);
- const restoreY=H-q.safeBottom-gap-r.extraH;
- key('RESTORE DEFAULTS',pageX+(pageW-restoreW)/2,restoreY,
-  restoreW,r.extraH,'resetFX',{light:true});
- const contentX=pageX+pad,contentW=pageW-2*pad;
- const modeY=headerY+headH+gap,modeH=30;
+ clearRegions();region(0,0,W,H,'block');
+ panel(x,y,w,h,0,C.panel,C.border);
+ const contentX=x+gap,contentW=Math.max(1,w-2*gap);
+ const tabW=Math.max(1,(contentW-2*gap)/propertyTabs.length),tabH=28;
+ for(const [index,tab] of propertyTabs.entries()){
+  key(tab,contentX+index*(tabW+gap),y+gap,tabW,tabH,'property:'+tab,
+   {light:tab===propertyTab,modalControl:true});
+ }
+ const modeY=y+tabH+2*gap,modeH=26;
  panel(contentX,modeY,contentW,modeH,0,headerColors.panel,headerColors.border);
- text('DISPLAY TYPE',contentX+2*gap,modeY+modeH/2,12,headerColors.ink,'left',contentW*.52);
- text(onLight?'LCD   ↔':'CRT   ↔',contentX+contentW-2*gap,modeY+modeH/2,
-  12,headerColors.bright,'right',contentW*.42,'terminal');
- // This row sits above the scroll viewport, like the header buttons.
+ text('DISPLAY TYPE',contentX+gap,modeY+modeH/2,11,headerColors.ink,'left',contentW*.52);
+ text(onLight?'LCD   ↔':'CRT   ↔',contentX+contentW-gap,modeY+modeH/2,
+  11,headerColors.bright,'right',contentW*.42,'terminal');
  region(contentX,modeY,contentW,modeH,'toggle',{field:'lcdDisplay'});
- const top=modeY+modeH+gap,bottom=restoreY-gap;
+ const utilityH=28,utilityY=y+h-gap-utilityH;
+ const restoreW=contentW-utilityH-gap;
+ key('RESTORE DEFAULTS',contentX,utilityY,restoreW,utilityH,'resetFX',{modalControl:true});
+ const debugX=contentX+restoreW+gap;
+ key('',debugX,utilityY,utilityH,utilityH,'copyDebug',{modalControl:true});
+ const debugLum=gray(buttonLight(debugX,utilityY,utilityH,utilityH));
+ if(debugCopyState==='copied'||debugCopyState==='failed')
+  text(debugCopyState==='copied'?'✓':'!',debugX+utilityH/2,utilityY+utilityH/2,
+   BUTTON_ICON_FONT_SIZE,debugLum,'center');
+ else drawDebugBug(debugX+utilityH/2,utilityY+utilityH/2,debugLum);
+ const top=modeY+modeH+gap,bottom=utilityY-gap;
  const visibleH=Math.max(0,bottom-top);
  modalView={x:contentX,y:top,w:contentW,h:visibleH};
  const model=settingsRows(gap,onLight);
@@ -2058,10 +2055,6 @@ function drawOptions(q){
  for(const row of model.rows){
   const y=top+row.offset-optionsScroll;
   if(y+row.height<top||y>bottom)continue;
-  if(row.section){
-   text(row.section,contentX+gap,y+row.height/2,11,C.weak,'left',contentW-2*gap);
-   continue;
-  }
   const {effect,sliders}=row;
   const ctrlX=contentX+2*gap,ctrlW=contentW-4*gap;
   const titleY=y+gap+SETTINGS_TITLE_H/2;
@@ -2137,7 +2130,7 @@ function drawScores(q){
 }
 function paintModal(q){
  const modal=getModal();
- if(modal==='options')drawOptions(q);
+ if(q.deck||modal==='options')drawOptions(q);
  else if(modal==='scores')drawScores(q);
 }
 
@@ -2145,10 +2138,15 @@ function paintModal(q){
   optionsScroll=0;optionsMaxScroll=0;scanlineMenuOpen=false;
  }
  function reset(){
-  modalView=null;resetSettings();debugCopyState='idle';
+  modalView=null;resetSettings();debugCopyState='idle';propertyTab='BOARD';
  }
  return Object.freeze({
   modalBounds,paintModal,toggleScanlineMenu,chooseScanline,reset,resetSettings,
+  selectPropertyTab(tab){
+   if(propertyTabs.includes(tab)&&tab!==propertyTab){
+    propertyTab=tab;resetSettings();setScrollVelocity(0);invalidate();
+   }
+  },
   dispose:()=>shadowPreviewRenderer.dispose(),
   get view(){return modalView;},
   get scroll(){return optionsScroll;},
@@ -2458,7 +2456,7 @@ function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  ctx.restore();
 }
 
-return {createCanvasUI,drawPropertySlider,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
+return {createCanvasUI,drawPropertySlider,propertyDeckGeometry,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
 })();
 // Device-independent CSS-pixel visual geometry.
 const Layout=(()=>{
@@ -2624,7 +2622,7 @@ return api;
 })();
 export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
-export const {createCanvasUI,drawPropertySlider,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
+export const {createCanvasUI,drawPropertySlider,propertyDeckGeometry,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
 export {instrumentCompositorPasses,makeRegion,makeButtonControl,findRegionAt,sliderValueAt};
 

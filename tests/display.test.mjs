@@ -323,6 +323,23 @@ describe('CRT composition',()=>{
   assert.ok(shader.indexOf('backdrop=mix(backdrop,uFadeTo,uFade)')<shader.indexOf('vec4 popup='));
   pipeline.dispose();
  });
+ test('properties preview clips the real board without compositing gameplay menus',()=>{
+  const {pipeline,composer}=setup();
+  const r={boardX:11,boardY:120,boardW:234.5,boardH:469};
+  const state={fx:states,theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',
+   popupStatus:'paused',modalOpen:true,layoutInfo:r,propertiesPreview:{
+    backdrop:true,offset:200,clipTop:90,clipBottom:390}};
+  pipeline.syncFX(state);
+  const popup=composer.passes[2],u=popup.uniforms;
+  assert.equal(popup.enabled,true);
+  assert.equal(u.uPopupVisible.value,0);
+  assert.equal(u.uFade.value,.87);
+  assert.equal(u.uRect.value.w,1-90/852);
+  assert.equal(u.uRect.value.y,1-(120-200+469-2)/852);
+  pipeline.syncFX({...state,propertiesPreview:null,modalOpen:false});
+  assert.equal(u.uPopupVisible.value,1);
+  pipeline.dispose();
+ });
  test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
   const {pipeline,composer}=setup();
   const state={fx:states,theme:'green',width:393,height:852,dpr:3,
@@ -467,7 +484,7 @@ describe('Phosphor persistence',()=>{
    source.indexOf('// All game commands'));
   assert.ok(!menu.includes('resetPersistence'), 'menu changes must not clear CRT glow');
   const callbacks=source.slice(source.indexOf('handleAction:act=>{'),
-   source.indexOf('setSetting:actions.setSetting'));
+   source.indexOf(' setSetting:(field,value)=>'));
   assert.ok(!callbacks.includes('resetPersistence'), 'pause/play action must not clear CRT glow');
   const status=source.slice(source.indexOf('if(game.status!==prior.status){'),
    source.indexOf("layers.reason('gravity')"));
@@ -862,7 +879,7 @@ describe('Modal repaint regions',()=>{
   const code=source();
   const popup=code.slice(code.indexOf('function paintBoardPopup(r){'),
    code.indexOf('// Pure layout calculation'));
-  const modal=code.slice(code.indexOf('function paintModalOverlay(){'),
+  const modal=code.slice(code.indexOf('function paintModalOverlay(now){'),
    code.indexOf('inputController=createInputController('));
   assert.match(popup,/if\(screenManager\.isScores\)\{\s*modalUI\.paintModal\(modalUI\.modalBounds\('scores'\)\)/);
   assert.match(modal,/if\(screenManager\.isScores\)\{[\s\S]*?modalPlane\.visible=false;\s*regions=baseRegions;[\s\S]*?return;/);
@@ -872,10 +889,10 @@ describe('Modal repaint regions',()=>{
  });
  test('renderer only repaints modal on dirty state, first show or base repaint',()=>{
   const s=source();
-  const paint=s.slice(s.indexOf('function paintGame(){'),s.indexOf('const SCANLINE_CHOICES='));
+  const paint=s.slice(s.indexOf('function paintGame(now){'),s.indexOf('const SCANLINE_CHOICES='));
   assert.match(paint,/if\(paintedBase\)layers\.mark\('modal'\)/);
   assert.match(paint,/if\(layers\.consume\('modal'\)\|\|\(!modalPlane\.visible&&!screenManager\.isScores\)\)/);
-  assert.match(paint,/paintModalOverlay\(\)/);
+  assert.match(paint,/paintModalOverlay\(now\)/);
   assert.match(paint,/layers\.consume\('modal'\);/);
   assert.doesNotMatch(paint,/if\(screenManager\.paintsModalLayer\)\{\s*const started=performance\.now\(\)/);
   assert.match(s,/const canvasDirty=\['base','board','sidebar','controls','terminal','modal'\]/);
@@ -903,14 +920,14 @@ describe('Modal repaint regions',()=>{
   assert.match(paint,/if\(screenManager\.paintsModalLayer\)/);
   assert.match(paint,/if\(buttonSparks\.length\|\|previousButtonSparks\.length\)layers\.mark\('modal'\)/);
   assert.match(paint,/else\{\s*const affected=buttonFeedbackLayers\(/);
-  assert.match(s,/if\(previous==='options'&&next!=='options'\)\{[\s\S]*?layers\.mark\('base','controls','terminal'\)/);
-  assert.match(s,/if\(previous==='options'\|\|next==='options'\)layers\.mark\('modal'\)/);
+  assert.match(s,/if\(previous!==next\)layers\.mark\('base','board','sidebar','controls','modal','terminal'\)/);
+  assert.match(s,/layers\.reason\('controls-transition'\)/);
  });
 
  test('modal texture upload occurs only when marked and never forces unrelated GPU readback',()=>{
   const s=source();
-  const paint=s.slice(s.indexOf('function paintModalOverlay(){'),
-   s.indexOf('inputController=createInputController(',s.indexOf('function paintModalOverlay(){')));
+  const paint=s.slice(s.indexOf('function paintModalOverlay(now){'),
+   s.indexOf('inputController=createInputController(',s.indexOf('function paintModalOverlay(now){')));
   assert.match(paint,/modalTexture\.needsUpdate=true/);
   assert.match(paint,/perf\.textureChanged\('modal'\)/);
   assert.match(s,/if\(modalPlane\.visible\)textureUploads\.upload\(modalTexture,'modal'\)/);
@@ -1160,7 +1177,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(game,/LIGHT:'light'/);
   assert.match(game,/openLight:\(\)=>openWithPause\(SCREENS\.LIGHT\)/);
   assert.match(platform,/if\(screenManager\.isLight\)paintLightDirectionOverlay\(\)/);
-  assert.match(platform,/scrimPlane\.visible=!standaloneSettings&&!screenManager\.isScores&&!screenManager\.isLight/);
+  assert.match(platform,/modalPlane\.visible=true;scrimPlane\.visible=false/);
   assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
   assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
   assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
@@ -1186,10 +1203,10 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
    platform.indexOf('inputController=createInputController('));
   assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
-  assert.match(modal,/sidebarPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
+  assert.match(modal,/sidebarPlane\.visible=!workbench&&!screenManager\.isLight/);
   assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
-  assert.match(platform,/if\(previous==='light'\|\|next==='light'\)\{/);
-  assert.match(platform,/layers\.mark\('base','board','sidebar','modal'\)/);
+  assert.match(platform,/if\(previous!==next&&\(previous==='options'\|\|next==='options'\|\|next==='light'\)/);
+  assert.match(platform,/layers\.mark\('base','board','sidebar','controls','modal','terminal'\)/);
  });
 
  test('v198 dashed crosshairs stay within the board and the separator stays within the sidebar',()=>{
@@ -1283,7 +1300,7 @@ describe('v200 context-only light property deck',()=>{
    src.indexOf('inputController=createInputController('));
   assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options',\{onLight\}\)/);
   assert.match(base,/if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
-  assert.match(modal,/controlsPlane\.visible=!standaloneSettings&&!screenManager\.isLight/);
+  assert.match(modal,/controlsPlane\.visible=!workbench&&!screenManager\.isLight/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));
   assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
@@ -1359,7 +1376,7 @@ describe('v202 grid and piece bloom mask wiring',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const r=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(p,/pieceMaskEnabled:boardPlane\.visible/);
-  assert.match(p,/if\(settings\.effects\.bloom&&!settings\.lcdDisplay\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
+  assert.match(p,/if\(\(boardPlane\.visible\|\|propertiesPreview\)&&settings\.effects\.bloom&&!settings\.lcdDisplay\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
   assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
   assert.match(r,/const pieceBloomMaskTexture=new THREE\.CanvasTexture\(pieceBloomMaskCanvas\)/);
   assert.doesNotMatch(r,/new THREE\.Mesh\(.*pieceBloomMaskTexture/);

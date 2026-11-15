@@ -729,12 +729,12 @@ describe('Brick rails',()=>{
   assert.equal(frame.cachedStamps,2,'pixel and vector stamps independent');
   frame.dispose();assert.equal(frame.cachedStamps,0);
  });
- test('bricks are painted on the static base, never on the playfield texture',()=>{
+ test('bricks are painted beside the board in game and properties',()=>{
   const renderer=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const stage=renderer.slice(renderer.indexOf('function stage('),
    renderer.indexOf('function paintBoardPopup('));
   assert.doesNotMatch(stage,/brickFrame\.draw/);
-  assert.equal((renderer.match(/brickFrame\.draw\(g,r\)/g)||[]).length,1);
+  assert.equal((renderer.match(/brickFrame\.draw\(g,r\)/g)||[]).length,2);
   assert.doesNotMatch(renderer.slice(renderer.indexOf('function paintBaseGame('),
     renderer.indexOf('function paintGame(')),/stage\(r,false\)/,
     'base may not duplicate the cropped board');
@@ -1134,7 +1134,7 @@ describe('Piece shadows',()=>{
   const popup=platform.slice(platform.indexOf('function paintBoardPopup('),
    platform.indexOf('// Pure layout calculation'));
   const light=platform.slice(platform.indexOf('function paintLightDirectionOverlay('),
-   platform.indexOf('function paintModalOverlay('));
+   platform.indexOf('function paintPropertiesTransition('));
   assert.doesNotMatch(stage,/boardInsetShadows\.draw\(/);
   assert.match(stage,/pieceShadows\.draw\(g,shadowGroups,offX,offY,tile\)/);
   assert.match(inset,/boardInsetShadows\.draw\(g,x\+2,y\+2,innerW,innerH,innerW\/10\)/);

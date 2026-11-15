@@ -6,7 +6,7 @@ import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
 import {createHudDrawing,registerControlHitboxes,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
 import {Core,createSettingsManager,DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices} from '../tetris/game.js';
-import {makeRegion,makeButtonControl,drawPropertySlider,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
+import {makeRegion,makeButtonControl,drawPropertySlider,propertyDeckGeometry,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
@@ -65,16 +65,32 @@ describe('Overlay theme and confirmation controls',()=>{
  });
  test('Light Control restores theme input independently of sliders and DONE',()=>{
   const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const part=src.slice(src.indexOf('function paintLightDirectionOverlay(){'),src.indexOf('function paintModalOverlay(){'));
+  const part=src.slice(src.indexOf('function paintLightDirectionOverlay('),src.indexOf('function paintPropertiesTransition('));
   assert.match(part,/regions=\[\]/);
   assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
   assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
  });
- test('Display System close control uses checkmark but retains action',()=>{
-  const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  const part=src.slice(src.indexOf('function drawOptions(q){'),src.indexOf('function drawScores(q){'));
-  assert.match(part,/key\('✓',closeX,headerButtonY,q.buttonH,q.buttonH,'close',\{onLight\}\)/);
-  assert.doesNotMatch(part,/key\('X',closeX/);
+ test('Properties close keeps the game header button geometry',()=>{
+  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const part=src.slice(src.indexOf('function paintPropertiesTransition('),src.indexOf('function paintModalOverlay('));
+  assert.match(part,/const theme=headerThemeBounds\(r,UI_SPACE\)/);
+  assert.match(part,/key\('✓',theme.x\+theme.w\+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close'/);
+ });
+ test('an expanding properties deck anchors its bottom and translates the board one-for-one',()=>{
+  const r={hy:62,hh:65,dx:11,dy:650,dw:371,dh:128,boardH:510};
+  const compact=propertyDeckGeometry(r,0),expanded=propertyDeckGeometry(r,1);
+  assert.equal(compact.y,r.dy);
+  for(const t of [0,.25,.5,1]){
+   const deck=propertyDeckGeometry(r,t);
+   assert.equal(deck.headerBottom,127);
+   assert.ok(deck.y>deck.headerBottom);
+   assert.equal(deck.y+deck.h,r.dy+r.dh);
+   assert.equal(deck.x,r.dx);
+   assert.equal(deck.w,r.dw);
+   assert.ok(Math.abs(deck.offset-(r.dy-deck.y))<1e-8);
+  }
+  assert.ok(expanded.y<compact.y);
+
  });
 });
 
@@ -381,7 +397,7 @@ describe('HUD layout and viewport rules',()=>{
    }
   }
   const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const base=source.slice(source.indexOf('function paintBaseGame(){'),source.indexOf('function paintGame(){'));
+  const base=source.slice(source.indexOf('function paintBaseGame(){'),source.indexOf('function paintGame('));
   assert.match(base,/registerControlHitboxes\(r,UI_SPACE,region\)/);
   assert.doesNotMatch(base,/stage\(r,false\)|drawSidebar\(r\)|drawControls\(r\)/);
  });
@@ -696,8 +712,7 @@ describe('Shared hitboxes and slider geometry',()=>{
   const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(render,/shadowPreviewRenderer\.draw\(p,\[shadowPreviewGroup\]/);
-  assert.match(platform,/let shadowBoardNeedsPaint=false/);
-  assert.match(platform,/if\(shadowBoardNeedsPaint\)\{layers\.mark\('board'\)/);
+  assert.match(platform,/g\.drawImage\(boardCanvas,r\.boardX,r\.boardY,r\.boardW,r\.boardH\)/);
   assert.match(platform,/getSettings:\(\)=>settings\.effects/);
   assert.match(platform,/shadow-preview.*modalUI\.dispose\(\)/);
  });
@@ -800,13 +815,14 @@ describe('Pointer and keyboard input',()=>{
    document:{createElement:()=>({getContext:()=>context})},
    SHAPES:Core.SHAPES,DISPLAY_EFFECTS,
    SCANLINE_CHOICES:scanlineChoices([]),getViewport:()=>({W:width,H:height}),
-   layout:()=>({width,off:0,hy:40,hh:70,headerButtonH:44,extraH:40,boardW:240}),
+   layout:()=>({width,off:0,hy:40,hh:70,headerButtonH:44,extraH:40,boardW:240,boardH:480,dx:12,dy:650,dw:369,dh:130}),
    insets:()=>({top:0,bottom:0}),clearRegions:()=>{regions.length=0;},getContext:()=>context,
    panel:ignore,text:ignore,rect:ignore,region:(...args)=>regions.push(makeRegion(...args)),
    key:ignore,buttonLight:()=>206,gray:()=> '#aaa',clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
    UI_SPACE:{unit:6,padX:12,appMax:520,headRightPad:6,headIconGap:6,
     headTitleInset:8,overlayButtonWidthScale:.85},C:{},getFX:()=>DEFAULT_EFFECTS,activeScanlinePreset:id=>({id}),
-   getModal:()=> 'options',settingValue:settings.settingValue
+   getModal:()=> 'options',settingValue:settings.settingValue,
+   setScrollVelocity:ignore,invalidate:ignore
   });
   modal.paintModal(modal.modalBounds('options'));
   assert.ok(regions.some(region=>region.field==='crtMenuFade'&&region.act==='slider'));
@@ -833,6 +849,8 @@ describe('Pointer and keyboard input',()=>{
   tap();
   assert.equal(settings.lcdDisplay,false);
   modal.scroll=modal.maxScroll;
+  modal.paintModal(modal.modalBounds('options'));
+  modal.selectPropertyTab('GAME');
   modal.paintModal(modal.modalBounds('options'));
   const sound=regions.find(region=>region.field==='sound');
   assert.ok(sound.y>=modal.view.y&&sound.y+sound.h<=modal.view.y+modal.view.h);
