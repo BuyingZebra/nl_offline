@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v227';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v227';
+import {instrumentCompositorPasses} from './diagnostics.js?v228';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v228';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -277,7 +277,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
-   uniform float uSigma,uComposite,uBlurOpacity,uCanvasBlend;
+   uniform float uSigma,uComposite,uCanvasBlend;
    vec3 encodeSRGB(vec3 x){
     return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
      step(vec3(.0031308),x));
@@ -287,17 +287,13 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
      step(vec3(.04045),x));
    }
    void main(){
-    vec4 source=texture2D(tDiffuse,vUv);
-    vec3 backdrop=source.rgb;
+    vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
     float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
                  step(uRect.y,vUv.y)*step(vUv.y,uRect.w);
-    // The horizontal pass packs the blurred grayscale board in alpha and
-    // preserves the original RGB for the vertical pass to blend against.
-    float blurred=dot(source.ra,uAxis);
     if(inside>.5&&uSigma>.01){
      // Keep taps one CSS pixel apart and widen the kernel with sigma.
      // Increasing tap spacing exposed the sampling grid at high blur.
-     float sum=blurred;
+     vec3 sum=backdrop;
      float weights=1.0;
      vec2 texel=uAxis/max(vec2(1.0),uSize);
      float inverseVariance=1.0/(uSigma*uSigma);
@@ -308,25 +304,22 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
       float offset=float(i);
       if(offset>ceil(3.0*uSigma))break;
       vec2 delta=offset*texel;
-      float a=dot(texture2D(tDiffuse,clamp(vUv-delta,uRect.xy,uRect.zw)).ra,uAxis);
-      float b=dot(texture2D(tDiffuse,clamp(vUv+delta,uRect.xy,uRect.zw)).ra,uAxis);
+      vec3 a=texture2D(tDiffuse,clamp(vUv-delta,uRect.xy,uRect.zw)).rgb;
+      vec3 b=texture2D(tDiffuse,clamp(vUv+delta,uRect.xy,uRect.zw)).rgb;
       sum+=(a+b)*weight;
       weights+=2.0*weight;
       weight*=ratio;
       ratio*=decay;
      }
-     blurred=sum/weights;
+     backdrop=sum/weights;
     }
-    if(uComposite<.5){
-     gl_FragColor=vec4(backdrop,blurred);
-     return;
+    if(uComposite>.5){
+     vec4 popup=texture2D(uPopup,vUv);
+     // LCD piece shadows blend on the 2D canvas in encoded sRGB.
+     if(uCanvasBlend>.5&&popup.a>0.0&&popup.a<1.0){
+      backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
+     }else backdrop=mix(backdrop,popup.rgb,popup.a);
     }
-    if(inside>.5&&uSigma>.01)backdrop=mix(backdrop,vec3(blurred),uBlurOpacity);
-    vec4 popup=texture2D(uPopup,vUv);
-    // LCD piece shadows blend on the 2D canvas in encoded sRGB.
-    if(uCanvasBlend>.5&&popup.a>0.0&&popup.a<1.0){
-     backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
-    }else backdrop=mix(backdrop,popup.rgb,popup.a);
     gl_FragColor=vec4(backdrop,1.0);
    }`;
  function createBoardGaussianPass(axis,composite){
@@ -337,8 +330,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},
-    uComposite:{value:composite?1:0},uCanvasBlend:{value:0},
-    uBlurOpacity:{value:1}
+    uComposite:{value:composite?1:0},uCanvasBlend:{value:0}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
   });
@@ -637,13 +629,9 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
  const sigma=boardOverlayActive?
   menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
- const overlayOpacity=boardOverlayActive?
-  (lcd?fx.lcdMenuVisibility:fx.crtMenuVisibility)/100:1;
- const visibleSigma=overlayOpacity>0?sigma:0;
- boardBlurHorizontal.enabled=visibleSigma>.01;
+ boardBlurHorizontal.enabled=sigma>.01;
  boardPopupPass.enabled=boardBackdropVisible;
- for(const pass of popupPasses)pass.uniforms.uSigma.value=visibleSigma;
- boardPopupPass.uniforms.uBlurOpacity.value=overlayOpacity;
+ for(const pass of popupPasses)pass.uniforms.uSigma.value=sigma;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
