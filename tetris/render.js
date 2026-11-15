@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v228';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v228';
+import {instrumentCompositorPasses} from './diagnostics.js?v229';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v229';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -277,7 +277,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
-   uniform float uSigma,uComposite,uCanvasBlend;
+   uniform float uSigma,uComposite,uCanvasBlend,uBoardBrightness;
    vec3 encodeSRGB(vec3 x){
     return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
      step(vec3(.0031308),x));
@@ -290,6 +290,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
     float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
                  step(uRect.y,vUv.y)*step(vUv.y,uRect.w);
+    // Apply the black overlay to the source samples before convolution.
+    if(inside>.5)backdrop*=uBoardBrightness;
     if(inside>.5&&uSigma>.01){
      // Keep taps one CSS pixel apart and widen the kernel with sigma.
      // Increasing tap spacing exposed the sampling grid at high blur.
@@ -306,7 +308,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
       vec2 delta=offset*texel;
       vec3 a=texture2D(tDiffuse,clamp(vUv-delta,uRect.xy,uRect.zw)).rgb;
       vec3 b=texture2D(tDiffuse,clamp(vUv+delta,uRect.xy,uRect.zw)).rgb;
-      sum+=(a+b)*weight;
+      sum+=((a+b)*uBoardBrightness)*weight;
       weights+=2.0*weight;
       weight*=ratio;
       ratio*=decay;
@@ -329,7 +331,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     uRect:{value:new THREE.Vector4(0,0,0,0)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
-    uSigma:{value:0},
+    uSigma:{value:0},uBoardBrightness:{value:1},
     uComposite:{value:composite?1:0},uCanvasBlend:{value:0}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
@@ -629,7 +631,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
  const sigma=boardOverlayActive?
   menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
- boardBlurHorizontal.enabled=sigma>.01;
+ const brightness=boardOverlayActive?
+  (lcd?fx.lcdMenuBrightness:fx.crtMenuBrightness)/100:1;
+ boardBlurHorizontal.uniforms.uBoardBrightness.value=brightness;
+ boardBlurHorizontal.enabled=sigma>.01||brightness<1;
  boardPopupPass.enabled=boardBackdropVisible;
  for(const pass of popupPasses)pass.uniforms.uSigma.value=sigma;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;

@@ -468,15 +468,15 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
  softness:false,softnessStrength:.64,softnessRadius:3,
  crtBoardBlur:0,lcdBoardBlur:0,
- crtMenuBlur:47,lcdMenuBlur:47,
+ crtMenuBlur:47,lcdMenuBlur:47,crtMenuBrightness:85,lcdMenuBrightness:85,
  vignette:true,vignetteAmount:.57,
  persistence:true,persistenceMs:120,
  shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
  shadowBias:1,shadowOpacity:.8});
 export const DISPLAY_EFFECTS=[
  {id:'menuBlur',title:'MENU BACKDROP',
-  sliders:[['BLUR','crtMenuBlur',0,100,1,'%']],
-  lcdSliders:[['BLUR','lcdMenuBlur',0,100,1,'%']]},
+  sliders:[['BLUR','crtMenuBlur',0,100,1,'%'],['BRIGHTNESS','crtMenuBrightness',0,100,1,'%']],
+  lcdSliders:[['BLUR','lcdMenuBlur',0,100,1,'%'],['BRIGHTNESS','lcdMenuBrightness',0,100,1,'%']]},
  {id:'boardBlur',title:'GAMEPLAY BLUR',
   sliders:[['CRT','crtBoardBlur',0,4,.5,'px'],['LCD','lcdBoardBlur',0,4,.5,'px']]},
  {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
@@ -513,6 +513,7 @@ export const EFFECT_NUMBER_RANGES=Object.freeze({
  scanlineOpacity:[0,100],softnessStrength:[0,1],softnessRadius:[0,10],
  crtBoardBlur:[0,4],lcdBoardBlur:[0,4],
  crtMenuBlur:[0,100],lcdMenuBlur:[0,100],
+ crtMenuBrightness:[0,100],lcdMenuBrightness:[0,100],
  vignetteAmount:[0,1],persistenceMs:[10,120],...SHADOW_RANGES
 });
 // Validate persisted, migrated and user-submitted effects using one schema.
