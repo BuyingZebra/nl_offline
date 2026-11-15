@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v234';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v234';
+import {instrumentCompositorPasses} from './diagnostics.js?v235';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v235';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1563,14 +1563,17 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='u
   // Align the measured visible glyph bounds with the existing text anchor.
   g.textBaseline='alphabetic';
   const metrics=g.measureText(line);
+  const left=metrics.actualBoundingBoxLeft,right=metrics.actualBoundingBoxRight;
+  const inkX=align==='center'&&Number.isFinite(left)&&Number.isFinite(right)?
+   x+(left-right)/2:x;
   const ascent=metrics.actualBoundingBoxAscent;
   const descent=metrics.actualBoundingBoxDescent;
   if(Number.isFinite(ascent)&&Number.isFinite(descent)&&ascent+descent>0){
-   g.fillText(line,x,centerY+(ascent-descent)/2);
+   g.fillText(line,inkX,centerY+(ascent-descent)/2);
   }else{
    // Older contexts exposing width alone keep the previous behavior.
    g.textBaseline='middle';
-   g.fillText(line,x,centerY);
+   g.fillText(line,inkX,centerY);
   }
  }
  g.letterSpacing='0px';
@@ -1656,7 +1659,7 @@ function visitControlButtons(r,UI_SPACE,emit){
   // Narrow landscape: maintain usable touch targets by reflowing controls.
   const third=Math.max(0,(pw-2*gap)/3);
   emit('◀',px,cy,third,ch,'left',{light:true,repeat:true});
-  emit('↻',px+third+gap,cy,third,ch,'cw');
+  emit('↻',px+third+gap,cy+(ch-r.extraH)/2,third,r.extraH,'cw');
   emit('▶',px+2*(third+gap),cy,third,ch,'right',{light:true,repeat:true});
   emit('DROP',px,cy+ch+gap,pw,ch,'soft',{light:true,repeat:true});
   ey=cy+2*(ch+gap);
@@ -1665,7 +1668,7 @@ function visitControlButtons(r,UI_SPACE,emit){
   emit('◀',px,cy,col,ch,'left',{light:true,repeat:true});
   emit('DROP',px+col+gap,cy,col*2+gap,ch,'soft',{light:true,repeat:true});
   emit('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
-  emit('↻',px+col*4+gap*4,cy,col,ch,'cw');
+  emit('↻',px+col*4+gap*4,cy+(ch-r.extraH)/2,col,r.extraH,'cw');
   ey=cy+ch+r.deckGap;
  }
  // Keep the secondary controls centered at their approved 75% width.
@@ -1793,16 +1796,25 @@ function drawMenuScoreBox({text,rect,C},box,record){
 function drawPropertyDeck({panel,rect,text,region,C},r,gap,rows){
  panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
  const x=r.dx+r.deckPad,w=Math.max(1,r.dw-2*r.deckPad);
- const rowGap=Math.min(gap,Math.max(2,r.dh*.045));
- const rowH=Math.max(1,(r.dh-2*r.deckPad-rowGap*3)/4);
+ const available=r.dh-2*r.deckPad;
+ const fixed=rows.reduce((sum,row)=>sum+(row.height??0),0);
+ const flexible=rows.filter(row=>row.height===undefined).length;
+ const baseGap=Math.min(gap,Math.max(2,r.dh*.045));
+ const rowGap=rows.length>1?Math.min(baseGap,
+  Math.max(0,(available-fixed-flexible*9)/(rows.length-1))):0;
+ const regularH=Math.max(1,(available-3*baseGap)/4);
+ const rowH=flexible?Math.max(1,Math.min(regularH,
+  (available-fixed-rowGap*(rows.length-1))/flexible)):regularH;
  const labelW=Math.min(125,Math.max(80,w*.29));
  const sliderGraphics={rect,text,region,ink:C.ink};
- for(const [i,row] of rows.entries()){
-  const y=r.dy+r.deckPad+i*(rowH+rowGap);
-  if(typeof row==='function')row(x,y,w,rowH);
-  else drawPropertySlider(sliderGraphics,{x,midY:y+rowH/2,w,
-   barH:Math.max(9,Math.min(24,rowH*.76)),labelW,gap,
-   labelSize:Math.min(11,Math.max(8,rowH*.44)),...row});
+ let y=r.dy+r.deckPad;
+ for(const row of rows){
+  const h=row.height??rowH;
+  if(row.draw)row.draw(x,y,w,h);
+  else drawPropertySlider(sliderGraphics,{x,midY:y+h/2,w,
+   barH:Math.min(h,Math.max(9,Math.min(24,h*.76))),labelW,gap,
+   labelSize:Math.min(11,Math.max(8,h*.44)),...row});
+  y+=h+rowGap;
  }
 }
 function createModalUI({
@@ -1840,10 +1852,10 @@ function modalBounds(name){
    const w=Math.min(410,W-2*UI_SPACE.padX);
    const h=Math.min(330,Math.max(0,H-safe.top-safe.bottom-2*gap));
    return {x:(W-w)/2,y:safe.top+(H-safe.top-safe.bottom-h)/2,
-    w,h,pad,gap,buttonH:b.extraH,secondaryH:b.overlaySecondaryH,landscapeFallback:true};
+    w,h,pad,gap,buttonH:b.buttonH,landscapeFallback:true};
   }
   return {x:b.boardX,y:b.boardY,w:b.boardW,h:b.boardH,pad,gap,
-   buttonH:b.extraH,secondaryH:b.overlaySecondaryH,landscapeFallback:false};
+   buttonH:b.buttonH,landscapeFallback:false};
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
  const wanted=2*pad+4*buttonH+4*gap+18;
@@ -1865,31 +1877,35 @@ function drawOptions(){
   region(r.sideX,y,r.sideW,rowH,'property:'+property.id,{kind:'button',modalControl:true});
  }
  const rows=[],lcd=Boolean(settingValue('lcdDisplay'));
+ const buttonRow=(label,act,opts={})=>{
+  const height=opts.light?r.buttonH:r.extraH;
+  return {height,draw:(x,y,w)=>key(label,x,y,w,height,act,{modalControl:true,...opts})};
+ };
  if(selected.toggle){
-  const field=selected.toggle;
-  rows.push((x,y,w,h)=>{
-   const label=field==='lcdDisplay'?(lcd?'LCD  ↔  CRT':'CRT  ↔  LCD'):
-    (settingValue(field)?'ENABLED':'DISABLED');
-   key(label,x,y,w,h,'toggle',{field,
-    light:field==='lcdDisplay'||Boolean(settingValue(field)),modalControl:true});
-  });
+  const field=selected.toggle,enabled=Boolean(settingValue(field));
+  const label=field==='lcdDisplay'?(lcd?'LCD  ↔  CRT':'CRT  ↔  LCD'):
+   (enabled?'ENABLED':'DISABLED');
+  const toggle=buttonRow(label,'toggle',{field,light:field==='lcdDisplay'||enabled});
+  if(selected.pattern)rows.push({height:Math.max(toggle.height,r.extraH),draw(x,y,w,h){
+   const toggleW=(w-gap)*.42,buttonY=y+(h-toggle.height)/2;
+   toggle.draw(x,buttonY,toggleW);
+   const patternX=x+toggleW+gap,patternW=w-toggleW-gap;
+   const arrowW=Math.min(r.extraH,patternW*.19),arrowY=y+(h-r.extraH)/2;
+   key('‹',patternX,arrowY,arrowW,r.extraH,'pattern:previous',{modalControl:true});
+   key('›',x+w-arrowW,arrowY,arrowW,r.extraH,'pattern:next',{modalControl:true});
+   text(SCANLINE_CHOICES[currentPattern()]?.name??'OFF',patternX+patternW/2,y+h/2,11,
+    C.bright,'center',Math.max(1,patternW-2*arrowW-4));
+  }});
+  else rows.push(toggle);
  }
  const sliders=(lcd?selected.lcdSliders:undefined)??selected.sliders??[];
  for(const [label,field,min,max,step,unit] of sliders)
   rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},value:Number(settingValue(field))});
- if(selected.pattern)rows.push((x,y,w,h)=>{
-  key('‹',x,y,h,h,'pattern:previous',{modalControl:true});
-  key('›',x+w-h,y,h,h,'pattern:next',{modalControl:true});
-  text(SCANLINE_CHOICES[currentPattern()]?.name??'OFF',x+w/2,y+h/2,11,
-   C.bright,'center',Math.max(1,w-2*(h+gap)));
- });
- if(selected.id==='shadows')
-  rows.push((x,y,w,h)=>key('LIGHT CONTROL',x,y,w,h,'light',{modalControl:true}));
- if(selected.id==='defaults')
-  rows.push((x,y,w,h)=>key('RESTORE DEFAULTS',x,y,w,h,'resetFX',{modalControl:true}));
+ if(selected.id==='shadows')rows.push(buttonRow('LIGHT CONTROL','light'));
+ if(selected.id==='defaults')rows.push(buttonRow('RESTORE DEFAULTS','resetFX'));
  if(selected.id==='diagnostics')
-  rows.push((x,y,w,h)=>key(debugCopyState==='copied'?'REPORT COPIED':
-   debugCopyState==='failed'?'RETRY COPY':'COPY DEBUG REPORT',x,y,w,h,'copyDebug',{modalControl:true}));
+  rows.push(buttonRow(debugCopyState==='copied'?'REPORT COPIED':
+   debugCopyState==='failed'?'RETRY COPY':'COPY DEBUG REPORT','copyDebug'));
  drawPropertyDeck({panel,rect,text,region,C},r,gap,rows);
  const theme=headerThemeBounds(r,UI_SPACE);
  region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
@@ -2264,8 +2280,6 @@ function computeLayout(W,H,safe,ui){
     Math.max(44,preferredButtonH);
   const headerButtonH=landscape?37:preferredExtraH;
   const extraH=landscape?headerButtonH:Math.max(44,preferredExtraH);
-  const overlaySecondaryH=landscape?(compact?39:short?40:ui.extrasHeight):
-    39+compactGrowth+(ui.extrasHeight-40)*regularGrowth;
   let hy=edges.top+4+5*compactGrowth-9*regularGrowth;
   let hh=50+8*compactGrowth+(ui.headHeight-58)*regularGrowth;
   const dhDefault=2*deckPad+deckGap+buttonH+extraH;
@@ -2387,7 +2401,7 @@ function computeLayout(W,H,safe,ui){
   return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
     sideX:sxSide,sideW:swSide,brickGap,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
-    deckPad,deckGap,buttonH,headerButtonH,extraH,overlaySecondaryH,
+    deckPad,deckGap,buttonH,headerButtonH,extraH,
     footerY:H-edges.bottom-18-stackInset};
 }
 const api=Object.freeze({computeLayout});

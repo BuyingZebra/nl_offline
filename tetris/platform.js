@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v234';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v234';
+import {createInputController} from './input.js?v235';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v235';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v234';
+export {createInputController} from './input.js?v235';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -375,7 +375,7 @@ const LETTER_SPACING_EM=.13; // Global 13%-of-font-size tracking; no exceptions.
 const BUTTON_FONT_SIZE=14,MAIN_ACTION_FONT_SIZE=16;
 const BUTTON_ICON_FONT_SIZE=18;
 const MAIN_ACTION_LABELS=new Set(['START GAME','RESUME','PLAY AGAIN','RETURN']);
-const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷','X','✓','!']);
+const BUTTON_ICON_LABELS=new Set(['◀','▶','↻','◐','☷','X','✓','!','‹','›']);
 const UI_SPACE=Object.freeze({
  unit:UI_GAP,buttonWidthScale:.75,overlayButtonWidthScale:.85,appMax:520,padX:11,stackGap:UI_GAP,side:93,sideGap:UI_GAP,
  headHeight:80,headIcons:46,headIconGap:UI_GAP,headRightPad:UI_GAP,
@@ -828,7 +828,7 @@ function paintBoardPopup(r){
   const title=type==='paused'?'PAUSED':type==='over'?'GAME OVER':'TETRIS';
   const caption=type==='paused'?'RESUME':type==='over'?'PLAY AGAIN':'START GAME';
   const inset=UI_SPACE.unit,headingGap=2*UI_SPACE.unit;
-  const primaryH=r.extraH,secondaryH=r.overlaySecondaryH;
+  const primaryH=r.buttonH,secondaryH=r.extraH;
   const slots=boardOverlaySlots({x,y,w,h},UI_SPACE);
   // START GAME is unchanged: the pause action uses its same midpoint anchor.
   // A very short playfield may shift the pause stack upward to keep it visible.

@@ -79,7 +79,7 @@ describe('Overlay theme and confirmation controls',()=>{
  test('the shared deck keeps the original control bounds and fits four controls',()=>{
   const r={dx:11,dy:650,dw:371,dh:128,deckPad:6},calls=[];
   const add=(...args)=>calls.push(args);
-  drawPropertyDeck({panel:add,C:{panel:'#123'}},r,6,[add,add,add,add]);
+  drawPropertyDeck({panel:add,C:{panel:'#123'}},r,6,[{draw:add},{draw:add},{draw:add},{draw:add}]);
   assert.deepEqual(calls[0],[r.dx,r.dy,r.dw,r.dh,0,'#123']);
   assert.equal(calls.length,5);
   assert.ok(calls[1][1]>=r.dy);
@@ -552,9 +552,10 @@ describe('HUD layout and viewport rules',()=>{
   assert.deepEqual(painted.keys.map(k=>k[0]),['◀','DROP','▶','↻','HOLD','PAUSE']);
   assert.deepEqual(painted.keys.map(k=>k[5]),['left','soft','right','cw','hold','pause']);
   assert.deepEqual(painted.keys.map(k=>k[2]),[
-   r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,
+   r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad+(r.buttonH-r.extraH)/2,
    r.dy+r.deckPad+r.buttonH+r.deckGap,r.dy+r.deckPad+r.buttonH+r.deckGap
   ]);
+  assert.deepEqual(painted.keys.map(k=>k[4]),[r.buttonH,r.buttonH,r.buttonH,r.extraH,r.extraH,r.extraH]);
   assert.deepEqual(painted.text,[],'level score lines no longer drawn above game buttons');
  });
  test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
@@ -793,7 +794,7 @@ describe('Pointer and keyboard input',()=>{
   const screen=target(),document=target(),window=target(),regions=[];
   const W=393,H=852,ignore=()=>{};
   const r={hx:12,hw:369,hy:40,hh:70,boardY:120,boardW:240,boardH:480,
-   sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44};
+   sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44,buttonH:53,extraH:46};
   const settings=createSettingsManager();
   const add=(...args)=>regions.push(makeRegion(...args));
   const modal=createModalUI({
@@ -822,7 +823,10 @@ describe('Pointer and keyboard input',()=>{
      const hit=regions.find(item=>item.act==='slider'&&item.field===field);
      assert.ok(hit&&hit.y>=r.dy&&hit.y+hit.h<=r.dy+r.dh,field);
     }
-    if(effect.toggle)assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field===effect.toggle));
+    if(effect.toggle){
+     const toggle=regions.find(hit=>hit.act==='toggle'&&hit.field===effect.toggle);
+     assert.equal(toggle?.h,settings.settingValue(effect.toggle)?r.buttonH:r.extraH);
+    }
    }
   };
   screen.getBoundingClientRect=()=>({left:0,top:0,width:W,height:H});
@@ -844,7 +848,7 @@ describe('Pointer and keyboard input',()=>{
   testControls();
   for(const [id,action] of [['defaults','resetFX'],['diagnostics','copyDebug'],['shadows','light']]){
    modal.selectProperty(id);paint();
-   assert.ok(regions.some(hit=>hit.act===action));
+   assert.equal(regions.find(hit=>hit.act===action)?.h,r.extraH);
   }
   modal.selectProperty('scanlines');paint();
   assert.ok(regions.some(hit=>hit.act==='pattern:next'));

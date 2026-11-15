@@ -633,8 +633,9 @@ describe('Canvas button drawing',()=>{
    fill(){calls.push({type:'fill',color:this.fillStyle});},
    stroke(){calls.push({type:'stroke',color:this.strokeStyle});},
    measureText(label){return {width:String(label).length*8,
-    actualBoundingBoxAscent:10,actualBoundingBoxDescent:3};},
-   fillText(value){calls.push({type:'glyph',color:this.fillStyle,value});}
+    actualBoundingBoxAscent:10,actualBoundingBoxDescent:3,
+    actualBoundingBoxLeft:6,actualBoundingBoxRight:10};},
+   fillText(value,x,y){calls.push({type:'glyph',color:this.fillStyle,value,x,y});}
   };
   const ui=createCanvasUI({
    getContext:()=>g,getRegions:()=>regions,getButtonPower:()=>power,
@@ -657,6 +658,15 @@ describe('Canvas button drawing',()=>{
     'rgb('+lit+','+lit+','+lit+')',call.type);
    assert.equal(regions[0].kind,'button');
   }
+ });
+ test('button ink is centered in both axes while the leading arrow keeps its inset',()=>{
+  const {calls,ui}=drawKey(true,0,true);
+  const [label,arrow]=calls.filter(call=>call.type==='glyph');
+  assert.deepEqual([label.x,label.y],[63,66]);
+  assert.deepEqual([arrow.x,arrow.y],[35,66]);
+  ui.key('▶',120,40,40,45,'right',{light:true});
+  const icon=calls.at(-1);
+  assert.deepEqual([icon.x,icon.y],[138,66]);
  });
  test('outlined LCD buttons paint an opaque face at rest and while pressed',()=>{
   for(const power of [0,1]){
@@ -681,7 +691,7 @@ describe('Canvas button drawing',()=>{
   const {ui:hot}=drawKey(false,1);
   assert.equal(hot.buttonLight(20,40,90,45),255);
   const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  assert.match(modal,/key\('RESTORE DEFAULTS'/);
+  assert.match(modal,/buttonRow\('RESTORE DEFAULTS'/);
   const game=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(game,/getButtonPower:r=>\(g===controlsContext&&visualScene\.controlsGpuEnabled\)\?0:buttonSparks\.find/);
   assert.doesNotMatch(game,/syncButtonFeedback/);
@@ -1189,7 +1199,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,0,'no board inset in the blurred source');
   assert.match(fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8'),/if\(getModal\(\)==='light'\)\{/);
   assert.match(fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8'),/if\(touch\.mode==='light'\)\{/);
-  assert.match(renderer,/key\('LIGHT CONTROL',[\s\S]*?\{modalControl:true\}/);
+  assert.match(renderer,/buttonRow\('LIGHT CONTROL','light'\)/);
  });
 
  test('v198 hides real sidebar art/texture at source instead of covering it with a mask',()=>{
@@ -1314,7 +1324,7 @@ describe('v200 context-only light property deck',()=>{
  test('Display System remains a launcher and has no duplicated shadow sliders',()=>{
   const src=renderer();
   assert.match(src,/selected\.id==='shadows'/);
-  assert.match(src,/key\('LIGHT CONTROL'/);
+  assert.match(src,/buttonRow\('LIGHT CONTROL'/);
   assert.match(src,/drawPropertyDeck\(/);
  });
 });
