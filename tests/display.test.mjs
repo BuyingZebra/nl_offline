@@ -285,8 +285,8 @@ describe('CRT composition',()=>{
   const {pipeline,composer}=setup();
   const [,horizontal,popup]=composer.passes;
   const effect=DISPLAY_EFFECTS.find(effect=>effect.id==='menuBlur');
-  assert.deepEqual(effect.sliders.map(slider=>slider[1]),['crtMenuBlur','crtMenuBrightness']);
-  assert.deepEqual(effect.lcdSliders.map(slider=>slider[1]),['lcdMenuBlur','lcdMenuBrightness']);
+  assert.deepEqual(effect.sliders.map(slider=>slider[1]),['crtMenuBlur','crtMenuFade']);
+  assert.deepEqual(effect.lcdSliders.map(slider=>slider[1]),['lcdMenuBlur','lcdMenuFade']);
   const state={fx:{...states,crtMenuBlur:47,crtMenuVisibility:0,lcdMenuBlur:65,lcdMenuVisibility:10},
    theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',popupStatus:'paused',
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
@@ -296,29 +296,32 @@ describe('CRT composition',()=>{
    for(const pass of [horizontal,popup])
     assert.equal(pass.uniforms.uSigma.value,13*Math.pow(amount,1.25));
   }
-  pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:0,lcdMenuBrightness:100}});
+  pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:0,lcdMenuFade:0}});
   assert.equal(horizontal.enabled,false);
   assert.equal(popup.uniforms.uSigma.value,0);
   assert.equal(popup.enabled,true);
   pipeline.dispose();
  });
- test('menu brightness is separate from blur and affects only the first board pass',()=>{
+ test('menu fade is independent of blur and targets the display background',()=>{
   const {pipeline,composer}=setup();
   const [,horizontal,popup]=composer.passes;
-  const state={fx:{...states,crtMenuBlur:0,crtMenuBrightness:70,lcdMenuBrightness:92},
+  const state={fx:{...states,crtMenuBlur:0,crtMenuFade:0,lcdMenuFade:100},
    theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',popupStatus:'paused',
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
   pipeline.syncFX(state);
-  assert.equal(horizontal.enabled,true);
-  assert.equal(horizontal.uniforms.uSigma.value,0);
-  assert.equal(horizontal.uniforms.uBoardBrightness.value,.7);
-  assert.equal(popup.uniforms.uBoardBrightness.value,1);
-  pipeline.syncFX({...state,lcd:true});
-  assert.equal(horizontal.uniforms.uBoardBrightness.value,.92);
-  assert.ok(horizontal.uniforms.uSigma.value>0);
-  pipeline.syncFX({...state,boardStatus:'playing',popupStatus:'playing'});
   assert.equal(horizontal.enabled,false);
-  assert.equal(horizontal.uniforms.uBoardBrightness.value,1);
+  assert.equal(popup.uniforms.uFade.value,0);
+  assert.equal(popup.uniforms.uFadeTo.value.value,0x101010);
+  pipeline.syncFX({...state,lcd:true});
+  assert.equal(popup.uniforms.uFade.value,1);
+  assert.equal(popup.uniforms.uFadeTo.value.value,0xd8d8d8);
+  assert.ok(horizontal.uniforms.uSigma.value>0);
+  pipeline.syncFX({...state,lcd:true,boardStatus:'playing',popupStatus:'playing'});
+  assert.equal(horizontal.enabled,false);
+  assert.equal(popup.uniforms.uFade.value,0);
+  const shader=popup.fragmentShader;
+  assert.ok(shader.indexOf('backdrop=sum/weights')<shader.indexOf('backdrop=mix(backdrop,uFadeTo,uFade)'));
+  assert.ok(shader.indexOf('backdrop=mix(backdrop,uFadeTo,uFade)')<shader.indexOf('vec4 popup='));
   pipeline.dispose();
  });
  test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
