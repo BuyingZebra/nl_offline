@@ -2,6 +2,7 @@ import {describe,test} from 'node:test';
 import {instrumentCompositorPasses} from '../tetris/render.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {runInNewContext} from 'node:vm';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createButtonFeedback,buttonFeedbackChanged,MAX_BUTTON_FLASHES,BUTTON_FLASH_PEAK_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,buttonLevel,buttonInkLevel,buttonFeedbackLayers,createRenderInvalidation,createGpuButtonLighting,excitedButtonGray,GPU_BUTTON_CAPACITY,controlsBounds} from '../tetris/render.js';
@@ -264,7 +265,26 @@ describe('CRT composition',()=>{
   }
   pipeline.dispose();
  });
- test('board blur appears only for active READY/PAUSED/OVER popup',()=>{
+ test('gameplay blur follows the selected display and stays inside the board',()=>{
+  const {pipeline,composer}=setup();
+  const [,horizontal,vertical]=composer.passes;
+  const state={fx:{...states,crtBoardBlur:1,lcdBoardBlur:2.5},theme:'green',
+   width:393,height:852,dpr:3,boardStatus:'playing',popupStatus:'playing',
+   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
+  for(const [lcd,sigma] of [[false,1],[true,2.5]]){
+   pipeline.syncFX({...state,lcd});
+   for(const pass of [horizontal,vertical]){
+    assert.equal(pass.enabled,true);
+    assert.equal(pass.uniforms.uSigma.value,sigma);
+    assert.equal(pass.uniforms.uRect.value.x,13/393);
+   }
+   assert.equal(vertical.uniforms.uFade.value,0);
+  }
+  pipeline.syncFX({...state,lcd:true,modalOpen:true});
+  assert.equal(horizontal.enabled,false);
+  pipeline.dispose();
+ });
+ test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
   const {pipeline,composer}=setup();
   const state={fx:states,theme:'green',width:393,height:852,dpr:3,
    boardStatus:'ready',popupStatus:'ready',modalOpen:false,
@@ -1254,17 +1274,37 @@ describe('v202 grid and piece bloom mask wiring',()=>{
  test('board background and grid strokes brighten independently by about 10%; geometry and alpha unchanged',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(p,/grid:'#373737'/);
-  assert.match(p,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
+  assert.match(p,/rect\(offX,top,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
   assert.match(p,/g\.globalAlpha=\.751355748;g\.strokeStyle=settings\.lcdDisplay\?LCD_BOARD\.grid:C\.grid;g\.lineWidth=\.6/);
   assert.equal(55/50,1.1,'grid stroke source rises exactly 10%');
   assert.ok(Math.abs(26/24-1.1)<.02,'board background rises by the nearest integer to 10%');
+ });
+ test('grid spans the opening with twenty square rows anchored to the floor',()=>{
+  const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
+  const stage=source.slice(source.indexOf('function stage('),
+   source.indexOf('// ONE cached inset'));
+  const from=[],to=[];
+  const noop=()=>{};
+  const g={save:noop,beginPath:noop,rect:noop,clip:noop,stroke:noop,restore:noop,
+   moveTo:(...point)=>from.push(point),lineTo:(...point)=>to.push(point)};
+  const paint=runInNewContext('('+stage.trim()+')',{g,panel:noop,rect:noop,
+   settings:{lcdDisplay:true},C:{},LCD_BOARD:{}});
+  paint({boardX:10,boardY:20,boardW:104,boardH:208},false);
+  for(let column=0;column<=10;column++){
+   assert.deepEqual(from[column],[12+column*10,22]);
+   assert.deepEqual(to[column],[12+column*10,226]);
+  }
+  for(let row=0;row<=20;row++){
+   assert.deepEqual(from[11+row],[12,26+row*10]);
+   assert.deepEqual(to[11+row],[112,26+row*10]);
+  }
  });
  test('piece mask paints occupied faces but not shadows or the background',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const stage=p.slice(p.indexOf('function stage('),p.indexOf('function drawSharpBoardInsetShadow('));
   const board=p.slice(p.indexOf('function paintBoardLayer('),p.indexOf('// Keep all original drawing commands'));
   assert.match(stage,/function stage\(r,drawPieces=true,pieceMask=null\)/);
-  assert.match(stage,/pieceMask\.rect\(offX,offY,w-4,h-4\);pieceMask\.clip\(\)/);
+  assert.match(stage,/pieceMask\.rect\(offX,offY,w-4,bottom-offY\);pieceMask\.clip\(\)/);
   assert.match(stage,/maskTile\(offX\+rx\*tile,offY\+ry\*tile\)/);
   assert.match(stage,/maskTile\(px,py,rw,rh\)/);
   assert.match(stage,/maskTile\(offX\+col\*tile,offY\+row\*tile\)/);

@@ -643,7 +643,7 @@ describe('HUD layout and viewport rules',()=>{
   assert.doesNotMatch(renderer,/soldierSticker|soldier-sticker|assets\/mascot\/|decalW|decalH/);
   assert.doesNotMatch(sw,/nomad-field-soldier-head\.svg/);
   assert.equal(fs.existsSync(new URL('../tetris/assets/mascot/nomad-field-soldier-head.svg',import.meta.url)),false);
-  assert.match(renderer,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
+  assert.match(renderer,/rect\(offX,top,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
  });
 
  test('piece shadows stay below pieces and the board inset remains post-blur',()=>{
@@ -653,7 +653,7 @@ describe('HUD layout and viewport rules',()=>{
   const end=renderer.indexOf('function drawSharpBoardInsetShadow(r)',start);
   assert.ok(start>=0&&end>start);
   const stage=renderer.slice(start,end);
-  assert.match(stage,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
+  assert.match(stage,/rect\(offX,top,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
   assert.match(stage,/g\.globalAlpha=\.751355748;g\.strokeStyle=settings\.lcdDisplay\?LCD_BOARD\.grid:C\.grid/);
   assert.match(stage,/collectPieceShadowGroups\(displayBoard,displayMeta,/);
   assert.equal((stage.match(/pieceShadows\.draw\(/g)||[]).length,1);

@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v223';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v223';
+import {instrumentCompositorPasses} from './diagnostics.js?v224';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v224';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -32,7 +32,7 @@ function makeSliderControl(x,y,w,setting,value,size=15,gap=6){
  const [label,field,min,max,step,unit]=setting;
  const digits=step<.1?2:step<1?1:0;
  const valueText=Number(value).toFixed(digits)+unit;
- const labelW=label?(label==='X'||label==='Y'?12:label==='RADIUS'?51:65):0;
+ const labelW=label?(label==='X'||label==='Y'?12:label==='CRT'||label==='LCD'?26:label==='RADIUS'?51:65):0;
  const valueW=Math.max(30,Math.ceil(valueText.length*6.8));
  const trackX=x+labelW+(label?gap:0)+size/2;
  const trackEnd=x+w-valueW-gap-size/2;
@@ -620,13 +620,15 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  const boardWindowVisible=boardBackdropVisible||isolateLightWindow;
  const boardOverlayActive=boardStatus!=='playing'&&boardBackdropVisible&&
   popupStatus===boardStatus;
- // The Gaussian is OFF during gameplay. This SAME final popup pass
- // still composites the one sharp board inset after the unblurred pieces.
- boardBlurHorizontal.enabled=boardOverlayActive;
+ // Use the same aperture-limited Gaussian for gameplay, with independent
+ // CRT and LCD settings. Popup blur takes over behind menus.
+ const gameplaySigma=boardStatus==='playing'&&boardBackdropVisible?
+  (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
+ boardBlurHorizontal.enabled=boardOverlayActive||gameplaySigma>0;
  boardPopupPass.enabled=boardBackdropVisible;
  for(const pass of popupPasses){
-  pass.uniforms.uSigma.value=boardOverlayActive?popupBlur.sigma:0;
-  pass.uniforms.uStep.value=popupBlur.step;
+  pass.uniforms.uSigma.value=boardOverlayActive?popupBlur.sigma:gameplaySigma;
+  pass.uniforms.uStep.value=boardOverlayActive?popupBlur.step:1;
  }
  boardPopupPass.uniforms.uFade.value=boardOverlayActive?BOARD_POPUP_FADE:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
@@ -1873,7 +1875,7 @@ function effectPreview(id){
   p.save();p.globalAlpha=.33;p.translate(-8,2);drawPiece();p.restore();
   p.save();p.globalAlpha=.48;p.translate(8,-2);drawPiece();p.restore();
   drawPiece();
- }else if(id==='softness'){
+ }else if(id==='softness'||id==='boardBlur'){
   p.save();p.filter='blur(4.2px)';drawPiece();p.restore();
  }else if(id==='bloom'){
   p.save();p.shadowColor=gray(240);p.shadowBlur=22;drawPiece();p.restore();
@@ -2110,12 +2112,16 @@ function drawOptions(q){
   const blockTop=y+(row.rowHeight-row.contentHeight)/2;
   const titleY=blockTop+SETTINGS_TITLE_H/2;
   const toggleLum=gray(buttonLight(ctrlX,titleY-17,ctrlW,34));
-  settingSquare(ctrlX,titleY-SETTINGS_SQUARE_SIZE/2,
-   SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)),toggleLum);
-  text(effect.title,ctrlX+SETTINGS_SQUARE_SIZE+gap,titleY,12,toggleLum,
-   'left',Math.max(10,ctrlW-SETTINGS_SQUARE_SIZE-gap));
-  region(ctrlX,titleY-17,ctrlW,34,'toggle',
-   {field:effect.toggle,modalControl:true});
+  let titleX=ctrlX;
+  if(effect.toggle){
+   settingSquare(ctrlX,titleY-SETTINGS_SQUARE_SIZE/2,
+    SETTINGS_SQUARE_SIZE,Boolean(settingValue(effect.toggle)),toggleLum);
+   titleX+=SETTINGS_SQUARE_SIZE+gap;
+   region(ctrlX,titleY-17,ctrlW,34,'toggle',
+    {field:effect.toggle,modalControl:true});
+  }
+  text(effect.title,titleX,titleY,12,toggleLum,
+   'left',Math.max(10,ctrlX+ctrlW-titleX));
   const firstY=blockTop+SETTINGS_TITLE_H+gap+SETTINGS_CONTROL_H/2;
   if(effect.id==='ghost'){
    const half=(ctrlW-2*gap)/2;

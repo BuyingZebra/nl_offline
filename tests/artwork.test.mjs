@@ -739,7 +739,7 @@ describe('Brick rails',()=>{
     renderer.indexOf('function paintGame(')),/stage\(r,false\)/,
     'base may not duplicate the cropped board');
    assert.match(renderer,/brickFrame\.draw\(g,r\)/);
-  assert.match(renderer,/const offX=x\+2,offY=y\+2,tile=\(w-4\)\/10/);
+  assert.match(renderer,/const offX=x\+2,top=y\+2,bottom=y\+h-2,tile=\(w-4\)\/10/);
   const sw=fs.readFileSync(new URL('../tetris/sw.js',import.meta.url),'utf8');
   for(const item of [
    './assets/frames/brick-pattern.mjs',
@@ -1208,6 +1208,6 @@ describe('Piece shadows',()=>{
   const faces=section.indexOf('displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{',cast);
   assert.ok(grid>=0&&cast>grid&&faces>cast);
   assert.doesNotMatch(section,/drawPieceShadowGradients\(|pieceShadowOccupancy\(/);
-  assert.match(src,/rect\(offX,offY,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
+  assert.match(src,/rect\(offX,top,w-4,h-4,settings\.lcdDisplay\?LCD_BOARD\.panel:'#1a1a1a'\)/);
  });
 });

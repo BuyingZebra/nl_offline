@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v223';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v223';
+import {createInputController} from './input.js?v224';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v224';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v223';
+export {createInputController} from './input.js?v224';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -729,7 +729,9 @@ function cell(x,y,col,row,size,kind,isGhost=false){
 function stage(r,drawPieces=true,pieceMask=null){
  const {boardX:x,boardY:y,boardW:w,boardH:h}=r;
  panel(x,y,w,h,7,C.panel);
- const offX=x+2,offY=y+2,tile=(w-4)/10;
+ const offX=x+2,top=y+2,bottom=y+h-2,tile=(w-4)/10;
+ // Anchor twenty square rows at the floor and leave the extra space above.
+ const offY=bottom-20*tile;
  // Record occupied piece-face footprints only while painting the actual
  // board. This mask is not a second piece rendering or shadow layer.
  const maskTile=(px,py,pw=tile,ph=tile)=>{
@@ -737,15 +739,15 @@ function stage(r,drawPieces=true,pieceMask=null){
  };
  if(pieceMask){
   pieceMask.save();pieceMask.beginPath();
-  pieceMask.rect(offX,offY,w-4,h-4);pieceMask.clip();
+  pieceMask.rect(offX,offY,w-4,bottom-offY);pieceMask.clip();
  }
- g.save();g.beginPath();g.rect(offX,offY,w-4,h-4);g.clip();
- rect(offX,offY,w-4,h-4,settings.lcdDisplay?LCD_BOARD.panel:'#1a1a1a');
+ g.save();g.beginPath();g.rect(offX,top,w-4,h-4);g.clip();
+ rect(offX,top,w-4,h-4,settings.lcdDisplay?LCD_BOARD.panel:'#1a1a1a');
  // V202: lift both the playfield background (24 -> 26/255, +8.3%)
  // and grid strokes (50 -> 55/255, +10%) without changing geometry,
  // stroke opacity (0.751355748), or grid line width (0.6px).
  g.globalAlpha=.751355748;g.strokeStyle=settings.lcdDisplay?LCD_BOARD.grid:C.grid;g.lineWidth=.6;g.beginPath();
- for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,offY);g.lineTo(offX+c*tile,offY+20*tile);}
+ for(let c=0;c<=10;c++){g.moveTo(offX+c*tile,top);g.lineTo(offX+c*tile,bottom);}
  for(let row=0;row<=20;row++){g.moveTo(offX,offY+row*tile);g.lineTo(offX+10*tile,offY+row*tile);}
  g.stroke();g.globalAlpha=1;
  // Blink freshly completed rows between the detailed tiles and empty
@@ -766,6 +768,7 @@ function stage(r,drawPieces=true,pieceMask=null){
   !lineClearFX&&game.status!=='over'?game.current:null,
   clearIsEmpty?lineClearFX.rows:null);
  pieceShadows.draw(g,shadowGroups,offX,offY,tile);
+ g.save();g.beginPath();g.rect(offX,offY,w-4,bottom-offY);g.clip();
  displayBoard.forEach((row,ry)=>row.forEach((kind,rx)=>{
   if(!kind)return;
   if(clearIsEmpty&&lineClearFX.rows.has(ry)){
@@ -809,6 +812,7 @@ function stage(r,drawPieces=true,pieceMask=null){
   }));
   if(p.kind==='I')vectorTiles.drawPiece(g,activeTiles,'I',{rotation:p.rotation});
  }
+ g.restore();
  if(lineClearFX?.finalPoints){
   const label='+'+lineClearFX.finalPoints;
   rect(x+w*.17,y+h*.45,w*.66,h*.10,C.bg);

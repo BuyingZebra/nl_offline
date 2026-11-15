@@ -467,11 +467,14 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  ghost:false,ghostX:2,ghostY:0,ghostStrength:22,
  scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
  softness:false,softnessStrength:.64,softnessRadius:3,
+ crtBoardBlur:0,lcdBoardBlur:0,
  vignette:true,vignetteAmount:.57,
  persistence:true,persistenceMs:120,
  shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
  shadowBias:1,shadowOpacity:.8});
 export const DISPLAY_EFFECTS=[
+ {id:'boardBlur',title:'BOARD BLUR',
+  sliders:[['CRT','crtBoardBlur',0,4,.5,'px'],['LCD','lcdBoardBlur',0,4,.5,'px']]},
  {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},
  {id:'persistence',title:'PHOSPHOR RESPONSE',toggle:'persistence',
   sliders:[['DECAY','persistenceMs',10,120,10,'ms']]},
@@ -504,6 +507,7 @@ export const SCANLINE_PRESET_IDS=Object.freeze(['original','horizontal','apertur
 export const EFFECT_NUMBER_RANGES=Object.freeze({
  bloomStrength:[0,1],ghostX:[-32,32],ghostY:[-32,32],ghostStrength:[0,100],
  scanlineOpacity:[0,100],softnessStrength:[0,1],softnessRadius:[0,10],
+ crtBoardBlur:[0,4],lcdBoardBlur:[0,4],
  vignetteAmount:[0,1],persistenceMs:[10,120],...SHADOW_RANGES
 });
 // Validate persisted, migrated and user-submitted effects using one schema.
