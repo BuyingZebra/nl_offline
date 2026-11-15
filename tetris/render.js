@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v233';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v233';
+import {instrumentCompositorPasses} from './diagnostics.js?v234';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v234';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -21,10 +21,10 @@ function makeRegion(x,y,w,h,act,options={}){
  return {x,y,w,h,act,...options};
 }
 function makeButtonControl(label,x,y,w,h,act,
- {light=false,repeat=false,arrow=false,modalControl=false}={}){
+ {light=false,repeat=false,arrow=false,modalControl=false,field}={}){
  return {
   kind:'button',label,x,y,w,h,act,light,repeat,arrow,modalControl,
-  hitbox:makeRegion(x,y,w,h,act,{kind:'button',light,repeat,modalControl})
+  hitbox:makeRegion(x,y,w,h,act,{kind:'button',light,repeat,modalControl,...(field===undefined?{}:{field})})
  };
 }
 // Last-drawn region wins, matching the existing overlay z-order.
@@ -260,7 +260,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
-   uniform float uSigma,uComposite,uCanvasBlend,uFade,uPopupVisible;
+   uniform float uSigma,uComposite,uCanvasBlend,uFade;
    uniform vec3 uFadeTo;
    vec3 encodeSRGB(vec3 x){
     return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
@@ -299,7 +299,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     }
     if(uComposite>.5){
      if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
-     vec4 popup=uPopupVisible>.5?texture2D(uPopup,vUv):vec4(0.0);
+     vec4 popup=texture2D(uPopup,vUv);
      // LCD piece shadows blend on the 2D canvas in encoded sRGB.
      if(uCanvasBlend>.5&&popup.a>0.0&&popup.a<1.0){
       backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
@@ -315,7 +315,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uFade:{value:0},uFadeTo:{value:new THREE.Color(0x101010)},
-    uComposite:{value:composite?1:0},uCanvasBlend:{value:0},uPopupVisible:{value:1}
+    uComposite:{value:composite?1:0},uCanvasBlend:{value:0}
    },
    vertexShader:passVertex,fragmentShader:boardGaussianShader
   });
@@ -622,15 +622,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   (lcd?fx.lcdMenuFade:fx.crtMenuFade)/100:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
- boardPopupPass.uniforms.uPopupVisible.value=propertiesPreview?0:1;
  // Keep the live CanvasTexture bound through all update paths.
  boardPopupPass.uniforms.uPopup.value=boardPopupTexture;
  if(layoutInfo){
-  const r=layoutInfo,x=r.boardX+2,w=Math.max(0,r.boardW-4);
-  const boardY=r.boardY-(propertiesPreview?.offset??0);
-  const y=Math.max(boardY+2,propertiesPreview?.clipTop??-Infinity);
-  const bottom=Math.min(boardY+r.boardH-2,propertiesPreview?.clipBottom??Infinity);
-  const h=Math.max(0,bottom-y);
+  const r=layoutInfo,x=r.boardX+2,y=r.boardY+2,w=Math.max(0,r.boardW-4),h=Math.max(0,r.boardH-4);
   for(const pass of popupPasses){
    pass.uniforms.uRect.value.set(x/W,1-(y+h)/H,(x+w)/W,1-y/H);
   }
@@ -647,8 +642,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   // Piece-mask coordinates track the ENTIRE cropped board texture, while
   // bloom aperture still uses its 2px inner window.
   glow.highPassUniforms?.uPieceMaskRect?.value.set(
-   layoutInfo.boardX/W,1-(boardY+layoutInfo.boardH)/H,
-   (layoutInfo.boardX+layoutInfo.boardW)/W,1-boardY/H
+   layoutInfo.boardX/W,1-(layoutInfo.boardY+layoutInfo.boardH)/H,
+   (layoutInfo.boardX+layoutInfo.boardW)/W,1-layoutInfo.boardY/H
   );
  }
  edgeVignette.enabled=!lcd&&fx.vignette;
@@ -1795,34 +1790,48 @@ function drawMenuScoreBox({text,rect,C},box,record){
  });
 }
 
-function propertyDeckGeometry(r,amount){
- const headerBottom=r.hy+r.hh;
- const previewHeight=Math.min(104,r.boardH*.30);
- const expandedTop=Math.max(headerBottom+previewHeight,r.dy-r.boardH*.63);
- const offset=Math.max(0,r.dy-expandedTop)*amount;
- return {x:r.dx,y:r.dy-offset,w:r.dw,h:r.dh+offset,offset,headerBottom};
+function drawPropertyDeck({panel,rect,text,region,C},r,gap,rows){
+ panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
+ const x=r.dx+r.deckPad,w=Math.max(1,r.dw-2*r.deckPad);
+ const rowGap=Math.min(gap,Math.max(2,r.dh*.045));
+ const rowH=Math.max(1,(r.dh-2*r.deckPad-rowGap*3)/4);
+ const labelW=Math.min(125,Math.max(80,w*.29));
+ const sliderGraphics={rect,text,region,ink:C.ink};
+ for(const [i,row] of rows.entries()){
+  const y=r.dy+r.deckPad+i*(rowH+rowGap);
+  if(typeof row==='function')row(x,y,w,rowH);
+  else drawPropertySlider(sliderGraphics,{x,midY:y+rowH/2,w,
+   barH:Math.max(9,Math.min(24,rowH*.76)),labelW,gap,
+   labelSize:Math.min(11,Math.max(8,rowH*.44)),...row});
+ }
 }
 function createModalUI({
- document,SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
- getViewport,layout,insets,clearRegions,getContext,
- panel,text,rect,region,key,buttonLight,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
- getFX,activeScanlinePreset,settingValue,chooseScanlineSetting,invalidate,setScrollVelocity,
- getBest,getGame,getModal,LCD_BOARD=C
+ DISPLAY_EFFECTS,SCANLINE_CHOICES,getViewport,layout,insets,clearRegions,
+ panel,text,rect,region,key,C,UI_SPACE,
+ getFX,settingValue,chooseScanlineSetting,invalidate,
+ getBest,getModal,LCD_BOARD=C
 }){
- const PREVIEW_SIZE=96,SETTINGS_SQUARE_SIZE=15;
- let modalView=null,optionsScroll=0,optionsMaxScroll=0;
- let scanlineMenuOpen=false,debugCopyState='idle',propertyTab='BOARD';
- const propertyTabs=['BOARD','SCREEN','GAME'];
+ const listLabels={display:'DISPLAY TYPE',menuBlur:'MENU BACKDROP',boardBlur:'PLAYFIELD BLUR',
+  phosphor:'PHOSPHOR COLOR',persistence:'PHOSPHOR RESPONSE',scanlines:'SCANLINES',
+  vignette:'VIGNETTE',bloom:'BLOOM',ghost:'SIGNAL GHOSTING',softness:'EDGE SOFTNESS'};
+ const properties=[{id:'display',toggle:'lcdDisplay'},...DISPLAY_EFFECTS,
+  {id:'defaults',title:'RESTORE DEFAULTS'},{id:'diagnostics',title:'DIAGNOSTICS'}];
+ let selected=properties[0],debugCopyState='idle';
+ function currentPattern(){
+  const fx=getFX();
+  return fx.scanlines?Math.max(0,SCANLINE_CHOICES.findIndex(choice=>choice.id===fx.scanlinePreset)):0;
+ }
+ function cyclePattern(step){
+  if(!SCANLINE_CHOICES.length)return;
+  const index=(currentPattern()+step+SCANLINE_CHOICES.length)%SCANLINE_CHOICES.length;
+  chooseScanlineSetting(SCANLINE_CHOICES[index].id);invalidate();
+ }
 // Menu geometry shares the six-pixel unit and the existing 46/42/37px
 // phosphor/settings, HOLD and PAUSE button height.
 function modalBounds(name){
  const {W,H}=getViewport();
  const safe=insets(),pad=UI_SPACE.unit,gap=UI_SPACE.unit;
  const buttonH=layout().headerButtonH;
- // Display System is its own full-screen view, not a 410px floating dialog.
- // Its title and fixed bottom control still respect the iPhone safe areas.
- if(name==='options')return {w:W,h:H,x:0,y:0,pad,gap,buttonH,
-  safeTop:safe.top,safeBottom:safe.bottom};
  // The personal record fills the existing blurred playfield.
  // Unusually narrow landscape boards need a wider, legible overlay.
  if(name==='scores'){
@@ -1842,273 +1851,49 @@ function modalBounds(name){
  const h=Math.max(0,Math.min(wanted,usable-2*gap));
  return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,gap,buttonH};
 }
-// All visual previews share the very same T tetromino matrix and base image
-// treatment. Per-effect rendering alters ONLY the effect, not the subject.
-// The same real T tetromino and dim grayscale phosphor screen appear in every
-// effect preview. These neutral pixels are tinted later by the EXISTING GPU.
-function effectPreview(id){
- const canvas=document.createElement('canvas');
- canvas.width=PREVIEW_SIZE;canvas.height=PREVIEW_SIZE;
- const p=canvas.getContext('2d');if(!p)return canvas;
- const n=PREVIEW_SIZE;
- p.fillStyle=gray(26);p.fillRect(0,0,n,n);
- p.fillStyle=gray(31);
- for(let v=8;v<n;v+=8){p.fillRect(v,0,1,n);p.fillRect(0,v,n,1);}
- if(id==='phosphor'){
-  // A single fully solid inset square; the edge gap is intentionally empty.
-  p.fillStyle=gray(173);p.fillRect(13,13,n-26,n-26);
-  return canvas;
- }
- if(id==='shadows')return canvas; // Live v06 thumbnail is painted on demand.
- if(id==='sound'){
-  p.fillStyle=gray(193);
-  [16,27,43,54,35,23].forEach((h,i)=>p.fillRect(15+i*12,70-h,7,h));
-  return canvas;
- }
- const matrix=SHAPES.T,cells=[],size=20;
- for(let ry=0;ry<matrix.length;ry++)
-  for(let rx=0;rx<matrix[ry].length;rx++)
-   if(matrix[ry][rx])cells.push([rx,ry]);
- const drawPiece=(ghost=false)=>{
-  p.save();if(ghost)p.globalAlpha=.43;
-  for(const [cx,cy] of cells){
-   const x=18+cx*size,y=28+cy*size;
-   if(ghost){
-    p.strokeStyle=gray(222);p.lineWidth=2;
-    p.strokeRect(x+2,y+2,size-4,size-4);
-    p.fillStyle=gray(58);p.fillRect(x+4,y+4,size-8,size-8);
-   }else{
-    // Bright outline and dark face emulate the approved Fallout thumbnail.
-    p.fillStyle=gray(201);p.fillRect(x+1,y+1,size-2,size-2);
-    p.fillStyle=gray(94);p.fillRect(x+3,y+4,size-6,size-7);
-    p.fillStyle=gray(229);p.fillRect(x+3,y+2,size-6,2);
-    p.fillStyle=gray(165);p.fillRect(x+3,y+4,2,size-7);
-   }
-  }
-  p.restore();
- };
- if(id==='ghost'){
-  p.save();p.globalAlpha=.33;p.translate(-8,2);drawPiece();p.restore();
-  p.save();p.globalAlpha=.48;p.translate(8,-2);drawPiece();p.restore();
-  drawPiece();
- }else if(id==='softness'||id==='boardBlur'||id==='menuBlur'){
-  p.save();p.filter='blur(4.2px)';drawPiece();p.restore();
- }else if(id==='bloom'){
-  p.save();p.shadowColor=gray(240);p.shadowBlur=22;drawPiece();p.restore();
-  p.save();p.globalAlpha=.24;p.filter='blur(7px)';drawPiece();p.restore();
- }else if(id==='piece'){drawPiece(true);}
- else{
-  drawPiece();
-  if(id==='scanlines'){
-   p.fillStyle='rgba(0,0,0,.68)';
-   for(let y=0;y<n;y+=5)p.fillRect(0,y,n,2);
-  }else if(id==='vignette'){
-   const mask=p.createRadialGradient(48,48,8,48,48,66);
-   mask.addColorStop(0,'rgba(0,0,0,0)');
-   mask.addColorStop(.45,'rgba(0,0,0,.09)');
-   mask.addColorStop(1,'rgba(0,0,0,.98)');
-   p.fillStyle=mask;p.fillRect(0,0,n,n);
-  }
- }
- return canvas;
-}
-const EFFECT_PREVIEWS=Object.fromEntries(
- DISPLAY_EFFECTS.map(effect=>[effect.id,effectPreview(effect.id)]));
-// Only this thumbnail is regenerated as the user adjusts the parameters.
-// The SAME v06 generator paints the real board; no imitation shadow blur.
-const shadowPreviewRenderer=createDirectionalShadowRenderer({
- createCanvas:()=>document.createElement('canvas'),
- getSettings:()=>getFX(),capacity:4
-});
-const shadowPreviewGroup=Object.freeze({
- minX:0,minY:0,maxX:2,maxY:1,
- cells:Object.freeze([{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:2,y:1}])
-});
-let shadowPreviewSignature=null;
-function updateShadowPreview(){
- const fx=getFX();
- const signature=['shadows','shadowAngle','shadowDistance','shadowBlur',
-  'shadowBias','shadowOpacity'].map(k=>String(fx[k])).join('/');
- if(signature===shadowPreviewSignature)return;
- shadowPreviewSignature=signature;
- const p=EFFECT_PREVIEWS.shadows.getContext('2d');
- if(!p)return;
- p.clearRect(0,0,PREVIEW_SIZE,PREVIEW_SIZE);
- p.fillStyle=gray(26);p.fillRect(0,0,PREVIEW_SIZE,PREVIEW_SIZE);
- p.fillStyle=gray(31);
- for(let v=8;v<PREVIEW_SIZE;v+=8){
-  p.fillRect(v,0,1,PREVIEW_SIZE);p.fillRect(0,v,PREVIEW_SIZE,1);
- }
- const x0=18,y0=27,tile=18;
- shadowPreviewRenderer.draw(p,[shadowPreviewGroup],x0,y0,tile);
- for(const {x,y} of shadowPreviewGroup.cells){
-  const bx=x0+x*tile,by=y0+y*tile;
-  p.fillStyle=gray(201);p.fillRect(bx+1,by+1,tile-2,tile-2);
-  p.fillStyle=gray(94);p.fillRect(bx+3,by+4,tile-6,tile-7);
-  p.fillStyle=gray(229);p.fillRect(bx+3,by+2,tile-6,2);
-  p.fillStyle=gray(165);p.fillRect(bx+3,by+4,2,tile-7);
- }
-}
-
-function drawEffectThumbnail(id,x,y,size){
- if(id==='shadows')updateShadowPreview();
- const g=getContext();
- panel(x,y,size,size,0,C.panel,C.subtleBorder);
- const inset=2,inner=size-2*inset;
- g.drawImage(EFFECT_PREVIEWS[id],x+inset,y+inset,inner,inner);
-}
-function selectedScanlineChoice(){const FX=getFX();return FX.scanlines?activeScanlinePreset(FX.scanlinePreset).id:'off';}
-function toggleScanlineMenu(){
- scanlineMenuOpen=!scanlineMenuOpen;setScrollVelocity(0);invalidate();
-}
-function chooseScanline(id){
- if(!SCANLINE_CHOICES.some(choice=>choice.id===id))return;
- chooseScanlineSetting(id);
- scanlineMenuOpen=false;setScrollVelocity(0);invalidate();
-}
-function settingSquare(x,y,size,active,color=C.bright){
- const g=getContext();
- g.lineWidth=1;
- if(active){g.fillStyle=color;g.fillRect(x,y,size,size);}
- else{g.strokeStyle=color;g.strokeRect(x+.5,y+.5,size-1,size-1);}
-}
-function settingsExpandArrow(x,y,expanded,color){
- const g=getContext();
- g.save();g.translate(x,y);if(expanded)g.rotate(Math.PI/2);
- text('▶',0,0,BUTTON_ICON_FONT_SIZE,color,'center');g.restore();
-}
-const SETTINGS_TITLE_H=38,SETTINGS_BAR_H=24,SETTINGS_SELECT_H=30,SETTINGS_PREVIEW_SIZE=32;
-function settingsRows(gap,onLight){
- const rows=[];
- let offset=0,tab='BOARD';
- for(const effect of DISPLAY_EFFECTS){
-  if(effect.section)tab=effect.section==='CRT EFFECTS'?'SCREEN':effect.section==='GAME'?'GAME':'BOARD';
-  if(tab!==propertyTab)continue;
-  const sliders=(onLight?effect.lcdSliders:undefined)??effect.sliders??[];
-  const controls=sliders.length+Number(Boolean(effect.pattern||effect.id==='shadows'));
-  const choiceCount=effect.pattern&&scanlineMenuOpen?SCANLINE_CHOICES.length:0;
-  const height=SETTINGS_TITLE_H+2*gap+sliders.length*SETTINGS_BAR_H+
-   (controls+choiceCount)*gap+
-   ((effect.pattern||effect.id==='shadows')?SETTINGS_SELECT_H:0)+choiceCount*SETTINGS_SELECT_H;
-  rows.push({effect,sliders,offset,height});
-  offset+=height+gap;
- }
- return {rows,height:Math.max(0,offset-gap)};
-}
-// Monochrome 16px bug glyph, so no multicolour system emoji enters our CRT.
-function drawDebugBug(cx,cy,color=C.ink){
- const g=getContext();
- g.save();
- g.strokeStyle=color;g.lineWidth=1.5;g.lineCap='round';g.lineJoin='round';
- g.beginPath();
- g.ellipse(cx,cy+1.5,4.5,6,0,0,Math.PI*2);
- g.moveTo(cx-3,cy-5);g.lineTo(cx-5,cy-8);
- g.moveTo(cx+3,cy-5);g.lineTo(cx+5,cy-8);
- for(const dy of [-3,1,5]){
-  g.moveTo(cx-4.5,cy+dy);g.lineTo(cx-8,cy+dy-2);
-  g.moveTo(cx+4.5,cy+dy);g.lineTo(cx+8,cy+dy-2);
- }
- g.moveTo(cx-4,cy);g.lineTo(cx+4,cy);
- g.stroke();g.restore();
-}
-
-function drawOptions(q){
- const {W,H}=getViewport(),g=getContext();
- const r=layout(),gap=q.gap;
- const deck=q.deck??propertyDeckGeometry(r,1);
- const {x,y,w,h}=deck;
- const onLight=Boolean(settingValue('lcdDisplay'));
- const headerColors=onLight?LCD_BOARD:C;
+function drawOptions(){
+ const {W,H}=getViewport(),r=layout(),gap=UI_SPACE.unit;
  clearRegions();region(0,0,W,H,'block');
- panel(x,y,w,h,0,C.panel,C.border);
- const contentX=x+gap,contentW=Math.max(1,w-2*gap);
- const tabW=Math.max(1,(contentW-2*gap)/propertyTabs.length),tabH=28;
- for(const [index,tab] of propertyTabs.entries()){
-  key(tab,contentX+index*(tabW+gap),y+gap,tabW,tabH,'property:'+tab,
-   {light:tab===propertyTab,modalControl:true});
+ const rowGap=Math.min(3,r.boardH*.006);
+ const rowH=Math.max(1,(r.boardH-rowGap*(properties.length-1))/properties.length);
+ for(const [index,property] of properties.entries()){
+  const y=r.boardY+index*(rowH+rowGap),active=property===selected;
+  panel(r.sideX,y,r.sideW,rowH,0,active?C.bright:C.panel,active?null:C.subtleBorder);
+  const label=listLabels[property.id]??property.title;
+  text(label,r.sideX+r.sideW/2,y+rowH/2,Math.min(11,Math.max(7,rowH*.34)),
+   active?C.dark:C.ink,'center',Math.max(1,r.sideW-6));
+  region(r.sideX,y,r.sideW,rowH,'property:'+property.id,{kind:'button',modalControl:true});
  }
- const modeY=y+tabH+2*gap,modeH=26;
- panel(contentX,modeY,contentW,modeH,0,headerColors.panel,headerColors.border);
- text('DISPLAY TYPE',contentX+gap,modeY+modeH/2,11,headerColors.ink,'left',contentW*.52);
- text(onLight?'LCD   ↔':'CRT   ↔',contentX+contentW-gap,modeY+modeH/2,
-  11,headerColors.bright,'right',contentW*.42,'terminal');
- region(contentX,modeY,contentW,modeH,'toggle',{field:'lcdDisplay'});
- const utilityH=28,utilityY=y+h-gap-utilityH;
- const restoreW=contentW-utilityH-gap;
- key('RESTORE DEFAULTS',contentX,utilityY,restoreW,utilityH,'resetFX',{modalControl:true});
- const debugX=contentX+restoreW+gap;
- key('',debugX,utilityY,utilityH,utilityH,'copyDebug',{modalControl:true});
- const debugLum=gray(buttonLight(debugX,utilityY,utilityH,utilityH));
- if(debugCopyState==='copied'||debugCopyState==='failed')
-  text(debugCopyState==='copied'?'✓':'!',debugX+utilityH/2,utilityY+utilityH/2,
-   BUTTON_ICON_FONT_SIZE,debugLum,'center');
- else drawDebugBug(debugX+utilityH/2,utilityY+utilityH/2,debugLum);
- const top=modeY+modeH+gap,bottom=utilityY-gap;
- const visibleH=Math.max(0,bottom-top);
- modalView={x:contentX,y:top,w:contentW,h:visibleH};
- const model=settingsRows(gap,onLight);
- const sliderGraphics={rect,text,region,ink:C.ink};
- optionsMaxScroll=Math.max(0,model.height-visibleH);
- optionsScroll=clamp(optionsScroll,0,optionsMaxScroll);
- g.save();g.beginPath();g.rect(contentX,top,contentW,visibleH);g.clip();
- region(contentX,top,contentW,visibleH,'scroll',{scroll:true});
- for(const row of model.rows){
-  const y=top+row.offset-optionsScroll;
-  if(y+row.height<top||y>bottom)continue;
-  const {effect,sliders}=row;
-  const ctrlX=contentX+2*gap,ctrlW=contentW-4*gap;
-  const titleY=y+gap+SETTINGS_TITLE_H/2;
-  const toggleSize=SETTINGS_SQUARE_SIZE;
-  const toggleX=ctrlX+ctrlW-toggleSize;
-  const titleX=ctrlX+SETTINGS_PREVIEW_SIZE+gap;
-  panel(contentX,y,contentW,row.height,0,C.panel,C.subtleBorder);
-  drawEffectThumbnail(effect.id,ctrlX,titleY-SETTINGS_PREVIEW_SIZE/2,SETTINGS_PREVIEW_SIZE);
-  const toggleLum=gray(buttonLight(ctrlX,y+gap,ctrlW,SETTINGS_TITLE_H));
-  text(effect.title,titleX,titleY,12,toggleLum,'left',
-   Math.max(10,(effect.toggle?toggleX-gap:ctrlX+ctrlW)-titleX));
-  if(effect.toggle){
-   settingSquare(toggleX,titleY-toggleSize/2,toggleSize,Boolean(settingValue(effect.toggle)),toggleLum);
-   region(ctrlX,y+gap,ctrlW,SETTINGS_TITLE_H,'toggle',
-    {field:effect.toggle,modalControl:true});
-  }
-  let controlY=y+SETTINGS_TITLE_H+2*gap;
-  const labelW=Math.min(125,Math.max(64,ctrlW*.29));
-  for(const [label,field,min,max,step,unit] of sliders){
-   drawPropertySlider(sliderGraphics,{x:ctrlX,midY:controlY+SETTINGS_BAR_H/2,
-    w:ctrlW,barH:SETTINGS_BAR_H,labelW,gap,labelSize:11,
-    setting:{label,field,min,max,step,unit},value:Number(settingValue(field))});
-   controlY+=SETTINGS_BAR_H+gap;
-  }
-  if(effect.id==='shadows'){
-   key('LIGHT CONTROL',ctrlX,controlY,ctrlW,SETTINGS_SELECT_H,'light',
-    {modalControl:true});
-  }
-  if(effect.pattern){
-   const selectY=controlY,selectH=SETTINGS_SELECT_H;
-   const pickerLum=gray(buttonLight(ctrlX,selectY,ctrlW,selectH));
-   panel(ctrlX,selectY,ctrlW,selectH,0,C.button,pickerLum);
-   const current=SCANLINE_CHOICES.find(o=>o.id===selectedScanlineChoice());
-   const shortNames={horizontal:'HORIZONTAL',aperture:'APERTURE',
-    slot:'SLOT MASK',dot:'DOT MASK'};
-   text(shortNames[current?.id]||current?.name||'ORIGINAL',
-    ctrlX+gap,selectY+selectH/2,10,pickerLum,'left',
-    Math.max(10,ctrlW-3*gap-BUTTON_ICON_FONT_SIZE));
-   settingsExpandArrow(ctrlX+ctrlW-gap-BUTTON_ICON_FONT_SIZE/2,
-    selectY+selectH/2,scanlineMenuOpen,pickerLum);
-   region(ctrlX,selectY,ctrlW,selectH,'patternSelect',{modalControl:true});
-   if(scanlineMenuOpen)SCANLINE_CHOICES.forEach((option,i)=>{
-    const cy=selectY+(i+1)*(selectH+gap);
-    const chosen=option.id===selectedScanlineChoice();
-    const choiceLum=gray(buttonLight(ctrlX,cy,ctrlW,selectH));
-    text(option.name,ctrlX+gap,cy+selectH/2,11,choiceLum,
-     'left',ctrlW-3*gap-toggleSize);
-    settingSquare(toggleX,cy+(selectH-toggleSize)/2,toggleSize,chosen,choiceLum);
-    region(ctrlX,cy,ctrlW,selectH,'scanlineChoice',{field:option.id,modalControl:true});
-   });
-  }
+ const rows=[],lcd=Boolean(settingValue('lcdDisplay'));
+ if(selected.toggle){
+  const field=selected.toggle;
+  rows.push((x,y,w,h)=>{
+   const label=field==='lcdDisplay'?(lcd?'LCD  ↔  CRT':'CRT  ↔  LCD'):
+    (settingValue(field)?'ENABLED':'DISABLED');
+   key(label,x,y,w,h,'toggle',{field,
+    light:field==='lcdDisplay'||Boolean(settingValue(field)),modalControl:true});
+  });
  }
- g.restore();
- // Keep scroll input and momentum; omit decorative scrollbar/row separators.
+ const sliders=(lcd?selected.lcdSliders:undefined)??selected.sliders??[];
+ for(const [label,field,min,max,step,unit] of sliders)
+  rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},value:Number(settingValue(field))});
+ if(selected.pattern)rows.push((x,y,w,h)=>{
+  key('‹',x,y,h,h,'pattern:previous',{modalControl:true});
+  key('›',x+w-h,y,h,h,'pattern:next',{modalControl:true});
+  text(SCANLINE_CHOICES[currentPattern()]?.name??'OFF',x+w/2,y+h/2,11,
+   C.bright,'center',Math.max(1,w-2*(h+gap)));
+ });
+ if(selected.id==='shadows')
+  rows.push((x,y,w,h)=>key('LIGHT CONTROL',x,y,w,h,'light',{modalControl:true}));
+ if(selected.id==='defaults')
+  rows.push((x,y,w,h)=>key('RESTORE DEFAULTS',x,y,w,h,'resetFX',{modalControl:true}));
+ if(selected.id==='diagnostics')
+  rows.push((x,y,w,h)=>key(debugCopyState==='copied'?'REPORT COPIED':
+   debugCopyState==='failed'?'RETRY COPY':'COPY DEBUG REPORT',x,y,w,h,'copyDebug',{modalControl:true}));
+ drawPropertyDeck({panel,rect,text,region,C},r,gap,rows);
+ const theme=headerThemeBounds(r,UI_SPACE);
+ region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
+ key('✓',theme.x+theme.w+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close',{onLight:lcd});
 }
 function drawScores(q){
  // The shared upper title and START GAME action anchor remain unchanged.
@@ -2130,32 +1915,21 @@ function drawScores(q){
 }
 function paintModal(q){
  const modal=getModal();
- if(q.deck||modal==='options')drawOptions(q);
+ if(modal==='options')drawOptions();
  else if(modal==='scores')drawScores(q);
 }
-
- function resetSettings(){
-  optionsScroll=0;optionsMaxScroll=0;scanlineMenuOpen=false;
- }
- function reset(){
-  modalView=null;resetSettings();debugCopyState='idle';propertyTab='BOARD';
- }
  return Object.freeze({
-  modalBounds,paintModal,toggleScanlineMenu,chooseScanline,reset,resetSettings,
-  selectPropertyTab(tab){
-   if(propertyTabs.includes(tab)&&tab!==propertyTab){
-    propertyTab=tab;resetSettings();setScrollVelocity(0);invalidate();
-   }
+  modalBounds,paintModal,cyclePattern,
+  reset(){selected=properties[0];debugCopyState='idle';},
+  selectProperty(id){
+   const property=properties.find(entry=>entry.id===id);
+   if(property&&property!==selected){selected=property;invalidate();}
   },
-  dispose:()=>shadowPreviewRenderer.dispose(),
-  get view(){return modalView;},
-  get scroll(){return optionsScroll;},
-  set scroll(v){optionsScroll=v;},
-  get maxScroll(){return optionsMaxScroll;},
-  get scanlineMenuOpen(){return scanlineMenuOpen;},
+  get property(){return selected.id;},
   get debugCopyState(){return debugCopyState;},
   set debugCopyState(value){debugCopyState=value;}
  });
+
 }
 
 /* NOMAD minimal terminal output engine.
@@ -2456,7 +2230,7 @@ function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  ctx.restore();
 }
 
-return {createCanvasUI,drawPropertySlider,propertyDeckGeometry,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
+return {createCanvasUI,drawPropertySlider,drawPropertyDeck,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog};
 })();
 // Device-independent CSS-pixel visual geometry.
 const Layout=(()=>{
@@ -2622,7 +2396,7 @@ return api;
 })();
 export const {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase}=CRT;
 export const {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPieceTiles,VECTOR_PIECE_KINDS,spriteIdentity,createVectorTileRenderer,collectIFragments,collectPieceShadowGroups,pieceShadowProfile,createPieceShadowRenderer}=Art;
-export const {createCanvasUI,drawPropertySlider,propertyDeckGeometry,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
+export const {createCanvasUI,drawPropertySlider,drawPropertyDeck,previewPieceShape,fitPreviewCells,createHudDrawing,visitControlButtons,registerControlHitboxes,headerThemeBounds,boardOverlaySlots,drawMenuScoreBox,createModalUI,createTerminalEngine,terminalLineBounds,composeTerminalMessage,createTerminalLog,drawTerminalLog}=UI;
 export {buttonLevel,buttonInkLevel,PIECE_LUMINANCE,Layout};
 export {instrumentCompositorPasses,makeRegion,makeButtonControl,findRegionAt,sliderValueAt};
 

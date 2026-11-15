@@ -6,7 +6,7 @@ import Layout from '../tetris/render.js';
 import {fileURLToPath} from 'node:url';
 import {createHudDrawing,registerControlHitboxes,previewPieceShape,fitPreviewCells,boardOverlaySlots,headerThemeBounds} from '../tetris/render.js';
 import {Core,createSettingsManager,DEFAULT_EFFECTS,DISPLAY_EFFECTS,scanlineChoices} from '../tetris/game.js';
-import {makeRegion,makeButtonControl,drawPropertySlider,propertyDeckGeometry,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
+import {makeRegion,makeButtonControl,drawPropertySlider,drawPropertyDeck,findRegionAt,sliderValueAt,createModalUI} from '../tetris/render.js';
 import {createInputController} from '../tetris/platform.js';
 
 const appDir=fileURLToPath(new URL('../tetris',import.meta.url));
@@ -71,27 +71,21 @@ describe('Overlay theme and confirmation controls',()=>{
   assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
  });
  test('Properties close keeps the game header button geometry',()=>{
-  const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  const part=src.slice(src.indexOf('function paintPropertiesTransition('),src.indexOf('function paintModalOverlay('));
+  const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
+  const part=src.slice(src.indexOf('function drawOptions(){'),src.indexOf('function drawScores(q){'));
   assert.match(part,/const theme=headerThemeBounds\(r,UI_SPACE\)/);
   assert.match(part,/key\('✓',theme.x\+theme.w\+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close'/);
  });
- test('an expanding properties deck anchors its bottom and translates the board one-for-one',()=>{
-  const r={hy:62,hh:65,dx:11,dy:650,dw:371,dh:128,boardH:510};
-  const compact=propertyDeckGeometry(r,0),expanded=propertyDeckGeometry(r,1);
-  assert.equal(compact.y,r.dy);
-  for(const t of [0,.25,.5,1]){
-   const deck=propertyDeckGeometry(r,t);
-   assert.equal(deck.headerBottom,127);
-   assert.ok(deck.y>deck.headerBottom);
-   assert.equal(deck.y+deck.h,r.dy+r.dh);
-   assert.equal(deck.x,r.dx);
-   assert.equal(deck.w,r.dw);
-   assert.ok(Math.abs(deck.offset-(r.dy-deck.y))<1e-8);
-  }
-  assert.ok(expanded.y<compact.y);
-
+ test('the shared deck keeps the original control bounds and fits four controls',()=>{
+  const r={dx:11,dy:650,dw:371,dh:128,deckPad:6},calls=[];
+  const add=(...args)=>calls.push(args);
+  drawPropertyDeck({panel:add,C:{panel:'#123'}},r,6,[add,add,add,add]);
+  assert.deepEqual(calls[0],[r.dx,r.dy,r.dw,r.dh,0,'#123']);
+  assert.equal(calls.length,5);
+  assert.ok(calls[1][1]>=r.dy);
+  assert.ok(calls[4][1]+calls[4][3]<=r.dy+r.dh);
  });
+
 });
 
 describe('Responsive geometry',()=>{
@@ -708,14 +702,6 @@ describe('Shared hitboxes and slider geometry',()=>{
   assert.equal(a.arrow,true);
   assert.equal(b.arrow,false);
  });
- test('v190 shadow preview uses the real cached Gaussian without resizing other property rows',()=>{
-  const render=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  const platform=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
-  assert.match(render,/shadowPreviewRenderer\.draw\(p,\[shadowPreviewGroup\]/);
-  assert.match(platform,/g\.drawImage\(boardCanvas,r\.boardX,r\.boardY,r\.boardW,r\.boardH\)/);
-  assert.match(platform,/getSettings:\(\)=>settings\.effects/);
-  assert.match(platform,/shadow-preview.*modalUI\.dispose\(\)/);
- });
  test('property sliders paint the fill and centered value across the hit region',()=>{
   const bars=[],labels=[];
   let hit;
@@ -803,58 +789,69 @@ describe('Pointer and keyboard input',()=>{
    get buttonPresses(){return buttonPresses},get buttonReleases(){return buttonReleases}
   };
  }
- test('the fixed Display Type row can be tapped above the settings scroll viewport',()=>{
+ test('every property fits in the fixed sidebar and publishes its controls in the deck',()=>{
   const screen=target(),document=target(),window=target(),regions=[];
-  const width=393,height=852,ignore=()=>{};
-  const context=new Proxy({createRadialGradient:()=>({addColorStop:ignore}),
-   createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),
-   getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},
-   {get:(target,prop)=>target[prop]??ignore});
+  const W=393,H=852,ignore=()=>{};
+  const r={hx:12,hw:369,hy:40,hh:70,boardY:120,boardW:240,boardH:480,
+   sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44};
   const settings=createSettingsManager();
+  const add=(...args)=>regions.push(makeRegion(...args));
   const modal=createModalUI({
-   document:{createElement:()=>({getContext:()=>context})},
-   SHAPES:Core.SHAPES,DISPLAY_EFFECTS,
-   SCANLINE_CHOICES:scanlineChoices([]),getViewport:()=>({W:width,H:height}),
-   layout:()=>({width,off:0,hy:40,hh:70,headerButtonH:44,extraH:40,boardW:240,boardH:480,dx:12,dy:650,dw:369,dh:130}),
-   insets:()=>({top:0,bottom:0}),clearRegions:()=>{regions.length=0;},getContext:()=>context,
-   panel:ignore,text:ignore,rect:ignore,region:(...args)=>regions.push(makeRegion(...args)),
-   key:ignore,buttonLight:()=>206,gray:()=> '#aaa',clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
-   UI_SPACE:{unit:6,padX:12,appMax:520,headRightPad:6,headIconGap:6,
-    headTitleInset:8,overlayButtonWidthScale:.85},C:{},getFX:()=>DEFAULT_EFFECTS,activeScanlinePreset:id=>({id}),
-   getModal:()=> 'options',settingValue:settings.settingValue,
-   setScrollVelocity:ignore,invalidate:ignore
+   DISPLAY_EFFECTS,SCANLINE_CHOICES:scanlineChoices([{id:'aperture',name:'APERTURE'}]),
+   getViewport:()=>({W,H}),layout:()=>r,insets:()=>({top:0,bottom:0}),
+   clearRegions:()=>{regions.length=0;},panel:ignore,text:ignore,rect:ignore,region:add,
+   key:(label,x,y,w,h,act,meta)=>add(x,y,w,h,act,meta),
+   UI_SPACE:{unit:6,headRightPad:6,headIconGap:6},C:{},
+   getFX:()=>settings.effects,getModal:()=> 'options',settingValue:settings.settingValue,
+   chooseScanlineSetting:id=>settings.chooseScanline(id),invalidate:ignore
   });
-  modal.paintModal(modal.modalBounds('options'));
-  assert.ok(regions.some(region=>region.field==='crtMenuFade'&&region.act==='slider'));
-  const mode=regions.find(region=>region.field==='lcdDisplay');
-  assert.ok(mode.y+mode.h<modal.view.y,'the fixed row is outside the scrolling list');
-  screen.getBoundingClientRect=()=>({left:0,top:0,width,height});
+  const paint=()=>modal.paintModal(modal.modalBounds('options'));
+  paint();
+  const list=regions.filter(hit=>hit.act.startsWith('property:'));
+  assert.equal(list.length,DISPLAY_EFFECTS.length+3);
+  for(const [index,hit] of list.entries()){
+   assert.equal(hit.x,r.sideX);
+   assert.equal(hit.w,r.sideW);
+   assert.ok(hit.y>=r.boardY&&hit.y+hit.h<=r.boardY+r.boardH+.0001);
+   if(index>0)assert.ok(hit.y>=list[index-1].y+list[index-1].h);
+  }
+  const testControls=()=>{
+   for(const effect of DISPLAY_EFFECTS){
+    modal.selectProperty(effect.id);paint();
+    for(const [,field] of (settings.lcdDisplay?effect.lcdSliders:undefined)??effect.sliders??[]){
+     const hit=regions.find(item=>item.act==='slider'&&item.field===field);
+     assert.ok(hit&&hit.y>=r.dy&&hit.y+hit.h<=r.dy+r.dh,field);
+    }
+    if(effect.toggle)assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field===effect.toggle));
+   }
+  };
+  screen.getBoundingClientRect=()=>({left:0,top:0,width:W,height:H});
   const input=createInputController({
-   screen,document,window,getViewport:()=>({width,height}),getRegions:()=>regions,
-   getModal:()=> 'options',getModalView:()=>modal.view,getOptionsScroll:()=>modal.scroll,
-   setScrollVelocity:ignore,settingValue:settings.settingValue,setSetting:settings.setSetting,
-   handleAction:ignore,invalidate:ignore
+   screen,document,window,getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
+   getModal:()=> 'options',settingValue:settings.settingValue,setSetting:settings.setSetting,
+   handleAction:act=>modal.selectProperty(act.slice(9)),invalidate:ignore
   });
-  const tap=()=>{
-   const pointer={pointerType:'touch',button:0,pointerId:1,clientX:mode.x+5,
-    clientY:mode.y+mode.h/2,preventDefault:ignore,timeStamp:20};
+  const tap=hit=>{
+   const pointer={pointerType:'touch',button:0,pointerId:1,clientX:hit.x+hit.w/2,
+    clientY:hit.y+hit.h/2,preventDefault:ignore,timeStamp:20};
    screen.emit('pointerdown',{...pointer,type:'pointerdown'});
    screen.emit('pointerup',{...pointer,type:'pointerup'});
   };
-  tap();
+  testControls();
+  tap(list[0]);paint();
+  tap(regions.find(hit=>hit.field==='lcdDisplay'));
   assert.equal(settings.lcdDisplay,true);
-  modal.paintModal(modal.modalBounds('options'));
-  assert.ok(regions.some(region=>region.field==='lcdMenuFade'&&region.act==='slider'));
-  assert.ok(!regions.some(region=>region.field==='crtMenuFade'));
-  tap();
-  assert.equal(settings.lcdDisplay,false);
-  modal.scroll=modal.maxScroll;
-  modal.paintModal(modal.modalBounds('options'));
-  modal.selectPropertyTab('GAME');
-  modal.paintModal(modal.modalBounds('options'));
-  const sound=regions.find(region=>region.field==='sound');
-  assert.ok(sound.y>=modal.view.y&&sound.y+sound.h<=modal.view.y+modal.view.h);
-  input.dispose();modal.dispose();
+  testControls();
+  for(const [id,action] of [['defaults','resetFX'],['diagnostics','copyDebug'],['shadows','light']]){
+   modal.selectProperty(id);paint();
+   assert.ok(regions.some(hit=>hit.act===action));
+  }
+  modal.selectProperty('scanlines');paint();
+  assert.ok(regions.some(hit=>hit.act==='pattern:next'));
+  modal.cyclePattern(1);
+  assert.equal(settings.effects.scanlines,false);
+  assert.ok(!regions.some(hit=>hit.scroll));
+  input.dispose();
  });
 
  test('v195 light gestures update direction but never trigger Tetris controls',()=>{

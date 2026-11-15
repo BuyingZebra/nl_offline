@@ -1,8 +1,8 @@
 /* NOMAD v209 — device pointer and keyboard input; UI supplies hitbox geometry. */
-import {findRegionAt,sliderValueAt} from './render.js?v233';
+import {findRegionAt,sliderValueAt} from './render.js?v234';
 export function createInputController({screen,document,window,
- getViewport,getRegions,getModal,getModalView,getOptionsScroll,
- setOptionsScroll,getOptionsMaxScroll,setScrollVelocity,setBaseDirty,
+ getViewport,getRegions,getModal,getModalView=()=>null,getOptionsScroll=()=>0,
+ setOptionsScroll,getOptionsMaxScroll,setScrollVelocity=()=>{},setBaseDirty,
  handleAction,perform,setSetting,settingValue,toggleScanlineMenu,
  chooseScanline,openModal,invalidate,clamp,canInteract=()=>true,
  getLightBounds=()=>null,onLightPoint=()=>{},
@@ -147,7 +147,7 @@ listen(screen,'lostpointercapture',releaseTouch);
 listen(window,'blur',cancel);
 listen(screen,'wheel',e=>{
  if(disposed||!canInteract())return;
- if(getModal()==='options'){
+ if(getModal()==='options'&&getModalView()){
   e.preventDefault();setOptionsScroll(clamp(getOptionsScroll()+e.deltaY,0,getOptionsMaxScroll()));invalidate();
  }
 },{passive:false});

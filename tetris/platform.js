@@ -1,5 +1,5 @@
-import {createInputController} from './input.js?v233';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertySlider,propertyDeckGeometry,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v233';
+import {createInputController} from './input.js?v234';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v234';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
 import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
 
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v233';
+export {createInputController} from './input.js?v234';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -391,7 +391,6 @@ const settings=createSettingsManager(storage);
 const game=new Core.Game();
 let W=1,H=1,DPR=1,regions=[],layoutInfo=null;
 let inputController=null;
-let scrollVelocity=0; // logical pixels per millisecond, decays during GPU frames
 let queued=false,frameHandle=null,lastTime=performance.now(),audioCtx=null;
 let appLifecycle=null;
 let pageInCache=false;
@@ -453,7 +452,7 @@ const graphicsHealth=createGraphicsHealth({
  onLost:()=>{
   // An interrupted GPU must never advance unseen gameplay or repeat inputs.
   if(game.status==='playing')actions.perform('pause');
-  inputController?.cancel();scrollVelocity=0;
+  inputController?.cancel();
   buttonFeedback.clear();buttonSparks=[];
   compositor.resetPersistence();
   cancelPendingFrame();lastTime=performance.now();perf.resetPacing();
@@ -575,20 +574,12 @@ function setLightPosition(point){
  }
  layers.mark('modal');invalidate();
 }
-let controlMotion=null,propertiesPreview=null,previewBackdrop=false;
-const reduceControlMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
  pauseGame:()=>actions.perform('pause'),
  onChange:(previous,next)=>{
-  // Keep the selected properties tab and scroll position across Light Control.
   if(next==='options'&&previous!=='light')modalUI.reset();
-  if(next==='options'&&previous!=='light')previewBackdrop=false;
-  if(previous!==next&&(previous==='options'||next==='options'||next==='light')&&
-    !reduceControlMotion.matches){
-   controlMotion={from:previous,to:next,started:performance.now()};
-  }else controlMotion=null;
-  scrollVelocity=0;inputController?.cancel();
+  inputController?.cancel();
   buttonFeedback.clear();
   if(previous!==next)layers.mark('base','board','sidebar','controls','modal','terminal');
   if(next===null)regions=baseRegions;
@@ -612,7 +603,7 @@ const actions=createActionController({
  invalidate:()=>invalidate(),
  tone:(freq,len)=>tone(freq,len),
  onCopyDebug:()=>copyDebugReport(),
- onResetSettingsUI:()=>{modalUI.resetSettings();scrollVelocity=0;lightPosition=null;},
+ onResetSettingsUI:()=>{lightPosition=null;},
  onTerminalEvent:queueTerminalMessage,
  canInteract:()=>!lineClearFX?.finalPoints&&!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
@@ -824,7 +815,7 @@ function paintBoardPopup(r){
  try{
   // Reuse the same post-blur inset shadow behind both menu readouts.
   drawSharpBoardInsetShadow(r);
-  if(status==='playing')return;
+  if(status==='playing'||screenManager.isOptions)return;
   // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
   // Do not draw PAUSED/GAME OVER controls beneath the score screen.
   if(screenManager.isScores){
@@ -900,7 +891,7 @@ function paintBoardLayer(){
   stage(r,true,pieceBloomMaskContext);
   // Light Control has no board blur. Blend the LCD frame shadow here so
   // the guide stays above it and the shadow matches Canvas2D gameplay.
-  if(settings.lcdDisplay&&screenManager.isLight&&!controlMotion)drawSharpBoardInsetShadow(r);
+  if(settings.lcdDisplay&&screenManager.isLight)drawSharpBoardInsetShadow(r);
  }finally{g=previous;}
  boardPlane.scale.set(w/W,h/H,1);
  boardPlane.position.set(-1+(2*x+w)/W,1-(2*y+h)/H,.01);
@@ -1006,7 +997,7 @@ function paintBaseGame(){
  boardPopupTexture.needsUpdate=true;
  perf.textureChanged('popup');
 }
-function paintGame(now){
+function paintGame(){
  if(presentedBoardStatus()!==lastPaintedBoardPopupStatus)layers.mark('base');
  let paintedBase=false;
  if(layers.consume('base')){
@@ -1035,7 +1026,7 @@ function paintGame(now){
   paintTerminalLayer();
   perf.recordDuration('terminal',performance.now()-started);
  }
- if(screenManager.paintsModalLayer||controlMotion){
+ if(screenManager.paintsModalLayer){
   // paintBaseGame resets hit regions to the base; repaint the modal too so
   // that its hitboxes still receive touch after a font/viewport refresh.
   if(paintedBase)layers.mark('modal');
@@ -1043,7 +1034,7 @@ function paintGame(now){
   // or button changes behind an unchanged menu. No canvas paint or upload.
   if(layers.consume('modal')||(!modalPlane.visible&&!screenManager.isScores)){
    const started=performance.now();
-   paintModalOverlay(now);
+   paintModalOverlay();
    perf.recordDuration('modal',performance.now()-started);
   }
  }
@@ -1051,7 +1042,7 @@ function paintGame(now){
   layers.consume('modal');
   surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;
   controlsPlane.visible=true;terminalPlane.visible=true;
-  modalPlane.visible=false;scrimPlane.visible=false;propertiesPreview=null;
+  modalPlane.visible=false;scrimPlane.visible=false;
   regions=baseRegions;
  }
 }
@@ -1061,18 +1052,14 @@ const SCANLINE_CHOICES=scanlineChoices(SCANLINE_PRESETS);
 function settingValue(k){
  return settings.settingValue(k);
 }
-// The menu module owns its scroll, picker and canvas drawing state.
-// Only live data and existing Canvas primitives cross this boundary.
 const modalUI=createModalUI({
- document,SHAPES:Core.SHAPES,DISPLAY_EFFECTS,SCANLINE_CHOICES,
- getViewport:()=>({W,H,DPR}),layout,insets,
- clearRegions:()=>{regions=[];},getContext:()=>g,
- panel,text,rect,region,key,buttonLight,gray,clamp,fmt,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
- getFX:()=>settings.effects,activeScanlinePreset:id=>compositor.activeScanlinePreset(id),
- settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),
- invalidate,setScrollVelocity:value=>{scrollVelocity=value;},
- getBest:()=>actions.best,getGame:()=>game,LCD_BOARD,
- getModal:()=>screenManager.active
+ DISPLAY_EFFECTS,SCANLINE_CHOICES,
+ getViewport:()=>({W,H}),layout,insets,
+ clearRegions:()=>{regions=[];},
+ panel,text,rect,region,key,C,UI_SPACE,
+ getFX:()=>settings.effects,
+ settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),invalidate,
+ getBest:()=>actions.best,LCD_BOARD,getModal:()=>screenManager.active
 });
 function createDebugReport(){
  const memory=renderer.info.memory;
@@ -1110,30 +1097,15 @@ function copyDebugReport(){
  });
 }
 function paintLightPropertyPanel(r){
- // Exactly the original controls container geometry; no new layout height,
- // overlay backdrop, or persistent alternate gameplay controls asset.
- panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
- const gap=UI_SPACE.unit;
- const inset=r.deckPad,contentX=r.dx+inset;
- const contentW=Math.max(1,r.dw-2*inset);
- const rowGap=Math.min(gap,Math.max(2,r.dh*.045));
- const rowH=Math.max(1,(r.dh-2*inset-rowGap*3)/4);
- const labelW=Math.min(125,Math.max(80,contentW*.29));
- const sliderGraphics={rect,text,region,ink:C.ink};
- for(let i=0;i<LIGHT_PROPERTY_CONTROLS.length;i++){
-  const setting=LIGHT_PROPERTY_CONTROLS[i];
-  const y=r.dy+inset+i*(rowH+rowGap);
-  drawPropertySlider(sliderGraphics,{x:contentX,midY:y+rowH/2,w:contentW,
-   barH:Math.max(9,Math.min(24,rowH*.76)),labelW,gap,
-   labelSize:Math.min(11,Math.max(8,rowH*.44)),setting,
-   value:Number(settings.settingValue(setting.field))});
- }
+ const rows=LIGHT_PROPERTY_CONTROLS.map(setting=>({setting,
+  value:Number(settings.settingValue(setting.field))}));
+ drawPropertyDeck({panel,rect,text,region,C},r,UI_SPACE.unit,rows);
 }
-function paintLightDirectionOverlay(guidesOnly=false){
+function paintLightDirectionOverlay(){
  regions=[];
  const r=layout(),b=lightBoardBounds(),p=lightMarkerPosition();
  // CRT composites its inset with the existing modal overlay.
- if(!guidesOnly&&!settings.lcdDisplay)drawSharpBoardInsetShadow(r);
+ if(!settings.lcdDisplay)drawSharpBoardInsetShadow(r);
  // Keep the visible colour control interactive alongside shadow sliders.
  const theme=headerThemeBounds(r,UI_SPACE);
  region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
@@ -1184,66 +1156,13 @@ function paintLightDirectionOverlay(guidesOnly=false){
    sideCenter,p.y+LIGHT_VALUE_Y,LIGHT_VALUE_SIZE,C.bright,
    'center',readoutWidth,'terminal');
  }
- if(guidesOnly)return;
  // Only Light Control receives the alternate controls panel and checkmark.
  // The header check replaces (not accompanies) the old menu icon.
  paintLightPropertyPanel(r);
  const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
  key('✓',tx+th+UI_SPACE.headIconGap,ty,th,th,'close',{onLight:settings.lcdDisplay});
 }
-function paintPropertiesTransition(q,now){
- const r=layout(),motion=controlMotion;
- const elapsed=motion?clamp((now-motion.started)/340,0,1):1;
- const progress=elapsed*elapsed*(3-2*elapsed);
- const opening=motion?.to==='options';
- const expanded=motion?(opening?progress:motion.from==='options'?1-progress:0):1;
- const deck=propertyDeckGeometry(r,expanded);
- const {offset,headerBottom}=deck;
- propertiesPreview={offset,clipTop:headerBottom,clipBottom:deck.y,
-  backdrop:screenManager.isOptions&&previewBackdrop};
- regions=[];
- // The original board is translated by exactly the distance the deck grows.
- // Both the cropped preview and the optical aperture use the same edges.
- rect(0,headerBottom,W,Math.max(0,deck.y-headerBottom),C.bg);
- g.save();g.beginPath();g.rect(0,headerBottom,W,Math.max(0,deck.y-headerBottom));g.clip();
- g.translate(0,-offset);
- brickFrame.draw(g,r);
- g.drawImage(boardCanvas,r.boardX,r.boardY,r.boardW,r.boardH);
- drawSharpBoardInsetShadow(r);
- if(motion&&(motion.from==='light'||motion.to==='light')){
-  const visibility=motion.from==='options'||opening?1-expanded:progress;
-  g.save();g.globalAlpha=clamp((visibility-.70)/.30,0,1);
-  paintLightDirectionOverlay(true);g.restore();
- }
- g.restore();
- panel(deck.x,deck.y,deck.w,deck.h,0,C.panel,C.border);
- if(motion){
-  const compact=opening?motion.from:motion.to;
-  g.save();g.beginPath();
-  const wipe=motion.from==='options'||opening?expanded:progress;
-  const edge=r.dy+r.dh*wipe;
-  g.rect(r.dx,edge,r.dw,Math.max(0,r.dy+r.dh-edge));g.clip();
-  if(compact==='light')paintLightPropertyPanel(r);else drawControls(r);
-  g.restore();
- }
- if(!motion||opening||motion.from==='options'){
-  g.save();g.beginPath();
-  // Reveal the incoming controls within the physical deck, top down.
-  const reveal=motion?Math.max(0,r.dy+r.dh*expanded-deck.y):deck.h;
-  g.rect(deck.x,deck.y,deck.w,reveal);g.clip();
-  modalUI.paintModal({...q,deck});
-  g.restore();
- }else{
-  g.save();g.beginPath();g.rect(r.dx,r.dy,r.dw,r.dh*progress);g.clip();
-  paintLightPropertyPanel(r);g.restore();
- }
- const theme=headerThemeBounds(r,UI_SPACE);
- region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
- key('✓',theme.x+theme.w+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close',
-  {onLight:settings.lcdDisplay});
-}
-function paintModalOverlay(now){
- propertiesPreview=null;
+function paintModalOverlay(){
  if(screenManager.isScores){
   surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;
   controlsPlane.visible=true;terminalPlane.visible=true;
@@ -1251,10 +1170,9 @@ function paintModalOverlay(now){
   regions=baseRegions;
   return;
  }
- const workbench=screenManager.isOptions||Boolean(controlMotion);
- surface.visible=true;boardPlane.visible=!workbench;
- sidebarPlane.visible=!workbench&&!screenManager.isLight;
- controlsPlane.visible=!workbench&&!screenManager.isLight;
+ surface.visible=true;boardPlane.visible=true;
+ sidebarPlane.visible=!screenManager.isOptions&&!screenManager.isLight;
+ controlsPlane.visible=!screenManager.isOptions&&!screenManager.isLight;
  terminalPlane.visible=true;
  const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
@@ -1267,7 +1185,7 @@ function paintModalOverlay(now){
  modalPlane.visible=true;scrimPlane.visible=false;
  g=modalContext;
  try{
-  if(workbench)paintPropertiesTransition(q,now);
+  if(screenManager.isOptions)modalUI.paintModal(q);
   else if(screenManager.isLight)paintLightDirectionOverlay();
  }finally{g=baseContext;}
  modalTexture.needsUpdate=true;
@@ -1276,10 +1194,7 @@ function paintModalOverlay(now){
 inputController=createInputController({
  screen,document,window,
  getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
- getModal:()=>screenManager.active,getModalView:()=>modalUI.view,
- getOptionsScroll:()=>modalUI.scroll,setOptionsScroll:v=>{modalUI.scroll=v;},
- getOptionsMaxScroll:()=>modalUI.maxScroll,
- setScrollVelocity:v=>{scrollVelocity=v;},
+ getModal:()=>screenManager.active,
  setBaseDirty:(act)=>{
   if(act==='theme'||act==='options'||act==='light')layers.mark('base');
   else if(act==='board')layers.mark('board');
@@ -1288,10 +1203,11 @@ inputController=createInputController({
   else if(act&&!visualScene.controlsGpuEnabled)layers.mark('controls');
  },
  handleAction:act=>{
-  if(act==='resetFX')previewBackdrop=false;
-  if(act?.startsWith('property:')){
-   previewBackdrop=false;modalUI.selectPropertyTab(act.slice(9));return;
+  if(act?.startsWith('property:')){modalUI.selectProperty(act.slice(9));return;}
+  if(act==='pattern:previous'||act==='pattern:next'){
+   modalUI.cyclePattern(act==='pattern:next'?1:-1);return;
   }
+  if(act==='resetFX')modalUI.reset();
   const previous=game.status;
   const result=actions.dispatch(act);
   // PAUSE must retain its active button until release, even though
@@ -1308,16 +1224,10 @@ inputController=createInputController({
   return result;
  },
  setSetting:(field,value)=>{
-  if(screenManager.isOptions){
-   if(field.endsWith('MenuFade')||field.endsWith('MenuBlur'))previewBackdrop=true;
-   else if(field.endsWith('BoardBlur'))previewBackdrop=false;
-  }
   actions.setSetting(field,value);
+  if(screenManager.isOptions&&field==='shadows')layers.mark('base');
  },settingValue,
  getLightBounds:lightBoardBounds,onLightPoint:setLightPosition,
- 
- toggleScanlineMenu:()=>modalUI.toggleScanlineMenu(),
- chooseScanline:id=>modalUI.chooseScanline(id),
  openModal:()=>screenManager.close(),invalidate,clamp,
  onButtonPress:(hit,now,held)=>{
   if(buttonFeedback.press(hit,now,held))invalidate('button-press');
@@ -1325,7 +1235,7 @@ inputController=createInputController({
  onButtonRelease:(hit,now)=>{
   if(buttonFeedback.release(hit,now))invalidate('button-release');
  },
- canInteract:()=>!controlMotion&&!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
+ canInteract:()=>!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
 // Browser and installed-app lifecycle, viewport and update polling are delegated
 // to Platform Manager. The renderer retains only its drawing responsibilities.
@@ -1344,8 +1254,9 @@ function syncFX(){
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
-  isolateLightWindow:screenManager.isLight,propertiesPreview,
-  pieceMaskEnabled:boardPlane.visible||Boolean(propertiesPreview)});
+  isolateLightWindow:screenManager.isLight,
+  propertiesPreview:screenManager.isOptions?{backdrop:modalUI.property==='menuBlur'}:null,
+  pieceMaskEnabled:boardPlane.visible});
 }
 function cancelPendingFrame(){
  if(frameHandle!==null){cancelAnimationFrame(frameHandle);frameHandle=null;}
@@ -1364,13 +1275,6 @@ function frame(now){
  const frameStarted=perf.startFrame();
  try{
   const dt=clamp(now-lastTime,0,100);lastTime=now;
-  if(controlMotion){
-   if(now-controlMotion.started>=340){
-    controlMotion=null;
-    if(screenManager.isLight)layers.mark('board');
-   }
-   layers.mark('modal');layers.reason('controls-transition');
-  }
   const prior=captureGameVisualState(game);
   // Only redraw gameplay pixels when the *visible state* really changes.
   // Gravity timers may advance on every RAF tick without moving a piece.
@@ -1416,13 +1320,6 @@ function frame(now){
    actions.onGameOver();
   }
   perf.recordGameChanges({advanced,visualChanged});
-  if(screenManager.isOptions&&Math.abs(scrollVelocity)>.015){
-   const before=modalUI.scroll;
-   modalUI.scroll=clamp(modalUI.scroll+scrollVelocity*dt,0,modalUI.maxScroll);
-   scrollVelocity*=Math.exp(-dt/190);
-   if(modalUI.scroll===before||modalUI.scroll===0||modalUI.scroll===modalUI.maxScroll)scrollVelocity=0;
-   else{layers.mark('modal');layers.reason('scroll');}
-  }else scrollVelocity=0;
   // Pressed buttons animate their original grayscale Canvas2D artwork.
   const phosphorOn=settings.effects.persistence===true&&!settings.lcdDisplay&&!screenManager.isLight;
   // Decay continues over the *whole display* while gameplay is paused.
@@ -1462,7 +1359,7 @@ function frame(now){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
    const canvasDirty=['base','board','sidebar','controls','terminal','modal'].some(layer=>layers.needs(layer));
-   if(canvasDirty||why.some(reason=>reason!=='phosphor-history'))paintGame(now);
+   if(canvasDirty||why.some(reason=>reason!=='phosphor-history'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
    surface.material.map=texture;
    const syncStarted=performance.now();
@@ -1470,13 +1367,13 @@ function frame(now){
    perf.recordDuration('sync',performance.now()-syncStarted);
    if(surface.visible)textureUploads.upload(texture,'base');
    if(boardPlane.visible)textureUploads.upload(boardTexture,'board');
-   if((boardPlane.visible||propertiesPreview)&&settings.effects.bloom&&!settings.lcdDisplay)
+   if(boardPlane.visible&&settings.effects.bloom&&!settings.lcdDisplay)
     textureUploads.upload(pieceBloomMaskTexture,'piece-mask');
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');
    if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if(!screenManager.hasModal||screenManager.isScores)
+   if(!screenManager.hasModal||screenManager.isScores||screenManager.isOptions)
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();
@@ -1502,9 +1399,9 @@ function frame(now){
   perf.endFrame(frameStarted);
   const keepAnimating=needsContinuousFrame({
    gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
-   redrawPending:layers.needsRender(),scrolling:Math.abs(scrollVelocity)>.015,
+   redrawPending:layers.needsRender(),
    buttonsActive:buttonSparks.length>0
-  })||Boolean(controlMotion)||(legacyIdleRAF&&phosphorOn);
+  })||(legacyIdleRAF&&phosphorOn);
   // A continuously active RAF already advances the terminal. Scheduling a
   // second timeout for the same work wastes callbacks and timer allocations.
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
@@ -1545,7 +1442,7 @@ appLifecycle=createAppLifecycle({
    layers.mark('base','board','controls');
    queueTerminalMessage('GAME: PAUSED','PAUSED');
   }
-  inputController?.cancel();scrollVelocity=0;
+  inputController?.cancel();
   buttonFeedback.clear();buttonSparks=[];
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
   compositor.resetPersistence();
@@ -1569,7 +1466,6 @@ appLifecycle=createAppLifecycle({
   ['vector-tiles',()=>vectorTiles.dispose()],
   ['piece-shadows',()=>pieceShadows.dispose()],
   ['board-inset-shadows',()=>boardInsetShadows.dispose()],
-  ['shadow-preview',()=>modalUI.dispose()],
   ['brick-frame',()=>brickFrame.dispose()],
   ['gpu-button-fallback-material',()=>controlsFallbackMaterial.dispose()],
   ['graphics-health',()=>graphicsHealth.detach()],

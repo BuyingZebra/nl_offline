@@ -323,21 +323,19 @@ describe('CRT composition',()=>{
   assert.ok(shader.indexOf('backdrop=mix(backdrop,uFadeTo,uFade)')<shader.indexOf('vec4 popup='));
   pipeline.dispose();
  });
- test('properties preview clips the real board without compositing gameplay menus',()=>{
+ test('properties preview keeps the original board aperture and uses backdrop effects on demand',()=>{
   const {pipeline,composer}=setup();
   const r={boardX:11,boardY:120,boardW:234.5,boardH:469};
   const state={fx:states,theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',
-   popupStatus:'paused',modalOpen:true,layoutInfo:r,propertiesPreview:{
-    backdrop:true,offset:200,clipTop:90,clipBottom:390}};
-  pipeline.syncFX(state);
-  const popup=composer.passes[2],u=popup.uniforms;
+   popupStatus:'paused',modalOpen:true,layoutInfo:r};
+  const popup=composer.passes[2];
+  pipeline.syncFX({...state,propertiesPreview:{backdrop:true}});
   assert.equal(popup.enabled,true);
-  assert.equal(u.uPopupVisible.value,0);
-  assert.equal(u.uFade.value,.87);
-  assert.equal(u.uRect.value.w,1-90/852);
-  assert.equal(u.uRect.value.y,1-(120-200+469-2)/852);
-  pipeline.syncFX({...state,propertiesPreview:null,modalOpen:false});
-  assert.equal(u.uPopupVisible.value,1);
+  assert.equal(popup.uniforms.uFade.value,.87);
+  assert.equal(popup.uniforms.uRect.value.w,1-122/852);
+  assert.equal(popup.uniforms.uRect.value.y,1-(120+469-2)/852);
+  pipeline.syncFX({...state,propertiesPreview:{backdrop:false}});
+  assert.equal(popup.uniforms.uFade.value,0);
   pipeline.dispose();
  });
  test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
@@ -683,8 +681,7 @@ describe('Canvas button drawing',()=>{
   const {ui:hot}=drawKey(false,1);
   assert.equal(hot.buttonLight(20,40,90,45),255);
   const modal=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  for(const control of ['debugLum','toggleLum','pickerLum','choiceLum'])
-   assert.ok(modal.includes(control),'modal control missing brightness: '+control);
+  assert.match(modal,/key\('RESTORE DEFAULTS'/);
   const game=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(game,/getButtonPower:r=>\(g===controlsContext&&visualScene\.controlsGpuEnabled\)\?0:buttonSparks\.find/);
   assert.doesNotMatch(game,/syncButtonFeedback/);
@@ -879,7 +876,7 @@ describe('Modal repaint regions',()=>{
   const code=source();
   const popup=code.slice(code.indexOf('function paintBoardPopup(r){'),
    code.indexOf('// Pure layout calculation'));
-  const modal=code.slice(code.indexOf('function paintModalOverlay(now){'),
+  const modal=code.slice(code.indexOf('function paintModalOverlay(){'),
    code.indexOf('inputController=createInputController('));
   assert.match(popup,/if\(screenManager\.isScores\)\{\s*modalUI\.paintModal\(modalUI\.modalBounds\('scores'\)\)/);
   assert.match(modal,/if\(screenManager\.isScores\)\{[\s\S]*?modalPlane\.visible=false;\s*regions=baseRegions;[\s\S]*?return;/);
@@ -889,10 +886,10 @@ describe('Modal repaint regions',()=>{
  });
  test('renderer only repaints modal on dirty state, first show or base repaint',()=>{
   const s=source();
-  const paint=s.slice(s.indexOf('function paintGame(now){'),s.indexOf('const SCANLINE_CHOICES='));
+  const paint=s.slice(s.indexOf('function paintGame(){'),s.indexOf('const SCANLINE_CHOICES='));
   assert.match(paint,/if\(paintedBase\)layers\.mark\('modal'\)/);
   assert.match(paint,/if\(layers\.consume\('modal'\)\|\|\(!modalPlane\.visible&&!screenManager\.isScores\)\)/);
-  assert.match(paint,/paintModalOverlay\(now\)/);
+  assert.match(paint,/paintModalOverlay\(\)/);
   assert.match(paint,/layers\.consume\('modal'\);/);
   assert.doesNotMatch(paint,/if\(screenManager\.paintsModalLayer\)\{\s*const started=performance\.now\(\)/);
   assert.match(s,/const canvasDirty=\['base','board','sidebar','controls','terminal','modal'\]/);
@@ -909,8 +906,7 @@ describe('Modal repaint regions',()=>{
   assert.doesNotMatch(invalidate,/'(?:terminal-log|terminal-event|gravity|phosphor-history)'/);
   assert.match(invalidate,/layers\.mark\('modal'\)/);
   assert.match(s,/modalUI\.debugCopyState=success\?'copied':'failed';invalidate\(\)/);
-  assert.match(s,/setOptionsScroll:v=>\{modalUI\.scroll=v;\}/);
-  assert.match(s,/else\{layers\.mark\('modal'\);layers\.reason\('scroll'\);\}/);
+  assert.match(s,/modalUI\.selectProperty\(act.slice\(9\)\)/);
  });
 
  test('menu button luminance targets modal, never hidden base, while visible',()=>{
@@ -921,13 +917,13 @@ describe('Modal repaint regions',()=>{
   assert.match(paint,/if\(buttonSparks\.length\|\|previousButtonSparks\.length\)layers\.mark\('modal'\)/);
   assert.match(paint,/else\{\s*const affected=buttonFeedbackLayers\(/);
   assert.match(s,/if\(previous!==next\)layers\.mark\('base','board','sidebar','controls','modal','terminal'\)/);
-  assert.match(s,/layers\.reason\('controls-transition'\)/);
+  assert.doesNotMatch(s,/layers\.reason\('controls-transition'\)/);
  });
 
  test('modal texture upload occurs only when marked and never forces unrelated GPU readback',()=>{
   const s=source();
-  const paint=s.slice(s.indexOf('function paintModalOverlay(now){'),
-   s.indexOf('inputController=createInputController(',s.indexOf('function paintModalOverlay(now){')));
+  const paint=s.slice(s.indexOf('function paintModalOverlay(){'),
+   s.indexOf('inputController=createInputController(',s.indexOf('function paintModalOverlay(){')));
   assert.match(paint,/modalTexture\.needsUpdate=true/);
   assert.match(paint,/perf\.textureChanged\('modal'\)/);
   assert.match(s,/if\(modalPlane\.visible\)textureUploads\.upload\(modalTexture,'modal'\)/);
@@ -1203,9 +1199,8 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
    platform.indexOf('inputController=createInputController('));
   assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
-  assert.match(modal,/sidebarPlane\.visible=!workbench&&!screenManager\.isLight/);
+  assert.match(modal,/sidebarPlane\.visible=!screenManager\.isOptions&&!screenManager\.isLight/);
   assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
-  assert.match(platform,/if\(previous!==next&&\(previous==='options'\|\|next==='options'\|\|next==='light'\)/);
   assert.match(platform,/layers\.mark\('base','board','sidebar','controls','modal','terminal'\)/);
  });
 
@@ -1300,7 +1295,7 @@ describe('v200 context-only light property deck',()=>{
    src.indexOf('inputController=createInputController('));
   assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options',\{onLight\}\)/);
   assert.match(base,/if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
-  assert.match(modal,/controlsPlane\.visible=!workbench&&!screenManager\.isLight/);
+  assert.match(modal,/controlsPlane\.visible=!screenManager\.isOptions&&!screenManager\.isLight/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));
   assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
@@ -1309,9 +1304,8 @@ describe('v200 context-only light property deck',()=>{
  test('new property panel shares original control bounds and has exactly four integrated bars',()=>{
   const src=platform(),deck=src.slice(src.indexOf('function paintLightPropertyPanel('),
    src.indexOf('function paintLightDirectionOverlay('));
-  assert.match(deck,/panel\(r\.dx,r\.dy,r\.dw,r\.dh,0,C\.panel\)/);
-  assert.match(deck,/for\(let i=0;i<LIGHT_PROPERTY_CONTROLS\.length;i\+\+\)/);
-  assert.match(deck,/drawPropertySlider\(sliderGraphics/);
+  assert.match(deck,/LIGHT_PROPERTY_CONTROLS\.map/);
+  assert.match(deck,/drawPropertyDeck\(/);
   assert.doesNotMatch(deck,/shadowAngle|DONE|drawControls/);
   const game=gameSource();
   assert.match(game,/LIGHT_PROPERTY_CONTROLS=Object\.freeze\(\[/);
@@ -1319,9 +1313,9 @@ describe('v200 context-only light property deck',()=>{
  });
  test('Display System remains a launcher and has no duplicated shadow sliders',()=>{
   const src=renderer();
-  assert.match(src,/effect\.id==='shadows'/);
+  assert.match(src,/selected\.id==='shadows'/);
   assert.match(src,/key\('LIGHT CONTROL'/);
-  assert.match(src,/drawPropertySlider\(sliderGraphics/);
+  assert.match(src,/drawPropertyDeck\(/);
  });
 });
 
@@ -1376,7 +1370,7 @@ describe('v202 grid and piece bloom mask wiring',()=>{
   const p=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const r=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(p,/pieceMaskEnabled:boardPlane\.visible/);
-  assert.match(p,/if\(\(boardPlane\.visible\|\|propertiesPreview\)&&settings\.effects\.bloom&&!settings\.lcdDisplay\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
+  assert.match(p,/if\(boardPlane\.visible&&settings\.effects\.bloom&&!settings\.lcdDisplay\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
   assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
   assert.match(r,/const pieceBloomMaskTexture=new THREE\.CanvasTexture\(pieceBloomMaskCanvas\)/);
   assert.doesNotMatch(r,/new THREE\.Mesh\(.*pieceBloomMaskTexture/);
