@@ -475,8 +475,8 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  shadowBias:1,shadowOpacity:.8});
 export const DISPLAY_EFFECTS=[
  {id:'menuBlur',title:'MENU BACKDROP',
-  sliders:[['BLUR','crtMenuBlur',0,100,1,'%'],['VISIBILITY','crtMenuVisibility',0,100,1,'%']],
-  lcdSliders:[['BLUR','lcdMenuBlur',0,100,1,'%'],['VISIBILITY','lcdMenuVisibility',0,100,1,'%']]},
+  sliders:[['BLUR','crtMenuBlur',0,100,1,'%'],['OPACITY','crtMenuVisibility',0,100,1,'%']],
+  lcdSliders:[['BLUR','lcdMenuBlur',0,100,1,'%'],['OPACITY','lcdMenuVisibility',0,100,1,'%']]},
  {id:'boardBlur',title:'GAMEPLAY BLUR',
   sliders:[['CRT','crtBoardBlur',0,4,.5,'px'],['LCD','lcdBoardBlur',0,4,.5,'px']]},
  {id:'phosphor',title:'PHOSPHOR COLOR',toggle:'phosphor'},

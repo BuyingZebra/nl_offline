@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v225';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v225';
+import {instrumentCompositorPasses} from './diagnostics.js?v226';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v226';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -230,9 +230,9 @@ function createPhosphorPersistencePass(){
  */
 
 const VIGNETTE_FADE_SPREAD=.57,CRT_PATTERN_SCALE=1;
-function boardBlurParams(percent){
- const p=percent/100;
- return {sigma:13*Math.pow(p,1.25),step:1+2*Math.pow(p,6)};
+const MAX_MENU_BLUR_SIGMA=13;
+function menuBlurSigma(percent){
+ return MAX_MENU_BLUR_SIGMA*Math.pow(percent/100,1.25);
 }
 
 function createCompositor({renderer,scene,camera,boardPopupTexture,pieceBloomMaskTexture=null,shadowBox=true,onPassTiming=()=>{}}){
@@ -277,7 +277,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
-   uniform float uSigma,uStep,uComposite,uFade,uCanvasBlend;
+   uniform float uSigma,uComposite,uFade,uCanvasBlend;
    uniform vec3 uFadeTo;
    vec3 encodeSRGB(vec3 x){
     return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
@@ -292,16 +292,27 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
                  step(uRect.y,vUv.y)*step(vUv.y,uRect.w);
     if(inside>.5&&uSigma>.01){
-     vec3 sum=vec3(0.0);float weights=0.0;
-     vec2 texel=uAxis*(uStep/max(vec2(1.0),uSize));
-     for(int i=-12;i<=12;i++){
+     // Keep taps one CSS pixel apart and widen the kernel with sigma.
+     // Increasing tap spacing exposed the sampling grid at high blur.
+     vec3 sum=backdrop;
+     float weights=1.0;
+     vec2 texel=uAxis/max(vec2(1.0),uSize);
+     float inverseVariance=1.0/(uSigma*uSigma);
+     float weight=exp(-0.5*inverseVariance);
+     float decay=exp(-inverseVariance);
+     float ratio=decay;
+     for(int i=1;i<=${3*MAX_MENU_BLUR_SIGMA};i++){
       float offset=float(i);
-      float weight=exp(-offset*offset/(2.0*uSigma*uSigma));
-      vec2 uv=clamp(vUv+offset*texel,uRect.xy,uRect.zw);
-      sum+=texture2D(tDiffuse,uv).rgb*weight;
-      weights+=weight;
+      if(offset>ceil(3.0*uSigma))break;
+      vec2 delta=offset*texel;
+      vec3 a=texture2D(tDiffuse,clamp(vUv-delta,uRect.xy,uRect.zw)).rgb;
+      vec3 b=texture2D(tDiffuse,clamp(vUv+delta,uRect.xy,uRect.zw)).rgb;
+      sum+=(a+b)*weight;
+      weights+=2.0*weight;
+      weight*=ratio;
+      ratio*=decay;
      }
-     backdrop=sum/max(.001,weights);
+     backdrop=sum/weights;
     }
     if(uComposite>.5){
      if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
@@ -320,7 +331,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     uRect:{value:new THREE.Vector4(0,0,0,0)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
-    uSigma:{value:0},uStep:{value:1},
+    uSigma:{value:0},
     uComposite:{value:composite?1:0},uCanvasBlend:{value:0},
     uFade:{value:.87},uFadeTo:{value:new THREE.Color(0x101010)}
    },
@@ -620,17 +631,16 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // CRT and LCD settings. Popup blur takes over behind menus.
  const gameplaySigma=boardStatus==='playing'&&boardBackdropVisible?
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
- const popupBlur=boardOverlayActive?
-  boardBlurParams(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):null;
- const sigma=popupBlur?.sigma??gameplaySigma;
- boardBlurHorizontal.enabled=sigma>.01;
+ const sigma=boardOverlayActive?
+  menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
+ const overlayOpacity=boardOverlayActive?
+  (lcd?fx.lcdMenuVisibility:fx.crtMenuVisibility)/100:1;
+ const visibleSigma=overlayOpacity>0?sigma:0;
+ boardBlurHorizontal.enabled=visibleSigma>.01;
  boardPopupPass.enabled=boardBackdropVisible;
- for(const pass of popupPasses){
-  pass.uniforms.uSigma.value=sigma;
-  pass.uniforms.uStep.value=popupBlur?.step??1;
- }
- boardPopupPass.uniforms.uFade.value=boardOverlayActive?
-  1-(lcd?fx.lcdMenuVisibility:fx.crtMenuVisibility)/100:0;
+ for(const pass of popupPasses)pass.uniforms.uSigma.value=visibleSigma;
+ // Saved visibility is the opacity of the blurred board over the menu base.
+ boardPopupPass.uniforms.uFade.value=1-overlayOpacity;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
  // Keep the live CanvasTexture bound through all update paths.

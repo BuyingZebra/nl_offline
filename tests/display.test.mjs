@@ -285,7 +285,7 @@ describe('CRT composition',()=>{
   assert.equal(horizontal.enabled,false);
   pipeline.dispose();
  });
- test('menu blur and board visibility are independent in CRT and LCD',()=>{
+ test('menu blur and backdrop opacity are independent in CRT and LCD',()=>{
   const {pipeline,composer}=setup();
   const [,horizontal,popup]=composer.passes;
   const state={fx:{...states,crtMenuBlur:47,crtMenuVisibility:13,
@@ -302,6 +302,12 @@ describe('CRT composition',()=>{
   assert.equal(horizontal.enabled,true);
   assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.65,1.25));
   assert.equal(popup.uniforms.uFade.value,0);
+  pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:65,lcdMenuVisibility:10}});
+  assert.equal(popup.uniforms.uFade.value,.90);
+  assert.equal(horizontal.uniforms.uSigma.value,13*Math.pow(.65,1.25));
+  pipeline.syncFX({...state,lcd:true,fx:{...state.fx,lcdMenuBlur:100,lcdMenuVisibility:0}});
+  assert.equal(popup.uniforms.uFade.value,1);
+  assert.equal(horizontal.enabled,false);
   pipeline.dispose();
  });
  test('popup blur applies to the active READY/PAUSED/OVER backdrop',()=>{
