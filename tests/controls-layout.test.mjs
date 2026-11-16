@@ -806,21 +806,22 @@ describe('Pointer and keyboard input',()=>{
   const W=393,H=852,ignore=()=>{};
   const r={hx:12,hw:369,hy:40,hh:70,boardX:35,boardY:120,boardW:240,boardH:480,
    sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44,buttonH:53,extraH:46};
-  const settings=createSettingsManager();
+  const settings=createSettingsManager(),labels=[];
   let screenName='options';
   const add=(...args)=>regions.push(makeRegion(...args));
   const modal=createModalUI({
    DISPLAY_EFFECTS,SCANLINE_CHOICES:scanlineChoices([{id:'aperture',name:'APERTURE'}]),
    getViewport:()=>({W,H}),layout:()=>r,insets:()=>({top:0,bottom:0}),
-   clearRegions:()=>{regions.length=0;},panel:ignore,text:ignore,rect:ignore,region:add,
-   key:(label,x,y,w,h,act,meta)=>add(x,y,w,h,act,meta),
-   UI_SPACE:{unit:6,padX:11,headRightPad:6,headIconGap:6},C:{},
+   clearRegions:()=>{regions.length=0;},panel:ignore,text:value=>labels.push(value),rect:ignore,region:add,
+   key:(label,x,y,w,h,act,meta)=>{labels.push(label);add(x,y,w,h,act,meta);},
+   UI_SPACE:{unit:6,padX:11,extrasGap:6,buttonWidthScale:.75,headRightPad:6,headIconGap:6},C:{},
    getFX:()=>settings.effects,getModal:()=>screenName,settingValue:settings.settingValue,
    chooseScanlineSetting:id=>settings.chooseScanline(id),invalidate:ignore
   });
   const paint=()=>modal.paintProperty();
   const bounds=modal.modalBounds('options');
-  assert.equal(bounds.w,283.7); // board plus visible rails, including the sidebar clip
+  const buttonWidth=(r.dw-2*r.deckPad-6)/2*.75;
+  assert.equal(bounds.w,2*buttonWidth+18);
   assert.equal(bounds.x,(W-bounds.w)/2);
   modal.paintModal(bounds);
   const list=regions.filter(hit=>hit.act.startsWith('property:'));
@@ -828,8 +829,14 @@ describe('Pointer and keyboard input',()=>{
   assert.ok(modal.optionRows().maxScroll>0);
   for(const action of ['confirmProperties','cancelProperties']){
    const hit=regions.find(region=>region.act===action);
-   assert.ok(hit&&hit.y>=list.at(-1).y+list.at(-1).h);
+   assert.ok(hit);
+   assert.equal(hit.w,buttonWidth);
+   assert.equal(hit.h,r.extraH);
+   assert.equal(hit.y-list.at(-1).y-list.at(-1).h,12);
+   assert.equal(hit.x-bounds.x,action==='confirmProperties'?6:12+buttonWidth);
   }
+  assert.ok(labels.includes('CONFIRM')&&labels.includes('CANCEL'));
+  assert.ok(labels.every(label=>label===label.toUpperCase()));
   modal.optionsScroll=modal.optionRows().maxScroll;
   modal.paintModal(bounds);
   assert.ok(regions.some(hit=>hit.act==='property:diagnostics'));

@@ -2,12 +2,11 @@
 import * as THREE from './vendor/three/three.bundle.js';
 import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
-import {brickRailGeometry} from './assets/frames/brick-pattern.mjs?v137';
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v238';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v238';
+import {instrumentCompositorPasses} from './diagnostics.js?v239';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v239';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1676,6 +1675,10 @@ function fitPreviewCells(shape,x,y,w,h,cellSize){
  }));
 }
 
+function secondaryButtonWidth(r,ui){
+ return (r.dw-2*r.deckPad-ui.extrasGap)/2*ui.buttonWidthScale;
+}
+
 // Single source of control dimensions for visible pixels and invisible hitboxes.
 function visitControlButtons(r,UI_SPACE,emit){
  // V114: restore the enclosing controls panel; button geometry and hitboxes
@@ -1705,7 +1708,7 @@ function visitControlButtons(r,UI_SPACE,emit){
  }
  // Keep the secondary controls centered at their approved 75% width.
  const extraGap=UI_SPACE.extrasGap;
- const ew=(pw-extraGap)/2*UI_SPACE.buttonWidthScale;
+ const ew=secondaryButtonWidth(r,UI_SPACE);
  const groupW=ew*2+extraGap,groupX=px+(pw-groupW)/2;
  emit('HOLD',groupX,ey,ew,r.extraH,'hold');
  emit('PAUSE',groupX+ew+extraGap,ey,ew,r.extraH,'pause');
@@ -1873,16 +1876,15 @@ function createModalUI({
   const index=(currentPattern()+step+SCANLINE_CHOICES.length)%SCANLINE_CHOICES.length;
   chooseScanlineSetting(SCANLINE_CHOICES[index].id);invalidate();
  }
-// Menu geometry shares the six-pixel unit and the existing 46/42/37px
-// phosphor/settings, HOLD and PAUSE button height.
+// The picker footer shares Hold and Pause geometry.
 function modalBounds(name){
  const {W,H}=getViewport();
  const safe=insets(),pad=UI_SPACE.unit,gap=UI_SPACE.unit;
- const buttonH=layout().headerButtonH;
+ const board=layout();
  // The personal record fills the existing blurred playfield.
  // Unusually narrow landscape boards need a wider, legible overlay.
  if(name==='scores'){
-  const b=layout(),narrow=b.boardW<205||b.boardH<310;
+  const b=board,narrow=b.boardW<205||b.boardH<310;
   if(narrow){
    const w=Math.min(410,W-2*UI_SPACE.padX);
    const h=Math.min(330,Math.max(0,H-safe.top-safe.bottom-2*gap));
@@ -1893,20 +1895,18 @@ function modalBounds(name){
    buttonH:b.buttonH,landscapeFallback:false};
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
- const wanted=Math.min(390,usable*.68);
- const board=layout(),rails=brickRailGeometry(board);
- const railSpan=rails?rails.rightVisible.x+rails.rightVisible.w-rails.leftVisible.x:board.boardW;
- const w=Math.max(0,Math.min(railSpan,W-2*UI_SPACE.padX));
- const h=Math.max(0,Math.min(wanted,usable-2*gap));
- return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,gap,buttonH};
+ const buttonW=secondaryButtonWidth(board,UI_SPACE),buttonH=board.extraH;
+ const w=2*buttonW+3*pad, rowHeight=Math.max(32,board.headerButtonH);
+ const chrome=buttonH+4*pad;
+ const budget=Math.min(390,usable*.68,usable-2*gap);
+ const count=Math.min(properties.length,Math.max(0,Math.floor((budget-chrome)/rowHeight)));
+ const h=chrome+count*rowHeight;
+ return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,buttonW,buttonH,rowHeight,count};
 }
 let optionsScroll=0;
 function optionRows(q=modalBounds('options')){
- const footer=q.buttonH+2*q.pad;
- const rowHeight=Math.max(32,q.buttonH);
- const count=Math.min(properties.length,Math.max(0,Math.floor((q.h-footer-2*q.pad)/rowHeight)));
- const h=count*rowHeight;
- return {x:q.x,y:q.y+q.pad,w:q.w,h,rowHeight,count,
+ const {rowHeight,count}=q;
+ return {x:q.x,y:q.y+q.pad,w:q.w,h:count*rowHeight,rowHeight,count,
   maxScroll:Math.max(0,properties.length-count)*rowHeight};
 }
 function drawOptions(q){
@@ -1918,7 +1918,7 @@ function drawOptions(q){
  for(const [index,property] of properties.slice(first,first+view.count).entries()){
   const y=view.y+index*view.rowHeight,mid=y+view.rowHeight/2;
   if(property===selected)text('▶',q.x+2*q.pad,mid,13,colors.ink);
-  text(listLabels[property.id]??property.title,q.x+5*q.pad,mid,14,
+  text((listLabels[property.id]??property.title).toUpperCase(),q.x+5*q.pad,mid,14,
    colors.ink,'left',q.w-9*q.pad);
   region(q.x,y,q.w,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
  }
@@ -1929,9 +1929,9 @@ function drawOptions(q){
  }
  const footerY=q.y+q.h-q.buttonH-2*q.pad;
  rect(q.x,footerY,q.w,1,C.border);
- const w=(q.w-3*q.pad)/2,y=footerY+q.pad;
- key('Confirm',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
- key('Cancel',q.x+2*q.pad+w,y,w,q.buttonH,'cancelProperties',{onLight:lcd});
+ const w=q.buttonW,y=footerY+q.pad;
+ key('CONFIRM',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
+ key('CANCEL',q.x+2*q.pad+w,y,w,q.buttonH,'cancelProperties',{onLight:lcd});
 }
 function drawProperty(){
  const {W,H}=getViewport(),r=layout(),gap=UI_SPACE.unit;
