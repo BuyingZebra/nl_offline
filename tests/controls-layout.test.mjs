@@ -721,7 +721,7 @@ describe('Shared hitboxes and slider geometry',()=>{
   drawPropertySlider({rect:(...args)=>bars.push(args),text:(...args)=>labels.push(args),
    region:(...args)=>{hit=makeRegion(...args);},ink:'#e3e3e3'},
    {x:100,midY:200,w:220,barH:24,labelW:64,gap:6,labelSize:11,
-    setting:{label:'BLUR',field:'lcdBoardBlur',min:0,max:4,step:.5,unit:'px'},value:1.5});
+    setting:{label:'BLUR',field:'boardBlur',min:0,max:4,step:.5,unit:'px'},value:1.5});
   assert.deepEqual(bars,[[170,188,150,24,'#676767'],[170,188,56.25,24,'#cecece']]);
   assert.deepEqual(labels[1].slice(0,3),['1.5px',245,200]);
   assert.equal(labels[1][5],'center');
@@ -865,8 +865,12 @@ describe('Pointer and keyboard input',()=>{
   modal.optionsScroll=0;
   const testControls=()=>{
    for(const effect of DISPLAY_EFFECTS){
+    if(settings.lcdDisplay&&effect.crtOnly){
+     assert.equal(modal.selectProperty(effect.id),false);
+     continue;
+    }
     modal.selectProperty(effect.id);paint();
-    for(const [,field] of (settings.lcdDisplay?effect.lcdSliders:undefined)??effect.sliders??[]){
+    for(const [,field] of effect.sliders??[]){
      const hit=regions.find(item=>item.act==='slider'&&item.field===field);
      assert.ok(hit&&hit.y>=r.dy&&hit.y+hit.h<=r.dy+r.dh,field);
     }
@@ -900,15 +904,16 @@ describe('Pointer and keyboard input',()=>{
   tap(regions.find(hit=>hit.field==='lcdDisplay'));
   assert.equal(settings.lcdDisplay,true);
   screenName='options';
-  modal.paintModal(bounds);
+  modal.paintModal(modal.modalBounds('options'));
   assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field==='shadows'));
-  assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field==='phosphor'));
+  assert.ok(!regions.some(hit=>hit.act==='toggle'&&hit.field==='phosphor'));
   testControls();
   for(const [id,action] of [['defaults','resetFX'],['diagnostics','copyDebug']]){
    modal.selectProperty(id);paint();
    assert.equal(regions.find(hit=>hit.act===action)?.h,r.extraH);
   }
-  modal.selectProperty('scanlines');paint();
+  settings.setSetting('lcdDisplay',false);
+  assert.equal(modal.selectProperty('scanlines'),true);paint();
   assert.ok(regions.some(hit=>hit.act==='pattern:next'));
   modal.cyclePattern(1);
   assert.equal(settings.effects.scanlines,false);

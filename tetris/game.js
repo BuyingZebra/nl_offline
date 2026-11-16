@@ -468,34 +468,31 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  scanlines:true,scanlinePreset:'aperture',scanlineOpacity:49,
  softness:false,softnessStrength:.64,softnessRadius:3,
  boardBlurEnabled:true,menuBackdropEnabled:true,defaultsEnabled:true,diagnosticsEnabled:true,
- crtBoardBlur:0,lcdBoardBlur:0,
- crtMenuBlur:47,lcdMenuBlur:47,crtMenuFade:87,lcdMenuFade:87,
+ boardBlur:0,menuBlur:47,menuFade:87,
  vignette:true,vignetteAmount:.57,
  persistence:true,persistenceMs:120,
  shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
  shadowBias:1,shadowOpacity:.8});
 export const DISPLAY_EFFECTS=[
  {id:'menuBlur',toggle:'menuBackdropEnabled',section:'DISPLAY',title:'MENU BACKDROP',
-  sliders:[['BLUR','crtMenuBlur',0,100,1,'%'],['FADE','crtMenuFade',0,100,1,'%']],
-  lcdSliders:[['BLUR','lcdMenuBlur',0,100,1,'%'],['FADE','lcdMenuFade',0,100,1,'%']]},
- {id:'boardBlur',toggle:'boardBlurEnabled',title:'PLAYFIELD',
-  sliders:[['BLUR','crtBoardBlur',0,4,.5,'px']],
-  lcdSliders:[['BLUR','lcdBoardBlur',0,4,.5,'px']]},
- {id:'shadows',title:'DROP SHADOWS',toggle:'shadows'},
- {id:'phosphor',section:'CRT EFFECTS',title:'PHOSPHOR COLOR',toggle:'phosphor'},
- {id:'persistence',title:'PHOSPHOR RESPONSE',toggle:'persistence',
+  sliders:[['BLUR','menuBlur',0,100,1,'%'],['FADE','menuFade',0,100,1,'%']]},
+ {id:'boardBlur',toggle:'boardBlurEnabled',title:'GAME BOARD BLUR',
+  sliders:[['BLUR','boardBlur',0,4,.5,'px']]},
+ {id:'shadows',title:'DIRECTIONAL LIGHT',toggle:'shadows'},
+ {id:'phosphor',crtOnly:true,section:'CRT EFFECTS',title:'PHOSPHOR COLOR',toggle:'phosphor'},
+ {id:'persistence',crtOnly:true,title:'PHOSPHOR RESPONSE',toggle:'persistence',
   sliders:[['DECAY','persistenceMs',10,120,10,'ms']]},
- {id:'scanlines',title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
+ {id:'scanlines',crtOnly:true,title:'CRT SCANLINES',toggle:'scanlines',pattern:true,
   sliders:[['','scanlineOpacity',0,100,1,'%']]},
- {id:'vignette',title:'SCREEN VIGNETTE',toggle:'vignette',
+ {id:'vignette',crtOnly:true,title:'SCREEN VIGNETTE',toggle:'vignette',
   sliders:[['','vignetteAmount',0,100,1,'%']]},
- {id:'bloom',title:'PHOSPHOR BLOOM',toggle:'bloom',
+ {id:'bloom',crtOnly:true,title:'PHOSPHOR BLOOM',toggle:'bloom',
   sliders:[['','bloomStrength',0,100,1,'%']]},
- {id:'ghost',title:'SIGNAL GHOSTING',toggle:'ghost',
+ {id:'ghost',crtOnly:true,title:'SIGNAL GHOSTING',toggle:'ghost',
   sliders:[['X','ghostX',-32,32,1,'px'],
    ['Y','ghostY',-32,32,1,'px'],
    ['','ghostStrength',0,100,1,'%']]},
- {id:'softness',title:'EDGE SOFTNESS',toggle:'softness',
+ {id:'softness',crtOnly:true,title:'EDGE SOFTNESS',toggle:'softness',
   sliders:[['STRENGTH','softnessStrength',0,100,1,'%'],
    ['RADIUS','softnessRadius',0,10,.5,'px']]},
  {id:'piece',section:'GAME',title:'GHOST PIECE',toggle:'pieceGhost'},
@@ -511,9 +508,7 @@ export const SCANLINE_PRESET_IDS=Object.freeze(['original','horizontal','apertur
 export const EFFECT_NUMBER_RANGES=Object.freeze({
  bloomStrength:[0,1],ghostX:[-32,32],ghostY:[-32,32],ghostStrength:[0,100],
  scanlineOpacity:[0,100],softnessStrength:[0,1],softnessRadius:[0,10],
- crtBoardBlur:[0,4],lcdBoardBlur:[0,4],
- crtMenuBlur:[0,100],lcdMenuBlur:[0,100],
- crtMenuFade:[0,100],lcdMenuFade:[0,100],
+ boardBlur:[0,4],menuBlur:[0,100],menuFade:[0,100],
  vignetteAmount:[0,1],persistenceMs:[10,120],...SHADOW_RANGES
 });
 // Validate persisted, migrated and user-submitted effects using one schema.
@@ -576,16 +571,28 @@ export function createSettingsManager(storage){
   if(draft){draft.writes.set(key,String(value));return;}
   try{storage?.setItem(key,String(value));}catch(e){}
  };
+ let lcdDisplay=read(STORAGE_KEYS.lcdDisplay,'no')==='yes';
  let effects={...DEFAULT_EFFECTS};
  try{
   const saved=JSON.parse(read(STORAGE_KEYS.effects,'null'));
-  if(saved&&typeof saved==='object'&&!Array.isArray(saved))
+  if(saved&&typeof saved==='object'&&!Array.isArray(saved)){
+   // Keep the active display's look when upgrading split blur and fade settings.
+   const modes=lcdDisplay?['lcd','crt']:['crt','lcd'];
+   let migrated=false;
+   for(const [key,suffix] of [['boardBlur','BoardBlur'],['menuBlur','MenuBlur'],['menuFade','MenuFade']]){
+    if(Number.isFinite(saved[key]))continue;
+    const previous=modes.map(mode=>saved[mode+suffix]).find(Number.isFinite);
+    if(previous===undefined)continue;
+    saved[key]=previous;
+    migrated=true;
+   }
    for(const key of Object.keys(DEFAULT_EFFECTS))
     effects[key]=normalizeEffectValue(key,saved[key]);
+   if(migrated)persistEffects();
+  }
  }catch(e){/* Corrupt/disabled storage keeps documented defaults. */}
  let pieceGhost=read(STORAGE_KEYS.pieceGhost,'yes')!=='no';
  let soundOn=read(STORAGE_KEYS.sound,'yes')!=='no';
- let lcdDisplay=read(STORAGE_KEYS.lcdDisplay,'no')==='yes';
  // Restore the original green/amber-only phosphor selection. A saved
  // blue preference from V160 gracefully falls back to green.
  let theme=read(STORAGE_KEYS.theme,'green')==='amber'?'amber':'green';
