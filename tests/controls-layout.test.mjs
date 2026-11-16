@@ -835,7 +835,11 @@ describe('Pointer and keyboard input',()=>{
   const lightRow={setting:{label:'HEIGHT',field:'test',min:0,max:10,step:1,unit:'PX'},value:3};
   drawPropertyDeck({panel:ignore,rect:ignore,text:ignore,region:(...args)=>sliders.push(args),C:{}},
    r,6,[lightRow,lightRow,lightRow,lightRow]);
-  assert.equal(bounds.rowHeight,r.headerButtonH/2);
+  assert.equal(bounds.rowHeight,32);
+  assert.equal(list[0].y-modal.optionRows().y,6);
+  assert.equal(list[1].y-list[0].y,32);
+  assert.equal(modal.optionRows().y+modal.optionRows().h-list.at(-1).y-list.at(-1).h,6);
+  assert.equal(panels[1][0]+panels[1][2]-status[0].x-status[0].w,6);
   assert.equal(status.length,list.length);
   assert.ok(list.every(hit=>marks.some(([,y,w,h])=>w===1&&h===1&&y===hit.y+hit.h/2-.5)));
   assert.ok(!marks.some(([, ,w,h])=>w===bounds.w&&h===1));
@@ -847,7 +851,8 @@ describe('Pointer and keyboard input',()=>{
    assert.ok(hit);
    assert.equal(hit.w,buttonWidth);
    assert.equal(hit.h,r.extraH);
-   assert.equal(hit.y-list.at(-1).y-list.at(-1).h,12);
+   assert.equal(hit.y-modal.optionRows().y-modal.optionRows().h,6);
+   assert.equal(bounds.y+bounds.h-hit.y-hit.h,6);
    assert.equal(hit.x-bounds.x,action==='confirmProperties'?6:12+buttonWidth);
   }
   assert.ok(labels.includes('CONFIRM')&&labels.includes('CANCEL'));

@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v241';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v241';
+import {instrumentCompositorPasses} from './diagnostics.js?v242';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v242';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1913,8 +1913,8 @@ function modalBounds(name){
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
  const buttonW=secondaryButtonWidth(board,UI_SPACE),buttonH=board.extraH;
- const w=2*buttonW+3*pad, rowHeight=Math.max(16,board.headerButtonH/2);
- const chrome=buttonH+4*pad;
+ const w=2*buttonW+3*pad, rowHeight=32;
+ const chrome=buttonH+5*pad;
  const budget=Math.min(390,usable*.68,usable-2*gap);
  const count=Math.min(properties.length,Math.max(0,Math.floor((budget-chrome)/rowHeight)));
  const h=chrome+count*rowHeight;
@@ -1923,7 +1923,7 @@ function modalBounds(name){
 let optionsScroll=0;
 function optionRows(q=modalBounds('options')){
  const {rowHeight,count}=q;
- return {x:q.x,y:q.y+q.pad,w:q.w,h:count*rowHeight,rowHeight,count,
+ return {x:q.x+q.pad,y:q.y+q.pad,w:q.w-2*q.pad,h:count*rowHeight+2*q.pad,rowHeight,count,
   maxScroll:Math.max(0,properties.length-count)*rowHeight};
 }
 function drawOptions(q){
@@ -1932,19 +1932,19 @@ function drawOptions(q){
  const view=optionRows(q),first=Math.round(Math.min(optionsScroll,view.maxScroll)/view.rowHeight);
  clearRegions();region(0,0,W,H,'block');
  panel(q.x,q.y,q.w,q.h,0,colors.panel,C.border);
- const frameX=q.x+q.pad,frameW=q.w-2*q.pad;
+ const {x:frameX,w:frameW}=view;
  panel(frameX,view.y,frameW,view.h,0,null,C.border);
  const {barH,labelSize}=propertySliderSize(propertyDeckSpacing(layout(),q.pad).regularH);
  const labelX=frameX+3*q.pad,right=frameX+frameW-q.pad;
- const statusW=Math.ceil(textWidth('DISABLED',labelSize))+3*q.pad;
+ const statusW=Math.ceil(textWidth('DISABLED',labelSize))+2*q.pad;
  const statusX=right-statusW;
  for(const [index,property] of properties.slice(first,first+view.count).entries()){
-  const y=view.y+index*view.rowHeight,mid=y+view.rowHeight/2;
+  const y=view.y+q.pad+index*view.rowHeight,mid=y+view.rowHeight/2;
   const label=(listLabels[property.id]??property.title).toUpperCase();
   const labelEnd=statusX-q.pad;
   const labelWidth=Math.max(1,labelEnd-labelX-2*q.pad);
   const rowFont=Math.min(labelSize,labelSize*labelWidth/Math.max(1,textWidth(label,labelSize)));
-  if(property===selected)text('▶',frameX+q.pad,mid,labelSize,colors.ink);
+  if(property===selected)text('▶',frameX+q.pad,mid,labelSize,colors.ink,'left');
   text(label,labelX,mid,rowFont,colors.ink,'left');
   region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
   const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,rowFont)+q.pad);
@@ -1953,8 +1953,7 @@ function drawOptions(q){
   key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
    {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize});
  }
- const footerY=q.y+q.h-q.buttonH-2*q.pad;
- const w=q.buttonW,y=footerY+q.pad;
+ const w=q.buttonW,y=view.y+view.h+q.pad;
  key('CONFIRM',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
  key('CANCEL',q.x+2*q.pad+w,y,w,q.buttonH,'cancelProperties',{onLight:lcd});
 }
