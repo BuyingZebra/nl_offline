@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v235';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v235';
+import {instrumentCompositorPasses} from './diagnostics.js?v236';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v236';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -785,8 +785,8 @@ function buttonFeedbackChanged(previous,current){
  * rectangles. The source canvas, glyph rasterization, layout, hitboxes,
  * phosphor, bloom, and afterglow timing remain owned by their existing modules.
  *
- * The baseline CanvasTexture is rendered ONCE at 206/6 (solid) or 8/206
- * (outline). On a press, shader uniforms remap the baseline raster to the
+ * The baseline CanvasTexture uses the active display palette.
+ * On a press, shader uniforms remap the baseline raster to the
  * exact 8-bit face/ink levels used by createCanvasUI. No per-frame upload,
  * extra canvas, geometry, scene layer, or postprocessing pass.
  */
@@ -796,12 +796,18 @@ const GPU_BUTTON_SOURCE_LEVELS=Object.freeze({
  solidFace:206,solidInk:6,outlineFace:8,outlineInk:206
 });
 
+const LCD_BUTTON_LEVELS=Object.freeze({panel:231,outline:28,solidInk:227});
+function lcdButtonInk(power){return Math.round(LCD_BUTTON_LEVELS.outline+30*power);}
+function controlButtonLevels(light,power,onLight){
+ if(onLight)return light?
+  {face:lcdButtonInk(power),ink:LCD_BUTTON_LEVELS.solidInk}:
+  {face:LCD_BUTTON_LEVELS.panel,ink:lcdButtonInk(power)};
+ return {face:light?buttonLevel(power):GPU_BUTTON_SOURCE_LEVELS.outlineFace,
+  ink:light?buttonInkLevel(power):buttonLevel(power)};
+}
+
 const finiteBox=b=>b&&[b.x,b.y,b.w,b.h].every(Number.isFinite)&&b.w>0&&b.h>0;
 const sameBox=(a,b)=>a.x===b.x&&a.y===b.y&&a.w===b.w&&a.h===b.h;
-const levelFor=(lit,power)=>Object.freeze({
- face:lit?buttonLevel(power):GPU_BUTTON_SOURCE_LEVELS.outlineFace,
- ink:lit?buttonInkLevel(power):buttonLevel(power)
-});
 // Canvas text antialiasing interpolates 8-bit sRGB gray against the backing
 // fill. This identity follows that interpolation; a zero-power button is
 // returned unmodified by the shader, avoiding any cumulative resampling drift.
@@ -811,7 +817,7 @@ function excitedButtonGray(value,{light=false,power=0}={}){
  if(power0===0)return original;
  const srcFace=light?GPU_BUTTON_SOURCE_LEVELS.solidFace:GPU_BUTTON_SOURCE_LEVELS.outlineFace;
  const srcInk=light?GPU_BUTTON_SOURCE_LEVELS.solidInk:GPU_BUTTON_SOURCE_LEVELS.outlineInk;
- const destination=levelFor(light,power0);
+ const destination=controlButtonLevels(light,power0,false);
  const amount=clamp((original-srcFace)/(srcInk-srcFace),0,1);
  return destination.face+(destination.ink-destination.face)*amount;
 }
@@ -831,6 +837,7 @@ const fragmentShader=`
  uniform sampler2D uMap;
  uniform int uCount;
  uniform int uExcited;
+ uniform int uOnLight;
  uniform vec4 uRects[${GPU_BUTTON_CAPACITY}];
  uniform vec4 uLevels[${GPU_BUTTON_CAPACITY}];
 
@@ -851,6 +858,10 @@ const fragmentShader=`
     if(vUv.x>=box.x&&vUv.x<box.z&&vUv.y>=box.y&&vUv.y<box.w){
      float baseFace=state.x>0.5?206.0:8.0;
      float baseInk=state.x>0.5?6.0:206.0;
+     if(uOnLight==1){
+      baseFace=state.x>0.5?${LCD_BUTTON_LEVELS.outline}.0:${LCD_BUTTON_LEVELS.panel}.0;
+      baseInk=state.x>0.5?${LCD_BUTTON_LEVELS.solidInk}.0:${LCD_BUTTON_LEVELS.outline}.0;
+     }
      float original=clamp(encodeSRGB(pixel.r),0.0,1.0)*255.0;
      float inkCoverage=clamp((original-baseFace)/(baseInk-baseFace),0.0,1.0);
      float outEncoded=mix(state.y,state.z,inkCoverage);
@@ -875,7 +886,7 @@ function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPACITY}={}
  const rects=Array.from({length:capacity},()=>new THREE.Vector4());
  const levels=Array.from({length:capacity},()=>new THREE.Vector4());
  const uniforms={
-  uMap:{value:texture},uCount:{value:0},uExcited:{value:0},
+  uMap:{value:texture},uCount:{value:0},uExcited:{value:0},uOnLight:{value:0},
   uRects:{value:rects},uLevels:{value:levels}
  };
  const material=new THREE.ShaderMaterial({
@@ -885,7 +896,7 @@ function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPACITY}={}
  });
  let geometry=[],active=false;
  let layoutSignature='';
- function configure(buttons,bounds){
+ function configure(buttons,bounds,onLight=false){
   if(!Array.isArray(buttons)||!finiteBox(bounds))return false;
   const visible=buttons.filter(b=>b?.kind==='button'&&finiteBox(b));
   if(!visible.length||visible.length>capacity)return false;
@@ -893,7 +904,7 @@ function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPACITY}={}
     b.x+b.w>bounds.x+bounds.w+.5||b.y+b.h>bounds.y+bounds.h+.5))
    return false;
   const fingerprint=JSON.stringify([
-   bounds.x,bounds.y,bounds.w,bounds.h,
+   bounds.x,bounds.y,bounds.w,bounds.h,onLight,
    ...visible.map(b=>[b.x,b.y,b.w,b.h,Boolean(b.light)])
   ]);
   if(fingerprint===layoutSignature)return true;
@@ -909,10 +920,11 @@ function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPACITY}={}
     clamp((b.x+b.w-bounds.x)/bounds.w,0,1),
     clamp((bounds.y+bounds.h-b.y)/bounds.h,0,1)
    );
-   levels[i].set(b.light?1:0,b.light?206/255:8/255,
-    b.light?6/255:206/255,0);
+   const {face,ink}=controlButtonLevels(b.light,0,onLight);
+   levels[i].set(b.light?1:0,face/255,ink/255,0);
   }
   uniforms.uCount.value=geometry.length;
+  uniforms.uOnLight.value=onLight?1:0;
   uniforms.uExcited.value=0;
   // Three.js ShaderMaterial does not always upload changed uniform arrays
   // after its first draw unless this flag is explicitly raised.
@@ -927,9 +939,10 @@ function createGpuButtonLighting({THREE,texture,capacity=GPU_BUTTON_CAPACITY}={}
    const b=geometry[i];
    const spark=sparks.find(s=>sameBox(s,b));
    const power=clamp(Number(spark?.power)||0,0,1);
-   const face=b.light?buttonLevel(power):8;
-   const ink=b.light?buttonInkLevel(power):buttonLevel(power);
-   const isActive=b.light?face!==206||ink!==6:ink!==206;
+   const onLight=uniforms.uOnLight.value===1;
+   const {face,ink}=controlButtonLevels(b.light,power,onLight);
+   const baseline=controlButtonLevels(b.light,0,onLight);
+   const isActive=face!==baseline.face||ink!==baseline.ink;
    const nextFace=face/255,nextInk=ink/255;
    const state=levels[i];
    if(state.y!==nextFace||state.z!==nextInk||
@@ -1084,9 +1097,9 @@ function flashPhase(elapsed,interval=72){
  return Math.floor(elapsed/interval)%2;
 }
 
-return {PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,buttonLevel,buttonInkLevel,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase};
+return {LCD_BUTTON_LEVELS,lcdButtonInk,PHOSPHOR_BOUNDS,normalizePersistenceMs,integratePhosphorResponse,createPhosphorPersistencePass,createCompositor,MAX_BUTTON_FLASHES,BUTTON_BASE_LEVEL,BUTTON_PEAK_LEVEL,BUTTON_FLASH_PEAK_MS,MIN_PRESS_FRAME_MS,BUTTON_AFTERGLOW_MS,BUTTON_FLASH_TOTAL_MS,buttonLevel,buttonInkLevel,createButtonFeedback,buttonFeedbackChanged,GPU_BUTTON_CAPACITY,GPU_BUTTON_SOURCE_LEVELS,excitedButtonGray,createGpuButtonLighting,buttonFeedbackLayers,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,createRenderInvalidation,captureGameVisualState,gameVisualStateChanged,flashPhase};
 })();
-const {buttonLevel,buttonInkLevel}=CRT;
+const {buttonLevel,buttonInkLevel,LCD_BUTTON_LEVELS,lcdButtonInk}=CRT;
 // Textures, sprite art, fragments, silhouette shadows.
 const Art=(()=>{
 /* Piece sprites, tile fallback, fragments and shadows. */
@@ -1589,10 +1602,10 @@ function region(x,y,w,h,act,opts={}){const model=makeRegion(x,y,w,h,act,opts);ge
 function key(label,x,y,w,h,act,opts={}){
  const model=makeButtonControl(label,x,y,w,h,act,opts);
  const power=Math.max(0,Math.min(1,Number(getButtonPower(model.hitbox))||0));
- const lit=grayLevel(opts.onLight?28+30*power:buttonLevel(power));
+ const lit=grayLevel(opts.onLight?lcdButtonInk(power):buttonLevel(power));
  // Negative-space text in solid buttons follows the press (6→30) without
  // disappearing into the bright solid face (206→255).
- const inverseInk=grayLevel(opts.onLight?227:buttonInkLevel(power));
+ const inverseInk=grayLevel(opts.onLight?LCD_BUTTON_LEVELS.solidInk:buttonInkLevel(power));
  const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
   BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
  // V165: keep button artwork as a single flat face. Solid buttons
@@ -1659,7 +1672,7 @@ function visitControlButtons(r,UI_SPACE,emit){
   // Narrow landscape: maintain usable touch targets by reflowing controls.
   const third=Math.max(0,(pw-2*gap)/3);
   emit('◀',px,cy,third,ch,'left',{light:true,repeat:true});
-  emit('↻',px+third+gap,cy+(ch-r.extraH)/2,third,r.extraH,'cw');
+  emit('↻',px+third+gap,cy,third,ch,'cw');
   emit('▶',px+2*(third+gap),cy,third,ch,'right',{light:true,repeat:true});
   emit('DROP',px,cy+ch+gap,pw,ch,'soft',{light:true,repeat:true});
   ey=cy+2*(ch+gap);
@@ -1668,7 +1681,7 @@ function visitControlButtons(r,UI_SPACE,emit){
   emit('◀',px,cy,col,ch,'left',{light:true,repeat:true});
   emit('DROP',px+col+gap,cy,col*2+gap,ch,'soft',{light:true,repeat:true});
   emit('▶',px+col*3+gap*3,cy,col,ch,'right',{light:true,repeat:true});
-  emit('↻',px+col*4+gap*4,cy+(ch-r.extraH)/2,col,r.extraH,'cw');
+  emit('↻',px+col*4+gap*4,cy,col,ch,'cw');
   ey=cy+ch+r.deckGap;
  }
  // Keep the secondary controls centered at their approved 75% width.
@@ -1734,8 +1747,11 @@ function drawSidebar(r){
  preview(hold,game.hold,'hold');
 }
 function drawControls(r){
- panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
- visitControlButtons(r,UI_SPACE,key);
+ const onLight=getLCD();
+ panel(r.dx,r.dy,r.dw,r.dh,0,onLight?LCD_BOARD.panel:C.panel,onLight?C.bright:C.border);
+ visitControlButtons(r,UI_SPACE,(label,x,y,w,h,act,opts)=>{
+  key(label,x,y,w,h,act,{...opts,onLight});
+ });
 }
 
  return Object.freeze({drawSidebar,drawControls});

@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v235';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v235';
+import {createInputController} from './input.js?v236';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v236';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v217';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v236';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v235';
+export {createInputController} from './input.js?v236';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -596,7 +596,7 @@ const actions=createActionController({
  // Score, lines and preview content already belong to sidebar/board.
  // The deck itself is static; presses are now uniform-only GPU changes.
  markLayers:(...names)=>{
-  let applicable=visualScene.controlsGpuEnabled?
+  const applicable=visualScene.controlsGpuEnabled&&paintedControlsLCD===settings.lcdDisplay?
    names.filter(name=>name!=='controls'):names;
   if(applicable.length)layers.mark(...applicable);
  },
@@ -923,16 +923,18 @@ function paintSidebarLayer(){
  paintUIRegion(sidebarCanvas,sidebarContext,sidebarPlane,sidebarTexture,
   sidebarBounds(r,W,H,DPR),'sidebar',drawSidebar);
 }
+let paintedControlsLCD;
 function paintControlsLayer(){
  const r=layoutInfo||layout();
  const bounds=controlsBounds(r,W,H,DPR);
  paintUIRegion(controlsCanvas,controlsContext,controlsPlane,controlsTexture,
   bounds,'controls',r=>{
    drawControls(r);
+   paintedControlsLCD=settings.lcdDisplay;
    // The temporary regions list contains the exact button geometry
    // produced by the same Canvas painter and touch-hitbox model.
    if(visualScene.controlsGpuEnabled){
-    if(!controlLighting.configure(regions,bounds))disableGpuControls();
+    if(!controlLighting.configure(regions,bounds,paintedControlsLCD))disableGpuControls();
     else controlLighting.update(buttonSparks);
    }
   });

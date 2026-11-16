@@ -355,7 +355,7 @@ describe('HUD layout and viewport rules',()=>{
   deckPad:6,scoreHeight:45,deckGap:6,padGap:6,padHeight:53,
   extrasHeight:44,extrasGap:6,holdHeight:88,nextHeight:162,statsHeight:92
  };
- function makeHUD(){
+ function makeHUD(lcd=false){
   const painted={panels:[],text:[],pieces:[],keys:[],rects:[]};
   const game={hold:'S',queue:['T','O','J'],score:684,level:3,lines:12,pieces:33};
   const hud=createHudDrawing({
@@ -365,7 +365,8 @@ describe('HUD layout and viewport rules',()=>{
    getGame:()=>game,getHighs:()=>[{score:9000}],
    C:{panel:'#1d1d1d',bg:'#080808',border:'#777',subtleBorder:'#2e2e2e',
      weak:'#aeaeae',bright:'#cecece',ink:'#e3e3e3'},
-   UI_SPACE:ui,fmt:(n,k=6)=>String(n).padStart(k,'0')
+   UI_SPACE:ui,fmt:(n,k=6)=>String(n).padStart(k,'0'),
+   getLCD:()=>lcd,LCD_BOARD:{panel:'#e7e7e7'}
   });
   return {hud,painted,game};
  }
@@ -552,11 +553,21 @@ describe('HUD layout and viewport rules',()=>{
   assert.deepEqual(painted.keys.map(k=>k[0]),['◀','DROP','▶','↻','HOLD','PAUSE']);
   assert.deepEqual(painted.keys.map(k=>k[5]),['left','soft','right','cw','hold','pause']);
   assert.deepEqual(painted.keys.map(k=>k[2]),[
-   r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad+(r.buttonH-r.extraH)/2,
+   r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,r.dy+r.deckPad,
    r.dy+r.deckPad+r.buttonH+r.deckGap,r.dy+r.deckPad+r.buttonH+r.deckGap
   ]);
-  assert.deepEqual(painted.keys.map(k=>k[4]),[r.buttonH,r.buttonH,r.buttonH,r.extraH,r.extraH,r.extraH]);
+  assert.deepEqual(painted.keys.map(k=>k[4]),[r.buttonH,r.buttonH,r.buttonH,r.buttonH,r.extraH,r.extraH]);
   assert.deepEqual(painted.text,[],'level score lines no longer drawn above game buttons');
+ });
+ test('LCD controls use the light panel and preserve solid and outlined roles',()=>{
+  const r=computeLayout(393,852,{top:59,bottom:34},ui);
+  const {hud,painted}=makeHUD(true);
+  hud.drawControls(r);
+  assert.equal(painted.panels[0][5],'#e7e7e7');
+  assert.deepEqual(painted.keys.map(k=>[k[5],Boolean(k[6].light),k[6].onLight]),[
+   ['left',true,true],['soft',true,true],['right',true,true],
+   ['cw',false,true],['hold',false,true],['pause',false,true]
+  ]);
  });
  test('V155 stream-backed two-row operation log replaces the old shaded version strip',()=>{
   const source=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');

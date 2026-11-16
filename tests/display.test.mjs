@@ -1067,6 +1067,22 @@ describe('GPU button lighting',()=>{
   assert.equal(texture.needsUpdate,false);
  });
 
+ test('LCD button uniforms use the same resting and pressed colors as the Canvas keys',()=>{
+  const shader=make(),{buttons,bounds}=realDeck(393,852,{top:59,bottom:34});
+  const {uLevels,uOnLight}=shader.material.uniforms;
+  assert.equal(shader.configure(buttons,bounds,true),true);
+  assert.equal(uOnLight.value,1);
+  for(const [index,solid] of [[0,true],[3,false]]){
+   const state=uLevels.value[index];
+   assert.deepEqual([state.y,state.z],solid?[28/255,227/255]:[231/255,28/255]);
+   shader.update([{...buttons[index],power:1}]);
+   assert.deepEqual([state.y,state.z],solid?[58/255,227/255]:[231/255,58/255]);
+  }
+  assert.equal(shader.configure(buttons,bounds,false),true);
+  assert.equal(uOnLight.value,0);
+  assert.deepEqual([uLevels.value[0].y,uLevels.value[0].z],[206/255,6/255]);
+ });
+
  test('only exact hitbox matches excite a button; invalid geometry is rejected',()=>{
   const shader=make(),{buttons,bounds}=realDeck(393,852,{top:59,bottom:34});
   assert.equal(shader.configure([],bounds),false);
@@ -1083,7 +1099,7 @@ describe('GPU button lighting',()=>{
   const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   assert.match(fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8'),/controlsPlane\.material=controlLighting\.material/);
   assert.match(src,/g===controlsContext&&visualScene\.controlsGpuEnabled\)\?0:buttonSparks/);
-  assert.match(src,/controlLighting\.configure\(regions,bounds\)/);
+  assert.match(src,/controlLighting\.configure\(regions,bounds,paintedControlsLCD\)/);
   assert.match(src,/controlLighting\.update\(buttonSparks\)/);
   assert.match(src,/canvasAffected=visualScene\.controlsGpuEnabled\?/);
   assert.match(src,/affected\.filter\(name=>name!=='controls'\):affected/);
@@ -1114,7 +1130,7 @@ describe('GPU button lighting',()=>{
   assert.match(fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8'),/maxFragmentUniforms>=32/);
   assert.match(fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8'),/\.get\('buttonRenderer'\)==='canvas'/);
   assert.match(src,/controlsGpuEnabled\)\?0:buttonSparks/);
-  assert.match(src,/if\(!controlLighting\.configure\(regions,bounds\)\)disableGpuControls\(\)/);
+  assert.match(src,/if\(!controlLighting\.configure\(regions,bounds,paintedControlsLCD\)\)disableGpuControls\(\)/);
   assert.match(src,/buttonRenderer:visualScene\.controlsGpuEnabled\?'GPU uniforms':'Canvas2D fallback'/);
  });
 });

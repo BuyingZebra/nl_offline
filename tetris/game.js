@@ -809,7 +809,7 @@ export function createActionController({
  function setSetting(key,value){
   if(!canInteract())return;
   settings.setSetting(key,value);
-  if(key==='lcdDisplay')markLayers('base','board','sidebar');
+  if(key==='lcdDisplay')markLayers('base','board','sidebar','controls');
   else if(key==='pieceGhost'||SHADOW_SETTING_KEYS.includes(key))markLayers('board');
   invalidate();
  }
@@ -834,7 +834,7 @@ export function createActionController({
   if(action==='resetFX'){
    const lcdWasEnabled=settings.lcdDisplay;
    settings.restoreDefaults();onResetSettingsUI();
-   if(lcdWasEnabled)markLayers('base','board','sidebar');
+   if(lcdWasEnabled)markLayers('base','board','sidebar','controls');
    else markLayers('base','board');
    invalidate();return;
   }
