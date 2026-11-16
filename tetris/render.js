@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v256';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v256';
+import {instrumentCompositorPasses} from './diagnostics.js?v257';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v257';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -485,13 +485,13 @@ void main(){
    [220,60,220,60],[60,0,60,0],[220,60,220,60],[60,0,60,0]
   ]}
  ];
- function makeScanlineTexture(rows){
+ function makeRepeatingMaskTexture(rows,filter=THREE.NearestFilter){
   const height=rows.length,width=rows[0].length;
-  if(!rows.every(row=>row.length===width))throw Error('Invalid CRT mask tile');
+  if(!rows.every(row=>row.length===width))throw Error('Invalid display mask tile');
   const tile=document.createElement('canvas');
   tile.width=width;tile.height=height;
   const ctx=tile.getContext('2d',{alpha:false});
-  if(!ctx)throw Error('CRT mask texture canvas missing');
+  if(!ctx)throw Error('Display mask texture canvas missing');
   const pixels=ctx.createImageData(width,height);
   rows.forEach((row,y)=>row.forEach((luminance,x)=>{
    const p=(y*width+x)*4;
@@ -504,13 +504,13 @@ void main(){
   const texture=new THREE.CanvasTexture(tile);
   texture.wrapS=THREE.RepeatWrapping;
   texture.wrapT=THREE.RepeatWrapping;
-  texture.magFilter=THREE.NearestFilter;
-  texture.minFilter=THREE.NearestFilter;
+  texture.magFilter=filter;
+  texture.minFilter=filter;
   texture.generateMipmaps=false;
   return texture;
  }
  const scanlineTextures=Object.fromEntries(
-  SCANLINE_PRESETS.map(p=>[p.id,makeScanlineTexture(p.rows)])
+  SCANLINE_PRESETS.map(p=>[p.id,makeRepeatingMaskTexture(p.rows)])
  );
  function activeScanlinePreset(id){return SCANLINE_PRESETS.find(p=>p.id===id)||SCANLINE_PRESETS[0];}
  // Photoshop-like repeating texture layer: scale tile in CSS pixels,
@@ -567,14 +567,11 @@ void main(){
   }`);
 
  // One tiny seamless texture: the pale square and its surrounding dark seam.
- const lcdTileSize=16,lcdPixels=new Uint8Array(lcdTileSize*lcdTileSize);
- for(let y=1;y<lcdTileSize-1;y++)lcdPixels.fill(255,y*lcdTileSize+1,(y+1)*lcdTileSize-1);
- const lcdCellTile=new THREE.DataTexture(lcdPixels,lcdTileSize,lcdTileSize,THREE.RedFormat);
- lcdCellTile.wrapS=lcdCellTile.wrapT=THREE.RepeatWrapping;
- lcdCellTile.magFilter=THREE.LinearFilter;
- lcdCellTile.minFilter=THREE.LinearMipmapLinearFilter;
- lcdCellTile.generateMipmaps=true;
- lcdCellTile.needsUpdate=true;
+ const lcdTileSize=16;
+ const lcdCellRows=Array.from({length:lcdTileSize},(_,y)=>
+  Array.from({length:lcdTileSize},(_,x)=>
+   Math.min(x,y,lcdTileSize-1-x,lcdTileSize-1-y)===0?0:255));
+ const lcdCellTile=makeRepeatingMaskTexture(lcdCellRows,THREE.LinearFilter);
  const lcdCells=addLCDOverlay({
   uTile:{value:null},uSize:{value:new THREE.Vector2(1,1)},uOpacity:{value:0},uScale:{value:3}
  },`
