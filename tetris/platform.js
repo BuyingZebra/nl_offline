@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v251';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v251';
+import {createInputController} from './input.js?v252';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v252';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v251';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v252';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v251';
+export {createInputController} from './input.js?v252';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){

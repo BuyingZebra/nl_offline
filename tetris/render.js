@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v251';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v251';
+import {instrumentCompositorPasses} from './diagnostics.js?v252';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v252';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1835,7 +1835,6 @@ function boardOverlaySlots({x,y,w,h},UI_SPACE){
 // Restore the original unframed SCORE / LINES / LEVEL terminal rows and dots.
 function drawMenuScoreBox({text,rect,C},box,record){
  const {x,y,w,h}=box,rowH=h/3;
- const fontSize=10;
  const rows=[
   ['SCORE',String(record?.score??0).padStart(6,'0')],
   ['LINES',String(record?.lines??0).padStart(2,'0')],
@@ -1843,7 +1842,7 @@ function drawMenuScoreBox({text,rect,C},box,record){
  ];
  rows.forEach(([label,value],i)=>{
   const middle=y+(i+.5)*rowH;
-  text(label,x,middle,fontSize,C.ink,'left',w*.43,'terminal');
+  text(label,x,middle,SCORE_VALUE_FONT_SIZE,C.ink,'left',w*.43,'terminal',true);
   text(value,x+w,middle,SCORE_VALUE_FONT_SIZE,C.bright,'right',w*.56,'terminal',true);
   if(i<2){
    const dotW=1.5,dotH=.8;
