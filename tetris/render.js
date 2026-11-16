@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v249';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v249';
+import {instrumentCompositorPasses} from './diagnostics.js?v250';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v250';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1531,6 +1531,7 @@ return {pieceLuminance,PIECE_PATTERNS,drawIFragment,drawIBar,drawTileFace,drawPi
 // Canvas user interface, overlay and terminal drawing.
 const UI=(()=>{
 /* Canvas controls, overlays, sidebar and terminal. */
+const SCORE_VALUE_FONT_SIZE=15;
 
 /* Tetris System V052 — Canvas2D drawing primitives.
  * Drawing targets and hitboxes are caller-owned and resolve on each draw,
@@ -1784,9 +1785,8 @@ function drawSidebar(r){
   const rim=doubleFrame(stats.x,boxY,stats.w,readoutHeight);
   // Terminal data values are LEFT aligned within their frames.
   const valueInset=Math.max(10,Math.min(12,stats.w*.14));
-  const digitSize=14;
-  text(value,stats.x+valueInset,boxY+readoutHeight/2,digitSize,
-   readoutColors.ink,'left',Math.max(8,stats.w-valueInset-rim-4),'terminal');
+  text(value,stats.x+valueInset,boxY+readoutHeight/2,SCORE_VALUE_FONT_SIZE,
+   readoutColors.ink,'left',Math.max(8,stats.w-valueInset-rim-4),'terminal',true);
  });
  preview(hold,game.hold,'hold');
 }
@@ -1844,7 +1844,7 @@ function drawMenuScoreBox({text,rect,C},box,record){
  rows.forEach(([label,value],i)=>{
   const middle=y+(i+.5)*rowH;
   text(label,x,middle,fontSize,C.ink,'left',w*.43,'terminal');
-  text(value,x+w,middle,fontSize,C.bright,'right',w*.56,'terminal');
+  text(value,x+w,middle,SCORE_VALUE_FONT_SIZE,C.bright,'right',w*.56,'terminal',true);
   if(i<2){
    const dotW=1.5,dotH=.8;
    const dividerY=middle+rowH/2-dotH/2;
