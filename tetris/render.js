@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v243';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v243';
+import {instrumentCompositorPasses} from './diagnostics.js?v244';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v244';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1884,7 +1884,7 @@ function drawPropertyDeck({panel,rect,text,region,C},r,gap,rows){
 }
 function createModalUI({
  DISPLAY_EFFECTS,SCANLINE_CHOICES,getViewport,layout,insets,clearRegions,
- panel,text,rect,region,key,C,UI_SPACE,
+ panel,text,rect,region,key,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
  getFX,settingValue,chooseScanlineSetting,invalidate,
  getBest,getModal,LCD_BOARD=C,textWidth=(label,size)=>label.length*size*.6
 }){
@@ -1954,7 +1954,7 @@ function drawOptions(q){
   const labelEnd=statusX-q.pad;
   const labelWidth=Math.max(1,labelEnd-labelX-2*q.pad);
   const rowFont=Math.min(labelSize,labelSize*labelWidth/Math.max(1,textWidth(label,labelSize)));
-  if(property===selected)text('▶',frameX+q.pad,mid,labelSize,colors.ink,'left');
+  if(property===selected)text('▶',frameX+q.pad,mid,BUTTON_ICON_FONT_SIZE*.75,colors.ink,'left');
   text(label,labelX,mid,rowFont,colors.ink,'left');
   region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
   const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,rowFont)+q.pad);
