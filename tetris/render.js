@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v242';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v242';
+import {instrumentCompositorPasses} from './diagnostics.js?v243';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v243';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -257,9 +257,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // genuinely smooth 2D Gaussian, without the widely spaced 7x7 samples that
  // caused tiled duplicates at stronger blur settings. Edge Softness uses
  // the same normalized Gaussian weighting in a single 2D pass.
- const boardGaussianShader=`
-   varying vec2 vUv;uniform sampler2D tDiffuse,uPopup,uPicker;
-   uniform float uPickerFade;
+ const gaussianBackdropShader=`
+   varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
    uniform float uSigma,uComposite,uCanvasBlend,uFade;
    uniform vec3 uFadeTo;
@@ -309,28 +308,23 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
       backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
      }else backdrop=mix(backdrop,popup.rgb,popup.a);
     }
-    if(uPickerFade>0.0){
-     vec4 picker=texture2D(uPicker,vUv);
-     backdrop=fadeToward(backdrop,vec3(0.0),uPickerFade);
-     backdrop=mix(backdrop,picker.rgb,picker.a);
-    }
     gl_FragColor=vec4(backdrop,1.0);
    }`;
- function createBoardGaussianPass(axis,composite){
+ function createGaussianBackdropPass(axis,composite){
   return new ShaderPass({
    uniforms:{
-    tDiffuse:{value:null},uPopup:{value:boardPopupTexture},uPicker:{value:null},uPickerFade:{value:0},
+    tDiffuse:{value:null},uPopup:{value:null},
     uRect:{value:new THREE.Vector4(0,0,0,0)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
     uSigma:{value:0},uFade:{value:0},uFadeTo:{value:new THREE.Color(0x101010)},
     uComposite:{value:composite?1:0},uCanvasBlend:{value:0}
    },
-   vertexShader:passVertex,fragmentShader:boardGaussianShader
+   vertexShader:passVertex,fragmentShader:gaussianBackdropShader
   });
  }
- const boardBlurHorizontal=createBoardGaussianPass(1,false);
- const boardPopupPass=createBoardGaussianPass(0,true);
+ const boardBlurHorizontal=createGaussianBackdropPass(1,false);
+ const boardPopupPass=createGaussianBackdropPass(0,true);
  // ShaderPass clones input uniforms, including texture objects. Reattach
  // the ORIGINAL live CanvasTexture so every PAUSED/READY/OVER redraw reaches
  // the GPU, rather than displaying an old START GAME snapshot.
@@ -338,6 +332,16 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  boardBlurHorizontal.enabled=false;boardPopupPass.enabled=false;
  composer.addPass(boardBlurHorizontal);
  composer.addPass(boardPopupPass);
+
+ // Apply the same blur and fade to the complete app before drawing the picker.
+ const pickerBlurHorizontal=createGaussianBackdropPass(1,false);
+ const pickerPopupPass=createGaussianBackdropPass(0,true);
+ for(const pass of [pickerBlurHorizontal,pickerPopupPass]){
+  pass.enabled=false;
+  pass.uniforms.uRect.value.set(0,0,1,1);
+  composer.addPass(pass);
+ }
+ pickerPopupPass.uniforms.uFadeTo.value.set(0x000000);
 
  // Buttons are drawn into source textures at their current brightness.
  // No postprocessing pass manipulates their geometric bounds.
@@ -568,7 +572,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // Keep the exact pass order, source textures and FX behavior. Measure the
  // CPU time spent issuing each pass only; no extra GL renders or readbacks.
  const passProfiler=instrumentCompositorPasses(composer.passes,[
-  'Scene + uploads','Board blur H','Board popup','Phosphor history','Ghost','Bloom',
+  'Scene + uploads','Board blur H','Board popup','Picker blur H','Picker popup',
+  'Phosphor history','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
  ],onPassTiming);
  // Restore the original fixed green and amber phosphor ratios;
@@ -605,7 +610,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  glow.strength=fx.bloomStrength;
  // Never mask a full-page settings screen or other view where the piece
  // board is hidden. With bloom disabled, the stencil is not sampled.
- const pickerOpen=boardPopupPass.uniforms.uPickerFade.value>0;
+ const pickerOpen=Boolean(pickerPopupPass.uniforms.uPopup.value);
  if(glow.highPassUniforms?.uPieceMaskEnabled)
   glow.highPassUniforms.uPieceMaskEnabled.value=
    fx.bloom&&!pickerOpen&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
@@ -623,14 +628,21 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // CRT and LCD settings. Popup blur takes over behind menus.
  const gameplaySigma=fx.boardBlurEnabled!==false&&(propertiesPreview||boardStatus==='playing')&&boardBackdropVisible?
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
+ const menuSigma=menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur);
+ const menuFade=(lcd?fx.lcdMenuFade:fx.crtMenuFade)/100;
  const sigma=boardOverlayActive?
-  (fx.menuBackdropEnabled!==false?menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):0):gameplaySigma;
+  (fx.menuBackdropEnabled!==false?menuSigma:0):gameplaySigma;
+ pickerBlurHorizontal.enabled=pickerOpen&&menuSigma>.01;
+ pickerPopupPass.enabled=pickerOpen;
+ pickerBlurHorizontal.uniforms.uSigma.value=menuSigma;
+ pickerPopupPass.uniforms.uSigma.value=menuSigma;
+ pickerPopupPass.uniforms.uFade.value=menuFade;
  boardBlurHorizontal.enabled=sigma>.01;
- boardPopupPass.enabled=boardBackdropVisible||pickerOpen;
+ boardPopupPass.enabled=boardBackdropVisible;
  boardPopupPass.uniforms.uComposite.value=boardBackdropVisible?1:0;
  for(const pass of popupPasses)pass.uniforms.uSigma.value=sigma;
  boardPopupPass.uniforms.uFade.value=boardOverlayActive&&fx.menuBackdropEnabled!==false?
-  (lcd?fx.lcdMenuFade:fx.crtMenuFade)/100:0;
+  menuFade:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
  // Keep the live CanvasTexture bound through all update paths.
@@ -686,8 +698,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   composer.setSize(W,H);
   ghostPass.uniforms.uSize.value.set(W,H);
   edgeSoftness.uniforms.uSize.value.set(W,H);
-  boardBlurHorizontal.uniforms.uSize.value.set(W,H);
-  boardPopupPass.uniforms.uSize.value.set(W,H);
+  for(const pass of [...popupPasses,pickerBlurHorizontal,pickerPopupPass])
+   pass.uniforms.uSize.value.set(W,H);
  }
  // EffectComposer.dispose() only owns its render targets and copy pass.
  // It does NOT release added passes (notably bloom render targets/materials).
@@ -717,9 +729,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  }
  return Object.freeze({syncFX,resize,setStartupRoll,
   setPicker(texture){
-   boardPopupPass.uniforms.uPicker.value=texture;
-   // Halve the remaining backdrop light compared with the original .48 fade.
-   boardPopupPass.uniforms.uPickerFade.value=texture ? .74 : 0;
+   pickerPopupPass.uniforms.uPopup.value=texture;
   },
   resetPersistence:()=>persistencePass.reset(),
   render:(dt)=>composer.render(dt),dispose,passStats,
@@ -1642,7 +1652,7 @@ function key(label,x,y,w,h,act,opts={}){
  // press afterglow, text, stroke, and hitboxes are unchanged.
  panel(model.x,model.y,model.w,model.h,8,model.light?lit:opts.onLight?'#e7e7e7':C.button,lit);
  text(model.label,model.x+model.w/2,model.y+model.h/2,size,
-  model.light?inverseInk:lit,'center',Math.max(10,model.w-14));
+  model.light?inverseInk:lit,'center',Math.max(10,model.w-2*(opts.labelPadding??7)));
  if(model.arrow)text('▶',model.x+17,model.y+model.h/2,
   BUTTON_ICON_FONT_SIZE,model.light?inverseInk:lit,'center');
  getRegions().push(model.hitbox);
@@ -1951,7 +1961,7 @@ function drawOptions(q){
   for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
   const enabled=Boolean(settingValue(property.toggle)),height=Math.min(barH,view.rowHeight-2);
   key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
-   {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize});
+   {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
  }
  const w=q.buttonW,y=view.y+view.h+q.pad;
  key('CONFIRM',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
