@@ -63,18 +63,18 @@ describe('Overlay theme and confirmation controls',()=>{
   assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
   assert.ok(part.indexOf("region(theme.x")>part.indexOf("region(0,0,W,H,'block')"));
  });
- test('Light Control restores theme input independently of sliders and DONE',()=>{
+ test('Light Control restores theme input independently of sliders and Properties',()=>{
   const src=fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
   const part=src.slice(src.indexOf('function paintLightDirectionOverlay('),src.indexOf('function paintPropertiesTransition('));
   assert.match(part,/regions=\[\]/);
   assert.match(part,/region\(theme.x,theme.y,theme.w,theme.h,'theme',\{kind:'button'\}\)/);
-  assert.match(part,/key\('✓',tx\+th\+UI_SPACE.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
+  assert.match(part,/region\(tx\+th\+UI_SPACE.headIconGap,ty,th,th,'options'/);
  });
- test('Properties close keeps the game header button geometry',()=>{
+ test('Property editor keeps the game header button geometry',()=>{
   const src=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
-  const part=src.slice(src.indexOf('function drawOptions(){'),src.indexOf('function drawScores(q){'));
+  const part=src.slice(src.indexOf('function drawProperty(){'),src.indexOf('function drawScores(q){'));
   assert.match(part,/const theme=headerThemeBounds\(r,UI_SPACE\)/);
-  assert.match(part,/key\('✓',theme.x\+theme.w\+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close'/);
+  assert.match(part,/region\(theme.x\+theme.w\+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'options'/);
  });
  test('the shared deck keeps the original control bounds and fits four controls',()=>{
   const r={dx:11,dy:650,dw:371,dh:128,deckPad:6},calls=[];
@@ -801,32 +801,37 @@ describe('Pointer and keyboard input',()=>{
    get buttonPresses(){return buttonPresses},get buttonReleases(){return buttonReleases}
   };
  }
- test('every property fits in the fixed sidebar and publishes its controls in the deck',()=>{
+ test('picker always provides Confirm and Cancel and property controls fit in the deck',()=>{
   const screen=target(),document=target(),window=target(),regions=[];
   const W=393,H=852,ignore=()=>{};
   const r={hx:12,hw:369,hy:40,hh:70,boardY:120,boardW:240,boardH:480,
    sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44,buttonH:53,extraH:46};
   const settings=createSettingsManager();
+  let screenName='options';
   const add=(...args)=>regions.push(makeRegion(...args));
   const modal=createModalUI({
    DISPLAY_EFFECTS,SCANLINE_CHOICES:scanlineChoices([{id:'aperture',name:'APERTURE'}]),
    getViewport:()=>({W,H}),layout:()=>r,insets:()=>({top:0,bottom:0}),
    clearRegions:()=>{regions.length=0;},panel:ignore,text:ignore,rect:ignore,region:add,
    key:(label,x,y,w,h,act,meta)=>add(x,y,w,h,act,meta),
-   UI_SPACE:{unit:6,headRightPad:6,headIconGap:6},C:{},
-   getFX:()=>settings.effects,getModal:()=> 'options',settingValue:settings.settingValue,
+   UI_SPACE:{unit:6,padX:11,headRightPad:6,headIconGap:6},C:{},
+   getFX:()=>settings.effects,getModal:()=>screenName,settingValue:settings.settingValue,
    chooseScanlineSetting:id=>settings.chooseScanline(id),invalidate:ignore
   });
-  const paint=()=>modal.paintModal(modal.modalBounds('options'));
-  paint();
+  const paint=()=>modal.paintProperty();
+  const bounds=modal.modalBounds('options');
+  modal.paintModal(bounds);
   const list=regions.filter(hit=>hit.act.startsWith('property:'));
-  assert.equal(list.length,DISPLAY_EFFECTS.length+3);
-  for(const [index,hit] of list.entries()){
-   assert.equal(hit.x,r.sideX);
-   assert.equal(hit.w,r.sideW);
-   assert.ok(hit.y>=r.boardY&&hit.y+hit.h<=r.boardY+r.boardH+.0001);
-   if(index>0)assert.ok(hit.y>=list[index-1].y+list[index-1].h);
+  assert.ok(list.length>0&&list.length<DISPLAY_EFFECTS.length+3);
+  assert.ok(modal.optionRows().maxScroll>0);
+  for(const action of ['confirmProperties','cancelProperties']){
+   const hit=regions.find(region=>region.act===action);
+   assert.ok(hit&&hit.y>=list.at(-1).y+list.at(-1).h);
   }
+  modal.optionsScroll=modal.optionRows().maxScroll;
+  modal.paintModal(bounds);
+  assert.ok(regions.some(hit=>hit.act==='property:diagnostics'));
+  modal.optionsScroll=0;
   const testControls=()=>{
    for(const effect of DISPLAY_EFFECTS){
     modal.selectProperty(effect.id);paint();
@@ -843,21 +848,24 @@ describe('Pointer and keyboard input',()=>{
   screen.getBoundingClientRect=()=>({left:0,top:0,width:W,height:H});
   const input=createInputController({
    screen,document,window,getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
-   getModal:()=> 'options',settingValue:settings.settingValue,setSetting:settings.setSetting,
-   handleAction:act=>modal.selectProperty(act.slice(9)),invalidate:ignore
+   getModal:()=>screenName,settingValue:settings.settingValue,setSetting:settings.setSetting,
+   handleAction:act=>{assert.match(act,/^property:/);if(modal.selectProperty(act.slice(9)))screenName='property';},invalidate:ignore
   });
   const tap=hit=>{
    const pointer={pointerType:'touch',button:0,pointerId:1,clientX:hit.x+hit.w/2,
     clientY:hit.y+hit.h/2,preventDefault:ignore,timeStamp:20};
    screen.emit('pointerdown',{...pointer,type:'pointerdown'});
+   assert.equal(input.pressed?.action,hit.act);
    screen.emit('pointerup',{...pointer,type:'pointerup'});
   };
   testControls();
-  tap(list[0]);paint();
+  modal.paintModal(bounds);
+  tap(regions.find(hit=>hit.act==='property:display'));
+  assert.equal(screenName,'property');paint();
   tap(regions.find(hit=>hit.field==='lcdDisplay'));
   assert.equal(settings.lcdDisplay,true);
   testControls();
-  for(const [id,action] of [['defaults','resetFX'],['diagnostics','copyDebug'],['shadows','light']]){
+  for(const [id,action] of [['defaults','resetFX'],['diagnostics','copyDebug']]){
    modal.selectProperty(id);paint();
    assert.equal(regions.find(hit=>hit.act===action)?.h,r.extraH);
   }

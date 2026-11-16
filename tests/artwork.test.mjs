@@ -1141,7 +1141,7 @@ describe('Piece shadows',()=>{
   assert.equal((platform.match(/boardInsetShadows\.draw\(/g)||[]).length,1);
   assert.equal((popup.match(/drawSharpBoardInsetShadow\(r\);/g)||[]).length,1);
   assert.ok(popup.indexOf('drawSharpBoardInsetShadow(r);')<
-   popup.indexOf("if(status==='playing'||screenManager.isOptions)return"));
+   popup.indexOf("if(status==='playing'||propertyScene()==='property'"));
   assert.equal((light.match(/drawSharpBoardInsetShadow\(r\);/g)||[]).length,1);
   assert.match(platform,/getSettings:\(\)=>settings\.effects/);
   assert.match(platform,/\['board-inset-shadows',\(\)=>boardInsetShadows\.dispose\(\)\]/);

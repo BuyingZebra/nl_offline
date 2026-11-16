@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v236';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v236';
+import {instrumentCompositorPasses} from './diagnostics.js?v237';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v237';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -258,7 +258,8 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // caused tiled duplicates at stronger blur settings. Edge Softness uses
  // the same normalized Gaussian weighting in a single 2D pass.
  const boardGaussianShader=`
-   varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
+   varying vec2 vUv;uniform sampler2D tDiffuse,uPopup,uPicker;
+   uniform float uPickerVisible;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
    uniform float uSigma,uComposite,uCanvasBlend,uFade;
    uniform vec3 uFadeTo;
@@ -305,12 +306,16 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
       backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
      }else backdrop=mix(backdrop,popup.rgb,popup.a);
     }
+    if(uPickerVisible>.5){
+     vec4 picker=texture2D(uPicker,vUv);
+     backdrop=mix(backdrop,picker.rgb,picker.a);
+    }
     gl_FragColor=vec4(backdrop,1.0);
    }`;
  function createBoardGaussianPass(axis,composite){
   return new ShaderPass({
    uniforms:{
-    tDiffuse:{value:null},uPopup:{value:boardPopupTexture},
+    tDiffuse:{value:null},uPopup:{value:boardPopupTexture},uPicker:{value:null},uPickerVisible:{value:0},
     uRect:{value:new THREE.Vector4(0,0,0,0)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
@@ -616,7 +621,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  const sigma=boardOverlayActive?
   menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
  boardBlurHorizontal.enabled=sigma>.01;
- boardPopupPass.enabled=boardBackdropVisible;
+ boardPopupPass.enabled=boardBackdropVisible||boardPopupPass.uniforms.uPickerVisible.value>.5;
+ boardPopupPass.uniforms.uComposite.value=boardBackdropVisible?1:0;
  for(const pass of popupPasses)pass.uniforms.uSigma.value=sigma;
  boardPopupPass.uniforms.uFade.value=boardOverlayActive?
   (lcd?fx.lcdMenuFade:fx.crtMenuFade)/100:0;
@@ -703,6 +709,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   return {activePasses,totalPasses:composer.passes.length};
  }
  return Object.freeze({syncFX,resize,setStartupRoll,
+  setPicker(texture){
+   boardPopupPass.uniforms.uPicker.value=texture;
+   boardPopupPass.uniforms.uPickerVisible.value=texture?1:0;
+  },
   resetPersistence:()=>persistencePass.reset(),
   render:(dt)=>composer.render(dt),dispose,passStats,
   activeScanlinePreset,SCANLINE_PRESETS});
@@ -1874,28 +1884,51 @@ function modalBounds(name){
    buttonH:b.buttonH,landscapeFallback:false};
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
- const wanted=2*pad+4*buttonH+4*gap+18;
+ const wanted=Math.min(390,usable*.68);
  const w=Math.max(0,Math.min(410,W-2*UI_SPACE.padX));
  const h=Math.max(0,Math.min(wanted,usable-2*gap));
  return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,gap,buttonH};
 }
-function drawOptions(){
+let optionsScroll=0;
+function optionRows(q=modalBounds('options')){
+ const footer=q.buttonH+2*q.pad;
+ const rowHeight=Math.max(32,q.buttonH);
+ const count=Math.min(properties.length,Math.max(0,Math.floor((q.h-footer-2*q.pad)/rowHeight)));
+ const h=count*rowHeight;
+ return {x:q.x,y:q.y+q.pad,w:q.w,h,rowHeight,count,
+  maxScroll:Math.max(0,properties.length-count)*rowHeight};
+}
+function drawOptions(q){
+ const {W,H}=getViewport(),lcd=Boolean(settingValue('lcdDisplay'));
+ const colors=lcd?LCD_BOARD:C;
+ const view=optionRows(q),first=Math.round(Math.min(optionsScroll,view.maxScroll)/view.rowHeight);
+ clearRegions();region(0,0,W,H,'block');
+ panel(q.x,q.y,q.w,q.h,0,colors.panel,colors.border);
+ for(const [index,property] of properties.slice(first,first+view.count).entries()){
+  const y=view.y+index*view.rowHeight,mid=y+view.rowHeight/2;
+  if(property===selected)text('▶',q.x+2*q.pad,mid,13,colors.ink);
+  text(listLabels[property.id]??property.title,q.x+5*q.pad,mid,14,
+   colors.ink,'left',q.w-9*q.pad);
+  region(q.x,y,q.w,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
+ }
+ if(view.maxScroll>0&&view.h>0){
+  const h=view.h*view.count/properties.length,x=q.x+q.w-2*q.pad;
+  rect(x,view.y,2,view.h,colors.border);
+  rect(x-1,view.y+(view.h-h)*Math.min(1,optionsScroll/view.maxScroll),4,h,colors.ink);
+ }
+ const footerY=q.y+q.h-q.buttonH-2*q.pad;
+ rect(q.x,footerY,q.w,1,colors.ink);
+ const w=(q.w-3*q.pad)/2,y=footerY+q.pad;
+ key('Confirm',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
+ key('Cancel',q.x+2*q.pad+w,y,w,q.buttonH,'cancelProperties',{onLight:lcd});
+}
+function drawProperty(){
  const {W,H}=getViewport(),r=layout(),gap=UI_SPACE.unit;
  clearRegions();region(0,0,W,H,'block');
- const rowGap=Math.min(3,r.boardH*.006);
- const rowH=Math.max(1,(r.boardH-rowGap*(properties.length-1))/properties.length);
- for(const [index,property] of properties.entries()){
-  const y=r.boardY+index*(rowH+rowGap),active=property===selected;
-  panel(r.sideX,y,r.sideW,rowH,0,active?C.bright:C.panel,active?null:C.subtleBorder);
-  const label=listLabels[property.id]??property.title;
-  text(label,r.sideX+r.sideW/2,y+rowH/2,Math.min(11,Math.max(7,rowH*.34)),
-   active?C.dark:C.ink,'center',Math.max(1,r.sideW-6));
-  region(r.sideX,y,r.sideW,rowH,'property:'+property.id,{kind:'button',modalControl:true});
- }
- const rows=[],lcd=Boolean(settingValue('lcdDisplay'));
+ const rows=[],lcd=Boolean(settingValue('lcdDisplay')),colors=lcd?LCD_BOARD:C;
  const buttonRow=(label,act,opts={})=>{
   const height=opts.light?r.buttonH:r.extraH;
-  return {height,draw:(x,y,w)=>key(label,x,y,w,height,act,{modalControl:true,...opts})};
+  return {height,draw:(x,y,w)=>key(label,x,y,w,height,act,{modalControl:true,onLight:lcd,...opts})};
  };
  if(selected.toggle){
   const field=selected.toggle,enabled=Boolean(settingValue(field));
@@ -1917,15 +1950,14 @@ function drawOptions(){
  const sliders=(lcd?selected.lcdSliders:undefined)??selected.sliders??[];
  for(const [label,field,min,max,step,unit] of sliders)
   rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},value:Number(settingValue(field))});
- if(selected.id==='shadows')rows.push(buttonRow('LIGHT CONTROL','light'));
  if(selected.id==='defaults')rows.push(buttonRow('RESTORE DEFAULTS','resetFX'));
  if(selected.id==='diagnostics')
   rows.push(buttonRow(debugCopyState==='copied'?'REPORT COPIED':
    debugCopyState==='failed'?'RETRY COPY':'COPY DEBUG REPORT','copyDebug'));
- drawPropertyDeck({panel,rect,text,region,C},r,gap,rows);
+ drawPropertyDeck({panel,rect,text,region,C:colors},r,gap,rows);
  const theme=headerThemeBounds(r,UI_SPACE);
  region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
- key('✓',theme.x+theme.w+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'close',{onLight:lcd});
+ region(theme.x+theme.w+UI_SPACE.headIconGap,theme.y,theme.w,theme.h,'options',{kind:'button'});
 }
 function drawScores(q){
  // The shared upper title and START GAME action anchor remain unchanged.
@@ -1947,15 +1979,20 @@ function drawScores(q){
 }
 function paintModal(q){
  const modal=getModal();
- if(modal==='options')drawOptions();
+ if(modal==='options')drawOptions(q);
+ else if(modal==='property')drawProperty();
  else if(modal==='scores')drawScores(q);
 }
  return Object.freeze({
-  modalBounds,paintModal,cyclePattern,
-  reset(){selected=properties[0];debugCopyState='idle';},
+  modalBounds,paintModal,cyclePattern,paintProperty:drawProperty,
+  optionRows,
+  get optionsScroll(){return optionsScroll;},
+  set optionsScroll(value){optionsScroll=value;invalidate();},
+  reset(){selected=properties[0];optionsScroll=0;debugCopyState='idle';},
   selectProperty(id){
    const property=properties.find(entry=>entry.id===id);
-   if(property&&property!==selected){selected=property;invalidate();}
+   if(!property)return false;
+   selected=property;invalidate();return true;
   },
   get property(){return selected.id;},
   get debugCopyState(){return debugCopyState;},

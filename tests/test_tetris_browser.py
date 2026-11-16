@@ -336,7 +336,8 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
     settings_screen = page.screenshot()
     assert settings_screen != ready.read_bytes(), "Options did not change the screen"
-    page.keyboard.press("Escape")
+    # Picker is centred and has an always-visible action footer.
+    page.mouse.click(285, 595)  # Cancel on the 393×852 portrait viewport
     page.wait_for_timeout(400)
     assert page.locator("#error").is_hidden(), page.locator("#error").text_content()
     page.keyboard.press("Enter")  # START GAME

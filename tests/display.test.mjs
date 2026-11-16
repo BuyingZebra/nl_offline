@@ -898,7 +898,7 @@ describe('Modal repaint regions',()=>{
   const s=source();
   const paint=s.slice(s.indexOf('function paintGame(){'),s.indexOf('const SCANLINE_CHOICES='));
   assert.match(paint,/if\(paintedBase\)layers\.mark\('modal'\)/);
-  assert.match(paint,/if\(layers\.consume\('modal'\)\|\|\(!modalPlane\.visible&&!screenManager\.isScores\)\)/);
+  assert.match(paint,/if\(layers\.consume\('modal'\)\|\|\(!modalPlane\.visible&&!screenManager\.isOptions&&!screenManager\.isScores\)\)/);
   assert.match(paint,/paintModalOverlay\(\)/);
   assert.match(paint,/layers\.consume\('modal'\);/);
   assert.doesNotMatch(paint,/if\(screenManager\.paintsModalLayer\)\{\s*const started=performance\.now\(\)/);
@@ -916,7 +916,7 @@ describe('Modal repaint regions',()=>{
   assert.doesNotMatch(invalidate,/'(?:terminal-log|terminal-event|gravity|phosphor-history)'/);
   assert.match(invalidate,/layers\.mark\('modal'\)/);
   assert.match(s,/modalUI\.debugCopyState=success\?'copied':'failed';invalidate\(\)/);
-  assert.match(s,/modalUI\.selectProperty\(act.slice\(9\)\)/);
+  assert.match(s,/modalUI\.selectProperty\(property\)/);
  });
 
  test('menu button luminance targets modal, never hidden base, while visible',()=>{
@@ -936,7 +936,7 @@ describe('Modal repaint regions',()=>{
    s.indexOf('inputController=createInputController(',s.indexOf('function paintModalOverlay(){')));
   assert.match(paint,/modalTexture\.needsUpdate=true/);
   assert.match(paint,/perf\.textureChanged\('modal'\)/);
-  assert.match(s,/if\(modalPlane\.visible\)textureUploads\.upload\(modalTexture,'modal'\)/);
+  assert.match(s,/if\(modalPlane\.visible\|\|screenManager\.isOptions\)textureUploads\.upload\(modalTexture,'modal'\)/);
   assert.doesNotMatch(paint,/readPixels|toDataURL|getImageData/);
  });
 });
@@ -1198,9 +1198,9 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   const game=fs.readFileSync(new URL('../tetris/game.js',import.meta.url),'utf8');
   assert.match(game,/LIGHT:'light'/);
   assert.match(game,/openLight:\(\)=>openWithPause\(SCREENS\.LIGHT\)/);
-  assert.match(platform,/if\(screenManager\.isLight\)paintLightDirectionOverlay\(\)/);
-  assert.match(platform,/modalPlane\.visible=true;scrimPlane\.visible=false/);
-  assert.match(platform,/isolateLightWindow:screenManager\.isLight/);
+  assert.match(platform,/if\(scene==='light'\)paintLightDirectionOverlay\(\)/);
+  assert.match(platform,/modalPlane\.visible=!screenManager\.isOptions;scrimPlane\.visible=false/);
+  assert.match(platform,/isolateLightWindow:scene==='light'/);
   assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
   assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
   assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects,retainCoveredAlpha:\(\)=>settings\.lcdDisplay\}\)/);
@@ -1215,7 +1215,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.equal((stage.match(/boardInsetShadows\.draw\(/g)||[]).length,0,'no board inset in the blurred source');
   assert.match(fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8'),/if\(getModal\(\)==='light'\)\{/);
   assert.match(fs.readFileSync(new URL('../tetris/input.js',import.meta.url),'utf8'),/if\(touch\.mode==='light'\)\{/);
-  assert.match(renderer,/buttonRow\('LIGHT CONTROL','light'\)/);
+  assert.match(platform,/if\(property==='shadows'\)screenManager\.openLight\(\)/);
  });
 
  test('v198 hides real sidebar art/texture at source instead of covering it with a mask',()=>{
@@ -1225,7 +1225,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   const modal=platform.slice(platform.indexOf('function paintModalOverlay('),
    platform.indexOf('inputController=createInputController('));
   assert.match(base,/brickFrame\.draw\(g,r\);[\s\S]*?if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
-  assert.match(modal,/sidebarPlane\.visible=!screenManager\.isOptions&&!screenManager\.isLight/);
+  assert.match(modal,/sidebarPlane\.visible=!editorVisible/);
   assert.doesNotMatch(lab,/g\.fillRect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\)/);
   assert.match(platform,/layers\.mark\('base','board','sidebar','controls','modal','terminal'\)/);
  });
@@ -1238,7 +1238,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(lab,/g\.rect\(r\.sideX,r\.boardY,r\.sideW,r\.boardH\);g\.clip\(\)/);
   assert.match(lab,/g\.moveTo\(r\.sideX\+2,p\.y\);g\.lineTo\(r\.sideX\+r\.sideW-2,p\.y\)/);
   assert.doesNotMatch(lab,/g\.moveTo\(p\.x,0\)|g\.lineTo\(p\.x,H\)|g\.lineTo\(W,p\.y\)/);
-  assert.match(lab,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
+  assert.match(lab,/region\(tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'/);
  });
 
  test('v198 dashes and light ring use the same opaque 206 luminance; readout straddles separator',()=>{
@@ -1314,17 +1314,17 @@ describe('v200 context-only light property deck',()=>{
  const platform=()=>fs.readFileSync(new URL('../tetris/platform.js',import.meta.url),'utf8');
  const renderer=()=>fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
  const gameSource=()=>fs.readFileSync(new URL('../tetris/game.js',import.meta.url),'utf8');
- test('normal controls and options button are preserved but not painted during light mode',()=>{
+ test('light mode uses its own controls and the shared Properties button',()=>{
   const src=platform(),base=src.slice(src.indexOf('function paintBaseGame('),
    src.indexOf('function paintGame('));
   const modal=src.slice(src.indexOf('function paintModalOverlay('),
    src.indexOf('inputController=createInputController('));
-  assert.match(base,/if\(!screenManager\.isLight\)\s*key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options',\{onLight\}\)/);
+  assert.match(base,/key\('☷',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options',\{onLight\}\)/);
   assert.match(base,/if\(!screenManager\.isLight\)registerControlHitboxes\(r,UI_SPACE,region\)/);
-  assert.match(modal,/controlsPlane\.visible=!screenManager\.isOptions&&!screenManager\.isLight/);
+  assert.match(modal,/controlsPlane\.visible=!editorVisible/);
   const light=src.slice(src.indexOf('function paintLightDirectionOverlay('),
    src.indexOf('function paintModalOverlay('));
-  assert.match(light,/key\('✓',tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'close',\{onLight:settings\.lcdDisplay\}\)/);
+  assert.match(light,/region\(tx\+th\+UI_SPACE\.headIconGap,ty,th,th,'options'/);
   assert.doesNotMatch(light,/key\('DONE'|key\('☷'/);
  });
  test('new property panel shares original control bounds and has exactly four integrated bars',()=>{
@@ -1339,8 +1339,8 @@ describe('v200 context-only light property deck',()=>{
  });
  test('Display System remains a launcher and has no duplicated shadow sliders',()=>{
   const src=renderer();
-  assert.match(src,/selected\.id==='shadows'/);
-  assert.match(src,/buttonRow\('LIGHT CONTROL'/);
+  assert.match(platform(),/if\(property==='shadows'\)screenManager\.openLight\(\)/);
+  assert.doesNotMatch(src,/buttonRow\('LIGHT CONTROL'/);
   assert.match(src,/drawPropertyDeck\(/);
  });
 });

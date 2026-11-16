@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v236';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v236';
+import {createInputController} from './input.js?v237';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v237';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v236';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v237';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v236';
+export {createInputController} from './input.js?v237';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -574,11 +574,16 @@ function setLightPosition(point){
  }
  layers.mark('modal');invalidate();
 }
+let propertyBackdrop=null;
 const screenManager=createScreenManager({
  getGameStatus:()=>game.status,
  pauseGame:()=>actions.perform('pause'),
  onChange:(previous,next)=>{
-  if(next==='options'&&previous!=='light')modalUI.reset();
+  if(next==='options'&&previous!=='options'){
+   propertyBackdrop=previous==='property'||previous==='light'?previous:null;
+   if(!propertyBackdrop){modalUI.reset();settings.beginDraft();}
+  }
+  if(next===null)propertyBackdrop=null;
   inputController?.cancel();
   buttonFeedback.clear();
   if(previous!==next)layers.mark('base','board','sidebar','controls','modal','terminal');
@@ -586,6 +591,14 @@ const screenManager=createScreenManager({
   invalidate();
  }
 });
+function propertyScene(){
+ return screenManager.isOptions?propertyBackdrop:screenManager.active;
+}
+function finishProperties(confirm){
+ settings.finishDraft(confirm);
+ if(!confirm)lightPosition=null;
+ screenManager.close();
+}
 // All game commands, menu actions and personal-best updates are delegated.
 // UI and render adapters remain here; the controller never paints.
 const actions=createActionController({
@@ -815,7 +828,7 @@ function paintBoardPopup(r){
  try{
   // Reuse the same post-blur inset shadow behind both menu readouts.
   drawSharpBoardInsetShadow(r);
-  if(status==='playing'||screenManager.isOptions)return;
+  if(status==='playing'||propertyScene()==='property'||propertyScene()==='light')return;
   // Top Five is composed as a sharp alpha popup AFTER the Gaussian board blur.
   // Do not draw PAUSED/GAME OVER controls beneath the score screen.
   if(screenManager.isScores){
@@ -981,8 +994,7 @@ function paintBaseGame(){
  key('◐',tx,ty,th,th,'theme',{onLight});
  // The menu button exists only in the regular game interface. Light Control
  // draws its confirmation glyph at these SAME coordinates on the modal layer.
- if(!screenManager.isLight)
-  key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{onLight});
+ key('☷',tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{onLight});
  // Dedicated board plane owns board pixels; don't render it to base.
  // Static 75%-cell brick rails, exactly one control-gap outside either edge.
  // Draw on the base layer, not inside the cropped board texture.
@@ -1034,7 +1046,7 @@ function paintGame(){
   if(paintedBase)layers.mark('modal');
   // The existing modal plane retains the last texture on terminal typing
   // or button changes behind an unchanged menu. No canvas paint or upload.
-  if(layers.consume('modal')||(!modalPlane.visible&&!screenManager.isScores)){
+  if(layers.consume('modal')||(!modalPlane.visible&&!screenManager.isOptions&&!screenManager.isScores)){
    const started=performance.now();
    paintModalOverlay();
    perf.recordDuration('modal',performance.now()-started);
@@ -1158,11 +1170,12 @@ function paintLightDirectionOverlay(){
    sideCenter,p.y+LIGHT_VALUE_Y,LIGHT_VALUE_SIZE,C.bright,
    'center',readoutWidth,'terminal');
  }
- // Only Light Control receives the alternate controls panel and checkmark.
- // The header check replaces (not accompanies) the old menu icon.
  paintLightPropertyPanel(r);
+ const shadowOn=settings.effects.shadows;
+ key(shadowOn?'SHADOWS ON':'SHADOWS OFF',r.sideX,r.boardY+r.boardH-r.extraH,
+  r.sideW,r.extraH,'toggle',{field:'shadows',onLight:settings.lcdDisplay,light:shadowOn});
  const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
- key('✓',tx+th+UI_SPACE.headIconGap,ty,th,th,'close',{onLight:settings.lcdDisplay});
+ region(tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{kind:'button'});
 }
 function paintModalOverlay(){
  if(screenManager.isScores){
@@ -1173,8 +1186,9 @@ function paintModalOverlay(){
   return;
  }
  surface.visible=true;boardPlane.visible=true;
- sidebarPlane.visible=!screenManager.isOptions&&!screenManager.isLight;
- controlsPlane.visible=!screenManager.isOptions&&!screenManager.isLight;
+ const scene=propertyScene(),editorVisible=scene==='property'||scene==='light';
+ sidebarPlane.visible=!editorVisible;
+ controlsPlane.visible=!editorVisible;
  terminalPlane.visible=true;
  const q=modalUI.modalBounds(screenManager.active);
  const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
@@ -1184,11 +1198,15 @@ function paintModalOverlay(){
  modalContext.setTransform(1,0,0,1,0,0);
  modalContext.clearRect(0,0,cw,ch);
  modalContext.setTransform(DPR,0,0,DPR,0,0);
- modalPlane.visible=true;scrimPlane.visible=false;
+ modalPlane.visible=!screenManager.isOptions;scrimPlane.visible=false;
  g=modalContext;
  try{
-  if(screenManager.isOptions)modalUI.paintModal(q);
-  else if(screenManager.isLight)paintLightDirectionOverlay();
+  if(scene==='property')modalUI.paintProperty();
+  else if(scene==='light')paintLightDirectionOverlay();
+  if(screenManager.isOptions){
+   rect(0,0,W,H,'rgba(0,0,0,.48)');
+   modalUI.paintModal(q);
+  }
  }finally{g=baseContext;}
  modalTexture.needsUpdate=true;
  perf.textureChanged('modal');
@@ -1197,6 +1215,10 @@ inputController=createInputController({
  screen,document,window,
  getViewport:()=>({width:W,height:H}),getRegions:()=>regions,
  getModal:()=>screenManager.active,
+ getModalView:()=>screenManager.isOptions?modalUI.optionRows():null,
+ getOptionsScroll:()=>modalUI.optionsScroll,
+ setOptionsScroll:value=>{modalUI.optionsScroll=value;},
+ getOptionsMaxScroll:()=>modalUI.optionRows().maxScroll,
  setBaseDirty:(act)=>{
   if(act==='theme'||act==='options'||act==='light')layers.mark('base');
   else if(act==='board')layers.mark('board');
@@ -1205,11 +1227,21 @@ inputController=createInputController({
   else if(act&&!visualScene.controlsGpuEnabled)layers.mark('controls');
  },
  handleAction:act=>{
-  if(act?.startsWith('property:')){modalUI.selectProperty(act.slice(9));return;}
+  if(act?.startsWith('property:')){
+   const property=act.slice(9);
+   if(screenManager.isOptions&&modalUI.selectProperty(property)){
+    if(property==='shadows')screenManager.openLight();
+    else screenManager.openProperty();
+   }
+   return;
+  }
+  if(act==='confirmProperties'||act==='cancelProperties'){
+   if(screenManager.isOptions)finishProperties(act==='confirmProperties');
+   return;
+  }
   if(act==='pattern:previous'||act==='pattern:next'){
    modalUI.cyclePattern(act==='pattern:next'?1:-1);return;
   }
-  if(act==='resetFX')modalUI.reset();
   const previous=game.status;
   const result=actions.dispatch(act);
   // PAUSE must retain its active button until release, even though
@@ -1227,10 +1259,14 @@ inputController=createInputController({
  },
  setSetting:(field,value)=>{
   actions.setSetting(field,value);
-  if(screenManager.isOptions&&field==='shadows')layers.mark('base');
+  if(screenManager.isLight&&field==='shadows')layers.mark('base');
  },settingValue,
  getLightBounds:lightBoardBounds,onLightPoint:setLightPosition,
- openModal:()=>screenManager.close(),invalidate,clamp,
+ openModal:()=>{
+  if(screenManager.isOptions)return;
+  if(screenManager.isProperty||screenManager.isLight)screenManager.openOptions();
+  else screenManager.close();
+ },invalidate,clamp,
  onButtonPress:(hit,now,held)=>{
   if(buttonFeedback.press(hit,now,held))invalidate('button-press');
  },
@@ -1250,14 +1286,16 @@ function syncFX(){
  // Light Control uses the SAME saved rendering effects as gameplay,
  // except phosphor persistence is paused so dragging remains immediate.
  // The paused-board popup blur is suppressed separately in the compositor.
- compositor.syncFX({fx:screenManager.isLight?
+ const scene=propertyScene();
+ compositor.setPicker(screenManager.isOptions?modalTexture:null);
+ compositor.syncFX({fx:scene==='light'?
   {...settings.effects,persistence:false}:settings.effects,
   theme:settings.theme,lcd:settings.lcdDisplay,width:W,height:H,dpr:DPR,
- boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal,
+ boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal&&(!screenManager.isOptions||!!scene),
   scoresOverlay:screenManager.isScores,
   popupStatus:lastPaintedBoardPopupStatus,layoutInfo:blurredLayout,
-  isolateLightWindow:screenManager.isLight,
-  propertiesPreview:screenManager.isOptions?{backdrop:modalUI.property==='menuBlur'}:null,
+  isolateLightWindow:scene==='light',
+  propertiesPreview:scene==='property'?{backdrop:modalUI.property==='menuBlur'}:null,
   pieceMaskEnabled:boardPlane.visible});
 }
 function cancelPendingFrame(){
@@ -1374,8 +1412,8 @@ function frame(now){
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');
-   if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
-   if(!screenManager.hasModal||screenManager.isScores||screenManager.isOptions)
+   if(modalPlane.visible||screenManager.isOptions)textureUploads.upload(modalTexture,'modal');
+   if(!screenManager.isLight)
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();
    const renderStarted=perf.startRender();

@@ -1196,3 +1196,32 @@ describe('Gameplay integration',()=>{
   s.lifecycle.dispose();
  });
 });
+
+test('property drafts preview changes, discard them on Cancel, and persist on Confirm',()=>{
+ const values=new Map();
+ const storage={getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value)};
+ const settings=createSettingsManager(storage);
+ const original={...settings.effects};
+ settings.beginDraft();
+ settings.setSetting('lcdDisplay',true);
+ settings.setSetting('sound',false);
+ settings.setSetting('shadowAngle',42);
+ settings.toggleTheme();
+ settings.beginDraft(); // returning to the picker keeps the same session
+ assert.equal(settings.lcdDisplay,true);
+ assert.equal(settings.effects.shadowAngle,42);
+ assert.equal(values.size,0);
+ settings.finishDraft(false);
+ assert.deepEqual(settings.effects,original);
+ assert.equal(settings.lcdDisplay,false);
+ assert.equal(settings.soundOn,true);
+ assert.equal(settings.theme,'green');
+ assert.equal(values.size,0);
+ settings.beginDraft();
+ settings.setSetting('lcdDisplay',true);
+ settings.setSetting('shadowAngle',42);
+ settings.finishDraft(true);
+ const restored=createSettingsManager(storage);
+ assert.equal(restored.lcdDisplay,true);
+ assert.equal(restored.effects.shadowAngle,42);
+});
