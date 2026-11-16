@@ -2,11 +2,12 @@
 import * as THREE from './vendor/three/three.bundle.js';
 import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
+import {brickRailGeometry} from './assets/frames/brick-pattern.mjs?v137';
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v237';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v237';
+import {instrumentCompositorPasses} from './diagnostics.js?v238';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v238';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -259,7 +260,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // the same normalized Gaussian weighting in a single 2D pass.
  const boardGaussianShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup,uPicker;
-   uniform float uPickerVisible;
+   uniform float uPickerFade;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
    uniform float uSigma,uComposite,uCanvasBlend,uFade;
    uniform vec3 uFadeTo;
@@ -270,6 +271,9 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
    vec3 decodeSRGB(vec3 x){
     return mix(x/12.92,pow(max((x+.055)/1.055,vec3(0.0)),vec3(2.4)),
      step(vec3(.04045),x));
+   }
+   vec3 fadeToward(vec3 source,vec3 target,float amount){
+    return mix(source,target,amount);
    }
    void main(){
     vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
@@ -299,15 +303,16 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
      backdrop=sum/weights;
     }
     if(uComposite>.5){
-     if(inside>.5)backdrop=mix(backdrop,uFadeTo,uFade);
+     if(inside>.5)backdrop=fadeToward(backdrop,uFadeTo,uFade);
      vec4 popup=texture2D(uPopup,vUv);
      // LCD piece shadows blend on the 2D canvas in encoded sRGB.
      if(uCanvasBlend>.5&&popup.a>0.0&&popup.a<1.0){
       backdrop=decodeSRGB(mix(encodeSRGB(backdrop),encodeSRGB(popup.rgb),popup.a));
      }else backdrop=mix(backdrop,popup.rgb,popup.a);
     }
-    if(uPickerVisible>.5){
+    if(uPickerFade>0.0){
      vec4 picker=texture2D(uPicker,vUv);
+     backdrop=fadeToward(backdrop,vec3(0.0),uPickerFade);
      backdrop=mix(backdrop,picker.rgb,picker.a);
     }
     gl_FragColor=vec4(backdrop,1.0);
@@ -315,7 +320,7 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  function createBoardGaussianPass(axis,composite){
   return new ShaderPass({
    uniforms:{
-    tDiffuse:{value:null},uPopup:{value:boardPopupTexture},uPicker:{value:null},uPickerVisible:{value:0},
+    tDiffuse:{value:null},uPopup:{value:boardPopupTexture},uPicker:{value:null},uPickerFade:{value:0},
     uRect:{value:new THREE.Vector4(0,0,0,0)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
@@ -601,9 +606,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  glow.strength=fx.bloomStrength;
  // Never mask a full-page settings screen or other view where the piece
  // board is hidden. With bloom disabled, the stencil is not sampled.
+ const pickerOpen=boardPopupPass.uniforms.uPickerFade.value>0;
  if(glow.highPassUniforms?.uPieceMaskEnabled)
   glow.highPassUniforms.uPieceMaskEnabled.value=
-   fx.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
+   fx.bloom&&!pickerOpen&&pieceMaskEnabled&&pieceBloomMaskTexture?1:0;
  edgeSoftness.enabled=!lcd&&fx.softness;
  edgeSoftness.uniforms.uAmount.value=fx.softnessStrength;
  edgeSoftness.uniforms.uRadius.value=fx.softnessRadius;
@@ -621,7 +627,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  const sigma=boardOverlayActive?
   menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
  boardBlurHorizontal.enabled=sigma>.01;
- boardPopupPass.enabled=boardBackdropVisible||boardPopupPass.uniforms.uPickerVisible.value>.5;
+ boardPopupPass.enabled=boardBackdropVisible||pickerOpen;
  boardPopupPass.uniforms.uComposite.value=boardBackdropVisible?1:0;
  for(const pass of popupPasses)pass.uniforms.uSigma.value=sigma;
  boardPopupPass.uniforms.uFade.value=boardOverlayActive?
@@ -637,7 +643,9 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   }
   // Board content is the light source only when the recessed window is visible.
   // Zero rect restores v188 global bloom for the optional A/B query parameter.
-  const active=shadowBox&&boardWindowVisible&&w>0&&h>0;
+  // The picker is one continuous surface. The board's optical boundaries
+  // would otherwise split its bloom, ghosting and softness along the rails.
+  const active=shadowBox&&boardWindowVisible&&!pickerOpen&&w>0&&h>0;
   const x0=active?x/W:0,y0=active?1-(y+h)/H:0;
   const x1=active?(x+w)/W:0,y1=active?1-y/H:0;
   for(const uniform of [glow.highPassUniforms?.uBoardRect,
@@ -711,7 +719,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  return Object.freeze({syncFX,resize,setStartupRoll,
   setPicker(texture){
    boardPopupPass.uniforms.uPicker.value=texture;
-   boardPopupPass.uniforms.uPickerVisible.value=texture?1:0;
+   // Halve the remaining backdrop light compared with the original .48 fade.
+   boardPopupPass.uniforms.uPickerFade.value=texture ? .74 : 0;
   },
   resetPersistence:()=>persistencePass.reset(),
   render:(dt)=>composer.render(dt),dispose,passStats,
@@ -1885,7 +1894,9 @@ function modalBounds(name){
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
  const wanted=Math.min(390,usable*.68);
- const w=Math.max(0,Math.min(410,W-2*UI_SPACE.padX));
+ const board=layout(),rails=brickRailGeometry(board);
+ const railSpan=rails?rails.rightVisible.x+rails.rightVisible.w-rails.leftVisible.x:board.boardW;
+ const w=Math.max(0,Math.min(railSpan,W-2*UI_SPACE.padX));
  const h=Math.max(0,Math.min(wanted,usable-2*gap));
  return {w,h,x:(W-w)/2,y:safe.top+(usable-h)/2,pad,gap,buttonH};
 }
@@ -1903,7 +1914,7 @@ function drawOptions(q){
  const colors=lcd?LCD_BOARD:C;
  const view=optionRows(q),first=Math.round(Math.min(optionsScroll,view.maxScroll)/view.rowHeight);
  clearRegions();region(0,0,W,H,'block');
- panel(q.x,q.y,q.w,q.h,0,colors.panel,colors.border);
+ panel(q.x,q.y,q.w,q.h,0,colors.panel,C.border);
  for(const [index,property] of properties.slice(first,first+view.count).entries()){
   const y=view.y+index*view.rowHeight,mid=y+view.rowHeight/2;
   if(property===selected)text('▶',q.x+2*q.pad,mid,13,colors.ink);
@@ -1917,7 +1928,7 @@ function drawOptions(q){
   rect(x-1,view.y+(view.h-h)*Math.min(1,optionsScroll/view.maxScroll),4,h,colors.ink);
  }
  const footerY=q.y+q.h-q.buttonH-2*q.pad;
- rect(q.x,footerY,q.w,1,colors.ink);
+ rect(q.x,footerY,q.w,1,C.border);
  const w=(q.w-3*q.pad)/2,y=footerY+q.pad;
  key('Confirm',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
  key('Cancel',q.x+2*q.pad+w,y,w,q.buttonH,'cancelProperties',{onLight:lcd});

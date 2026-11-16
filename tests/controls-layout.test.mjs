@@ -804,7 +804,7 @@ describe('Pointer and keyboard input',()=>{
  test('picker always provides Confirm and Cancel and property controls fit in the deck',()=>{
   const screen=target(),document=target(),window=target(),regions=[];
   const W=393,H=852,ignore=()=>{};
-  const r={hx:12,hw:369,hy:40,hh:70,boardY:120,boardW:240,boardH:480,
+  const r={hx:12,hw:369,hy:40,hh:70,boardX:35,boardY:120,boardW:240,boardH:480,
    sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44,buttonH:53,extraH:46};
   const settings=createSettingsManager();
   let screenName='options';
@@ -820,6 +820,8 @@ describe('Pointer and keyboard input',()=>{
   });
   const paint=()=>modal.paintProperty();
   const bounds=modal.modalBounds('options');
+  assert.equal(bounds.w,283.7); // board plus visible rails, including the sidebar clip
+  assert.equal(bounds.x,(W-bounds.w)/2);
   modal.paintModal(bounds);
   const list=regions.filter(hit=>hit.act.startsWith('property:'));
   assert.ok(list.length>0&&list.length<DISPLAY_EFFECTS.length+3);

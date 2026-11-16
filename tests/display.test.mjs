@@ -92,6 +92,23 @@ describe('CRT composition',()=>{
    'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
   ]);
  });
+ test('picker fade is independent of board fade and treats the screen as one optical surface',()=>{
+  const {pipeline,composer}=setup({pieceMask:true});
+  const [,,popup,,,bloom,tint,softness]=composer.passes;
+  const picker={picker:true};
+  pipeline.setPicker(picker);
+  update(pipeline,{crtMenuFade:5});
+  assert.equal(popup.uniforms.uPicker.value,picker);
+  assert.equal(popup.uniforms.uPickerFade.value,.74);
+  assert.equal(popup.uniforms.uFade.value,0);
+  assert.deepEqual(Object.values(tint.uniforms.uBoardRect.value),[0,0,0,0]);
+  assert.deepEqual(Object.values(softness.uniforms.uBoardRect.value),[0,0,0,0]);
+  assert.equal(bloom.highPassUniforms.uPieceMaskEnabled.value,0);
+  pipeline.setPicker(null);
+  update(pipeline);
+  assert.equal(popup.uniforms.uPickerFade.value,0);
+  assert.ok(tint.uniforms.uBoardRect.value.z>0);
+ });
  test('LCD reuses the compositor, suspends CRT optics and restores them on return',()=>{
   const {pipeline,composer}=setup();
   const [,,popup,history,ghost,bloom,tint,softness,vignette,mask]=composer.passes;
@@ -319,8 +336,8 @@ describe('CRT composition',()=>{
   assert.equal(horizontal.enabled,false);
   assert.equal(popup.uniforms.uFade.value,0);
   const shader=popup.fragmentShader;
-  assert.ok(shader.indexOf('backdrop=sum/weights')<shader.indexOf('backdrop=mix(backdrop,uFadeTo,uFade)'));
-  assert.ok(shader.indexOf('backdrop=mix(backdrop,uFadeTo,uFade)')<shader.indexOf('vec4 popup='));
+  assert.ok(shader.indexOf('backdrop=sum/weights')<shader.indexOf('backdrop=fadeToward(backdrop,uFadeTo,uFade)'));
+  assert.ok(shader.indexOf('backdrop=fadeToward(backdrop,uFadeTo,uFade)')<shader.indexOf('vec4 popup='));
   pipeline.dispose();
  });
  test('properties preview keeps the original board aperture and uses backdrop effects on demand',()=>{
@@ -1202,7 +1219,7 @@ describe('v195–v198 interactive lighting laboratory',()=>{
   assert.match(platform,/modalPlane\.visible=!screenManager\.isOptions;scrimPlane\.visible=false/);
   assert.match(platform,/isolateLightWindow:scene==='light'/);
   assert.match(renderer,/const boardWindowVisible=boardBackdropVisible\|\|isolateLightWindow/);
-  assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&w>0&&h>0/);
+  assert.match(renderer,/const active=shadowBox&&boardWindowVisible&&!pickerOpen&&w>0&&h>0/);
   assert.match(platform,/const pieceShadows=createPieceShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects,retainCoveredAlpha:\(\)=>settings\.lcdDisplay\}\)/);
   assert.match(platform,/const boardInsetShadows=createBoardInsetShadowRenderer\(\{\s*getSettings:\(\)=>settings\.effects,matchPieceKernel:\(\)=>settings\.lcdDisplay\}\)/);
   assert.doesNotMatch(platform,/shadowBlur:\s*0\}:settings\.effects|getSettings:lightFX/);
@@ -1397,7 +1414,7 @@ describe('v202 grid and piece bloom mask wiring',()=>{
   const r=fs.readFileSync(new URL('../tetris/render.js',import.meta.url),'utf8');
   assert.match(p,/pieceMaskEnabled:boardPlane\.visible/);
   assert.match(p,/if\(boardPlane\.visible&&settings\.effects\.bloom&&!settings\.lcdDisplay\)\s*textureUploads\.upload\(pieceBloomMaskTexture,'piece-mask'\)/);
-  assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
+  assert.match(r,/glow\.highPassUniforms\.uPieceMaskEnabled\.value=\s*fx\.bloom&&!pickerOpen&&pieceMaskEnabled&&pieceBloomMaskTexture\?1:0/);
   assert.match(r,/const pieceBloomMaskTexture=new THREE\.CanvasTexture\(pieceBloomMaskCanvas\)/);
   assert.doesNotMatch(r,/new THREE\.Mesh\(.*pieceBloomMaskTexture/);
   assert.match(r,/const canvases=Object\.freeze\(\[input,boardCanvas,pieceBloomMaskCanvas/);
