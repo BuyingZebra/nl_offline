@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v244';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v244';
+import {instrumentCompositorPasses} from './diagnostics.js?v245';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v245';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1603,12 +1603,13 @@ function textWidth(str,size){
  g.restore();
  return width;
 }
-function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='ui'){
+function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='ui',fitLine=false){
  const g=getContext();
  textStyle(g,str,size,role);
  g.textAlign=align;
  g.fillStyle=color;
- const lines=wrapText(str,maxWidth),step=size*1.2;
+ const lines=fitLine?[str]:wrapText(str,maxWidth),step=size*1.2;
+ const width=fitLine&&Number.isFinite(maxWidth)?[maxWidth]:[];
  for(let i=0;i<lines.length;i++){
   const line=lines[i],centerY=y+(i-(lines.length-1)/2)*step;
   // Canvas "middle" tracks the em box, not the ink of the selected font.
@@ -1621,11 +1622,11 @@ function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='u
   const ascent=metrics.actualBoundingBoxAscent;
   const descent=metrics.actualBoundingBoxDescent;
   if(Number.isFinite(ascent)&&Number.isFinite(descent)&&ascent+descent>0){
-   g.fillText(line,inkX,centerY+(ascent-descent)/2);
+   g.fillText(line,inkX,centerY+(ascent-descent)/2,...width);
   }else{
    // Older contexts exposing width alone keep the previous behavior.
    g.textBaseline='middle';
-   g.fillText(line,inkX,centerY);
+   g.fillText(line,inkX,centerY,...width);
   }
  }
  g.letterSpacing='0px';
@@ -1778,7 +1779,7 @@ function drawSidebar(r){
  const readoutHeight=Math.max(1,slot-titleSpace-bottomGap);
  readouts.forEach(([title,value],i)=>{
   const top=stats.y+i*slot,boxY=top+titleSpace;
-  text(title,stats.x+inset+1,top+titleSpace*.50,9,C.weak,
+  text(title,stats.x+inset+1,top+titleSpace*.50,10,C.weak,
    'left',Math.max(8,stats.w-2*inset));
   const rim=doubleFrame(stats.x,boxY,stats.w,readoutHeight);
   // Terminal data values are LEFT aligned within their frames.
@@ -1944,7 +1945,8 @@ function drawOptions(q){
  panel(q.x,q.y,q.w,q.h,0,colors.panel,C.border);
  const {x:frameX,w:frameW}=view;
  panel(frameX,view.y,frameW,view.h,0,null,C.border);
- const {barH,labelSize}=propertySliderSize(propertyDeckSpacing(layout(),q.pad).regularH);
+ const {barH}=propertySliderSize(propertyDeckSpacing(layout(),q.pad).regularH);
+ const labelSize=10;
  const labelX=frameX+3*q.pad,right=frameX+frameW-q.pad;
  const statusW=Math.ceil(textWidth('DISABLED',labelSize))+2*q.pad;
  const statusX=right-statusW;
@@ -1953,11 +1955,10 @@ function drawOptions(q){
   const label=(listLabels[property.id]??property.title).toUpperCase();
   const labelEnd=statusX-q.pad;
   const labelWidth=Math.max(1,labelEnd-labelX-2*q.pad);
-  const rowFont=Math.min(labelSize,labelSize*labelWidth/Math.max(1,textWidth(label,labelSize)));
   if(property===selected)text('▶',frameX+q.pad,mid,BUTTON_ICON_FONT_SIZE*.75,colors.ink,'left');
-  text(label,labelX,mid,rowFont,colors.ink,'left');
+  text(label,labelX,mid,labelSize,colors.ink,'left',labelWidth,'ui',true);
   region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
-  const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,rowFont)+q.pad);
+  const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,labelSize)+q.pad);
   for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
   const enabled=Boolean(settingValue(property.toggle)),height=Math.min(barH,view.rowHeight-2);
   key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
