@@ -39,7 +39,7 @@ describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
   const pause=app.slice(app.indexOf('function paintBoardPopup('),app.indexOf('function insets()'));
   const scores=render.slice(render.indexOf('function drawScores(q){'),render.indexOf('function paintModal(q){'));
   assert.match(pause,/boardOverlaySlots\(\{x,y,w,h\},UI_SPACE\)/);
-  assert.match(pause,/text\(tagline,slots.titleX,taglineY,10,boardColors.ink,'center',bw\)/);
+  assert.match(pause,/drawMenuScoreBox\(\{text,rect,C:boardColors\},slots.score,\{score:game.score,lines:game.lines,level:game.level\}\)/);
   assert.match(scores,/boardOverlaySlots\(q,UI_SPACE\)/);
   assert.match(scores,/drawMenuScoreBox\(\{text,rect,C:boardColors\},slots.score,best\)/);
   assert.match(scores,/slots.actionW,q.buttonH/);

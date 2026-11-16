@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v252';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v252';
+import {createInputController} from './input.js?v253';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v253';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v252';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v253';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v252';
+export {createInputController} from './input.js?v253';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -850,14 +850,17 @@ function paintBoardPopup(r){
   const headingSize=slots.titleSize;
   if(type==='paused'){
    text(title,slots.titleX,slots.titleY,headingSize,boardColors.bright,'center',w-18);
-   const tagline='SURVIVE THE SOVIET CHALLENGE. KEEP THE STACK LOW, CLEAR YOUR LINES, AND HOLD OUT AS THE PACE QUICKENS.';
-   const taglineY=(slots.titleY+headingSize/2+by)/2;
-   text(tagline,slots.titleX,taglineY,10,boardColors.ink,'center',bw);
+   drawMenuScoreBox({text,rect,C:boardColors},slots.score,{score:game.score,lines:game.lines,level:game.level});
   }else{
    const titleY=by-headingGap-headingSize/2;
    text(title,slots.titleX,titleY,headingSize,boardColors.bright,'center',w-18);
   }
   key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true,onLight});
+  if(type==='ready'){
+   const taglineSize=10;
+   const taglineY=by+primaryH+headingGap+taglineSize/2;
+   text('SURVIVE THE SOVIET CHALLENGE',slots.titleX,taglineY,taglineSize,boardColors.weak,'center',bw);
+  }
   if(type==='paused'){
    key('RESTART',bx,by+primaryH+inset,bw,secondaryH,'restart',{onLight});
    key('HIGH SCORE',bx,by+primaryH+secondaryH+2*inset,bw,secondaryH,'scores',{onLight});
