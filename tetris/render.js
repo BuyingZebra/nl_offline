@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v248';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v248';
+import {instrumentCompositorPasses} from './diagnostics.js?v249';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v249';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1784,7 +1784,7 @@ function drawSidebar(r){
   const rim=doubleFrame(stats.x,boxY,stats.w,readoutHeight);
   // Terminal data values are LEFT aligned within their frames.
   const valueInset=Math.max(10,Math.min(12,stats.w*.14));
-  const digitSize=Math.max(10,Math.min(16,stats.w*.175,readoutHeight*.54));
+  const digitSize=14;
   text(value,stats.x+valueInset,boxY+readoutHeight/2,digitSize,
    readoutColors.ink,'left',Math.max(8,stats.w-valueInset-rim-4),'terminal');
  });
@@ -1821,34 +1821,34 @@ function boardOverlaySlots({x,y,w,h},UI_SPACE){
  const buttonX=x+(w-buttonW)/2;
  const titleY=y+Math.max(15,Math.min(26,h*.07));
  const primaryY=y+h/2;
- const titleBottom=titleY+Math.min(21,w*.079)/2;
+ const titleSize=20;
+ const titleBottom=titleY+titleSize/2;
  const rowH=Math.max(12,Math.min(34,(primaryY-titleBottom-18)/3));
  const scoreH=rowH*3;
  const scoreY=(titleBottom+primaryY-scoreH)/2;
- const inset=Math.max(12,2*UI_SPACE.unit);
  return {
-  titleX:x+w/2,titleY,
-  score:{x:x+inset,y:scoreY,w:w-2*inset,h:scoreH},
+  titleX:x+w/2,titleY,titleSize,
+  score:{x:buttonX,y:scoreY,w:buttonW,h:scoreH},
   actionX:buttonX,actionY:primaryY,actionW:buttonW
  };
 }
 // Restore the original unframed SCORE / LINES / LEVEL terminal rows and dots.
 function drawMenuScoreBox({text,rect,C},box,record){
  const {x,y,w,h}=box,rowH=h/3;
- const labelSize=Math.max(11,Math.min(14,(w+24)*.053));
- const valueSize=Math.max(12,Math.min(16,(w+24)*.061));
+ const fontSize=10;
  const rows=[
   ['SCORE',String(record?.score??0).padStart(6,'0')],
   ['LINES',String(record?.lines??0).padStart(2,'0')],
   ['LEVEL',String(record?.level??0).padStart(2,'0')]
  ];
  rows.forEach(([label,value],i)=>{
-  const ry=y+i*rowH,middle=ry+rowH*.39;
-  text(label,x,middle,labelSize,C.ink,'left',w*.43,'terminal');
-  text(value,x+w,middle,valueSize,C.bright,'right',w*.56,'terminal');
+  const middle=y+(i+.5)*rowH;
+  text(label,x,middle,fontSize,C.ink,'left',w*.43,'terminal');
+  text(value,x+w,middle,fontSize,C.bright,'right',w*.56,'terminal');
   if(i<2){
-   const dividerY=ry+rowH-2;
-   for(let dx=0;dx<w;dx+=5)rect(x+dx,dividerY,1.5,.8,C.bright);
+   const dotW=1.5,dotH=.8;
+   const dividerY=middle+rowH/2-dotH/2;
+   for(let dx=0;dx+dotW<=w;dx+=5)rect(x+dx,dividerY,dotW,dotH,C.bright);
   }
  });
 }
@@ -2013,8 +2013,7 @@ function drawScores(q){
  const onLight=Boolean(settingValue('lcdDisplay')),boardColors=onLight?LCD_BOARD:C;
  panel(x,y,w,h,5,null,boardColors.border);
  const best=getBest(),slots=boardOverlaySlots(q,UI_SPACE);
- const titleSize=Math.min(21,Math.max(15,w*.079));
- text('HIGH SCORE',slots.titleX,slots.titleY,titleSize,boardColors.bright,'center',w-18);
+ text('HIGH SCORE',slots.titleX,slots.titleY,slots.titleSize,boardColors.bright,'center',w-18);
  drawMenuScoreBox({text,rect,C:boardColors},slots.score,best);
  // Same size, position, font and leading arrow as RESUME / START GAME.
  key('RETURN',slots.actionX,slots.actionY,slots.actionW,q.buttonH,

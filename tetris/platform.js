@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v248';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v248';
+import {createInputController} from './input.js?v249';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v249';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v248';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v249';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v248';
+export {createInputController} from './input.js?v249';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -802,7 +802,7 @@ function stage(r,drawPieces=true,pieceMask=null){
  if(lineClearFX?.finalPoints){
   const label='+'+lineClearFX.finalPoints;
   rect(x+w*.17,y+h*.45,w*.66,h*.10,C.bg);
-  text(label,x+w/2,y+h/2,Math.min(21,w*.1),C.bright,'center',w*.60);
+  text(label,x+w/2,y+h/2,20,C.bright,'center',w*.60);
  }
  }
  // The inset shadow is now composited only AFTER optional board blur.
@@ -847,7 +847,7 @@ function paintBoardPopup(r){
   const by=type==='paused'?
    Math.min(slots.actionY,y+h-inset-clusterH):slots.actionY;
   const bx=slots.actionX,bw=slots.actionW;
-  const headingSize=Math.min(21,w*.079);
+  const headingSize=slots.titleSize;
   if(type==='ready'){
    // Home screen artwork and layout are intentionally untouched.
    const subSize=10;
@@ -985,7 +985,7 @@ function paintBaseGame(){
  const titleWidth=Math.max(12,tx-titleX-5);
  rect(titleX-5,r.hy+r.hh*.27,1,r.hh*.46,headerColors.bright);
  text('NOMAD',titleX,r.hy+r.hh/2-9,
-  r.landscape?14:Math.min(20,Math.max(15,r.hw*.056)),
+  20,
   headerColors.ink,'left',titleWidth);
  text('TETRIS SYSTEM',titleX,r.hy+r.hh/2+11,
   10,headerColors.weak,'left',titleWidth);

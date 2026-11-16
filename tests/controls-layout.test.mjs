@@ -23,9 +23,10 @@ describe('PAUSED and HIGH SCORE share the START GAME action anchor',()=>{
    assert.equal(slots.actionY,box.y+box.h/2);
    assert.equal(slots.actionW,box.w*.85);
    assert.equal(slots.actionX,box.x+(box.w-slots.actionW)/2);
-   assert.equal(slots.score.x,box.x+12);
-   assert.equal(slots.score.w,box.w-24);
-   const titleBottom=slots.titleY+Math.min(21,box.w*.079)/2;
+   assert.equal(slots.score.x,slots.actionX);
+   assert.equal(slots.score.w,slots.actionW);
+   assert.equal(slots.titleSize,20);
+   const titleBottom=slots.titleY+slots.titleSize/2;
    assert.ok(titleBottom<slots.score.y);
    assert.ok(slots.score.y+slots.score.h<slots.actionY);
    // The score block's center is halfway between title bottom and action top.
