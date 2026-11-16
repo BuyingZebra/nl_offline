@@ -806,13 +806,13 @@ describe('Pointer and keyboard input',()=>{
   const W=393,H=852,ignore=()=>{};
   const r={hx:12,hw:369,hy:40,hh:70,boardX:35,boardY:120,boardW:240,boardH:480,
    sideX:297,sideW:84,dx:12,dy:650,dw:369,dh:130,deckPad:6,headerButtonH:44,buttonH:53,extraH:46};
-  const settings=createSettingsManager(),labels=[],panels=[];
+  const settings=createSettingsManager(),labels=[],panels=[],marks=[];
   let screenName='options';
   const add=(...args)=>regions.push(makeRegion(...args));
   const modal=createModalUI({
    DISPLAY_EFFECTS,SCANLINE_CHOICES:scanlineChoices([{id:'aperture',name:'APERTURE'}]),
    getViewport:()=>({W,H}),layout:()=>r,insets:()=>({top:0,bottom:0}),
-   clearRegions:()=>{regions.length=0;},panel:(...args)=>panels.push(args),text:value=>labels.push(value),rect:ignore,region:add,
+   clearRegions:()=>{regions.length=0;},panel:(...args)=>panels.push(args),text:value=>labels.push(value),rect:(...args)=>marks.push(args),region:add,
    key:(label,x,y,w,h,act,meta)=>{labels.push(label);add(x,y,w,h,act,meta);},
    UI_SPACE:{unit:6,padX:11,extrasGap:6,buttonWidthScale:.75,headRightPad:6,headIconGap:6},C:{},
    getFX:()=>settings.effects,getModal:()=>screenName,settingValue:settings.settingValue,
@@ -835,9 +835,13 @@ describe('Pointer and keyboard input',()=>{
   const lightRow={setting:{label:'HEIGHT',field:'test',min:0,max:10,step:1,unit:'PX'},value:3};
   drawPropertyDeck({panel:ignore,rect:ignore,text:ignore,region:(...args)=>sliders.push(args),C:{}},
    r,6,[lightRow,lightRow,lightRow,lightRow]);
-  assert.equal(status[0].h,sliders[0][3]);
-  assert.ok(list.length>0&&list.length<DISPLAY_EFFECTS.length+3);
-  assert.ok(modal.optionRows().maxScroll>0);
+  assert.equal(bounds.rowHeight,r.headerButtonH/2);
+  assert.equal(status.length,list.length);
+  assert.ok(list.every(hit=>marks.some(([,y,w,h])=>w===1&&h===1&&y===hit.y+hit.h/2-.5)));
+  assert.ok(!marks.some(([, ,w,h])=>w===bounds.w&&h===1));
+  assert.equal(status[0].h,Math.min(sliders[0][3],bounds.rowHeight-2));
+  assert.ok(list.length>0&&list.length<=DISPLAY_EFFECTS.length+3);
+  assert.ok(modal.optionRows().maxScroll>=0);
   for(const action of ['confirmProperties','cancelProperties']){
    const hit=regions.find(region=>region.act===action);
    assert.ok(hit);
@@ -851,6 +855,7 @@ describe('Pointer and keyboard input',()=>{
   modal.optionsScroll=modal.optionRows().maxScroll;
   modal.paintModal(bounds);
   assert.ok(regions.some(hit=>hit.act==='property:diagnostics'));
+  assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field==='diagnosticsEnabled'));
   modal.optionsScroll=0;
   const testControls=()=>{
    for(const effect of DISPLAY_EFFECTS){
@@ -891,7 +896,7 @@ describe('Pointer and keyboard input',()=>{
   screenName='options';
   modal.paintModal(bounds);
   assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field==='shadows'));
-  assert.ok(!regions.some(hit=>hit.act==='toggle'&&hit.field==='phosphor'));
+  assert.ok(regions.some(hit=>hit.act==='toggle'&&hit.field==='phosphor'));
   testControls();
   for(const [id,action] of [['defaults','resetFX'],['diagnostics','copyDebug']]){
    modal.selectProperty(id);paint();

@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v240';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v240';
+import {instrumentCompositorPasses} from './diagnostics.js?v241';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v241';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -621,15 +621,15 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   boardStatus!=='playing'&&boardBackdropVisible&&popupStatus===boardStatus;
  // Use the same aperture-limited Gaussian for gameplay, with independent
  // CRT and LCD settings. Popup blur takes over behind menus.
- const gameplaySigma=(propertiesPreview||boardStatus==='playing')&&boardBackdropVisible?
+ const gameplaySigma=fx.boardBlurEnabled!==false&&(propertiesPreview||boardStatus==='playing')&&boardBackdropVisible?
   (lcd?fx.lcdBoardBlur:fx.crtBoardBlur)||0:0;
  const sigma=boardOverlayActive?
-  menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):gameplaySigma;
+  (fx.menuBackdropEnabled!==false?menuBlurSigma(lcd?fx.lcdMenuBlur:fx.crtMenuBlur):0):gameplaySigma;
  boardBlurHorizontal.enabled=sigma>.01;
  boardPopupPass.enabled=boardBackdropVisible||pickerOpen;
  boardPopupPass.uniforms.uComposite.value=boardBackdropVisible?1:0;
  for(const pass of popupPasses)pass.uniforms.uSigma.value=sigma;
- boardPopupPass.uniforms.uFade.value=boardOverlayActive?
+ boardPopupPass.uniforms.uFade.value=boardOverlayActive&&fx.menuBackdropEnabled!==false?
   (lcd?fx.lcdMenuFade:fx.crtMenuFade)/100:0;
  boardPopupPass.uniforms.uFadeTo.value=lcd?lcdPopupBase:crtPopupBase;
  boardPopupPass.uniforms.uCanvasBlend.value=lcd?1:0;
@@ -1882,7 +1882,7 @@ function createModalUI({
   phosphor:'PHOSPHOR COLOR',persistence:'PHOSPHOR RESPONSE',scanlines:'SCANLINES',
   vignette:'VIGNETTE',bloom:'BLOOM',ghost:'SIGNAL GHOSTING',softness:'EDGE SOFTNESS'};
  const properties=[{id:'display',toggle:'lcdDisplay'},...DISPLAY_EFFECTS,
-  {id:'defaults',title:'RESTORE DEFAULTS'},{id:'diagnostics',title:'DIAGNOSTICS'}];
+  {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'},{id:'diagnostics',toggle:'diagnosticsEnabled',title:'DIAGNOSTICS'}];
  let selected=properties[0],debugCopyState='idle';
  function currentPattern(){
   const fx=getFX();
@@ -1913,7 +1913,7 @@ function modalBounds(name){
  }
  const usable=Math.max(0,H-safe.top-safe.bottom);
  const buttonW=secondaryButtonWidth(board,UI_SPACE),buttonH=board.extraH;
- const w=2*buttonW+3*pad, rowHeight=Math.max(32,board.headerButtonH);
+ const w=2*buttonW+3*pad, rowHeight=Math.max(16,board.headerButtonH/2);
  const chrome=buttonH+4*pad;
  const budget=Math.min(390,usable*.68,usable-2*gap);
  const count=Math.min(properties.length,Math.max(0,Math.floor((budget-chrome)/rowHeight)));
@@ -1941,23 +1941,19 @@ function drawOptions(q){
  for(const [index,property] of properties.slice(first,first+view.count).entries()){
   const y=view.y+index*view.rowHeight,mid=y+view.rowHeight/2;
   const label=(listLabels[property.id]??property.title).toUpperCase();
-  const hasToggle=property.toggle&&property.id!=='display'&&(!lcd||!property.crtOnly);
-  const labelEnd=hasToggle?statusX-q.pad:right;
-  const labelWidth=Math.max(1,labelEnd-labelX);
+  const labelEnd=statusX-q.pad;
+  const labelWidth=Math.max(1,labelEnd-labelX-2*q.pad);
+  const rowFont=Math.min(labelSize,labelSize*labelWidth/Math.max(1,textWidth(label,labelSize)));
   if(property===selected)text('▶',frameX+q.pad,mid,labelSize,colors.ink);
-  text(label,labelX,mid,labelSize,colors.ink,'left',labelWidth);
-  const detailEnd=hasToggle?statusX:right;
-  region(frameX,y,detailEnd-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
-  if(hasToggle){
-   const dotStart=labelX+textWidth(label,labelSize)+q.pad;
-   for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
-   const enabled=Boolean(settingValue(property.toggle));
-   key(enabled?'ENABLED':'DISABLED',statusX,mid-barH/2,statusW,barH,'toggle',
-    {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize});
-  }
+  text(label,labelX,mid,rowFont,colors.ink,'left');
+  region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
+  const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,rowFont)+q.pad);
+  for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
+  const enabled=Boolean(settingValue(property.toggle)),height=Math.min(barH,view.rowHeight-2);
+  key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
+   {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize});
  }
  const footerY=q.y+q.h-q.buttonH-2*q.pad;
- rect(q.x,footerY,q.w,1,C.border);
  const w=q.buttonW,y=footerY+q.pad;
  key('CONFIRM',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
  key('CANCEL',q.x+2*q.pad+w,y,w,q.buttonH,'cancelProperties',{onLight:lcd});
@@ -1990,8 +1986,8 @@ function drawProperty(){
  const sliders=(lcd?selected.lcdSliders:undefined)??selected.sliders??[];
  for(const [label,field,min,max,step,unit] of sliders)
   rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},value:Number(settingValue(field))});
- if(selected.id==='defaults')rows.push(buttonRow('RESTORE DEFAULTS','resetFX'));
- if(selected.id==='diagnostics')
+ if(selected.id==='defaults'&&settingValue(selected.toggle))rows.push(buttonRow('RESTORE DEFAULTS','resetFX'));
+ if(selected.id==='diagnostics'&&settingValue(selected.toggle))
   rows.push(buttonRow(debugCopyState==='copied'?'REPORT COPIED':
    debugCopyState==='failed'?'RETRY COPY':'COPY DEBUG REPORT','copyDebug'));
  drawPropertyDeck({panel,rect,text,region,C:colors},r,gap,rows);
