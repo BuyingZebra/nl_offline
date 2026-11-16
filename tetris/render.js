@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v245';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v245';
+import {instrumentCompositorPasses} from './diagnostics.js?v246';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v246';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1551,8 +1551,8 @@ function drawPropertySlider({rect,text,region,ink},{x,midY,w,barH,labelW,gap,lab
   trackX:barX,trackW:barW,modalControl:true});
 }
 function createCanvasUI({getContext,getRegions,C,FONT,
- LETTER_SPACING_EM,MAIN_ACTION_LABELS,BUTTON_ICON_LABELS,
- MAIN_ACTION_FONT_SIZE,BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,
+ LETTER_SPACING_EM,BUTTON_ICON_LABELS,
+ BUTTON_FONT_SIZE,BUTTON_ICON_FONT_SIZE,
  getButtonPower=()=>0,ICON_FONT=FONT,TERMINAL_FONT=FONT}){
 function panel(x,y,w,h,r=8,fill=C.panel,border=C.border){
  const g=getContext();
@@ -1646,8 +1646,7 @@ function key(label,x,y,w,h,act,opts={}){
  // Negative-space text in solid buttons follows the press (6→30) without
  // disappearing into the bright solid face (206→255).
  const inverseInk=grayLevel(opts.onLight?LCD_BUTTON_LEVELS.solidInk:buttonInkLevel(power));
- const size=opts.fontSize??(MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
-  BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE);
+ const size=opts.fontSize??(BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE);
  // V165: keep button artwork as a single flat face. Solid buttons
  // remain exactly the approved full luminance (206 base, 255 pressed);
  // press afterglow, text, stroke, and hitboxes are unchanged.
