@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v247';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v247';
+import {instrumentCompositorPasses} from './diagnostics.js?v248';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v248';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1745,6 +1745,7 @@ function drawSidebar(r){
  const game=getGame(),onLight=getLCD();
  const readoutColors=onLight?LCD_BOARD:C;
  const {nextPanel:next,statsPanel:stats,holdPanel:hold}=r;
+ const labelSize=10;
  const inset=Math.max(3,Math.min(6,stats.w*.06));
  // V141: the same square double-border housing for all five boxes.
  const doubleFrame=(x,y,w,h)=>{
@@ -1760,7 +1761,7 @@ function drawSidebar(r){
   // The panel aligns right with the header/footer; the label itself
   // stays left-aligned, just outside the panel's top edge.
   text(heading,box.x+inset+1,box.y-r.previewLabelSpace/2,
-   9,C.weak,'left',Math.max(8,box.w-2*inset));
+   labelSize,C.weak,'left',Math.max(8,box.w-2*inset));
   doubleFrame(box.x,box.y,box.w,box.h);
   const pad=5;
   smallPiece(kind,box.x+pad,box.y+pad,
@@ -1778,7 +1779,7 @@ function drawSidebar(r){
  const readoutHeight=Math.max(1,slot-titleSpace-bottomGap);
  readouts.forEach(([title,value],i)=>{
   const top=stats.y+i*slot,boxY=top+titleSpace;
-  text(title,stats.x+inset+1,top+titleSpace*.50,10,C.weak,
+  text(title,stats.x+inset+1,top+titleSpace*.50,labelSize,C.weak,
    'left',Math.max(8,stats.w-2*inset));
   const rim=doubleFrame(stats.x,boxY,stats.w,readoutHeight);
   // Terminal data values are LEFT aligned within their frames.
