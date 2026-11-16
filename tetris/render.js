@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v250';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v250';
+import {instrumentCompositorPasses} from './diagnostics.js?v251';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v251';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -2290,7 +2290,7 @@ function createTerminalLog({clock=()=>new Date(),
 function drawTerminalLog(ctx,log,r,now,ink='#e3e3e3',bg='#080808',
  font='"Roboto Condensed",ui-monospace,Menlo,monospace'){
  const b=terminalLineBounds(r);
- const fontSize=10; // Same size and weight as SURVIVE THE SOVIET CHALLENGE.
+ const fontSize=10;
  ctx.save();
  ctx.beginPath();ctx.rect(b.x,b.y,b.w,b.h);ctx.clip();
  ctx.font='700 '+fontSize+'px '+font;

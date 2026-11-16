@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v250';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v250';
+import {createInputController} from './input.js?v251';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v251';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v250';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v251';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v250';
+export {createInputController} from './input.js?v251';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -848,20 +848,14 @@ function paintBoardPopup(r){
    Math.min(slots.actionY,y+h-inset-clusterH):slots.actionY;
   const bx=slots.actionX,bw=slots.actionW;
   const headingSize=slots.titleSize;
-  if(type==='ready'){
-   // Home screen artwork and layout are intentionally untouched.
-   const subSize=10;
-   const subY=by-headingGap-subSize/2;
-   const titleY=subY-subSize/2-headingGap-headingSize/2;
-   text(title,x+w/2,titleY,headingSize,boardColors.bright,'center',w-18);
-   text('SURVIVE THE SOVIET CHALLENGE',x+w/2,subY,subSize,boardColors.weak,'center',w-18);
-  }else if(type==='paused'){
+  if(type==='paused'){
    text(title,slots.titleX,slots.titleY,headingSize,boardColors.bright,'center',w-18);
-   drawMenuScoreBox({text,rect,C:boardColors},slots.score,{score:game.score,lines:game.lines,level:game.level});
+   const tagline='SURVIVE THE SOVIET CHALLENGE. KEEP THE STACK LOW, CLEAR YOUR LINES, AND HOLD OUT AS THE PACE QUICKENS.';
+   const taglineY=(slots.titleY+headingSize/2+by)/2;
+   text(tagline,slots.titleX,taglineY,10,boardColors.ink,'center',bw);
   }else{
-   // Game-over layout is outside this menu-alignment pass.
    const titleY=by-headingGap-headingSize/2;
-   text(title,x+w/2,titleY,headingSize,boardColors.bright,'center',w-18);
+   text(title,slots.titleX,titleY,headingSize,boardColors.bright,'center',w-18);
   }
   key(caption,bx,by,bw,primaryH,'start',{light:true,arrow:true,onLight});
   if(type==='paused'){
