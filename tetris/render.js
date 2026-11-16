@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v257';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v257';
+import {instrumentCompositorPasses} from './diagnostics.js?v258';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v258';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -556,21 +556,23 @@ void main(){
   return pass;
  }
  const lcdTint=addLCDOverlay({
-  uInk:{value:new THREE.Color(0x171910)},uPaper:{value:new THREE.Color(0xe1e2c5)},uOpacity:{value:1}
+  uInk:{value:new THREE.Color(0x171910)},uPaper:{value:new THREE.Color(0xe1e2c5)},uSaturation:{value:1}
  },`
   uniform vec3 uInk,uPaper;
-  uniform float uOpacity;
+  uniform float uSaturation;
   void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
    vec3 olive=mix(uInk,uPaper,clamp(src.r,0.0,1.0));
-   gl_FragColor=vec4(mix(src,olive,uOpacity),1.0);
+   float luma=dot(olive,vec3(0.2126,0.7152,0.0722));
+   vec3 color=vec3(luma)+(olive-luma)*uSaturation;
+   gl_FragColor=vec4(clamp(color,0.0,1.0),1.0);
   }`);
 
- // One tiny seamless texture: the pale square and its surrounding dark seam.
+ // A separated square with a continuous gap on all four sides.
  const lcdTileSize=16;
  const lcdCellRows=Array.from({length:lcdTileSize},(_,y)=>
   Array.from({length:lcdTileSize},(_,x)=>
-   Math.min(x,y,lcdTileSize-1-x,lcdTileSize-1-y)===0?0:255));
+   Math.min(x,y,lcdTileSize-1-x,lcdTileSize-1-y)<3?0:255));
  const lcdCellTile=makeRepeatingMaskTexture(lcdCellRows,THREE.LinearFilter);
  const lcdCells=addLCDOverlay({
   uTile:{value:null},uSize:{value:new THREE.Vector2(1,1)},uOpacity:{value:0},uScale:{value:3}
@@ -582,40 +584,45 @@ void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
    vec2 px=vec2(vUv.x,1.0-vUv.y)*uSize;
    float cell=texture2D(uTile,px/uScale).r;
-   gl_FragColor=vec4(src*mix(1.0,cell,uOpacity),1.0);
+   // Lift individual pad faces in shadows and darken the gaps in highlights.
+   float luma=dot(src,vec3(0.2126,0.7152,0.0722));
+   vec3 face=src+(1.0-src)*(0.048*(1.0-smoothstep(0.025,0.55,luma)));
+   vec3 gap=src*(1.0-0.36*smoothstep(0.045,0.55,luma));
+   gl_FragColor=vec4(mix(src,mix(gap,face,cell),uOpacity),1.0);
   }`);
  lcdCells.uniforms.uTile.value=lcdCellTile;
 
- // A soft-edged reflected light shape with a visible boundary on dark glass.
+ // A single soft oval reflected on the display glass.
  const lcdReflection=addLCDOverlay({
   uOpacity:{value:0},uSoftness:{value:.40},uAspect:{value:1}
  },`
   uniform float uOpacity,uSoftness,uAspect;
-  float lightShape(vec2 p,vec2 extent,float feather){
-   vec2 edge=abs(p)-extent;
-   float distance=length(max(edge,vec2(0.0)))+min(max(edge.x,edge.y),0.0);
-   return 1.0-smoothstep(-feather,feather,distance);
-  }
   void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
-   vec2 p=vec2((vUv.x-0.36)*uAspect,0.72-vUv.y);
-   p=mat2(0.81,-0.59,0.59,0.81)*p;
-   float feather=mix(0.009,0.095,uSoftness);
-   float strip=lightShape(p,vec2(0.34,0.047),feather);
-   float echo=lightShape(p-vec2(0.025,0.115),vec2(0.28,0.020),feather*1.2);
-   float reflection=min(1.0,strip+0.24*echo);
-   vec3 glass=src+vec3(1.0,0.94,0.79)*(1.0-src)*reflection*uOpacity;
+   // Correct for aspect so the ellipse keeps its proportions in screen space.
+   vec2 p=vec2((vUv.x-0.31)*uAspect,0.73-vUv.y);
+   p=mat2(0.94,-0.342,0.342,0.94)*p;
+   float radius=length(p/vec2(0.255,0.115));
+   float outside=mix(0.82,1.62,uSoftness);
+   float reflection=1.0-smoothstep(0.0,outside,radius);
+   vec3 glass=src+vec3(1.0,0.97,0.86)*(1.0-src)*reflection*uOpacity;
    gl_FragColor=vec4(glass,1.0);
   }`);
 
  // Feather inward from all four drawable screen edges, including safe-area margins.
- const lcdVignette=addLCDOverlay({uAmount:{value:0},uFalloff:{value:.14}},`
+ const lcdVignette=addLCDOverlay({
+  uAmount:{value:0},uFalloff:{value:.14},uSize:{value:new THREE.Vector2(1,1)}
+ },`
   uniform float uAmount,uFalloff;
+  uniform vec2 uSize;
   void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
-   vec2 edge=min(vUv,1.0-vUv);
-   vec2 feather=smoothstep(vec2(0.0),vec2(uFalloff),edge);
-   float darkness=uAmount*(1.0-feather.x*feather.y);
+   float shortSide=min(uSize.x,uSize.y);
+   float radius=0.115*shortSide;
+   vec2 q=abs((vUv-0.5)*uSize)-(0.5*uSize-radius);
+   float inside=radius-length(max(q,vec2(0.0)))-min(max(q.x,q.y),0.0);
+   float feather=smoothstep(0.0,uFalloff*shortSide,inside);
+   float darkness=uAmount*(1.0-feather);
    gl_FragColor=vec4(src*(1.0-darkness),1.0);
   }`);
  // Vertical hold/roll is a pure signal-space transform AFTER all existing
@@ -689,12 +696,12 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  tint.enabled=!lcd;
- lcdTint.enabled=lcd&&fx.lcdTint&&fx.lcdTintOpacity>0;
+ lcdTint.enabled=lcd&&fx.lcdTint;
  lcdCells.enabled=lcd&&fx.lcdCells&&fx.lcdCellOpacity>0;
  lcdReflection.enabled=lcd&&fx.lcdReflection&&fx.lcdReflectionOpacity>0;
  lcdVignette.enabled=lcd&&fx.lcdVignette&&fx.lcdVignetteAmount>0;
  if(lcd){
-  lcdTint.uniforms.uOpacity.value=fx.lcdTintOpacity/100;
+  lcdTint.uniforms.uSaturation.value=fx.lcdTintSaturation/100;
   lcdCells.uniforms.uOpacity.value=fx.lcdCellOpacity/100;
   lcdCells.uniforms.uScale.value=fx.lcdCellSize;
   lcdCells.uniforms.uSize.value.set(W,H);
@@ -703,6 +710,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   lcdReflection.uniforms.uAspect.value=W/H;
   lcdVignette.uniforms.uAmount.value=fx.lcdVignetteAmount/100;
   lcdVignette.uniforms.uFalloff.value=fx.lcdVignetteFalloff*0.005;
+  lcdVignette.uniforms.uSize.value.set(W,H);
  }
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
