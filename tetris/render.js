@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v255';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v255';
+import {instrumentCompositorPasses} from './diagnostics.js?v256';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v256';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -378,57 +378,15 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uVoltage:{value:1},
    uTint:{value:new THREE.Vector3(.2,1,.2)},
-   uLCDDpr:{value:0},uLCDSize:{value:new THREE.Vector2(1,1)},
-   uLCDRect:{value:new THREE.Vector4(0,0,1,1)},
-   uLCDInk:{value:new THREE.Color(0x171910)},
-   uLCDPaper:{value:new THREE.Color(0xe1e2c5)},
    uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
   vertexShader:passVertex,
   fragmentShader:`varying vec2 vUv;
 uniform sampler2D tDiffuse;
 uniform float uEnabled,uVoltage;
-uniform vec3 uTint,uLCDInk,uLCDPaper;
-uniform float uLCDDpr;
-uniform vec2 uLCDSize;
-uniform vec4 uBoardRect,uLCDRect;
+uniform vec3 uTint;
+uniform vec4 uBoardRect;
 void main(){
  vec3 encoded=texture2D(tDiffuse,vUv).rgb;
- if(uLCDDpr>0.0){
-  float shade=clamp(encoded.r,0.0,1.0);
-  vec3 panel=mix(uLCDInk,uLCDPaper,shade);
-  if(all(greaterThanEqual(vUv,uLCDRect.xy))&&all(lessThanEqual(vUv,uLCDRect.zw))){
-   vec2 span=max(uLCDRect.zw-uLCDRect.xy,vec2(0.0001));
-   vec2 relative=(vUv-uLCDRect.xy)/span;
-   vec2 uv=vec2(relative.x,1.0-relative.y);
-   vec2 size=span*uLCDSize;
-   vec2 pos=uv*size;
-
-   // Anchor the lattice to the glass and filter seams in physical pixels.
-   const float pitch=3.6;
-   vec2 cell=abs(fract(pos/pitch)-0.5)*pitch;
-   float aa=0.42/max(1.0,uLCDDpr);
-   float seam=smoothstep(1.47-aa,1.47+aa,max(cell.x,cell.y));
-   panel=max(vec3(0.0),panel-seam*(panel*0.29+vec3(0.004)));
-
-   // One diagonal reflection and corner falloff across the entire display.
-   vec2 outward=abs(uv*2.0-1.0);
-   float vignette=smoothstep(0.30,1.75,dot(outward,outward));
-   panel*=1.0-0.42*vignette;
-   float direction=uv.x*0.68+uv.y*0.92;
-   float reflection=1.0-smoothstep(0.04,0.75,direction);
-   panel+=vec3(1.0,0.92,0.65)*reflection*(0.019+0.12*shade)*(1.0-0.28*seam);
-
-   // Light catches the upper-left rim. The opposite lip falls into shadow.
-   float nearEdge=min(pos.x,pos.y);
-   float farEdge=min(size.x-pos.x,size.y-pos.y);
-   float rimLight=(1.0-smoothstep(0.35,1.75,nearEdge))*(1.0-smoothstep(0.03,1.0,direction));
-   float rimShade=1.0-smoothstep(0.3,2.8,farEdge);
-   panel*=1.0-0.32*rimShade;
-   panel+=vec3(1.0,0.87,0.53)*rimLight*0.43;
-  }
-  gl_FragColor=vec4(min(panel,vec3(1.0)),1.0);
-  return;
- }
  float original=encoded.b;
  float coverBloom=max(0.0,encoded.r-original);
  float boardBloom=max(0.0,encoded.g-original);
@@ -585,6 +543,84 @@ void main(){
  scanlineOverlay.uniforms.uPattern.value=scanlineTextures.original;
  scanlineOverlay.enabled=false;
  composer.addPass(scanlineOverlay);
+
+ // LCD overlays operate on the complete image in linear light.
+ function addLCDOverlay(uniforms,shader){
+  const pass=new ShaderPass({
+   uniforms:{tDiffuse:{value:null},...uniforms},vertexShader:passVertex,
+   fragmentShader:`varying vec2 vUv;uniform sampler2D tDiffuse;
+    ${shader}`
+  });
+  pass.enabled=false;
+  composer.addPass(pass);
+  return pass;
+ }
+ const lcdTint=addLCDOverlay({
+  uInk:{value:new THREE.Color(0x171910)},uPaper:{value:new THREE.Color(0xe1e2c5)},uOpacity:{value:1}
+ },`
+  uniform vec3 uInk,uPaper;
+  uniform float uOpacity;
+  void main(){
+   vec3 src=texture2D(tDiffuse,vUv).rgb;
+   vec3 olive=mix(uInk,uPaper,clamp(src.r,0.0,1.0));
+   gl_FragColor=vec4(mix(src,olive,uOpacity),1.0);
+  }`);
+
+ // One tiny seamless texture: the pale square and its surrounding dark seam.
+ const lcdTileSize=16,lcdPixels=new Uint8Array(lcdTileSize*lcdTileSize);
+ for(let y=1;y<lcdTileSize-1;y++)lcdPixels.fill(255,y*lcdTileSize+1,(y+1)*lcdTileSize-1);
+ const lcdCellTile=new THREE.DataTexture(lcdPixels,lcdTileSize,lcdTileSize,THREE.RedFormat);
+ lcdCellTile.wrapS=lcdCellTile.wrapT=THREE.RepeatWrapping;
+ lcdCellTile.magFilter=THREE.LinearFilter;
+ lcdCellTile.minFilter=THREE.LinearMipmapLinearFilter;
+ lcdCellTile.generateMipmaps=true;
+ lcdCellTile.needsUpdate=true;
+ const lcdCells=addLCDOverlay({
+  uTile:{value:null},uSize:{value:new THREE.Vector2(1,1)},uOpacity:{value:0},uScale:{value:3}
+ },`
+  uniform sampler2D uTile;
+  uniform vec2 uSize;
+  uniform float uOpacity,uScale;
+  void main(){
+   vec3 src=texture2D(tDiffuse,vUv).rgb;
+   vec2 px=vec2(vUv.x,1.0-vUv.y)*uSize;
+   float cell=texture2D(uTile,px/uScale).r;
+   gl_FragColor=vec4(src*mix(1.0,cell,uOpacity),1.0);
+  }`);
+ lcdCells.uniforms.uTile.value=lcdCellTile;
+
+ // A soft-edged reflected light shape with a visible boundary on dark glass.
+ const lcdReflection=addLCDOverlay({
+  uOpacity:{value:0},uSoftness:{value:.40},uAspect:{value:1}
+ },`
+  uniform float uOpacity,uSoftness,uAspect;
+  float lightShape(vec2 p,vec2 extent,float feather){
+   vec2 edge=abs(p)-extent;
+   float distance=length(max(edge,vec2(0.0)))+min(max(edge.x,edge.y),0.0);
+   return 1.0-smoothstep(-feather,feather,distance);
+  }
+  void main(){
+   vec3 src=texture2D(tDiffuse,vUv).rgb;
+   vec2 p=vec2((vUv.x-0.36)*uAspect,0.72-vUv.y);
+   p=mat2(0.81,-0.59,0.59,0.81)*p;
+   float feather=mix(0.009,0.095,uSoftness);
+   float strip=lightShape(p,vec2(0.34,0.047),feather);
+   float echo=lightShape(p-vec2(0.025,0.115),vec2(0.28,0.020),feather*1.2);
+   float reflection=min(1.0,strip+0.24*echo);
+   vec3 glass=src+vec3(1.0,0.94,0.79)*(1.0-src)*reflection*uOpacity;
+   gl_FragColor=vec4(glass,1.0);
+  }`);
+
+ // Feather inward from all four drawable screen edges, including safe-area margins.
+ const lcdVignette=addLCDOverlay({uAmount:{value:0},uFalloff:{value:.14}},`
+  uniform float uAmount,uFalloff;
+  void main(){
+   vec3 src=texture2D(tDiffuse,vUv).rgb;
+   vec2 edge=min(vUv,1.0-vUv);
+   vec2 feather=smoothstep(vec2(0.0),vec2(uFalloff),edge);
+   float darkness=uAmount*(1.0-feather.x*feather.y);
+   gl_FragColor=vec4(src*(1.0-darkness),1.0);
+  }`);
  // Vertical hold/roll is a pure signal-space transform AFTER all existing
  // phosphor and CRT treatments. It is disabled outside the boot handoff.
  // fract() wraps the complete image instead of exposing blank strips.
@@ -629,7 +665,8 @@ void main(){
  const passProfiler=instrumentCompositorPasses(composer.passes,[
   'Scene + uploads','Board blur H','Board popup','Picker blur H','Picker popup',
   'Phosphor history','Ghost','Bloom',
-  'Phosphor','Edge softness','Vignette','CRT mask','Boot roll','Output'
+  'Phosphor','Edge softness','Vignette','CRT mask','LCD colour','LCD cells',
+  'LCD reflection','LCD vignette','Boot roll','Output'
  ],onPassTiming);
  // Restore the original fixed green and amber phosphor ratios;
  // the blue experiment is removed without changing luminance or bloom.
@@ -654,13 +691,21 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  tint.uniforms.uVoltage.value=clamp(voltage,1,1.2);
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
- tint.uniforms.uLCDDpr.value=lcd?DPR:0;
+ tint.enabled=!lcd;
+ lcdTint.enabled=lcd&&fx.lcdTint&&fx.lcdTintOpacity>0;
+ lcdCells.enabled=lcd&&fx.lcdCells&&fx.lcdCellOpacity>0;
+ lcdReflection.enabled=lcd&&fx.lcdReflection&&fx.lcdReflectionOpacity>0;
+ lcdVignette.enabled=lcd&&fx.lcdVignette&&fx.lcdVignetteAmount>0;
  if(lcd){
-  const glass=layoutInfo?.lcdGlassBounds;
-  const rect=tint.uniforms.uLCDRect.value;
-  if(glass)rect.set(glass.left/W,1-glass.bottom/H,glass.right/W,1-glass.top/H);
-  else rect.set(0,0,1,1);
-  tint.uniforms.uLCDSize.value.set(W,H);
+  lcdTint.uniforms.uOpacity.value=fx.lcdTintOpacity/100;
+  lcdCells.uniforms.uOpacity.value=fx.lcdCellOpacity/100;
+  lcdCells.uniforms.uScale.value=fx.lcdCellSize;
+  lcdCells.uniforms.uSize.value.set(W,H);
+  lcdReflection.uniforms.uOpacity.value=fx.lcdReflectionOpacity/100;
+  lcdReflection.uniforms.uSoftness.value=fx.lcdReflectionSoftness/100;
+  lcdReflection.uniforms.uAspect.value=W/H;
+  lcdVignette.uniforms.uAmount.value=fx.lcdVignetteAmount/100;
+  lcdVignette.uniforms.uFalloff.value=fx.lcdVignetteFalloff*0.005;
  }
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
@@ -780,6 +825,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   safe('composer',()=>composer.dispose());
   for(const texture of Object.values(scanlineTextures))
    safe('scanline',()=>texture.dispose());
+  safe('LCD cell texture',()=>lcdCellTile.dispose());
   if(failures.length)throw new Error(failures.join(' | ').slice(0,240));
   return true;
  }
@@ -1955,9 +2001,10 @@ function createModalUI({
  const properties=[{id:'display',title:'DISPLAY MODE',toggle:'lcdDisplay'},...DISPLAY_EFFECTS,
   {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'},{id:'diagnostics',toggle:'diagnosticsEnabled',title:'DIAGNOSTICS'}];
  const lcdProperties=properties.filter(property=>!property.crtOnly);
- const visibleProperties=()=>settingValue('lcdDisplay')?lcdProperties:properties;
+ const crtProperties=properties.filter(property=>!property.lcdOnly);
+ const visibleProperties=()=>settingValue('lcdDisplay')?lcdProperties:crtProperties;
  let selected=properties[0],debugCopyState='idle';
- const activeProperty=()=>settingValue('lcdDisplay')&&selected.crtOnly?properties[0]:selected;
+ const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
   const fx=getFX();
   return fx.scanlines?Math.max(0,SCANLINE_CHOICES.findIndex(choice=>choice.id===fx.scanlinePreset)):0;
@@ -2562,10 +2609,7 @@ function computeLayout(W,H,safe,ui){
   const statsPanel={x:panelX,y:by+(bh-statsH)/2,w:panelWidth,h:statsH};
   const holdPanel={x:panelX,y:by+bh-previewH,w:panelWidth,h:previewH};
   const compactControls=landscape&&(dw-2*deckPad)<250;
-  const footer=UI.terminalLineBounds({dx,dy,dw,dh});
-  const lcdGlassBounds={left:Math.min(hx,sx,dx),top:Math.min(hy,by,dy),
-    right:Math.max(hx+hw,sx+sw,dx+dw),bottom:Math.max(hy+hh,by+bh,footer.y+footer.h)};
-  return {lcdGlassBounds,safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
+  return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
     sideX:sxSide,sideW:swSide,brickGap,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
     deckPad,deckGap,buttonH,headerButtonH,extraH,

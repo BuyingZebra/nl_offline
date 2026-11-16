@@ -865,7 +865,7 @@ describe('Pointer and keyboard input',()=>{
   modal.optionsScroll=0;
   const testControls=()=>{
    for(const effect of DISPLAY_EFFECTS){
-    if(settings.lcdDisplay&&effect.crtOnly){
+    if(settings.lcdDisplay?effect.crtOnly:effect.lcdOnly){
      assert.equal(modal.selectProperty(effect.id),false);
      continue;
     }
