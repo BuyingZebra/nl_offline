@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v239';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v239';
+import {createInputController} from './input.js?v240';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v240';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v239';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v240';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v239';
+export {createInputController} from './input.js?v240';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -620,7 +620,7 @@ const actions=createActionController({
  onTerminalEvent:queueTerminalMessage,
  canInteract:()=>!lineClearFX?.finalPoints&&!portraitGate.matches&&graphicsHealth.status==='ready'&&appLifecycle?.canWork!==false
 });
-const {panel,wrapText,text,rect,region,key,buttonLight}=createCanvasUI({
+const {panel,wrapText,text,textWidth,rect,region,key,buttonLight}=createCanvasUI({
  getContext:()=>g,getRegions:()=>regions,
  getButtonPower:r=>(g===controlsContext&&visualScene.controlsGpuEnabled)?0:buttonSparks.find(
   s=>s.x===r.x&&s.y===r.y&&s.w===r.w&&s.h===r.h)?.power??0,
@@ -1070,7 +1070,7 @@ const modalUI=createModalUI({
  DISPLAY_EFFECTS,SCANLINE_CHOICES,
  getViewport:()=>({W,H}),layout,insets,
  clearRegions:()=>{regions=[];},
- panel,text,rect,region,key,C,UI_SPACE,
+ panel,text,textWidth,rect,region,key,C,UI_SPACE,
  getFX:()=>settings.effects,
  settingValue,chooseScanlineSetting:id=>settings.chooseScanline(id),invalidate,
  getBest:()=>actions.best,LCD_BOARD,getModal:()=>screenManager.active

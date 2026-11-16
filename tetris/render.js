@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v239';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v239';
+import {instrumentCompositorPasses} from './diagnostics.js?v240';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v240';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1577,15 +1577,26 @@ function wrapText(source,maxWidth){
  }
  return lines;
 }
+function textStyle(g,str,size,role){
+ // Fallout 4 roles: Roboto Condensed for UI, Share Tech Mono for data.
+ const icon=BUTTON_ICON_LABELS.has(String(str))||str==='▶';
+ const terminal=role==='terminal'&&!icon;
+ g.font=(terminal?'400 ':'700 ')+size+'px '+
+  (icon?ICON_FONT:terminal?TERMINAL_FONT:FONT);
+ g.letterSpacing=(size*LETTER_SPACING_EM).toFixed(3)+'px';
+}
+function textWidth(str,size){
+ const g=getContext();
+ g.save();
+ textStyle(g,str,size,'ui');
+ const width=g.measureText(str).width;
+ g.restore();
+ return width;
+}
 function text(str,x,y,size=12,color=C.ink,align='left',maxWidth=Infinity,role='ui'){
  const g=getContext();
- // Fallout 4 roles: Roboto Condensed for the UI, Share Tech Mono for data.
- const isIcon=BUTTON_ICON_LABELS.has(String(str))||str==='▶';
- const terminal=role==='terminal'&&!isIcon;
- g.font=(terminal?'400 ':'700 ')+size+'px '+
-  (isIcon?ICON_FONT:terminal?TERMINAL_FONT:FONT);
+ textStyle(g,str,size,role);
  g.textAlign=align;
- g.letterSpacing=(size*LETTER_SPACING_EM).toFixed(3)+'px';
  g.fillStyle=color;
  const lines=wrapText(str,maxWidth),step=size*1.2;
  for(let i=0;i<lines.length;i++){
@@ -1624,8 +1635,8 @@ function key(label,x,y,w,h,act,opts={}){
  // Negative-space text in solid buttons follows the press (6→30) without
  // disappearing into the bright solid face (206→255).
  const inverseInk=grayLevel(opts.onLight?LCD_BUTTON_LEVELS.solidInk:buttonInkLevel(power));
- const size=MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
-  BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE;
+ const size=opts.fontSize??(MAIN_ACTION_LABELS.has(String(model.label))?MAIN_ACTION_FONT_SIZE:
+  BUTTON_ICON_LABELS.has(String(model.label))?BUTTON_ICON_FONT_SIZE:BUTTON_FONT_SIZE);
  // V165: keep button artwork as a single flat face. Solid buttons
  // remain exactly the approved full luminance (206 base, 255 pressed);
  // press afterglow, text, stroke, and hitboxes are unchanged.
@@ -1638,7 +1649,7 @@ function key(label,x,y,w,h,act,opts={}){
  return model;
 }
 
- return Object.freeze({panel,wrapText,text,rect,region,key,buttonLight});
+ return Object.freeze({panel,wrapText,text,textWidth,rect,region,key,buttonLight});
 }
 
 /* V063 — Canvas2D HUD painting extracted without visual changes.
@@ -1831,16 +1842,23 @@ function drawMenuScoreBox({text,rect,C},box,record){
  });
 }
 
+function propertyDeckSpacing(r,gap){
+ const available=r.dh-2*r.deckPad;
+ const baseGap=Math.min(gap,Math.max(2,r.dh*.045));
+ return {available,baseGap,regularH:Math.max(1,(available-3*baseGap)/4)};
+}
+function propertySliderSize(h){
+ return {barH:Math.min(h,Math.max(9,Math.min(24,h*.76))),
+  labelSize:Math.min(11,Math.max(8,h*.44))};
+}
 function drawPropertyDeck({panel,rect,text,region,C},r,gap,rows){
  panel(r.dx,r.dy,r.dw,r.dh,0,C.panel);
  const x=r.dx+r.deckPad,w=Math.max(1,r.dw-2*r.deckPad);
- const available=r.dh-2*r.deckPad;
+ const {available,baseGap,regularH}=propertyDeckSpacing(r,gap);
  const fixed=rows.reduce((sum,row)=>sum+(row.height??0),0);
  const flexible=rows.filter(row=>row.height===undefined).length;
- const baseGap=Math.min(gap,Math.max(2,r.dh*.045));
  const rowGap=rows.length>1?Math.min(baseGap,
   Math.max(0,(available-fixed-flexible*9)/(rows.length-1))):0;
- const regularH=Math.max(1,(available-3*baseGap)/4);
  const rowH=flexible?Math.max(1,Math.min(regularH,
   (available-fixed-rowGap*(rows.length-1))/flexible)):regularH;
  const labelW=Math.min(125,Math.max(80,w*.29));
@@ -1850,8 +1868,7 @@ function drawPropertyDeck({panel,rect,text,region,C},r,gap,rows){
   const h=row.height??rowH;
   if(row.draw)row.draw(x,y,w,h);
   else drawPropertySlider(sliderGraphics,{x,midY:y+h/2,w,
-   barH:Math.min(h,Math.max(9,Math.min(24,h*.76))),labelW,gap,
-   labelSize:Math.min(11,Math.max(8,h*.44)),...row});
+   ...propertySliderSize(h),labelW,gap,...row});
   y+=h+rowGap;
  }
 }
@@ -1859,7 +1876,7 @@ function createModalUI({
  DISPLAY_EFFECTS,SCANLINE_CHOICES,getViewport,layout,insets,clearRegions,
  panel,text,rect,region,key,C,UI_SPACE,
  getFX,settingValue,chooseScanlineSetting,invalidate,
- getBest,getModal,LCD_BOARD=C
+ getBest,getModal,LCD_BOARD=C,textWidth=(label,size)=>label.length*size*.6
 }){
  const listLabels={display:'DISPLAY TYPE',menuBlur:'MENU BACKDROP',boardBlur:'PLAYFIELD BLUR',
   phosphor:'PHOSPHOR COLOR',persistence:'PHOSPHOR RESPONSE',scanlines:'SCANLINES',
@@ -1915,17 +1932,29 @@ function drawOptions(q){
  const view=optionRows(q),first=Math.round(Math.min(optionsScroll,view.maxScroll)/view.rowHeight);
  clearRegions();region(0,0,W,H,'block');
  panel(q.x,q.y,q.w,q.h,0,colors.panel,C.border);
+ const frameX=q.x+q.pad,frameW=q.w-2*q.pad;
+ panel(frameX,view.y,frameW,view.h,0,null,C.border);
+ const {barH,labelSize}=propertySliderSize(propertyDeckSpacing(layout(),q.pad).regularH);
+ const labelX=frameX+3*q.pad,right=frameX+frameW-q.pad;
+ const statusW=Math.ceil(textWidth('DISABLED',labelSize))+3*q.pad;
+ const statusX=right-statusW;
  for(const [index,property] of properties.slice(first,first+view.count).entries()){
   const y=view.y+index*view.rowHeight,mid=y+view.rowHeight/2;
-  if(property===selected)text('▶',q.x+2*q.pad,mid,13,colors.ink);
-  text((listLabels[property.id]??property.title).toUpperCase(),q.x+5*q.pad,mid,14,
-   colors.ink,'left',q.w-9*q.pad);
-  region(q.x,y,q.w,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
- }
- if(view.maxScroll>0&&view.h>0){
-  const h=view.h*view.count/properties.length,x=q.x+q.w-2*q.pad;
-  rect(x,view.y,2,view.h,colors.border);
-  rect(x-1,view.y+(view.h-h)*Math.min(1,optionsScroll/view.maxScroll),4,h,colors.ink);
+  const label=(listLabels[property.id]??property.title).toUpperCase();
+  const hasToggle=property.toggle&&property.id!=='display'&&(!lcd||!property.crtOnly);
+  const labelEnd=hasToggle?statusX-q.pad:right;
+  const labelWidth=Math.max(1,labelEnd-labelX);
+  if(property===selected)text('▶',frameX+q.pad,mid,labelSize,colors.ink);
+  text(label,labelX,mid,labelSize,colors.ink,'left',labelWidth);
+  const detailEnd=hasToggle?statusX:right;
+  region(frameX,y,detailEnd-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
+  if(hasToggle){
+   const dotStart=labelX+textWidth(label,labelSize)+q.pad;
+   for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
+   const enabled=Boolean(settingValue(property.toggle));
+   key(enabled?'ENABLED':'DISABLED',statusX,mid-barH/2,statusW,barH,'toggle',
+    {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize});
+  }
  }
  const footerY=q.y+q.h-q.buttonH-2*q.pad;
  rect(q.x,footerY,q.w,1,C.border);
