@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v254';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v254';
+import {instrumentCompositorPasses} from './diagnostics.js?v255';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v255';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -378,12 +378,67 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  const tint=new ShaderPass({
   uniforms:{tDiffuse:{value:null},uEnabled:{value:0},uVoltage:{value:1},
    uTint:{value:new THREE.Vector3(.2,1,.2)},
-   uLCDDpr:{value:0},
+   uLCDDpr:{value:0},uLCDSize:{value:new THREE.Vector2(1,1)},
+   uLCDRect:{value:new THREE.Vector4(0,0,1,1)},
    uLCDInk:{value:new THREE.Color(0x171910)},
    uLCDPaper:{value:new THREE.Color(0xe1e2c5)},
    uBoardRect:{value:new THREE.Vector4(0,0,0,0)}},
   vertexShader:passVertex,
-  fragmentShader:"varying vec2 vUv;\nuniform sampler2D tDiffuse;\nuniform float uEnabled,uVoltage;\nuniform vec3 uTint,uLCDInk,uLCDPaper;\nuniform float uLCDDpr;\nuniform vec4 uBoardRect;\nvoid main(){\n vec3 encoded=texture2D(tDiffuse,vUv).rgb;\n if(uLCDDpr>0.0){\n  vec2 pixel=fract(gl_FragCoord.xy/(3.0*uLCDDpr));\n  float seam=1.0-smoothstep(0.0,0.24,min(pixel.x,pixel.y));\n  float shade=clamp(encoded.r,0.0,1.0)*(1.0-0.035*seam);\n  gl_FragColor=vec4(mix(uLCDInk,uLCDPaper,shade),1.0);\n  return;\n }\n float original=encoded.b;\n float coverBloom=max(0.0,encoded.r-original);\n float boardBloom=max(0.0,encoded.g-original);\n float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*\n              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);\n float lit=(original+coverBloom+boardBloom*inside)*clamp(uVoltage,1.0,1.2);\n vec3 rgb=vec3(lit);\n gl_FragColor=vec4(mix(rgb,rgb*uTint,clamp(uEnabled,0.0,1.0)),1.0);\n}"
+  fragmentShader:`varying vec2 vUv;
+uniform sampler2D tDiffuse;
+uniform float uEnabled,uVoltage;
+uniform vec3 uTint,uLCDInk,uLCDPaper;
+uniform float uLCDDpr;
+uniform vec2 uLCDSize;
+uniform vec4 uBoardRect,uLCDRect;
+void main(){
+ vec3 encoded=texture2D(tDiffuse,vUv).rgb;
+ if(uLCDDpr>0.0){
+  float shade=clamp(encoded.r,0.0,1.0);
+  vec3 panel=mix(uLCDInk,uLCDPaper,shade);
+  if(all(greaterThanEqual(vUv,uLCDRect.xy))&&all(lessThanEqual(vUv,uLCDRect.zw))){
+   vec2 span=max(uLCDRect.zw-uLCDRect.xy,vec2(0.0001));
+   vec2 relative=(vUv-uLCDRect.xy)/span;
+   vec2 uv=vec2(relative.x,1.0-relative.y);
+   vec2 size=span*uLCDSize;
+   vec2 pos=uv*size;
+
+   // Anchor the lattice to the glass and filter seams in physical pixels.
+   const float pitch=3.6;
+   vec2 cell=abs(fract(pos/pitch)-0.5)*pitch;
+   float aa=0.42/max(1.0,uLCDDpr);
+   float seam=smoothstep(1.47-aa,1.47+aa,max(cell.x,cell.y));
+   panel=max(vec3(0.0),panel-seam*(panel*0.29+vec3(0.004)));
+
+   // One diagonal reflection and corner falloff across the entire display.
+   vec2 outward=abs(uv*2.0-1.0);
+   float vignette=smoothstep(0.30,1.75,dot(outward,outward));
+   panel*=1.0-0.42*vignette;
+   float direction=uv.x*0.68+uv.y*0.92;
+   float reflection=1.0-smoothstep(0.04,0.75,direction);
+   panel+=vec3(1.0,0.92,0.65)*reflection*(0.019+0.12*shade)*(1.0-0.28*seam);
+
+   // Light catches the upper-left rim. The opposite lip falls into shadow.
+   float nearEdge=min(pos.x,pos.y);
+   float farEdge=min(size.x-pos.x,size.y-pos.y);
+   float rimLight=(1.0-smoothstep(0.35,1.75,nearEdge))*(1.0-smoothstep(0.03,1.0,direction));
+   float rimShade=1.0-smoothstep(0.3,2.8,farEdge);
+   panel*=1.0-0.32*rimShade;
+   panel+=vec3(1.0,0.87,0.53)*rimLight*0.43;
+  }
+  gl_FragColor=vec4(min(panel,vec3(1.0)),1.0);
+  return;
+ }
+ float original=encoded.b;
+ float coverBloom=max(0.0,encoded.r-original);
+ float boardBloom=max(0.0,encoded.g-original);
+ float inside=step(uBoardRect.x,vUv.x)*step(vUv.x,uBoardRect.z)*
+              step(uBoardRect.y,vUv.y)*step(vUv.y,uBoardRect.w);
+ float lit=(original+coverBloom+boardBloom*inside)*clamp(uVoltage,1.0,1.2);
+ vec3 rgb=vec3(lit);
+ gl_FragColor=vec4(mix(rgb,rgb*uTint,clamp(uEnabled,0.0,1.0)),1.0);
+}
+  `
  });
 
  // Lens blur: normalized 7x7 Gaussian convolution, not shifted copies.
@@ -600,6 +655,13 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  tint.uniforms.uLCDDpr.value=lcd?DPR:0;
+ if(lcd){
+  const glass=layoutInfo?.lcdGlassBounds;
+  const rect=tint.uniforms.uLCDRect.value;
+  if(glass)rect.set(glass.left/W,1-glass.bottom/H,glass.right/W,1-glass.top/H);
+  else rect.set(0,0,1,1);
+  tint.uniforms.uLCDSize.value.set(W,H);
+ }
  bootRoll.uniforms.uGlitch.value=clamp(glitch,0,1);
  bootRoll.uniforms.uTime.value=Math.max(0,Number(signalTime)||0)/1000;
  const faded=clamp(Number(contentLuminance),0,1);
@@ -2500,7 +2562,10 @@ function computeLayout(W,H,safe,ui){
   const statsPanel={x:panelX,y:by+(bh-statsH)/2,w:panelWidth,h:statsH};
   const holdPanel={x:panelX,y:by+bh-previewH,w:panelWidth,h:previewH};
   const compactControls=landscape&&(dw-2*deckPad)<250;
-  return {safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
+  const footer=UI.terminalLineBounds({dx,dy,dw,dh});
+  const lcdGlassBounds={left:Math.min(hx,sx,dx),top:Math.min(hy,by,dy),
+    right:Math.max(hx+hw,sx+sw,dx+dw),bottom:Math.max(hy+hh,by+bh,footer.y+footer.h)};
+  return {lcdGlassBounds,safe:edges,landscape,short,compact,compactControls,width,off,pad,inner,gap,
     hy,hh,hx,hw,sy,sh,sx,sw,boardX:bx,boardY:by,boardW:bw,boardH:bh,
     sideX:sxSide,sideW:swSide,brickGap,previewCell,previewLabelSpace,holdPanel,nextPanel,statsPanel,dx,dy,dw,dh,
     deckPad,deckGap,buttonH,headerButtonH,extraH,
