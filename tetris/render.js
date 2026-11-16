@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v246';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v246';
+import {instrumentCompositorPasses} from './diagnostics.js?v247';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v247';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -1884,7 +1884,7 @@ function drawPropertyDeck({panel,rect,text,region,C},r,gap,rows){
 }
 function createModalUI({
  DISPLAY_EFFECTS,SCANLINE_CHOICES,getViewport,layout,insets,clearRegions,
- panel,text,rect,region,key,C,UI_SPACE,BUTTON_ICON_FONT_SIZE,
+ panel,text,rect,region,key,C,UI_SPACE,
  getFX,settingValue,chooseScanlineSetting,invalidate,
  getBest,getModal,LCD_BOARD=C,textWidth=(label,size)=>label.length*size*.6
 }){
@@ -1945,8 +1945,9 @@ function drawOptions(q){
  const {x:frameX,w:frameW}=view;
  panel(frameX,view.y,frameW,view.h,0,null,C.border);
  const {barH}=propertySliderSize(propertyDeckSpacing(layout(),q.pad).regularH);
- const labelSize=10;
- const labelX=frameX+3*q.pad,right=frameX+frameW-q.pad;
+ const labelSize=10,arrowSize=13;
+ const arrowX=frameX+q.pad;
+ const labelX=arrowX+textWidth('▶',arrowSize)+q.pad,right=frameX+frameW-q.pad;
  const statusW=Math.ceil(textWidth('DISABLED',labelSize))+2*q.pad;
  const statusX=right-statusW;
  for(const [index,property] of properties.slice(first,first+view.count).entries()){
@@ -1954,7 +1955,7 @@ function drawOptions(q){
   const label=(listLabels[property.id]??property.title).toUpperCase();
   const labelEnd=statusX-q.pad;
   const labelWidth=Math.max(1,labelEnd-labelX-2*q.pad);
-  if(property===selected)text('▶',frameX+q.pad,mid,BUTTON_ICON_FONT_SIZE*.75,colors.ink,'left');
+  if(property===selected)text('▶',arrowX,mid,arrowSize,colors.ink,'left');
   text(label,labelX,mid,labelSize,colors.ink,'left',labelWidth,'ui',true);
   region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
   const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,labelSize)+q.pad);
