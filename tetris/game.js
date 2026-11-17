@@ -490,7 +490,7 @@ export const DISPLAY_EFFECTS=[
  {id:'boardBlur',toggle:'boardBlurEnabled',title:'GAME BOARD BLUR',
   sliders:[['BLUR','boardBlur',0,4,.5,'px']]},
  {id:'shadows',title:'DIRECTIONAL LIGHT',toggle:'shadows'},
- {id:'lcdPhysical',lcdOnly:true,title:'RAW LCD MATERIAL',toggle:'lcdPhysical',
+ {id:'lcdPhysical',lcdOnly:true,title:'PHYSICAL LCD MATERIAL',toggle:'lcdPhysical',
    sliders:[['CELL FILL','lcdPhysicalFill',.55,.95,.005,''],
     ['REFLECTOR SHADOW','lcdPhysicalShadow',0,.5,.01,''],
     ['TEMPERATURE','lcdPhysicalTemperature',5,40,1,'°C'],
