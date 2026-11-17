@@ -32,7 +32,7 @@ export class PanelPhysics {
  reset(){
   for(let k=0;k<PIXELS;k++){
    this.q[k]=TARGET_Q[this.drive[k]];
-   this.ions[k]=this.drive[k]/3;
+   this.ions[k]=0;
    this.optical[k]=Math.round(visibleState(this.q[k])*255);
   }
   this.elapsed=0;
@@ -72,11 +72,20 @@ export class PanelPhysics {
  }
  getImage(){return this.optical;}
 }
-const scratch=document.createElement('canvas');
-scratch.width=LCD_W;scratch.height=LCD_H;
-const ctx=scratch.getContext('2d',{willReadFrequently:true});
+let ctx=null;
+function drawingContext(){
+ if(!ctx){
+  if(typeof document==='undefined')throw Error('Artwork drawing needs a browser canvas');
+  const scratch=document.createElement('canvas');
+  scratch.width=LCD_W;scratch.height=LCD_H;
+  ctx=scratch.getContext('2d',{willReadFrequently:true});
+  if(!ctx)throw Error('2D artwork context unavailable');
+ }
+ return ctx;
+}
 const P=['#ffffff','#aaaaaa','#555555','#000000'];
 function piece(x,y,cells,cell=7,border=true){
+ const ctx=drawingContext();
  ctx.fillStyle=P[3];
  for(const [px,py] of cells){
   const bx=x+px*cell,by=y+py*cell;
@@ -85,6 +94,7 @@ function piece(x,y,cells,cell=7,border=true){
  }
 }
 export function makePicture(scene='title',step=0){
+ const ctx=drawingContext();
  ctx.fillStyle=P[0];ctx.fillRect(0,0,LCD_W,LCD_H);
  ctx.textAlign='center';ctx.textBaseline='middle';
  if(scene==='title'){
