@@ -1,4 +1,4 @@
-/* NOMAD Tetris V279 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V280 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v279';
+const CACHE_VERSION='v280';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -31,8 +31,17 @@ const CORE_ASSETS=Object.freeze([
  './assets/tiles/vector/S.svg',
  './assets/tiles/vector/T.svg',
  './assets/tiles/vector/Z.svg',
- './continuous-lcd.js',
  './diagnostics.js',
+ './dmg01-portrait-calibration.js',
+ './dmg01-reference-lab/upstream/dmg01-crosstalk-lumped.inc',
+ './dmg01-reference-lab/upstream/dmg01-crosstalk-phase-local.inc',
+ './dmg01-reference-lab/upstream/dmg01-crosstalk-summary-v3.slang',
+ './dmg01-reference-lab/upstream/dmg01-display-v1.slang',
+ './dmg01-reference-lab/upstream/dmg01-matrix-v1.slang',
+ './dmg01-reference-lab/upstream/dmg01-response-v1.slang',
+ './dmg01-reference-lab/upstream/dmg01-row-load-v2.slang',
+ './dmg01-reference-lab/upstream/dmg01-stn-surrogate.inc',
+ './dmg01-strict.js',
  './game.js',
  './icon-192.png',
  './icon-512.png',
@@ -57,7 +66,7 @@ const PINNED_IMPORTS=Object.freeze([
  ['./platform.js','./game.js'],
  ['./input.js','./render.js'],
  ['./render.js','./diagnostics.js'],
- ['./render.js','./continuous-lcd.js'],
+ ['./render.js','./dmg01-strict.js'],
  ['./dmg01-strict.js','./dmg01-portrait-calibration.js']
 ]);
 async function verifyPinnedModules(cache){
