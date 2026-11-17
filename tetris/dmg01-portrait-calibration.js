@@ -1,4 +1,4 @@
-/* Extended nominal WS5 crosstalk calibration for 160-column STN panels.
+/* Extended nominal WS5 crosstalk calibration for fixed-width STN panels.
  * Exact equations translated from JohnnySun/retro-display-lab:
  * reference/passive-matrix-crosstalk-lumped.mjs
  * tools/build-dmg01-ws5-lumped.mjs
@@ -60,11 +60,11 @@ function uniformDrive(rows,targetY,shade,rs,cs,ra,ca,rf,cf,levels){
  }
  return shadeCoordinate(Math.sqrt(sum/(rows*3*SUBSTEPS)),levels);
 }
-function compute(rows,src){
+function compute(rows,src,columns=COLS){
  const ra=scalar(src,'DMG_CROSSTALK_ROW_AMPLITUDE');
  const ca=scalar(src,'DMG_CROSSTALK_COLUMN_AMPLITUDE');
- const rf=factors(COLS),cf=factors(rows),levels=shadeVoltages(rows,ra,ca);
- if(Math.abs(rf.memory-scalar(src,'DMG_CROSSTALK_ROW_MEMORY'))>1e-6)
+ const rf=factors(columns),cf=factors(rows),levels=shadeVoltages(rows,ra,ca);
+ if(columns===COLS&&Math.abs(rf.memory-scalar(src,'DMG_CROSSTALK_ROW_MEMORY'))>1e-6)
   throw Error('Nominal row RC coefficients differ from upstream');
  if(rows===baseRows&&Math.abs(cf.memory-scalar(src,'DMG_CROSSTALK_COLUMN_MEMORY'))>1e-6)
   throw Error('Nominal column RC coefficients differ from upstream');
@@ -92,15 +92,20 @@ function originalCheck(src){
  if(max>1e-5)throw Error('Upstream source parity failed: maximum deviation '+max);
  calibrationCache.set('checked',true);
 }
-export function extendDmgCalibration(source,rows){
+export function extendDmgCalibration(source,rows,columns=COLS){
  rows=Math.round(rows);
- if(rows<144||rows>520)throw Error('Unsupported panel rows '+rows);
+ columns=Math.round(columns);
+ if(rows<144||rows>694||columns<160||columns>320)
+  throw Error('Unsupported panel dimensions '+columns+'x'+rows);
  originalCheck(source);
- if(rows===144)return source;
- if(calibrationCache.has(rows))return calibrationCache.get(rows);
- const d=compute(rows,source);
+ if(rows===144&&columns===COLS)return source;
+ const key=columns+'x'+rows;
+ if(calibrationCache.has(key))return calibrationCache.get(key);
+ const d=compute(rows,source,columns);
  let result=source.replace('const int DMG_CROSSTALK_ROWS = 144;',
-   'const int DMG_CROSSTALK_ROWS = '+rows+';');
+   'const int DMG_CROSSTALK_ROWS = '+rows+';')
+   .replace('const int DMG_CROSSTALK_COLUMNS = 160;',
+   'const int DMG_CROSSTALK_COLUMNS = '+columns+';');
  const params={
   DMG_CROSSTALK_ROW_MEMORY:d.rf.memory,
   DMG_CROSSTALK_ROW_LEAKAGE:d.rf.leakage,
@@ -123,6 +128,6 @@ export function extendDmgCalibration(source,rows){
   const vals=Array.from(d.baselines[id],v=>v.toFixed(12));
   result=result.replace(regex,'const float DMG_CROSSTALK_UNIFORM_'+id+'['+(rows*4)+'] = float[]('+vals.join(', ')+');');
  }
- calibrationCache.set(rows,result);
+ calibrationCache.set(key,result);
  return result;
 }
