@@ -1,39 +1,56 @@
-# NOMAD v270 — continuous electrical response with raw-image fidelity (CURRENT)
+# NOMAD Tetris System v270 — original Lab physics, full-detail artwork (CURRENT)
 
-v270 restores time-dependent liquid-crystal dynamics to the full-detail v269 optical material. Crucially, it **does not** restore the damaging four-drive-state image quantizer or cell-centre source resampling. The raw Canvas2D/Three.js grayscale image still drives the reflective panel at its original raster output resolution, while the physical square-cell aperture geometry clips the image and the original reflector and front-glass optics remain intact.
+The Tetris System once again uses the source-derived STN response model from **/lcd-lab/** / v268, but no longer treats its coarse four-electrical-state image as the finished visible artwork. The raw grayscale artwork remains full resolution through the reflective display, its original details are naturally clipped by the optical cell apertures, and the original per-cell STN dynamics are applied as a **temporal optical correction**.
 
-## Exact rendering sequence
+## Architecture
 
 ```
-Original full-resolution artwork (already rasterized Canvas2D/Three.js)
-       ↓
-Direct continuous grayscale signal (no four-state colour reduction)
-       ↓
-Optional: per-output-pixel STN-inspired director history, interpolating
-the four sourced STN drift curves for continuous drive voltages
-       ↓
-Difference from calibrated static optical response applied as a
-temporary correction to the ORIGINAL grayscale image
-       ↓
-Full-resolution optical colour pass with physical square-cell aperture,
-reflector-gap shadows, independently adjustable glass, ink contrast
-       ↓
-OutputPass / display
+Original Canvas2D/Three.js artwork (unchanged native raster resolution)
+     ├── DIRECT VISUAL PATH ──> continuous grayscale image
+     │                         → natural square-cell aperture / reflector / glass
+     │
+     └── ELECTRICAL RESPONSE ─> one measured-drive sample per simulated cell
+                               → four Lab electrical drive states
+                               → original STN director-drift LUT
+                               → original ionic-retention and nonlinear optical LUT
+                               → observed optical state minus static reference state
+                                                        |
+                                                        v
+                        transient correction added to the DIRECT VISUAL PATH
+                                                        |
+                                                        v
+                                  unchanged physical cell material / OutputPass
 ```
 
-**Preservation rule:** when temporal response reaches equilibrium, the transient difference cancels and the original v269 grayscale appearance is retained. Turning **LCD RESPONSE** off (or setting strength to 0%) bypasses the temporal state update entirely and exactly restores v269's one-pass optical path at **INK CONTRAST 100%**.
+**What is preserved EXACTLY from the earlier local Lab-style engine (v268):**
+- The four reference voltages' director targets `TARGET_Q`, 65-sample/drive `DRIFT_Q`, calibrated `OPTICAL_LUT` and anchor/correction data from Retro Display Lab.
+- The same per-logical-cell 16-bit packed director history, slow ionic retention state, measured drift integration, temperature scaling and derived optical state/ionic bias.
+- The same square-cell aperture coverage, shifted shadow overlap, five-state reflective colour interpolation, and independent front-glass controls.
+- The same density-to-cell-grid rule and existing game artwork.
 
-**Controls:** RAW LCD MATERIAL, CELL DENSITY, CELL FILL, REFLECTOR SHADOW, **TEMPERATURE** (5–40°C), **INK CONTRAST** (75–150%, default 100%), DMG REFERENCE COLOUR and FRONT GLASS remain in Properties. **LCD RESPONSE** (Decay 30–600ms, Strength 0–100%) is visible in the physical view; enabled by default at 210ms/60%. The legacy LCD mode still uses its separate existing grayscale response pass.
+**What changed to preserve image fidelity:** the final optical shader now reads the **unquantized original image at output-pixel resolution**, not the four-level electrical drive texture as the displayed picture. The per-cell electrical state and its measured optical response still evolve exactly as in v268; however, only their difference from the calibrated settled state influences the full-resolution image. At rest, the transient difference approaches zero, preserving v269's detail. A small ionic residual or RGBA8 precision difference can remain.
 
-**Source data:** the temporal history is based on the same Apache-licensed STN drift tables and nonlinear optical lookup/corrections as the original v264–v268 experiment. A new 256-level 16-bit equilibrium LUT is derived from the four source drift curves by interpolating drive voltage and solving each corresponding equilibrium. Director/optical state history is stored in two full-output-resolution RGBA8 render targets, not downscaled to the simulated cell lattice. Response dynamics follow the reference curves, but are **interpolated between the four originally measured drive settings** and adjusted by the temperature/decay controls.
+The screen is therefore a **hybrid physical simulation**, not an exact historical per-electrode reconstruction: thin details within one simulated cell can be optically visible even if they don't independently change its electrical drive. The Lab itself is a reduced-order adaptation and does not claim all original Retro Display Lab's row/column RC/loading passes.
 
-**Physical-accuracy caveat:** a historical STN LCD's electrodes are discretely addressed. Here, a single *visible* aperture can contain more than one independently simulated full-resolution electrical sample, and continuous-voltage interpolation isn't directly measured historical data. It is a physically informed **hybrid**, not an exact hardware reconstruction. This deliberate compromise preserves detailed artwork while retaining material geometry and STN-based response. The previous discrete-drive hardware-oriented model remains in v268 Git history; the pure static optical baseline is v269.
+## Controls and comparison
 
-**Readability:** the source was already converted continuously to luminance before optical colouring. A second grayscale pass would be redundant. INK CONTRAST operates on continuous encoded-grey brightness immediately before mapping to the original five-colour reflective material palette; it introduces **no new bit depth or grid quantization**. The default 100% preserves the existing v269 look.
+- **PHYSICAL LCD MATERIAL** — original material optics and optional STN response.
+- **LCD RESPONSE** — controls the original per-cell STN history when physical material is enabled; OFF or 0% strength bypasses the electrical state passes and leaves the v269 direct raw-image optics.
+- **DECAY / STRENGTH** — 210ms/60% defaults. At 210ms the integration uses the source's original ~59.7275 Hz reference steps; other decay values adjust the integration speed and strength blends the transient difference.
+- **TEMPERATURE** — original 5–40°C viscous response model, default 20°C.
+- **INK CONTRAST** — optional 75–150% continuous tonal adjustment, default 100%. It affects both the electrical input interpretation and the full-detail optical image. **It is not a four-level image quantizer** and does not add a second grayscale pass.
+- **CELL DENSITY / FILL / REFLECTOR SHADOW / DMG REFERENCE COLOUR / FRONT GLASS** — existing presentation controls kept.
 
-**Performance:** when response is active, the renderer runs one full-output-resolution STN update pass plus the original optical pass and holds two full-resolution RGBA8 history textures (4 bytes/pixel each). With response OFF it uses the same single optical pass as v269. Mobile performance and WebGL shader compilation still require actual testing.
+The simplest test is to pause on a detailed piece, use **INK CONTRAST 100%**, then compare LCD RESPONSE OFF and ON while moving an active piece. If OFF is clear but ON introduces distorted outlines at rest, check per-cell target/reference interpolation and STN history. In both modes the source image should retain its geometric detail. Compare against the independent /lcd-lab/ STN motion fixture for response direction and timing.
+
+**Performance:** the restored electrical model uses three small-to-medium per-cell RGBA8 render targets (electrical drive plus two director-history buffers) only when LCD RESPONSE is active, and the final optical presentation runs at output framebuffer resolution. It is not the large full-output-pixel history proposed by the discarded early v270 continuous-voltage experiment. Real-device shader compilation and mobile frame pacing still require user verification.
 
 ## Historical experiments (v264–v269)
+
+The material history below documents earlier builds; any statement claiming the physical response has been removed applies only to v269.
+
+---
+
 
 The material history below documents earlier versions; any statement claiming that electrical response is disabled applies **only to v269**, not to the new v270 hybrid.
 
