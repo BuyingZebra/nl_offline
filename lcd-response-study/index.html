@@ -367,7 +367,19 @@ function animation(now){
  const msPerFrame=1000/59.7275;
  if(now-lastFrameTs<msPerFrame)return;
  lastFrameTs=now;
- try{step();}catch(error){autoplay=false;document.querySelector('#run').textContent='RUN';output('ERROR • '+error.message);log(error.stack||error.message);}
+ try{
+  step();
+  // Stop automatic playback rather than repeatedly stressing a device
+  // that is taking too long to complete GPU work. Manual step stays available.
+  if(renderMs>120){
+    autoplay=false;
+    document.querySelector('#run').textContent='RUN';
+    output('AUTO-PAUSED · slow GPU step ('+renderMs.toFixed(1)+' ms). Manual STEP is available.');
+  }
+ }catch(error){
+  autoplay=false;document.querySelector('#run').textContent='RUN';
+  output('ERROR • '+error.message);log(error.stack||error.message);
+ }
 }
 async function boot(){
  if(!gl)throw Error('WebGL2 unavailable; no alternate approximation will be used');
@@ -392,6 +404,17 @@ async function boot(){
  document.querySelector('#run').addEventListener('click',()=>{
     autoplay=!autoplay;lastFrameTs=0;
     document.querySelector('#run').textContent=autoplay?'PAUSE':'RUN';
+ });
+ // The page starts its demonstration automatically, but never queues
+ // multiple concurrent LCD simulations. PAUSE and single-step remain available.
+ autoplay=true;document.querySelector('#run').textContent='PAUSE';
+ document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){autoplay=false;document.querySelector('#run').textContent='RUN';}
+ });
+ canvas.addEventListener('webglcontextlost',event=>{
+  event.preventDefault();autoplay=false;
+  document.querySelector('#run').textContent='RUN';
+  output('WEBGL CONTEXT LOST · renderer stopped.');
  });
  requestAnimationFrame(animation);
 }
