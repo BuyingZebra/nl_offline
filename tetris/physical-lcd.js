@@ -126,8 +126,17 @@ const SIGNAL_INPUT=`
   return encoded<=.04045?encoded/12.92:pow((encoded+.055)/1.055,2.4);
  }
 `;
-const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
- uniform sampler2D tHistory;
+const SIGNAL_FRAGMENT='precision highp float;varying vec2 vUv;\\n'+SIGNAL_INPUT+`
+ void main(){
+  float centre=encodedGrey(texture2D(tSource,vUv).rgb);
+  float grey=sampledGrey(vUv);
+  float drive=sampledDrive(vUv);
+  // R: encoded grey, G: electrical drive, B: prequant delta.
+  gl_FragColor=vec4(grey,drive/3.,abs(grey-centre),1.);
+ }
+`;
+const STATE_FRAGMENT=PRELUDE+`
+ uniform sampler2D tHistory,tSignal;
  uniform float uDelta,uTemperature,uReset,uSettled;
  vec2 pack16(float v){
   float n=floor(clamp(v,0.0,1.0)*65535.0+.5);
@@ -136,7 +145,7 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
  float unpack16(vec2 p){return dot(floor(p*255.0+.5),vec2(256.0,1.0))/65535.0;}
  void main(){
   // Cell-centred point sample (original) or experimental 4-tap area sample.
-  float drive=sampledDrive(vUv);
+  float drive=floor(texture2D(tSignal,vUv).g*3.+.5);
   vec4 previous=texture2D(tHistory,vUv);
   float q=(uReset>.5||uSettled>.5)?targetQ(drive):unpack16(previous.rg);
   float ions=(uReset>.5||uSettled>.5)?0.0:previous.b;
@@ -156,8 +165,13 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
   opticalState=clamp(opticalState+bias,.25,1.0);
   gl_FragColor=vec4(pack16(q),ions,opticalState);
  }`;
-const OUTPUT_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
- uniform sampler2D uState;
+const OUTPUT_FRAGMENT=`
+ precision highp float;varying vec2 vUv;
+ uniform sampler2D uState,uSignal,tSource;
+ uniform vec2 uGrid;
+ float displayLinear(float grey){
+  return grey<=.04045?grey/12.92:pow((grey+.055)/1.055,2.4);
+ }
  uniform vec2 uOutputSize;
  uniform int uDiagnostic;
  uniform vec3 uPalette[5];
@@ -214,15 +228,13 @@ const OUTPUT_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
    return;
   }
   if(uDiagnostic==2||uDiagnostic==3||uDiagnostic==5){
-   vec2 cellUV=(floor(p)+.5)/uGrid;
-   float grey=sampledGrey(cellUV);
+   vec2 uv=(floor(p)+.5)/uGrid;
+   vec3 signal=texture2D(uSignal,uv).rgb;
    if(uDiagnostic==5){
-    // High-gain delta BEFORE the irreversible four-level quantization.
-    float centre=encodedGrey(texture2D(tSource,cellUV).rgb);
-    float change=abs(grey-centre);
-    gl_FragColor=vec4(clamp(vec3(change*14.,change*5.,0.),0.,1.),1.);
+    float difference=signal.b;
+    gl_FragColor=vec4(clamp(vec3(difference*14.,difference*5.,0.),0.,1.),1.);
    }else{
-    if(uDiagnostic==3)grey=1.0-sampledDrive(cellUV)/3.0;
+    float grey=uDiagnostic==3?1.-signal.g:signal.r;
     gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
    }
    return;
@@ -269,13 +281,14 @@ export function createPhysicalLCDPass(){
   uDrift:{value:driftTexture},uOptical:{value:opticalTexture},
   uTarget:{value:TARGET_Q},uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION}
  };
- const stateUniforms={...common,tSource:{value:null},tHistory:{value:null},
-  uGrid:{value:new THREE.Vector2(160,320)},uSamplingMode:{value:0},
+ const signalUniforms={tSource:{value:null},uGrid:{value:new THREE.Vector2(160,320)},
+  uSamplingMode:{value:0}};
+ const stateUniforms={...common,tSignal:{value:null},tHistory:{value:null},
   uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1},
   uSettled:{value:0}};
  const outputUniforms={
-  uState:{value:null},tSource:{value:null},
-  uGrid:{value:new THREE.Vector2(160,320)},uSamplingMode:{value:0},
+  uState:{value:null},tSource:{value:null},uSignal:{value:null},
+  uGrid:{value:new THREE.Vector2(160,320)},
   uDiagnostic:{value:0},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
@@ -284,10 +297,11 @@ export function createPhysicalLCDPass(){
   uBrightness:{value:1},uChroma:{value:1},
   uGlass:{value:0},uLightAngle:{value:35},uViewAngle:{value:0}
  };
+ const signalMaterial=newMaterial(signalUniforms,SIGNAL_FRAGMENT);
  const stateMaterial=newMaterial(stateUniforms,STATE_FRAGMENT);
  const outputMaterial=newMaterial(outputUniforms,OUTPUT_FRAGMENT);
- const quad=new FullScreenQuad(stateMaterial);
- let gridWidth=1,gridHeight=1,targetA=null,targetB=null,reset=true;
+ const quad=new FullScreenQuad(signalMaterial);
+ let gridWidth=1,gridHeight=1,targetA=null,targetB=null,targetSignal=null,reset=true;
  let configured=false,cssWidth=1,cssHeight=1,density=1.5;
  function allocate(){
   targetA?.dispose();targetB?.dispose();
