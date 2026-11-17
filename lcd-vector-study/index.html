@@ -124,9 +124,23 @@ out vec4 FragColor;
 uniform sampler2D FineArtwork,NativeInput,PreviousDetail;
 uniform float ResetDetail;
 float luma(vec3 rgb){return dot(rgb,vec3(.2126,.7152,.0722));}
+float nativeDriveLinear(vec2 uv){
+ // Sample the invisible electrical matrix without introducing square blocks:
+ // manually interpolate four neighbours; no float-linear extension needed.
+ vec2 dimensions=vec2(textureSize(NativeInput,0));
+ vec2 at=uv*dimensions-.5;
+ ivec2 p=ivec2(floor(at));
+ vec2 w=fract(at);
+ ivec2 high=ivec2(dimensions)-ivec2(1);
+ float a=luma(texelFetch(NativeInput,clamp(p,ivec2(0),high),0).rgb);
+ float b=luma(texelFetch(NativeInput,clamp(p+ivec2(1,0),ivec2(0),high),0).rgb);
+ float c=luma(texelFetch(NativeInput,clamp(p+ivec2(0,1),ivec2(0),high),0).rgb);
+ float d=luma(texelFetch(NativeInput,clamp(p+ivec2(1,1),ivec2(0),high),0).rgb);
+ return mix(mix(a,b,w.x),mix(c,d,w.x),w.y);
+}
 void main(){
  float fine=luma(texture(FineArtwork,vTexCoord).rgb);
- float native=luma(texture(NativeInput,vTexCoord).rgb);
+ float native=nativeDriveLinear(vTexCoord);
  // A virtual row/column has ONE original physical response. Fine strokes
  // contribute only the deviation from that row/column's requested drive.
  float desired=clamp(.75*(native-fine),-.75,.75);
