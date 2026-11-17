@@ -91,7 +91,7 @@ const PRELUDE=`
   return clamp(s+c,.25,1.0);
  }
 `;
-// Shared source encoder: both diagnostic and actual STN cell states use this.
+// Physical-cell source encoder. A single GPU signal target feeds both STN state and diagnostics.
 const SIGNAL_INPUT=`
  uniform sampler2D tSource;
  uniform vec2 uGrid;
@@ -145,7 +145,7 @@ const STATE_FRAGMENT=PRELUDE+`
  }
  float unpack16(vec2 p){return dot(floor(p*255.0+.5),vec2(256.0,1.0))/65535.0;}
  void main(){
-  // Cell-centred point sample (original) or experimental 4-tap area sample.
+  // Read the encoded electrical drive for this physical cell.
   float drive=floor(texture2D(tSignal,vUv).g*3.+.5);
   vec4 previous=texture2D(tHistory,vUv);
   float q=(uReset>.5||uSettled>.5)?targetQ(drive):unpack16(previous.rg);
