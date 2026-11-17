@@ -32,6 +32,7 @@ const assets = ['./', ...[
   ...files('', /^(?!sw\.js$)[^.]+\.(?:js|png|svg)$/),
   ...files('assets/frames', /\.mjs$/),
   'assets/frames/vector/brick.svg',
+  ...files('dmg01-reference-lab/upstream', /\.(?:slang|inc)$/),
   ...files('assets/tiles', /\.mjs$/),
   ...files('assets/tiles/vector', /\.svg$/),
   ...files('vendor/three', /\.js$/, true),
@@ -44,7 +45,7 @@ const threeExports=threeBundle.match(/export\{([^}]+)\};?\s*$/)?.[1];
 if(!threeExports)throw Error('Cannot locate customised Three.js bundle exports');
 const availableThree=new Set(threeExports.split(',').map(entry=>
  entry.trim().split(/\s+as\s+/).at(-1)));
-const physicalModule=readFileSync(join(root,'physical-lcd.js'),'utf8');
+const physicalModule=readFileSync(join(root,'dmg01-strict.js'),'utf8');
 for(const match of physicalModule.matchAll(/\bTHREE\.([A-Za-z_$][\w$]*)/g)){
  if(!availableThree.has(match[1]))
   throw Error('Unsupported Three.js export used by physical LCD: '+match[1]);
@@ -56,8 +57,7 @@ const pinnedImports = [
  ['three-v027.js',['platform.js']],
  ['platform.js',['input.js','render.js','game.js']],
  ['input.js',['render.js']],
- ['render.js',['diagnostics.js','physical-lcd.js']],
- ['physical-lcd.js',['physical-lcd-data.js']]
+ ['render.js',['diagnostics.js','dmg01-strict.js']]
 ];
 const updatedModules = pinnedImports.map(([module,dependencies]) => {
  const file = join(root,module);
