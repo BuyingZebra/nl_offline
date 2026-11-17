@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b100d"><meta name="color-scheme" content="dark">
-<title>NOMAD — Physical LCD Response Study</title>
+<title>NOMAD — Cell-less Vector LCD Laboratory</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap">
 <style>
 :root{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#e3eadb;background:#0b100d}
@@ -28,19 +28,19 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 </head>
 <body>
 <header><div class="tag">NOMAD / INDEPENDENT LCD EXPERIMENT</div>
-<h1>TETRIS · Physical LCD Behaviour</h1>
-<p>One TETRIS title and one blinking PLAY button, displayed through the <strong>original five-pass Retro Display Lab DMG-01 shaders</strong>. This independent page does not import NOMAD or register any service worker.</p>
+<h1>TETRIS · Cell-less LCD Study</h1>
+<p>One high-resolution vector-style title and a blinking PLAY button. The <strong>original DMG-01 electrical matrix and STN response</strong> operate underneath a separate, gapless optical reconstruction. Compare it with the original cell-aperture output. No NOMAD application files are loaded or modified.</p>
 </header>
 <main>
-<div class="panel"><div class="tag">NATIVE 160 × 144 · FOUR DRIVE CODES · ORIGINAL STN MODEL</div>
-<div class="screen"><canvas id="panel" role="img" aria-label="TETRIS and blinking PLAY button, simulated through the original Game Boy LCD model"></canvas></div>
+<div class="panel"><div class="tag">160 × 144 PHYSICAL DRIVE MATRIX · 640 × 576 FINE ARTWORK</div>
+<div class="screen"><canvas id="panel" role="img" aria-label="TETRIS and blinking PLAY button with vector-quality edges and independently simulated LCD material response"></canvas></div>
 <div id="status">Checking required WebGL2 floating-point precision and compiling the upstream shaders…</div>
 <pre id="log" hidden aria-live="polite"></pre>
 <button id="copyError" type="button" hidden style="margin-bottom:12px">COPY DIAGNOSTIC</button>
 <div class="stats"><span>Frames: <strong id="count">0</strong></span><span>Completed step: <strong id="ms">—</strong></span></div>
-<p id="probes">Only the PLAY button changes. Study slow transitions, ghosting, and retention while the title remains stationary.</p>
+<p id="probes">Watch whether fine lettering remains smooth while the original matrix contributes crosstalk, delayed response and ionic retention.</p>
 </div>
-<div class="group"><h2>PLAY button electrical-response test</h2>
+<div class="group"><h2>Cell-less reconstruction test</h2>
 <div class="controls">
  <div><label for="scene">BUTTON INPUT</label><select id="scene">
   <option value="blink">Blinking PLAY button</option>
@@ -53,8 +53,9 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
   <option value="60">60 frames · 1.00 s</option>
  </select></div>
  <div><label for="view">RENDERING</label><select id="view">
-  <option value="reference">Original five-pass LCD output</option>
-  <option value="raw">Raw 4-level electrical input</option>
+  <option value="cellless">Cell-less vector / original matrix</option>
+  <option value="reference">Original LCD with physical cells</option>
+  <option value="raw">Untouched 640 × 576 artwork</option>
  </select></div>
  <div><label for="presentation">PRESENTATION ONLY</label><select id="presentation">
   <option value="fixed">Fixed 4× optical framebuffer</option>
@@ -62,18 +63,18 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
  </select></div>
 </div>
 <div class="actions"><button id="step" type="button">STEP 1 FRAME</button><button id="run" type="button">RUN</button><button id="reset" type="button">RESET HISTORY</button></div>
-<p>Five original shader passes. Native 160 × 144 drive matrix. The electrical stimulus changes between the lightest and darkest drive codes; the same optical, liquid-crystal, and ionic response equations run unmodified.</p>
+<p><strong>Original matrix:</strong> five upstream shader stages remain intact, including 160 × 144 row/column loading, distributed-RC crosstalk, director response, ionic memory and row-latch timing. <strong>Cell-less reconstruction:</strong> a lightweight high-resolution detail-history layer retains edges inside those virtual electrical rows. It uses the source optical palette but does not draw electrode apertures or cell gaps.</p>
 <div><label for="pixelInfo">ACTUAL OPTICAL FRAMEBUFFER</label><div id="pixelInfo" style="color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div>
-<p>Watch the PLAY button appear, switch off, and leave a fading afterimage. Compare RAW INPUT with LCD OUTPUT to see what the physical engine—not the artwork—is doing. RUN attempts 59.7275 simulated frames/s; a slower device may play the response more slowly.</p>
+<p><strong>Why two layers?</strong> The original Game Boy hardware model cannot exactly reproduce independent behaviour within an electrode. Its electric field and original five passes are preserved here, while fine detail response is a separate approximation. Compare the three views to distinguish the physically calculated behaviour from the reconstruction. RUN must be started manually.</p>
 </div>
 <div class="group"><h2>Exact upstream model conditions</h2>
-<p><strong>Optics:</strong> 0.875 cell fill, 1.00 host-footprint filtering, 0.18 reflector shadow, 0.11/0.13-cell shadow offset, contrast 1.00, optical bias 0.00, zero simulated aging.</p>
+<p><strong>Original reference mode:</strong> 0.875 pixel aperture fill, 1.00 host-footprint filtering, 0.18 reflector shadow, 0.11/0.13-cell shadow offset, contrast 1.00 and zero simulated aging. <strong>Cell-less mode:</strong> the aperture/gaps are omitted; a continuous displaced-shading analogue replaces the gap-dependent reflector shadow. Original optical colour and contrast parameters are retained.</p>
 <p><strong>Electrical:</strong> reconstructed STN drive with original generated director tables, row+column crosstalk 1.00, 20°C, ionic history, captured row latch, 59.7275 Hz frame reference. The feedback buffer is 32-bit float.</p>
-<p><strong>Output:</strong> 640 × 576 internal 4× canvas, unclipped reference palette. Target brightness/chroma compensation is neutral (1.00/1.00), not the original author's KONKR-specific display correction; phone colour calibration remains unverified. CSS downscaling may alter perceived cell gaps.</p>
+<p><strong>Output:</strong> 640 × 576 high-resolution artwork and optical buffer. Original electrical state is native 160 × 144 RGBA32F. The new fine-detail response uses two bounded 640 × 576 RGBA8 history buffers; it does not run the expensive physical matrix shader over every output pixel. The comparison is an experiment, not a claim of identical high-resolution Game Boy hardware physics.</p>
 </div>
 </main>
 <footer>
-Original DMG-01 shaders, crosstalk tables and STN optical reconstruction: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Original source files remain unchanged in this independent study's <code>upstream/</code> folder.
+Original DMG-01 physics and optical lookup data: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Unmodified source is hosted in the adjacent <code>../lcd-response-study/upstream/</code> folder. This laboratory has no dependency on the NOMAD app and never registers a service worker.
 </footer>
 <script type="module">
 /*
@@ -140,9 +141,10 @@ const referenceParams={
   PolarizerAge:0,DebugView:0,DebugGain:12
 };
 const readonlyParameters=Object.freeze({...referenceParams});
+const OPTICAL_W=640,OPTICAL_H=576;
 
 async function originalSource(path){
- const r=await fetch('./upstream/'+path,{cache:'no-cache'});
+ const r=await fetch('../lcd-response-study/upstream/'+path,{cache:'no-cache'});
  if(!r.ok)throw Error('Missing original shader '+path+': HTTP '+r.status);
  return r.text();
 }
