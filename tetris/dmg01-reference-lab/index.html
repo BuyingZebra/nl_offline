@@ -40,8 +40,10 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 <p id="probes">Waiting for reference measurements…</p>
 </div>
 <div class="group"><h2>Native stimulus &amp; diagnostic</h2>
-<div class="controls"><div><label for="scene">INPUT PATTERN</label><select id="scene"><option value="shades">Four driven shades</option><option value="cross">Row/column loading</option><option value="cells">Pixel aperture fixture</option><option value="motion">Moving tile / STN retention</option></select></div>
+<div class="controls"><div><label for="scene">INPUT PATTERN</label><select id="scene"><option value="shades">Four driven shades</option><option value="cross">Row/column loading</option><option value="cells">Pixel aperture fixture</option><option value="motion">Moving tile / STN retention</option><option value="matchedTitle">Original Lab title (identical input)</option><option value="matchedGrid">Original Lab cell geometry (identical input)</option></select></div>
 <div><label for="view">OUTPUT</label><select id="view"><option value="reference">Original five-pass LCD</option><option value="raw">Unprocessed native input</option></select></div></div>
+<div class="controls" style="margin-top:12px"><div><label for="presentation">PRESENTATION (same optical model)</label><select id="presentation"><option value="fixed">Source 4× framebuffer, browser-fit</option><option value="direct">Direct device-pixel output</option></select></div><div><label for="pixelInfo">OUTPUT MEASUREMENT</label><div id="pixelInfo" role="status" style="padding:12px 9px;color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div></div>
+<p>DIRECT renders the original display shader at the actual canvas resolution, including the original host-pixel aperture integration. FIXED retains the exact 4× 640 × 576 framebuffer, then lets the browser fit it. Neither option changes 160 × 144 physical pixels, five electrical passes, shader constants or state feedback.</p>
 <div class="actions"><button id="step" type="button">STEP 1 FRAME</button><button id="run" type="button">RUN</button><button id="reset" type="button">RESET HISTORY</button></div>
 <p>The model advances by one simulated DMG frame per step (59.7275 Hz). RUN tries to step at this rate; if the device is too slow, the frame counter and completed-step time reveal it. There is no substituted blur or low-precision fallback.</p>
 </div>
@@ -250,6 +252,47 @@ function refreshInputTexture(texture){
 function shade(ctx,index){const n=Math.round(255*(1-index/3));return `rgb(${n},${n},${n})`;}
 function renderPattern(step){
  const g=sourceCtx;g.fillStyle=shade(g,0);g.fillRect(0,0,NATIVE_W,NATIVE_H);
+ if(scene==='matchedTitle'||scene==='matchedGrid'){
+   // Exact native 160x144 artwork operations from lcd-lab/model.js.
+   // This uses the same four-driven-code quantization as makePicture().
+   const P=['#ffffff','#aaaaaa','#555555','#000000'];
+   g.fillStyle=P[0];g.fillRect(0,0,NATIVE_W,NATIVE_H);
+   g.textAlign='center';g.textBaseline='middle';
+   const piece=(x,y,cells,cell=7,border=true)=>{
+     g.fillStyle=P[3];
+     for(const [px,py] of cells){
+       const bx=x+px*cell,by=y+py*cell;
+       g.fillRect(bx,by,cell,cell);
+       if(border&&cell>4){g.fillStyle=P[2];g.fillRect(bx+1,by+1,cell-2,cell-2);g.fillStyle=P[3];}
+     }
+   };
+   if(scene==='matchedTitle'){
+     g.fillStyle=P[3];g.font='bold 27px monospace';g.fillText('TETRIS',80,39);
+     g.fillStyle=P[2];g.font='bold 10px monospace';g.fillText('SYSTEM',80,61);
+     g.fillStyle=P[3];g.fillRect(31,86,98,27);
+     g.fillStyle=P[0];g.fillRect(34,89,92,21);
+     g.fillStyle=P[3];g.font='bold 14px monospace';g.fillText('START',80,100);
+     g.font='bold 7px monospace';g.fillText('NOMAD  /  LCD LAB',80,131);
+     piece(12,14,[[0,0],[1,0],[1,1],[2,1]],6);
+     piece(130,15,[[1,0],[0,1],[1,1],[2,1]],6);
+   }else{
+     g.fillStyle=P[3];g.font='bold 10px monospace';g.fillText('CELL GEOMETRY',80,14);
+     for(let y=27;y<129;y+=13)for(let x=13;x<152;x+=13){
+       const shade=(Math.floor(x/13)+Math.floor(y/13))%4;
+       g.fillStyle=P[shade];g.fillRect(x,y,11,11);
+     }
+   }
+   const pixels=g.getImageData(0,0,NATIVE_W,NATIVE_H);
+   const data=pixels.data;
+   for(let i=0;i<data.length;i+=4){
+     const drive=Math.round((255-data[i])/85);
+     const n=255-drive*85;
+     data[i]=n;data[i+1]=n;data[i+2]=n;data[i+3]=255;
+   }
+   g.putImageData(pixels,0,0);
+   return;
+ }
+ 
  if(scene==='shades'){
    for(let i=0;i<4;i++){g.fillStyle=shade(g,i);g.fillRect(i*40,0,40,144);}
    // All-area four-code stimulus. Pixel centers are used by the numeric probes.
@@ -273,8 +316,19 @@ function renderPattern(step){
    g.fillRect(65,y+11,10,10);g.fillRect(76,y+11,10,10);
  }
 }
+function syncPresentationSize(){
+ const direct=document.querySelector('#presentation').value==='direct';
+ const rect=canvas.getBoundingClientRect();
+ const dpr=Math.min(2,Math.max(1,window.devicePixelRatio||1));
+ const width=direct?Math.max(1,Math.round(rect.width*dpr)):NATIVE_W*SCALE;
+ const height=direct?Math.max(1,Math.round(rect.height*dpr)):NATIVE_H*SCALE;
+ if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+ document.querySelector('#pixelInfo').textContent=
+   width+' × '+height+' actual framebuffer · '+(width/NATIVE_W).toFixed(3)+' × pixels/cell (X)';
+}
 function present(){
  if(!runtime)return;
+ syncPresentationSize();
  const t=targets;
  const p=programs[4];
  if(document.querySelector('#view').value==='raw'){
@@ -312,11 +366,10 @@ function step(){
    // where the original source correctly mixes illuminated gaps and ink.
    // The geometric offset below lands at (.625,.625), fully within the
    // 0.875 aperture and clear of its area-filtered boundary.
-   const centerOffset=Math.floor(SCALE/2);
    let largestChannelDifference=0;
    for(let i=0;i<4;i++){
-     const px=(i*40+20)*SCALE+centerOffset;
-     const py=72*SCALE+centerOffset;
+     const px=Math.min(canvas.width-1,Math.floor((i*40+20+0.5)*canvas.width/NATIVE_W));
+     const py=Math.min(canvas.height-1,Math.floor((72+0.5)*canvas.height/NATIVE_H));
      gl.readPixels(px,py,1,1,gl.RGBA,gl.UNSIGNED_BYTE,b);
      const actual=[b[0],b[1],b[2]];
      const expected=palettes[i+1];
@@ -366,6 +419,8 @@ async function boot(){
  runtime=true;reset();
  document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
  document.querySelector('#view').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
+ document.querySelector('#presentation').addEventListener('change',()=>{try{present();}catch(e){fail(e);}});
+ window.addEventListener('resize',()=>{if(runtime)try{present();}catch(e){fail(e);}});
  document.querySelector('#step').addEventListener('click',()=>{try{step();}catch(e){output(e.message);log(e.stack||e.message);}});
  document.querySelector('#reset').addEventListener('click',reset);
  document.querySelector('#run').addEventListener('click',()=>{
