@@ -16,7 +16,7 @@ Run `node tools/build-tetris-release.mjs --check` before publishing. It checks e
 
 The source repo separates `/tetris/` service-worker scope from `/lcd-lab/` and from the other NOMAD application. No global cache clearance, forced deletion of local game storage or unrelated app data.
 
-Avoid promises of immediate in-session replacement while someone is playing. The platform's background update checker stages releases only when the game is ready and menu overlays are closed. The next cold launch can then activate a verified ready worker before game startup.
+Avoid promises of immediate in-session replacement while someone is playing. The platform's background update checker stages releases only when the game is ready and menu overlays are closed. On an online return to the ready screen, the platform can also activate the fully staged worker and reload; a cold launch performs the same check before loading the game. A live round or open menu is never interrupted.
 
 ## Practical user check
 
