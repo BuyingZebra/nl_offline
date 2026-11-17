@@ -1,13 +1,13 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {createPhysicalLCDPass} from './physical-lcd.js?v265';
+import {createPhysicalLCDPass,physicalLCDGrid} from './physical-lcd.js?v266';
 import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v265';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v265';
+import {instrumentCompositorPasses} from './diagnostics.js?v266';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v266';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -834,7 +834,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  if(physicalEnabled)physicalLCDPass.configure({
   width:W,height:H,cellDensity:fx.lcdPhysicalDensity,
   cellFill:fx.lcdPhysicalFill,shadow:fx.lcdPhysicalShadow,
-  temperature:fx.lcdPhysicalTemperature,reference:fx.lcdPhysicalReference
+  temperature:fx.lcdPhysicalTemperature,reference:fx.lcdPhysicalReference,
+  glass:fx.lcdPhysicalGlass,glassStrength:fx.lcdPhysicalGlassStrength,
+  glassLightAngle:fx.lcdPhysicalGlassLightAngle,
+  glassViewAngle:fx.lcdPhysicalGlassViewAngle
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
@@ -2171,7 +2174,8 @@ function createModalUI({
  // otherwise they would appear to be broken while the physical pass owns LCD.
  const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
   lcdProperties.filter(property=>getFX().lcdPhysical?
-   !legacyLCD.has(property.id):property.id!=='lcdPhysicalReference');
+   !legacyLCD.has(property.id):
+   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
@@ -2241,9 +2245,15 @@ function drawOptions(q){
   region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
   const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,labelSize)+q.pad);
   for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
-  const enabled=Boolean(settingValue(property.toggle)),height=Math.min(barH,view.rowHeight-2);
-  key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
-   {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
+  const height=Math.min(barH,view.rowHeight-2);
+  if(property.noToggle){
+   key('OPEN',statusX,mid-height/2,statusW,height,'property:'+property.id,
+    {onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
+  }else{
+   const enabled=Boolean(settingValue(property.toggle));
+   key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
+    {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
+  }
  }
  const w=q.buttonW,y=view.y+view.h+q.pad;
  key('CONFIRM',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
@@ -2276,8 +2286,29 @@ function drawProperty(){
   else rows.push(toggle);
  }
  const sliders=property.sliders??[];
- for(const [label,field,min,max,step,unit] of sliders)
-  rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},value:Number(settingValue(field))});
+ for(const [label,field,min,max,step,unit] of sliders){
+  rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},
+   value:Number(settingValue(field))});
+  if(property.id==='lcdDensityStudy'&&field==='lcdPhysicalDensity'){
+   rows.push({height:Math.min(61,Math.max(49,r.extraH+13)),draw:(x,y,w,h)=>{
+    const current=Number(settingValue('lcdPhysicalDensity'));
+    const presets=[1,1.5,2,2.5],space=gap,buttonW=(w-3*space)/4;
+    const buttonH=Math.max(22,h-19);
+    presets.forEach((preset,i)=>{
+     key(preset+'×',x+i*(buttonW+space),y,buttonW,buttonH,
+      'density-preset:'+preset,{
+       modalControl:true,onLight:lcd,light:Math.abs(current-preset)<.001,
+       fontSize:Math.min(12,Math.max(9,buttonW*.21)),labelPadding:3
+      });
+    });
+    const {W,H}=getViewport();
+    const grid=physicalLCDGrid(W,H,current);
+    text('PHYSICAL CELLS  '+grid.columns+' × '+grid.rows,
+     x+w/2,y+buttonH+(h-buttonH)/2,Math.min(11,Math.max(9,(h-buttonH)*.7)),
+     colors.ink,'center',w-6,'terminal');
+   }});
+  }
+ }
  if(property.id==='defaults'&&settingValue(property.toggle))rows.push(buttonRow('RESTORE DEFAULTS','resetFX'));
  if(property.id==='diagnostics'&&settingValue(property.toggle))
   rows.push(buttonRow(debugCopyState==='copied'?'REPORT COPIED':
