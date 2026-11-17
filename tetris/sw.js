@@ -1,4 +1,4 @@
-/* NOMAD Tetris V263 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V264 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v263';
+const CACHE_VERSION='v264';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -40,6 +40,8 @@ const CORE_ASSETS=Object.freeze([
  './input.js',
  './manifest.webmanifest',
  './nomad-mark.svg',
+ './physical-lcd-data.js',
+ './physical-lcd.js',
  './platform.js',
  './render.js',
  './shadows.js',
@@ -55,7 +57,9 @@ const PINNED_IMPORTS=Object.freeze([
  ['./platform.js','./render.js'],
  ['./platform.js','./game.js'],
  ['./input.js','./render.js'],
- ['./render.js','./diagnostics.js']
+ ['./render.js','./diagnostics.js'],
+ ['./render.js','./physical-lcd.js'],
+ ['./physical-lcd.js','./physical-lcd-data.js']
 ]);
 async function verifyPinnedModules(cache){
  const build=CACHE_VERSION.slice(1);
