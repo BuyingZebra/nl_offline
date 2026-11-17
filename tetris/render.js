@@ -834,12 +834,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  if(physicalEnabled)physicalLCDPass.configure({
   width:W,height:H,cellDensity:fx.lcdPhysicalDensity,
   cellFill:fx.lcdPhysicalFill,shadow:fx.lcdPhysicalShadow,
-  temperature:fx.lcdPhysicalTemperature,reference:fx.lcdPhysicalReference,
+  reference:fx.lcdPhysicalReference,
   glass:fx.lcdPhysicalGlass,glassStrength:fx.lcdPhysicalGlassStrength,
   glassLightAngle:fx.lcdPhysicalGlassLightAngle,
-  glassViewAngle:fx.lcdPhysicalGlassViewAngle,
-   samplingMode:fx.lcdPhysicalSamplingMode,
-   diagnostic:fx.lcdPhysicalSignalView
+  glassViewAngle:fx.lcdPhysicalGlassViewAngle
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
@@ -2167,7 +2165,7 @@ function createModalUI({
  const listLabels={phosphor:'PHOSPHOR COLOR',persistence:'PHOSPHOR RESPONSE',scanlines:'SCANLINES',
   vignette:'VIGNETTE',bloom:'BLOOM',ghost:'SIGNAL GHOSTING',softness:'EDGE SOFTNESS'};
  const properties=[{id:'display',title:'DISPLAY MODE',toggle:'lcdDisplay'},...DISPLAY_EFFECTS,
-  {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'},{id:'diagnostics',toggle:'diagnosticsEnabled',title:'DIAGNOSTICS'}];
+  {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'}];
  const lcdProperties=properties.filter(property=>!property.crtOnly);
  const crtProperties=properties.filter(property=>!property.lcdOnly);
  const legacyLCD=new Set(['lcdTint','lcdResponse','lcdBleed','lcdCells',
@@ -2177,8 +2175,7 @@ function createModalUI({
  const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
   lcdProperties.filter(property=>getFX().lcdPhysical?
    !legacyLCD.has(property.id):
-   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy',
-     'lcdSignalStudy','lcdSamplingStudy'].includes(property.id));
+   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
@@ -2288,42 +2285,6 @@ function drawProperty(){
   }});
   else rows.push(toggle);
  }
- if(property.id==='lcdSignalStudy'){
-  rows.push({height:Math.min(96,Math.max(70,r.dh-2*r.deckPad)),draw:(x,y,w,h)=>{
-   const modes=[['SOURCE',1],['SAMPLED',2],['4-SHADE',3],
-    ['SETTLED',4],['PHYSICAL',0],['DELTA',5]];
-   const selected=Number(settingValue('lcdPhysicalSignalView'))||0;
-   const spacer=Math.max(3,gap*.5),height=Math.min(30,(h-16-spacer)/2);
-   const bw=(w-2*spacer)/3;
-   modes.forEach(([label,mode],i)=>{
-    const row=Math.floor(i/3),j=i%3;
-    key(label,x+j*(bw+spacer),y+row*(height+spacer),bw,height,
-     'signal-view:'+mode,{
-      modalControl:true,onLight:lcd,light:selected===mode,
-      fontSize:Math.min(11,Math.max(8,bw*.13)),labelPadding:2
-     });
-   });
-   text('ORIGINAL → SIGNAL → PHYSICAL',
-    x+w/2,y+2*height+spacer+(h-2*height-spacer)/2,
-    9,colors.ink,'center',w-4,'terminal');
-  }});
- }
- if(property.id==='lcdSamplingStudy'){
-  rows.push({height:Math.min(79,Math.max(59,r.dh-2*r.deckPad)),draw:(x,y,w,h)=>{
-   const current=Number(settingValue('lcdPhysicalSamplingMode'))||0;
-   const choices=[['CENTRE',0],['4 TAPS',1],['16 TAPS',2]];
-   const space=Math.max(3,gap*.5),bw=(w-2*space)/3;
-   const bh=Math.max(23,Math.min(42,h-24));
-   choices.forEach(([label,mode],i)=>key(label,x+i*(bw+space),y,bw,bh,
-    'sampling-method:'+mode,{
-     modalControl:true,onLight:lcd,light:current===mode,
-     fontSize:Math.min(11,Math.max(8,bw*.15)),labelPadding:2
-    }));
-   text(current===0?'1 POINT / CELL':current===1?'4 NEAR-CENTRE TAPS':
-    '16 FULL-CELL TAPS',x+w/2,y+bh+(h-bh)/2,
-     9,colors.ink,'center',w-4,'terminal');
-  }});
- }
  const sliders=property.sliders??[];
  for(const [label,field,min,max,step,unit] of sliders){
   rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},
@@ -2349,9 +2310,6 @@ function drawProperty(){
   }
  }
  if(property.id==='defaults'&&settingValue(property.toggle))rows.push(buttonRow('RESTORE DEFAULTS','resetFX'));
- if(property.id==='diagnostics'&&settingValue(property.toggle))
-  rows.push(buttonRow(debugCopyState==='copied'?'REPORT COPIED':
-   debugCopyState==='failed'?'RETRY COPY':'COPY DEBUG REPORT','copyDebug'));
  drawPropertyDeck({panel,rect,text,region,C:colors},r,gap,rows);
  const theme=headerThemeBounds(r,UI_SPACE);
  region(theme.x,theme.y,theme.w,theme.h,'theme',{kind:'button'});
