@@ -34,6 +34,8 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 <div class="panel"><div class="tag">NATIVE 160 × 144 · FOUR DRIVEN LEVELS</div>
 <div class="screen"><canvas id="panel" role="img" aria-label="Native Game Boy LCD reference rendering"></canvas></div>
 <div id="status">Checking required WebGL2 floating-point precision and compiling the upstream shaders…</div>
+<pre id="log" hidden aria-live="polite"></pre>
+<button id="copyError" type="button" hidden style="margin-bottom:12px">COPY DIAGNOSTIC</button>
 <div class="stats"><span>Frames: <strong id="count">0</strong></span><span>Completed step: <strong id="ms">—</strong></span></div>
 <p id="probes">Waiting for reference measurements…</p>
 </div>
@@ -48,7 +50,6 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 <p><strong>Electrical:</strong> reconstructed STN drive with original generated director tables, row+column crosstalk 1.00, 20°C, ionic history, captured row latch, 59.7275 Hz frame reference. The feedback buffer is 32-bit float.</p>
 <p><strong>Output:</strong> 640 × 576 internal 4× canvas, unclipped reference palette. Target brightness/chroma compensation is neutral (1.00/1.00), not the original author's KONKR-specific display correction; phone colour calibration remains unverified. CSS downscaling may alter perceived cell gaps.</p>
 </div>
-<pre id="log" hidden></pre>
 </main>
 <footer>
 Original shaders, tables and crosstalk constants: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Source is preserved in the <code>upstream/</code> folder. NOMAD test adapter is separate. <a href="https://github.com/BuyingZebra/nl_offline/blob/research/dmg01-source-parity-20261117/tetris/DMG01-REFERENCE-CONTRACT.md">Engineering contract</a> and <a href="https://github.com/BuyingZebra/nl_offline/blob/research/dmg01-source-parity-20261117/tetris/dmg01-upstream-reference.json">parameter manifest</a>.
@@ -94,7 +95,16 @@ const logEl=document.querySelector('#log');
 const canvas=document.querySelector('#panel');
 const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true,powerPreference:'high-performance'});
 const output=(s)=>{statusEl.textContent=s;};
-const log=(s)=>{logEl.textContent=s+'\n'+logEl.textContent.slice(0,6000);};
+const log=(s)=>{logEl.textContent=s+'\n'+logEl.textContent.slice(0,12000);logEl.hidden=false;};
+const copyError=document.querySelector('#copyError');
+copyError.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(logEl.textContent);copyError.textContent='COPIED';}catch(e){copyError.textContent='SELECT THE ERROR TEXT ABOVE TO COPY';}});
+function fail(error){
+ const message=error instanceof Error?error.message:String(error);
+ output('RENDERER STOPPED — '+message);
+ log((error?.stack||message)+'\nBrowser: '+navigator.userAgent+'\nWebGL2: '+Boolean(gl)+'\nFloat render targets: '+(gl?Boolean(gl.getExtension('EXT_color_buffer_float')):false));
+ copyError.hidden=false;
+}
+
 let runtime=null,autoplay=false,frames=0,scene='shades',motionX=65,renderMs=0;
 let framePrev=null,frameNext=null,sourceCtx=null,sourceCanvas=null;
 let targets=[],programs=[],staticProgram=null,fbIndex=0,lastScene='',lastFrameTs=0,lastFrameMs=0;
@@ -140,8 +150,12 @@ async function importOriginalShaders(){
    const fragment=raw.slice(splitIndex+'#pragma stage fragment'.length);
    const translated=expand(fragment)
       .replace(/layout\s*\(set\s*=\s*\d+\s*,\s*binding\s*=\s*\d+\s*\)\s*/g,'')
+      // Vulkan allows explicit fragment input locations; GLSL ES 3.00 does not.
+      // Only remove that interface syntax; output locations and all physical
+      // equations, coefficients, and control values remain unchanged.
+      .replace(/layout\s*\(\s*location\s*=\s*\d+\s*\)\s*(?=in\s)/g,'')
       .replace(/^\s*#pragma.*$/gm,'');
-   if(/layout\s*\(set\s*=|layout\s*\(push_constant|#include|#pragma/.test(translated))
+   if(/layout\s*\(set\s*=|layout\s*\(push_constant|layout\s*\(\s*location\s*=\s*\d+\s*\)\s*in\b|#include|#pragma/.test(translated))
      throw Error('Unconverted Vulkan directive in '+path);
    return {path,fragment:'#version 300 es\nprecision highp float;\nprecision highp int;\n'+declarations+'\n'+translated};
  });
@@ -325,7 +339,7 @@ async function boot(){
  if(!gl)throw Error('WebGL2 unavailable; no alternate approximation will be used');
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float unavailable; original RGBA32F feedback cannot be reproduced. No low-precision fallback.');
  const raw=await importOriginalShaders();
- programs=raw.map((shader,i)=>linked(i===4?GL_FINAL_VERTEX:GL_VERTEX,shader.fragment,shader.path));
+ programs=raw.map((shader,i)=>{output('Compiling original reference pass '+(i+1)+' / 5: '+shader.path);return linked(i===4?GL_FINAL_VERTEX:GL_VERTEX,shader.fragment,shader.path);});
  staticProgram=linked(GL_FINAL_VERTEX,GL_RAW,'raw signal comparison');
  // VAO is required in WebGL2 for gl_VertexID fullscreen triangles.
  gl.bindVertexArray(gl.createVertexArray());
@@ -344,7 +358,7 @@ async function boot(){
  });
  requestAnimationFrame(animation);
 }
-boot().catch(error=>{output('UNSUPPORTED / COMPILATION ERROR');log(error.stack||String(error));document.querySelector('#log').hidden=false;});
+boot().catch(fail);
 
 </script>
 </body></html>
