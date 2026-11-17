@@ -129,7 +129,7 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
   float drive=sampledDrive(vUv);
   vec4 previous=texture2D(tHistory,vUv);
   float q=(uReset>.5||uSettled>.5)?targetQ(drive):unpack16(previous.rg);
-  float ions=uReset>.5?0.0:previous.b;
+  float ions=(uReset>.5||uSettled>.5)?0.0:previous.b;
   float tScale=exp(3800.0*(1.0/293.15-1.0/(uTemperature+273.15)));
   float frames=min(.08,max(0.0,uDelta))*59.7275000;
   int n=int(clamp(ceil(frames/.45),1.0,12.0));
@@ -142,7 +142,7 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
    ions=mix(ions,aim,1.0-pow(1.0-rate,fraction));
   }
   float opticalState=optical(q);
-  float bias=max(ions-drive/3.0,0.0)*max(7.390426*.05-.186987,0.0)*.082;
+  float bias=uSettled>.5?0.0:max(ions-drive/3.0,0.0)*max(7.390426*.05-.186987,0.0)*.082;
   opticalState=clamp(opticalState+bias,.25,1.0);
   gl_FragColor=vec4(pack16(q),ions,opticalState);
  }`;
