@@ -1534,7 +1534,37 @@ const platform=createPlatformManager({
  canReloadNewBuild:()=>!navigator.serviceWorker?.controller,
  stageWorkerUpdate:async()=>{
   const registration=await navigator.serviceWorker?.getRegistration?.('./');
-  if(registration)await registration.update();
+  if(!registration)return;
+  const controllerBefore=navigator.serviceWorker.controller;
+  await registration.update();
+  // A resumed Home Screen PWA may not load a new document. Adopt an already
+  // validated worker while ready, but never interrupt a game or open menu.
+  let waiting=registration.waiting;
+  const until=Date.now()+10000;
+  while(!waiting&&Date.now()<until){
+   if(navigator.serviceWorker.controller!==controllerBefore)return;
+   await new Promise(resolve=>setTimeout(resolve,125));
+   waiting=registration.waiting;
+  }
+  if(!waiting||!controllerBefore)return;
+  if(game.status!=='ready'||screenManager.hasModal||document.hidden)return;
+  const changed=new Promise(resolve=>{
+   let settled=false;
+   const onChanged=()=>{
+    if(settled)return;settled=true;
+    navigator.serviceWorker.removeEventListener('controllerchange',onChanged);
+    resolve(true);
+   };
+   navigator.serviceWorker.addEventListener('controllerchange',onChanged);
+   setTimeout(()=>{
+    if(settled)return;settled=true;
+    navigator.serviceWorker.removeEventListener('controllerchange',onChanged);
+    resolve(false);
+   },8000);
+  });
+  waiting.postMessage({type:'NOMAD_ACTIVATE_UPDATE'});
+  if(await changed&&game.status==='ready'&&!screenManager.hasModal&&!document.hidden)
+   window.location.reload();
  },
  onViewport:({width,height,dpr})=>{
   if(portraitGate.matches)return;
