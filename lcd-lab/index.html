@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>NOMAD — LCD Material Lab</title>
+<style>
+:root{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d8e4d9;background:#0a100e;font-size:13px}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse 95% 75% at 45% 28%,#19251d 0%,#0a100e 75%);color:#d8e4d9}
+header{max-width:1150px;margin:auto;padding:25px 22px 15px;border-bottom:1px solid #30443b}
+.brand{font-weight:800;letter-spacing:.22em;font-size:12px;color:#a6c5b3}
+h1{font-size:clamp(18px,3vw,26px);margin:12px 0 7px;letter-spacing:.025em}
+.subtitle{color:#8ea497;font-size:12px;line-height:1.6;max-width:760px}
+a{color:#afd4b7}
+main{max-width:1150px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(288px,380px);gap:25px;padding:25px 22px 45px;align-items:start}
+.viewer{min-width:0;position:sticky;top:18px}
+.device{padding:clamp(13px,3vw,24px);background:#18211c;border:1px solid #40594a;border-radius:13px;box-shadow:inset 0 1px #405648,0 20px 46px #0006}
+.device-top{display:flex;justify-content:space-between;color:#839b8b;font-size:11px;margin:0 0 11px;letter-spacing:.15em}
+.glass{padding:8px;background:#303d32;border-radius:9px;box-shadow:inset 1px 2px 5px #0009}
+#panel{display:block;width:100%;aspect-ratio:160/144;height:auto;background:#849956;outline:1px solid #44563a;border-radius:4px;touch-action:none}
+.device-foot{display:flex;justify-content:space-between;color:#819586;font-size:10px;letter-spacing:.1em;margin:12px 0 0}
+#status{font-size:10px;color:#96a998;margin:15px 0 8px;line-height:1.5;min-height:32px}
+.actions{display:flex;flex-wrap:wrap;gap:9px}
+button,.link{background:#1b2921;color:#c6e2ce;border:1px solid #53715e;padding:11px 13px;font:700 11px ui-monospace,monospace;letter-spacing:.05em;border-radius:4px;cursor:pointer;text-decoration:none}
+button:hover,.link:hover{background:#2d4032}
+.section{border:1px solid #30473b;border-radius:6px;padding:14px;margin-bottom:14px;background:#111b15ec}
+h2{font-size:12px;letter-spacing:.13em;margin:0 0 15px;color:#bbd5c4}
+p{font-size:11px;line-height:1.6;color:#90a999}
+.control{display:block;margin:0 0 14px;min-width:0}
+.control:last-child{margin-bottom:0}
+.control-top{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:11px;margin-bottom:7px}
+.control-top output{font-variant-numeric:tabular-nums;color:#c5debf}
+select,input[type=range]{width:100%;display:block}
+select{background:#19261d;color:#dbe8d4;border:1px solid #49604f;padding:10px;border-radius:3px;font:inherit}
+input[type=range]{accent-color:#a1be86;cursor:pointer}
+.toggle{display:flex;align-items:center;gap:9px;font-size:11px;cursor:pointer}
+.toggle input{accent-color:#98b987;width:17px;height:17px}
+.note{border-left:2px solid #8aaa8a;padding:9px 0 9px 12px;margin-top:13px;font-size:11px;line-height:1.6;color:#9db49e}
+footer{max-width:1150px;margin:auto;padding:10px 22px 35px;font-size:11px;line-height:1.8;color:#77917e}
+@media(max-width:720px){
+ main{display:flex;flex-direction:column;padding:16px 13px 40px;gap:19px}
+ header{padding:20px 15px 14px}
+ .viewer{position:static;width:100%}
+ .controls{width:100%}
+ .device{max-width:540px;margin:auto}
+ .section{padding:13px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header>
+<div class="brand">NOMAD / LAB 001</div>
+<h1>REFLECTIVE LCD — PHYSICAL MATERIAL STUDY</h1>
+<div class="subtitle">A standalone 160 × 144 display reconstruction using Retro Display Lab's nominal STN response data, optical states, analytical cell apertures and reflector-shadow geometry. Independent of the playable Tetris System.</div>
+</header>
+<main>
+<section class="viewer" aria-label="LCD material viewport">
+ <div class="device">
+  <div class="device-top"><span>PASSIVE MATRIX / STN</span><span>160 × 144</span></div>
+  <div class="glass"><canvas id="panel" role="img" aria-label="Simulated reflective LCD showing a Tetris System title screen and individual LCD cells"></canvas></div>
+  <div class="device-foot"><span>REFLECTIVE OPTICS</span><span>MODEL 01</span></div>
+ </div>
+ <div id="status" role="status">Initializing physical response model…</div>
+ <div class="actions">
+  <button id="step" type="button">ADVANCE TETROMINO</button>
+  <button id="reset" type="button">RESET LCD HISTORY</button>
+  <button id="compare" type="button">TOGGLE GLASS</button>
+  <a class="link" href="../tetris/">PLAYABLE TETRIS</a>
+ </div>
+ <p class="note">Try MOTION with animation on to observe liquid-crystal response. Switch to SHADES or CELL GEOMETRY to examine individual cell gaps, including inside dark content. For a clean optical comparison, set GLASS to 0.</p>
+</section>
+<section class="controls" aria-label="LCD material controls">
+<div class="section">
+<h2>01 / CONTENT &amp; REFERENCE</h2>
+<label class="control"><span class="control-top"><span>Optical palette</span></span>
+<select data-prop="profile">
+<option value="reference" selected>DMG-01 reference states</option><option value="nomad">NOMAD experimental colour</option>
+</select></label>
+<label class="control"><span class="control-top"><span>Logical LCD input</span></span>
+<select data-prop="scene">
+<option value="title" selected>Tetris System title + START</option>
+<option value="motion">Falling tetromino (motion)</option>
+<option value="shades">Four driven grey levels</option>
+<option value="grid">Cell geometry fixture</option>
+</select></label>
+<label class="control toggle"><input data-prop="animate" type="checkbox" checked><span>Animate falling tetromino</span></label>
+<label class="control"><span class="control-top"><span>Panel temperature</span><output>20</output> °C</span>
+<input data-prop="temperature" type="range" min="5" max="40" step="1" value="20"></label>
+</div>
+<div class="section">
+<h2>02 / OPTICAL CELL GEOMETRY</h2>
+<label class="control"><span class="control-top"><span>Active aperture fill</span><output>0.875</output></span>
+<input data-prop="fill" type="range" min=".55" max=".95" step=".005" value=".875"></label>
+<label class="control"><span class="control-top"><span>Host-pixel footprint</span><output>1</output></span>
+<input data-prop="edge" type="range" min=".1" max="1.6" step=".05" value="1"></label>
+<label class="control"><span class="control-top"><span>Reflector shadow strength</span><output>0.18</output></span>
+<input data-prop="shadow" type="range" min="0" max=".5" step=".01" value=".18"></label>
+<label class="control"><span class="control-top"><span>Shadow offset X (cell)</span><output>0.11</output></span>
+<input data-prop="shadowX" type="range" min="-.3" max=".3" step=".01" value=".11"></label>
+<label class="control"><span class="control-top"><span>Shadow offset Y (cell)</span><output>0.13</output></span>
+<input data-prop="shadowY" type="range" min="-.3" max=".3" step=".01" value=".13"></label>
+</div>
+<div class="section">
+<h2>03 / OPTICAL COLOUR</h2>
+<label class="control"><span class="control-top"><span>Driven-state contrast</span><output>1</output></span>
+<input data-prop="contrast" type="range" min=".6" max="1.55" step=".01" value="1"></label>
+<label class="control"><span class="control-top"><span>Contrast bias</span><output>0</output></span>
+<input data-prop="bias" type="range" min="-.2" max=".2" step=".01" value="0"></label>
+<label class="control"><span class="control-top"><span>Target brightness</span><output>1</output></span>
+<input data-prop="brightness" type="range" min=".3" max="1.3" step=".01" value="1"></label>
+<label class="control"><span class="control-top"><span>Target chroma</span><output>1</output></span>
+<input data-prop="chroma" type="range" min="0" max="1.5" step=".01" value="1"></label>
+</div>
+<div class="section">
+<h2>04 / EXPERIMENTAL FRONT GLASS</h2>
+<p>Not part of the sourced STN reconstruction. A separate, adjustable visualization of an optical surface under virtual lighting.</p>
+<label class="control"><span class="control-top"><span>Glass contribution</span><output>0.8</output></span>
+<input data-prop="glass" type="range" min="0" max="1.5" step=".05" value=".8"></label>
+<label class="control"><span class="control-top"><span>Light direction</span><output>35</output> °</span>
+<input data-prop="lightAngle" type="range" min="0" max="360" step="1" value="35"></label>
+<label class="control"><span class="control-top"><span>Simulated view angle</span><output>0</output> °</span>
+<input data-prop="viewAngle" type="range" min="-45" max="45" step="1" value="0"></label>
+</div>
+<div class="section">
+<h2>05 / DIAGNOSTIC VIEW</h2>
+<label class="control"><span class="control-top"><span>Display</span></span>
+<select data-prop="debug">
+<option value="0">Final LCD material</option>
+<option value="1">Optical state (unmasked)</option>
+<option value="2">Individual cell aperture</option>
+<option value="3">Reflector shadow in gaps</option>
+<option value="4">Driven state only</option>
+</select></label>
+<p>Electrical row/column RC crosstalk and full multi-condition STN physics remain for a later port. This is the first validated-data adaptation, not a claim of complete equivalence to Retro Display Lab.</p>
+</div>
+</section>
+</main>
+<footer>
+Based on <a href="https://github.com/JohnnySun/retro-display-lab" rel="noopener">Retro Display Lab</a> by JohnnySun; sourced model tables and optical methods are attributed in <a href="./CREDITS.md">CREDITS</a>. Original project's Apache-2.0 license applies to adapted source/data. This lab is independently implemented and not affiliated with Nintendo.
+</footer>
+<script type="module" src="./lab.js"></script>
+</body>
+</html>
