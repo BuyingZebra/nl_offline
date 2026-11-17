@@ -95,19 +95,29 @@ const PRELUDE=`
 const SIGNAL_INPUT=`
  uniform sampler2D tSource;
  uniform vec2 uGrid;
- uniform float uAreaSampling;
+ uniform int uSamplingMode;
  float encodedGrey(vec3 rgb){
   float lum=dot(rgb,vec3(.2126,.7152,.0722));
   return lum<=.0031308?lum*12.92:1.055*pow(max(lum,0.),1.0/2.4)-.055;
  }
  float sampledGrey(vec2 uv){
-  if(uAreaSampling<.5)return encodedGrey(texture2D(tSource,uv).rgb);
-  vec2 shift=.25/max(uGrid,vec2(1.));
-  vec3 avg=(texture2D(tSource,uv+vec2(-shift.x,-shift.y)).rgb+
-            texture2D(tSource,uv+vec2( shift.x,-shift.y)).rgb+
-            texture2D(tSource,uv+vec2(-shift.x, shift.y)).rgb+
-            texture2D(tSource,uv+vec2( shift.x, shift.y)).rgb)*.25;
-  return encodedGrey(avg);
+  if(uSamplingMode==0)return encodedGrey(texture2D(tSource,uv).rgb);
+  if(uSamplingMode==1){
+   // Historical v267: four symmetric taps close to cell centre.
+   vec2 shift=.25/max(uGrid,vec2(1.));
+   vec3 avg=(texture2D(tSource,uv+vec2(-shift.x,-shift.y)).rgb+
+             texture2D(tSource,uv+vec2( shift.x,-shift.y)).rgb+
+             texture2D(tSource,uv+vec2(-shift.x, shift.y)).rgb+
+             texture2D(tSource,uv+vec2( shift.x, shift.y)).rgb)*.25;
+   return encodedGrey(avg);
+  }
+  // Experimental 4x4 coverage spanning the entire cell footprint.
+  vec3 sum=vec3(0.);
+  for(int y=0;y<4;y++)for(int x=0;x<4;x++){
+   vec2 shift=(vec2(float(x),float(y))+.5)/4.-.5;
+   sum+=texture2D(tSource,uv+shift/max(uGrid,vec2(1.))).rgb;
+  }
+  return encodedGrey(sum/16.);
  }
  float sampledDrive(vec2 uv){
   return floor(clamp(1.0-sampledGrey(uv),0.0,1.0)*3.0+.5);
@@ -203,11 +213,18 @@ const OUTPUT_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
    gl_FragColor=vec4(texture2D(tSource,vUv).rgb,1.0);
    return;
   }
-  if(uDiagnostic==2||uDiagnostic==3){
+  if(uDiagnostic==2||uDiagnostic==3||uDiagnostic==5){
    vec2 cellUV=(floor(p)+.5)/uGrid;
    float grey=sampledGrey(cellUV);
-   if(uDiagnostic==3)grey=1.0-sampledDrive(cellUV)/3.0;
-   gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
+   if(uDiagnostic==5){
+    // High-gain delta BEFORE the irreversible four-level quantization.
+    float centre=encodedGrey(texture2D(tSource,cellUV).rgb);
+    float change=abs(grey-centre);
+    gl_FragColor=vec4(clamp(vec3(change*14.,change*5.,0.),0.,1.),1.);
+   }else{
+    if(uDiagnostic==3)grey=1.0-sampledDrive(cellUV)/3.0;
+    gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
+   }
    return;
   }
   float s=stateAt(p);
@@ -253,12 +270,12 @@ export function createPhysicalLCDPass(){
   uTarget:{value:TARGET_Q},uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION}
  };
  const stateUniforms={...common,tSource:{value:null},tHistory:{value:null},
-  uGrid:{value:new THREE.Vector2(160,320)},uAreaSampling:{value:0},
+  uGrid:{value:new THREE.Vector2(160,320)},uSamplingMode:{value:0},
   uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1},
   uSettled:{value:0}};
  const outputUniforms={
   uState:{value:null},tSource:{value:null},
-  uGrid:{value:new THREE.Vector2(160,320)},uAreaSampling:{value:0},
+  uGrid:{value:new THREE.Vector2(160,320)},uSamplingMode:{value:0},
   uDiagnostic:{value:0},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
@@ -295,17 +312,17 @@ export function createPhysicalLCDPass(){
  pass.reset=()=>{reset=true;};
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
   temperature=20,reference=true,glass=false,glassStrength=.8,
-  glassLightAngle=35,glassViewAngle=0,areaSampling=false,diagnostic=0}={})=>{
+  glassLightAngle=35,glassViewAngle=0,samplingMode=0,diagnostic=0}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
   setGrid();
-  const nextArea=areaSampling?1:0;
-  const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,4);
-  if(nextArea!==stateUniforms.uAreaSampling.value||
+  const nextMode=clamp(Math.round(Number(samplingMode)||0),0,2);
+  const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,5);
+  if(nextMode!==stateUniforms.uSamplingMode.value||
      nextDebug!==outputUniforms.uDiagnostic.value)reset=true;
-  stateUniforms.uAreaSampling.value=nextArea;
-  outputUniforms.uAreaSampling.value=nextArea;
+  stateUniforms.uSamplingMode.value=nextMode;
+  outputUniforms.uSamplingMode.value=nextMode;
   outputUniforms.uDiagnostic.value=nextDebug;
   stateUniforms.uSettled.value=nextDebug===4?1:0;
   stateUniforms.uTemperature.value=clamp(Number(temperature)||20,5,40);
