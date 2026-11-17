@@ -10,7 +10,7 @@
  * reflector shadow -> physical-display image. No framebuffer readbacks.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v267';
+import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v268';
 const {Pass,FullScreenQuad}=THREE;
 const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
@@ -91,23 +91,33 @@ const PRELUDE=`
   return clamp(s+c,.25,1.0);
  }
 `;
-// Shared source encoder: both diagnostic and actual STN cell states use this.
+// Physical-cell source encoder. A single GPU signal target feeds both STN state and diagnostics.
 const SIGNAL_INPUT=`
  uniform sampler2D tSource;
  uniform vec2 uGrid;
- uniform float uAreaSampling;
+ uniform int uSamplingMode;
  float encodedGrey(vec3 rgb){
   float lum=dot(rgb,vec3(.2126,.7152,.0722));
   return lum<=.0031308?lum*12.92:1.055*pow(max(lum,0.),1.0/2.4)-.055;
  }
  float sampledGrey(vec2 uv){
-  if(uAreaSampling<.5)return encodedGrey(texture2D(tSource,uv).rgb);
-  vec2 shift=.25/max(uGrid,vec2(1.));
-  vec3 avg=(texture2D(tSource,uv+vec2(-shift.x,-shift.y)).rgb+
-            texture2D(tSource,uv+vec2( shift.x,-shift.y)).rgb+
-            texture2D(tSource,uv+vec2(-shift.x, shift.y)).rgb+
-            texture2D(tSource,uv+vec2( shift.x, shift.y)).rgb)*.25;
-  return encodedGrey(avg);
+  if(uSamplingMode==0)return encodedGrey(texture2D(tSource,uv).rgb);
+  if(uSamplingMode==1){
+   // Historical v267: four symmetric taps close to cell centre.
+   vec2 shift=.25/max(uGrid,vec2(1.));
+   vec3 avg=(texture2D(tSource,uv+vec2(-shift.x,-shift.y)).rgb+
+             texture2D(tSource,uv+vec2( shift.x,-shift.y)).rgb+
+             texture2D(tSource,uv+vec2(-shift.x, shift.y)).rgb+
+             texture2D(tSource,uv+vec2( shift.x, shift.y)).rgb)*.25;
+   return encodedGrey(avg);
+  }
+  // Experimental 4x4 coverage spanning the entire cell footprint.
+  vec3 sum=vec3(0.);
+  for(int y=0;y<4;y++)for(int x=0;x<4;x++){
+   vec2 shift=(vec2(float(x),float(y))+.5)/4.-.5;
+   sum+=texture2D(tSource,uv+shift/max(uGrid,vec2(1.))).rgb;
+  }
+  return encodedGrey(sum/16.);
  }
  float sampledDrive(vec2 uv){
   return floor(clamp(1.0-sampledGrey(uv),0.0,1.0)*3.0+.5);
@@ -116,8 +126,18 @@ const SIGNAL_INPUT=`
   return encoded<=.04045?encoded/12.92:pow((encoded+.055)/1.055,2.4);
  }
 `;
-const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
- uniform sampler2D tHistory;
+const SIGNAL_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
+ void main(){
+  float centre=encodedGrey(texture2D(tSource,vUv).rgb);
+  float grey=sampledGrey(vUv);
+  // Reuse one cell-area sample for grey and drive, avoiding 32 taps.
+  float drive=floor(clamp(1.-grey,0.,1.)*3.+.5);
+  // R: encoded grey, G: electrical drive, B: prequant delta.
+  gl_FragColor=vec4(grey,drive/3.,abs(grey-centre),1.);
+ }
+`;
+const STATE_FRAGMENT=PRELUDE+`
+ uniform sampler2D tHistory,tSignal;
  uniform float uDelta,uTemperature,uReset,uSettled;
  vec2 pack16(float v){
   float n=floor(clamp(v,0.0,1.0)*65535.0+.5);
@@ -125,8 +145,8 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
  }
  float unpack16(vec2 p){return dot(floor(p*255.0+.5),vec2(256.0,1.0))/65535.0;}
  void main(){
-  // Cell-centred point sample (original) or experimental 4-tap area sample.
-  float drive=sampledDrive(vUv);
+  // Read the encoded electrical drive for this physical cell.
+  float drive=floor(texture2D(tSignal,vUv).g*3.+.5);
   vec4 previous=texture2D(tHistory,vUv);
   float q=(uReset>.5||uSettled>.5)?targetQ(drive):unpack16(previous.rg);
   float ions=(uReset>.5||uSettled>.5)?0.0:previous.b;
@@ -146,8 +166,13 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
   opticalState=clamp(opticalState+bias,.25,1.0);
   gl_FragColor=vec4(pack16(q),ions,opticalState);
  }`;
-const OUTPUT_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
- uniform sampler2D uState;
+const OUTPUT_FRAGMENT=`
+ precision highp float;varying vec2 vUv;
+ uniform sampler2D uState,uSignal,tSource;
+ uniform vec2 uGrid;
+ float displayLinear(float grey){
+  return grey<=.04045?grey/12.92:pow((grey+.055)/1.055,2.4);
+ }
  uniform vec2 uOutputSize;
  uniform int uDiagnostic;
  uniform vec3 uPalette[5];
@@ -203,11 +228,16 @@ const OUTPUT_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
    gl_FragColor=vec4(texture2D(tSource,vUv).rgb,1.0);
    return;
   }
-  if(uDiagnostic==2||uDiagnostic==3){
-   vec2 cellUV=(floor(p)+.5)/uGrid;
-   float grey=sampledGrey(cellUV);
-   if(uDiagnostic==3)grey=1.0-sampledDrive(cellUV)/3.0;
-   gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
+  if(uDiagnostic==2||uDiagnostic==3||uDiagnostic==5){
+   vec2 uv=(floor(p)+.5)/uGrid;
+   vec3 signal=texture2D(uSignal,uv).rgb;
+   if(uDiagnostic==5){
+    float difference=signal.b;
+    gl_FragColor=vec4(clamp(vec3(difference*14.,difference*5.,0.),0.,1.),1.);
+   }else{
+    float grey=uDiagnostic==3?1.-signal.g:signal.r;
+    gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
+   }
    return;
   }
   float s=stateAt(p);
@@ -252,13 +282,14 @@ export function createPhysicalLCDPass(){
   uDrift:{value:driftTexture},uOptical:{value:opticalTexture},
   uTarget:{value:TARGET_Q},uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION}
  };
- const stateUniforms={...common,tSource:{value:null},tHistory:{value:null},
-  uGrid:{value:new THREE.Vector2(160,320)},uAreaSampling:{value:0},
+ const signalUniforms={tSource:{value:null},uGrid:{value:new THREE.Vector2(160,320)},
+  uSamplingMode:{value:0}};
+ const stateUniforms={...common,tSignal:{value:null},tHistory:{value:null},
   uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1},
   uSettled:{value:0}};
  const outputUniforms={
-  uState:{value:null},tSource:{value:null},
-  uGrid:{value:new THREE.Vector2(160,320)},uAreaSampling:{value:0},
+  uState:{value:null},tSource:{value:null},uSignal:{value:null},
+  uGrid:{value:new THREE.Vector2(160,320)},
   uDiagnostic:{value:0},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
@@ -267,19 +298,20 @@ export function createPhysicalLCDPass(){
   uBrightness:{value:1},uChroma:{value:1},
   uGlass:{value:0},uLightAngle:{value:35},uViewAngle:{value:0}
  };
+ const signalMaterial=newMaterial(signalUniforms,SIGNAL_FRAGMENT);
  const stateMaterial=newMaterial(stateUniforms,STATE_FRAGMENT);
  const outputMaterial=newMaterial(outputUniforms,OUTPUT_FRAGMENT);
- const quad=new FullScreenQuad(stateMaterial);
- let gridWidth=1,gridHeight=1,targetA=null,targetB=null,reset=true;
+ const quad=new FullScreenQuad(signalMaterial);
+ let gridWidth=1,gridHeight=1,targetA=null,targetB=null,targetSignal=null,reset=true;
  let configured=false,cssWidth=1,cssHeight=1,density=1.5;
  function allocate(){
-  targetA?.dispose();targetB?.dispose();
+  targetA?.dispose();targetB?.dispose();targetSignal?.dispose();
   const opts={depthBuffer:false,stencilBuffer:false,
    minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,
    format:THREE.RGBAFormat,type:THREE.UnsignedByteType};
   const make=()=>{const rt=new THREE.WebGLRenderTarget(gridWidth,gridHeight,opts);
    rt.texture.colorSpace=THREE.NoColorSpace;return rt;};
-  targetA=make();targetB=make();reset=true;
+  targetA=make();targetB=make();targetSignal=make();reset=true;
  }
  function setGrid(){
   const {columns,rows}=physicalLCDGrid(cssWidth,cssHeight,density);
@@ -288,24 +320,23 @@ export function createPhysicalLCDPass(){
    if(targetA||targetB)allocate();
   }
   outputUniforms.uGrid.value.set(gridWidth,gridHeight);
-  stateUniforms.uGrid.value.set(gridWidth,gridHeight);
+  signalUniforms.uGrid.value.set(gridWidth,gridHeight);
  }
  pass.enabled=false;
  pass.setSize=()=>{}; // fixed physical cell size is configured in CSS pixels by syncFX
  pass.reset=()=>{reset=true;};
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
   temperature=20,reference=true,glass=false,glassStrength=.8,
-  glassLightAngle=35,glassViewAngle=0,areaSampling=false,diagnostic=0}={})=>{
+  glassLightAngle=35,glassViewAngle=0,samplingMode=0,diagnostic=0}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
   setGrid();
-  const nextArea=areaSampling?1:0;
-  const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,4);
-  if(nextArea!==stateUniforms.uAreaSampling.value||
+  const nextMode=clamp(Math.round(Number(samplingMode)||0),0,2);
+  const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,5);
+  if(nextMode!==signalUniforms.uSamplingMode.value||
      nextDebug!==outputUniforms.uDiagnostic.value)reset=true;
-  stateUniforms.uAreaSampling.value=nextArea;
-  outputUniforms.uAreaSampling.value=nextArea;
+  signalUniforms.uSamplingMode.value=nextMode;
   outputUniforms.uDiagnostic.value=nextDebug;
   stateUniforms.uSettled.value=nextDebug===4?1:0;
   stateUniforms.uTemperature.value=clamp(Number(temperature)||20,5,40);
@@ -319,9 +350,14 @@ export function createPhysicalLCDPass(){
  };
  pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
   if(!configured)pass.configure({width:readBuffer.width,height:readBuffer.height});
-  if(!targetA||!targetB)allocate();
-  // Offscreen state pass evaluates each physical cell, not each output pixel.
-  stateUniforms.tSource.value=readBuffer.texture;
+  if(!targetA||!targetB||!targetSignal)allocate();
+  // Compute one input/drive value per physical cell, not per display pixel.
+  signalUniforms.tSource.value=readBuffer.texture;
+  quad.material=signalMaterial;
+  renderer.setRenderTarget(targetSignal);
+  quad.render(renderer);
+  // Both the STN history and diagnostics sample this exact GPU signal.
+  stateUniforms.tSignal.value=targetSignal.texture;
   stateUniforms.tHistory.value=targetA.texture;
   stateUniforms.uDelta.value=clamp(Number(deltaTime)||1/60,.001,.08);
   stateUniforms.uReset.value=reset?1:0;
@@ -331,6 +367,7 @@ export function createPhysicalLCDPass(){
   // Analytical aperture/gap/shadow projected onto full phone resolution.
   outputUniforms.uState.value=targetB.texture;
   outputUniforms.tSource.value=readBuffer.texture;
+  outputUniforms.uSignal.value=targetSignal.texture;
   outputUniforms.uOutputSize.value.set(readBuffer.width,readBuffer.height);
   quad.material=outputMaterial;
   renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
@@ -340,10 +377,10 @@ export function createPhysicalLCDPass(){
   reset=false;
  };
  pass.dispose=()=>{
-  targetA?.dispose();targetB?.dispose();
-  targetA=null;targetB=null;
+  targetA?.dispose();targetB?.dispose();targetSignal?.dispose();
+  targetA=null;targetB=null;targetSignal=null;
   driftTexture.dispose();opticalTexture.dispose();
-  stateMaterial.dispose();outputMaterial.dispose();quad.dispose();
+  signalMaterial.dispose();stateMaterial.dispose();outputMaterial.dispose();quad.dispose();
  };
  return pass;
 }

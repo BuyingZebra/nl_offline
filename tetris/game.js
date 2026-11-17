@@ -474,7 +474,7 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  lcdPhysicalShadow:.18,lcdPhysicalTemperature:20,lcdPhysicalReference:true,
  lcdPhysicalGlass:true,lcdPhysicalGlassStrength:.8,
  lcdPhysicalGlassLightAngle:35,lcdPhysicalGlassViewAngle:0,
- lcdPhysicalAreaSampling:false,lcdPhysicalSignalView:0,
+ lcdPhysicalSamplingMode:0,lcdPhysicalSignalView:0,
  lcdResponse:true,lcdResponseMs:210,lcdResponseAmount:60,
  lcdBleed:true,lcdBleedRadius:1.5,lcdBleedAmount:44,
  lcdEdgeColour:true,lcdEdgeColourAmount:40,lcdEdgeColourFalloff:12,
@@ -497,8 +497,7 @@ export const DISPLAY_EFFECTS=[
   {id:'lcdDensityStudy',lcdOnly:true,noToggle:true,title:'CELL DENSITY',
    sliders:[['CELL DENSITY','lcdPhysicalDensity',1,2.5,.25,'×']]},
   {id:'lcdSignalStudy',lcdOnly:true,noToggle:true,title:'LCD SIGNAL STUDY'},
-  {id:'lcdPhysicalAreaSampling',lcdOnly:true,title:'4-TAP AREA SAMPLING',
-   toggle:'lcdPhysicalAreaSampling'},
+  {id:'lcdSamplingStudy',lcdOnly:true,noToggle:true,title:'CELL INPUT SAMPLING'},
   {id:'lcdPhysicalReference',lcdOnly:true,title:'DMG REFERENCE COLOUR',toggle:'lcdPhysicalReference'},
   {id:'lcdPhysicalGlass',lcdOnly:true,title:'FRONT GLASS',toggle:'lcdPhysicalGlass',
    sliders:[['REFLECTION','lcdPhysicalGlassStrength',0,2,.05,'×'],
@@ -552,7 +551,7 @@ export const EFFECT_NUMBER_RANGES=Object.freeze({
   lcdPhysicalDensity:[1,2.5],lcdPhysicalFill:[.55,.95],
   lcdPhysicalShadow:[0,.5],lcdPhysicalTemperature:[5,40],
   lcdPhysicalGlassStrength:[0,2],lcdPhysicalGlassLightAngle:[0,360],
-  lcdPhysicalGlassViewAngle:[-45,45],lcdPhysicalSignalView:[0,4],
+  lcdPhysicalGlassViewAngle:[-45,45],lcdPhysicalSamplingMode:[0,2],lcdPhysicalSignalView:[0,5],
   lcdResponseMs:[30,600],lcdResponseAmount:[0,100],
   lcdBleedRadius:[0,4],lcdBleedAmount:[0,100],
   lcdEdgeColourAmount:[0,100],lcdEdgeColourFalloff:[2,60],
@@ -643,6 +642,12 @@ export function createSettingsManager(storage){
      saved.lcdOliveSaturation=Math.round((previous-74.8)/1.26);
      migrated=true;
     }
+   }
+   // Preserve the user's v267 four-tap preference after upgrading.
+   if(!Number.isFinite(saved.lcdPhysicalSamplingMode)&&
+      saved.lcdPhysicalAreaSampling===true){
+    saved.lcdPhysicalSamplingMode=1;
+    migrated=true;
    }
    for(const key of Object.keys(DEFAULT_EFFECTS))
     effects[key]=normalizeEffectValue(key,saved[key]);
