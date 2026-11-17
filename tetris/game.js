@@ -473,7 +473,7 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  lcdPhysical:false,lcdPhysicalDensity:1.5,lcdPhysicalFill:.875,
  lcdPhysicalShadow:.18,lcdPhysicalReference:true,
  lcdPhysicalTemperature:20,lcdInkContrast:100,
- lcdViewContrast:165,lcdAmbientLight:115,
+ lcdViewContrast:190,lcdAmbientLight:120,
  lcdPhysicalGlass:true,lcdPhysicalGlassStrength:.8,
  lcdPhysicalGlassLightAngle:35,lcdPhysicalGlassViewAngle:0,
  lcdResponse:true,lcdResponseMs:210,lcdResponseAmount:60,
