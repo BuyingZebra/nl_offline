@@ -68,3 +68,24 @@ With the physical material enabled, the new **FRONT GLASS** Properties entry exp
 The front-glass contribution is a subtle art-directed highlight/grazing-angle presentation model adapted from our `/lcd-lab/` experiment. It is **not** a validated polarizer/Fresnel glass model and does not alter the physical STN response, optical palette, individually calculated LCD cell apertures, or reflector-shadow geometry.
 
 Recommended controlled comparison: hold glass off and compare 1× → 1.5× → 2× → 2.5× on the same Tetris screen, then hold density fixed and vary glass strength/direction. At high density, inactive pixel gaps may become smaller than host pixels and naturally lose visible definition.
+
+
+## v267: signal encoder diagnosis — preserve the known-good physical look
+
+**LCD SIGNAL STUDY** is a separate Properties editor visible when PHYSICAL LCD MATERIAL is enabled. It switches what the physical-pass presents, without modifying the Tetris gameplay/asset art. The five modes are:
+
+1. **SOURCE:** exact linear-light source of the existing compositor immediately before the LCD pass, rendered without cell materials.
+2. **SAMPLED:** the pre-quantization grayscale input measured once per physical cell; each cell shown as flat brightness, without the aperture/shadow.
+3. **4-SHADE:** the *same sampled input* converted to the four real drive codes used by the nominal DMG model. This shows whether tonal differences were destroyed by the four-level quantizer.
+4. **SETTLED:** immediate drive equilibrium through the STN optical mapping and physical aperture/reflector shader, **without director lag/ionic memory or glass**.
+5. **PHYSICAL:** the full previous reflective STN with response history, cells, reflector and optional glass, as in v266.
+
+**4-TAP AREA SAMPLING** is a separately toggleable comparison (off by default): instead of the previous single sample at each physical cell centre, sample four points at quarter-cell offsets and average incoming **linear RGB before converting to encoded grayscale**. The drive quantizer is deliberately unchanged. Both the diagnostic stages and the physical state pass use the same shared GLSL input encoder. This is a modest spatial sampling experiment, *not* a correct reconstruction of arbitrary thin geometry or a validated anti-aliasing method for every art source; four-point area sampling can still miss very narrow features.
+
+Switching sampling mode or diagnostic stage resets the STN history, ensuring temporal memory does not contaminate the next comparison. Choosing SETTLED suppresses director and ionic memory, and the FRONT GLASS pass is disabled in SETTLED (but retained in PHYSICAL). Switching back to PHYSICAL restarts response history.
+
+### Suggested analysis
+
+Pause the board or choose a stationary menu layout. First compare SOURCE → SAMPLED → 4-SHADE → SETTLED → PHYSICAL at 1.5× cell density. If a detail disappears in SAMPLED, inspect sampling. If present in SAMPLED but absent in 4-SHADE, investigate quantization. If present in 4-SHADE but not SETTLED, inspect optical palette/reflector/aperture. If SETTLED looks clear but PHYSICAL does not, inspect STN history/response or FRONT GLASS. Repeat with 4-TAP AREA SAMPLING on, changing no other parameters.
+
+This does not add more than four electrical levels, and does not change pixel density or the physical model's reference lookup tables. GPU cost of four samples per cell may be significant on high-density phone/desktop settings. Four-tap integration is strictly opt-in.
