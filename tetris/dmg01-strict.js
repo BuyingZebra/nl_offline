@@ -294,7 +294,7 @@ export function createPhysicalLCDPass(){
   frameDebt-=steps*physicalFrameMs;
   if(steps>0){
    for(let i=0;i<steps;i++)
-    core.render(samples,Math.min(size.x,size.y)*1.25);
+    core.render(samples,Math.min(size.x,size.y));
    texture.image=core.canvas;
    texture.needsUpdate=true;
   }
