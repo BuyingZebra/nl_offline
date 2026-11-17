@@ -304,13 +304,13 @@ export function createPhysicalLCDPass(){
  let gridWidth=1,gridHeight=1,targetA=null,targetB=null,targetSignal=null,reset=true;
  let configured=false,cssWidth=1,cssHeight=1,density=1.5;
  function allocate(){
-  targetA?.dispose();targetB?.dispose();
+  targetA?.dispose();targetB?.dispose();targetSignal?.dispose();
   const opts={depthBuffer:false,stencilBuffer:false,
    minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,
    format:THREE.RGBAFormat,type:THREE.UnsignedByteType};
   const make=()=>{const rt=new THREE.WebGLRenderTarget(gridWidth,gridHeight,opts);
    rt.texture.colorSpace=THREE.NoColorSpace;return rt;};
-  targetA=make();targetB=make();reset=true;
+  targetA=make();targetB=make();targetSignal=make();reset=true;
  }
  function setGrid(){
   const {columns,rows}=physicalLCDGrid(cssWidth,cssHeight,density);
@@ -319,7 +319,7 @@ export function createPhysicalLCDPass(){
    if(targetA||targetB)allocate();
   }
   outputUniforms.uGrid.value.set(gridWidth,gridHeight);
-  stateUniforms.uGrid.value.set(gridWidth,gridHeight);
+  signalUniforms.uGrid.value.set(gridWidth,gridHeight);
  }
  pass.enabled=false;
  pass.setSize=()=>{}; // fixed physical cell size is configured in CSS pixels by syncFX
@@ -333,10 +333,9 @@ export function createPhysicalLCDPass(){
   setGrid();
   const nextMode=clamp(Math.round(Number(samplingMode)||0),0,2);
   const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,5);
-  if(nextMode!==stateUniforms.uSamplingMode.value||
+  if(nextMode!==signalUniforms.uSamplingMode.value||
      nextDebug!==outputUniforms.uDiagnostic.value)reset=true;
-  stateUniforms.uSamplingMode.value=nextMode;
-  outputUniforms.uSamplingMode.value=nextMode;
+  signalUniforms.uSamplingMode.value=nextMode;
   outputUniforms.uDiagnostic.value=nextDebug;
   stateUniforms.uSettled.value=nextDebug===4?1:0;
   stateUniforms.uTemperature.value=clamp(Number(temperature)||20,5,40);
@@ -350,9 +349,14 @@ export function createPhysicalLCDPass(){
  };
  pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
   if(!configured)pass.configure({width:readBuffer.width,height:readBuffer.height});
-  if(!targetA||!targetB)allocate();
-  // Offscreen state pass evaluates each physical cell, not each output pixel.
-  stateUniforms.tSource.value=readBuffer.texture;
+  if(!targetA||!targetB||!targetSignal)allocate();
+  // Compute one input/drive value per physical cell, not per display pixel.
+  signalUniforms.tSource.value=readBuffer.texture;
+  quad.material=signalMaterial;
+  renderer.setRenderTarget(targetSignal);
+  quad.render(renderer);
+  // Both the STN history and diagnostics sample this exact GPU signal.
+  stateUniforms.tSignal.value=targetSignal.texture;
   stateUniforms.tHistory.value=targetA.texture;
   stateUniforms.uDelta.value=clamp(Number(deltaTime)||1/60,.001,.08);
   stateUniforms.uReset.value=reset?1:0;
@@ -362,6 +366,7 @@ export function createPhysicalLCDPass(){
   // Analytical aperture/gap/shadow projected onto full phone resolution.
   outputUniforms.uState.value=targetB.texture;
   outputUniforms.tSource.value=readBuffer.texture;
+  outputUniforms.uSignal.value=targetSignal.texture;
   outputUniforms.uOutputSize.value.set(readBuffer.width,readBuffer.height);
   quad.material=outputMaterial;
   renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
@@ -371,10 +376,10 @@ export function createPhysicalLCDPass(){
   reset=false;
  };
  pass.dispose=()=>{
-  targetA?.dispose();targetB?.dispose();
-  targetA=null;targetB=null;
+  targetA?.dispose();targetB?.dispose();targetSignal?.dispose();
+  targetA=null;targetB=null;targetSignal=null;
   driftTexture.dispose();opticalTexture.dispose();
-  stateMaterial.dispose();outputMaterial.dispose();quad.dispose();
+  signalMaterial.dispose();stateMaterial.dispose();outputMaterial.dispose();quad.dispose();
  };
  return pass;
 }
