@@ -126,11 +126,12 @@ const SIGNAL_INPUT=`
   return encoded<=.04045?encoded/12.92:pow((encoded+.055)/1.055,2.4);
  }
 `;
-const SIGNAL_FRAGMENT='precision highp float;varying vec2 vUv;\\n'+SIGNAL_INPUT+`
+const SIGNAL_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
  void main(){
   float centre=encodedGrey(texture2D(tSource,vUv).rgb);
   float grey=sampledGrey(vUv);
-  float drive=sampledDrive(vUv);
+  // Reuse one cell-area sample for grey and drive, avoiding 32 taps.
+  float drive=floor(clamp(1.-grey,0.,1.)*3.+.5);
   // R: encoded grey, G: electrical drive, B: prequant delta.
   gl_FragColor=vec4(grey,drive/3.,abs(grey-centre),1.);
  }
