@@ -95,7 +95,7 @@ function originalCheck(src){
 export function extendDmgCalibration(source,rows,columns=COLS){
  rows=Math.round(rows);
  columns=Math.round(columns);
- if(rows<144||rows>1388||columns<160||columns>640)
+ if(rows<144||rows>694||columns<160||columns>320)
   throw Error('Unsupported panel dimensions '+columns+'x'+rows);
  originalCheck(source);
  if(rows===144&&columns===COLS)return source;
