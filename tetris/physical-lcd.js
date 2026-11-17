@@ -146,8 +146,7 @@ const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
   opticalState=clamp(opticalState+bias,.25,1.0);
   gl_FragColor=vec4(pack16(q),ions,opticalState);
  }`;
-const OUTPUT_FRAGMENT=SIGNAL_INPUT+`
- precision highp float;varying vec2 vUv;
+const OUTPUT_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
  uniform sampler2D uState;
  uniform vec2 uOutputSize;
  uniform int uDiagnostic;
