@@ -4,6 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b100d"><meta name="color-scheme" content="dark">
 <title>NOMAD — Physical LCD Response Study</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap">
 <style>
 :root{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#e3eadb;background:#0b100d}
 *{box-sizing:border-box}body{margin:0;min-height:100vh}header,main,footer{max-width:860px;margin:auto;padding:18px}
@@ -273,7 +274,7 @@ function renderPattern(frame){
  const g=sourceCtx,P=DRIVE;
  g.fillStyle=P[0];g.fillRect(0,0,NATIVE_W,NATIVE_H);
  g.textAlign='center';g.textBaseline='middle';
- g.fillStyle=P[3];g.font='bold 27px monospace';
+ g.fillStyle=P[3];g.font='700 30px "Roboto Condensed", monospace';
  g.fillText('TETRIS',80,39);
  g.fillStyle=P[2];g.font='bold 9px monospace';
  g.fillText('NOMAD / LCD',80,63);
@@ -284,7 +285,7 @@ function renderPattern(frame){
   g.fillStyle=P[3];
   g.beginPath();g.moveTo(43,90);g.lineTo(43,109);g.lineTo(56,99.5);
   g.closePath();g.fill();
-  g.font='bold 15px monospace';g.fillText('PLAY',91,100);
+  g.font='700 17px "Roboto Condensed", monospace';g.fillText('PLAY',91,100);
  }
  g.fillStyle=P[2];g.font='bold 7px monospace';
  g.fillText('DMG-01 / RESPONSE STUDY',80,136);
