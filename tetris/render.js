@@ -840,7 +840,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   glassViewAngle:fx.lcdPhysicalGlassViewAngle,
   responseOn:fx.lcdResponse,responseMs:fx.lcdResponseMs,
   responseStrength:fx.lcdResponseAmount,
-  temperature:fx.lcdPhysicalTemperature,inkContrast:fx.lcdInkContrast
+  temperature:fx.lcdPhysicalTemperature,inkContrast:fx.lcdInkContrast,
+  viewContrast:fx.lcdViewContrast,ambientLight:fx.lcdAmbientLight
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
@@ -2180,7 +2181,8 @@ function createModalUI({
  const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
   lcdProperties.filter(property=>getFX().lcdPhysical?
    !legacyLCD.has(property.id):
-   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy'].includes(property.id));
+   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy',
+    'lcdVisibility'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
