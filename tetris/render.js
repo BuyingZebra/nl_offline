@@ -2165,7 +2165,13 @@ function createModalUI({
   {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'},{id:'diagnostics',toggle:'diagnosticsEnabled',title:'DIAGNOSTICS'}];
  const lcdProperties=properties.filter(property=>!property.crtOnly);
  const crtProperties=properties.filter(property=>!property.lcdOnly);
- const visibleProperties=()=>settingValue('lcdDisplay')?lcdProperties:crtProperties;
+ const legacyLCD=new Set(['lcdTint','lcdResponse','lcdBleed','lcdCells',
+  'lcdVignette','lcdEdgeColour','lcdEdgeBlur']);
+ // When physical material is selected, hide inactive post-FX sliders;
+ // otherwise they would appear to be broken while the physical pass owns LCD.
+ const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
+  lcdProperties.filter(property=>getFX().lcdPhysical?
+   !legacyLCD.has(property.id):property.id!=='lcdPhysicalReference');
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
