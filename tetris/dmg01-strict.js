@@ -7,7 +7,7 @@
  * No hybrid high-detail optical bypass or extra app mode.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v274';
+import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v275';
 
 const WIDTH=160, DMG_HEIGHT=144;
 function panelRows(width,height){
@@ -17,6 +17,37 @@ const VS='#version 300 es\nprecision highp float; out vec2 vTexCoord; void main(
 // NOMAD source comes from a GPU framebuffer (bottom-up). Unlike the 2D
 // canvas-origin laboratory fixture, it must NOT be inverted on output.
 const FINAL_VS=VS;
+// Cell drive sampling is deliberately INSIDE the LCD engine. The full
+// resolution, unchanged composed scene is transferred as linear RGBA8.
+// Each electrode integrates its own source footprint and receives exactly
+// one of the four historical drive codes. The five physical passes follow.
+const CELL_DRIVE_FS=`#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+layout(location=0) out vec4 FragColor;
+uniform sampler2D RawSource;
+uniform vec2 uPanelSize;
+vec3 encode_srgb(vec3 x) {
+ vec3 low=12.92*x;
+ vec3 high=1.055*pow(max(x,vec3(0.)),vec3(1.0/2.4))-.055;
+ return mix(low,high,step(vec3(.0031308),x));
+}
+void main() {
+ vec2 origin=floor(vTexCoord*uPanelSize)/uPanelSize;
+ vec2 footprint=1.0/uPanelSize;
+ float encodedLuma=0.0;
+ for(int row=0;row<4;row++) {
+  for(int column=0;column<4;column++) {
+   vec2 uv=origin+footprint*(vec2(float(column),float(row))+0.5)*0.25;
+   vec3 raw=texture(RawSource,uv).rgb;
+   encodedLuma+=dot(encode_srgb(raw),vec3(.2126,.7152,.0722));
+  }
+ }
+ float normalized=clamp(encodedLuma/16.0,0.0,1.0);
+ float drive=floor((1.0-normalized)*3.0+0.5);
+ float encoded=1.0-drive/3.0;
+ FragColor=vec4(vec3(encoded),1.0);
+}`;
 const NAMES=['dmg01-row-load-v2.slang','dmg01-crosstalk-summary-v3.slang','dmg01-response-v1.slang','dmg01-matrix-v1.slang','dmg01-display-v1.slang'];
 const INCLUDE=['dmg01-crosstalk-phase-local.inc','dmg01-crosstalk-lumped.inc','dmg01-stn-surrogate.inc'];
 const SOURCE_BASE='./dmg01-reference-lab/upstream/';
@@ -86,6 +117,8 @@ class ReferencePanel {
    throw Error('RGBA32F render targets unavailable; strict DMG-01 physics not supported');
   this.gl=gl;
   this.programs=[];this.targets=[];
+  this.rawTexture=null;this.rawWidth=0;this.rawHeight=0;
+  this.driveFbo=gl.createFramebuffer();this.driveProgram=null;
   this.frames=0;this.feedback=0;
   this.vao=gl.createVertexArray();gl.bindVertexArray(this.vao);
  }
@@ -136,6 +169,7 @@ class ReferencePanel {
  async init(){
   const shaders=await loadSources(this.rows);
   this.programs=shaders.map((source,i)=>this.link(i===4?FINAL_VS:VS,source.shader,source.name));
+  this.driveProgram=this.link(VS,CELL_DRIVE_FS,'native LCD cell address/drive');
   this.input=[this.texture(WIDTH,this.rows,this.gl.RGBA8),
               this.texture(WIDTH,this.rows,this.gl.RGBA8)];
   this.targets=[this.target(1,this.rows),this.target(WIDTH,1),
@@ -171,6 +205,8 @@ class ReferencePanel {
    const at=this.location(p,'params.'+name);
    if(at!==null)gl.uniform1f(at,value);
   }
+  const panelSize=this.location(p,'uPanelSize');
+  if(panelSize!==null)gl.uniform2f(panelSize,WIDTH,this.rows);
   gl.drawArrays(gl.TRIANGLES,0,3);
   const error=gl.getError();
   if(error!==gl.NO_ERROR)throw Error('DMG pass '+p.label+' GPU error '+error);
@@ -182,15 +218,35 @@ class ReferencePanel {
    this.gl.clearColor(0,0,0,0);this.gl.clear(this.gl.COLOR_BUFFER_BIT);
   }
  }
- render(pixels,width,height){
+ render(rawPixels,rawWidth,rawHeight,width){
   const gl=this.gl;
-  // The source pixels are exactly 160×144, RGBA8, with rows bottom-up.
-  // Upload with UNPACK_FLIP_Y_WEBGL=false to match readRenderTargetPixels.
+  // Transfer the ORIGINAL fully-composed scene. No image reduction takes
+  // place in NOMAD or at the renderer boundary. Only the LCD's own
+  // electrical input stage converts raw optical coverage into four drives.
+  if(this.rawWidth!==rawWidth||this.rawHeight!==rawHeight){
+   if(this.rawTexture)gl.deleteTexture(this.rawTexture);
+   this.rawTexture=this.texture(rawWidth,rawHeight,gl.RGBA8);
+   gl.bindTexture(gl.TEXTURE_2D,this.rawTexture);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+   gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+   this.rawWidth=rawWidth;
+   this.rawHeight=rawHeight;
+  }
+  gl.bindTexture(gl.TEXTURE_2D,this.rawTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,rawWidth,rawHeight,gl.RGBA,gl.UNSIGNED_BYTE,rawPixels);
   const next=this.input[1],prev=this.input[0];
-  for(const t of this.frames===0?[prev,next]:[next]){
-   gl.bindTexture(gl.TEXTURE_2D,t);
-   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
-   gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,WIDTH,this.rows,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+  // The source drive converter is internal to the physical panel and writes
+  // one encoded electrode drive per cell. Its output enters the unmodified
+  // upstream row/column, STN response, matrix and optical passes.
+  for(const driveTarget of this.frames===0?[prev,next]:[next]){
+   gl.bindFramebuffer(gl.FRAMEBUFFER,this.driveFbo);
+   gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,
+     gl.TEXTURE_2D,driveTarget,0);
+   if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)
+    throw Error('LCD drive electrode framebuffer incomplete');
+   this.program(this.driveProgram,[['RawSource',this.rawTexture]],
+     {fb:this.driveFbo},WIDTH,this.rows,rawWidth,rawHeight);
   }
   this.program(this.programs[0],[['Source',next],['OriginalHistory1',prev]],
    this.targets[0],1,this.rows,WIDTH,this.rows);
@@ -214,11 +270,14 @@ class ReferencePanel {
   }
   this.program(this.programs[4],[['Source',this.targets[3].texture]],
    null,this.canvas.width,this.canvas.height,WIDTH,this.rows);
-  gl.finish(); // The second WebGL context must sample completed LCD optics.
+  gl.finish(); // Synchronize the second WebGL context for the optical image.
  }
  dispose(){
   const gl=this.gl;
   for(const p of this.programs)gl.deleteProgram(p.program);
+  if(this.driveProgram)gl.deleteProgram(this.driveProgram.program);
+  if(this.driveFbo)gl.deleteFramebuffer(this.driveFbo);
+  if(this.rawTexture)gl.deleteTexture(this.rawTexture);
   for(const t of this.targets)if(t){gl.deleteFramebuffer(t.fb);gl.deleteTexture(t.texture);}
   for(const t of this.input||[])gl.deleteTexture(t);
   gl.deleteVertexArray(this.vao);
@@ -226,14 +285,11 @@ class ReferencePanel {
 }
 
 const SOURCE_VS='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
-// The raw image is generated at full device resolution upstream; only this
-// input stage reduces it to the native four-level drive resolution.
-// Explicit linear -> encoded RGB conversion matches Retro Display Lab input.
-const SOURCE_FS='varying vec2 vUv;uniform sampler2D tDiffuse;'
- +'vec3 srgb(vec3 c){vec3 lo=12.92*c;vec3 hi=1.055*pow(max(c,vec3(0.)),vec3(1.0/2.4))-.055;'
- +'return mix(lo,hi,step(vec3(.0031308),c));}'
- +'void main(){vec3 original=texture2D(tDiffuse,vUv).rgb;'
- +'gl_FragColor=vec4(srgb(original),1.); }';
+// No source-image filtering, gamma conversion or drive reduction at the
+// app->panel boundary. This is an exact same-size linear scene copy.
+// Full RGBA data is transferred into the LCD engine.
+const RAW_SCENE_FS='varying vec2 vUv;uniform sampler2D tDiffuse;'
+ +'void main(){gl_FragColor=texture2D(tDiffuse,vUv);}';
 
 const OUTPUT_FS='varying vec2 vUv; uniform sampler2D tLCD;'
  +'vec3 linearize(vec3 x){vec3 lo=x/12.92;vec3 hi=pow((max(x,vec3(0.))+.055)/1.055,vec3(2.4));'
@@ -243,10 +299,11 @@ const OUTPUT_FS='varying vec2 vUv; uniform sampler2D tLCD;'
 export function createPhysicalLCDPass(){
  const pass=new THREE.Pass();
  pass.needsSwap=true;
- let sourceRT=null,samples=null,rows=0,generation=0;
+ let rawSceneRT=null,rawScenePixels=null,rawWidth=0,rawHeight=0;
+ let rows=0,generation=0;
  const sourceMaterial=new THREE.ShaderMaterial({
   uniforms:{tDiffuse:{value:null}},
-  vertexShader:SOURCE_VS,fragmentShader:SOURCE_FS,depthWrite:false,depthTest:false
+  vertexShader:SOURCE_VS,fragmentShader:RAW_SCENE_FS,depthWrite:false,depthTest:false
  });
  const textureCanvas=document.createElement('canvas');
  const texture=new THREE.CanvasTexture(textureCanvas);
@@ -273,10 +330,8 @@ export function createPhysicalLCDPass(){
   if(required!==rows){
    rows=required;generation++;
    core?.dispose();core=null;failure=null;
-   sourceRT?.dispose();
-   sourceRT=new THREE.WebGLRenderTarget(WIDTH,rows,targetOptions);
-   sourceRT.texture.colorSpace=THREE.NoColorSpace;
-   samples=new Uint8Array(WIDTH*rows*4);
+   rawSceneRT?.dispose();rawSceneRT=null;
+   rawScenePixels=null;rawWidth=0;rawHeight=0;
    lastPhysicalTime=0;frameDebt=0;
    const current=generation;
    const candidate=new ReferencePanel(rows);
@@ -300,14 +355,8 @@ export function createPhysicalLCDPass(){
    renderer.clear();
    return;
   }
-  sourceMaterial.uniforms.tDiffuse.value=readBuffer.texture;
-  renderer.setRenderTarget(sourceRT);
-  inputQuad.render(renderer);
-  renderer.readRenderTargetPixels(sourceRT,0,0,WIDTH,rows,samples);
   const size=renderer.getDrawingBufferSize(new THREE.Vector2());
-  // Run exactly one electrical update per simulated DMG frame. Source
-  // content is held between address latches if the browser redraws slower.
-  // Do not speed up or slow down STN response based on requestAnimationFrame.
+  // The DMG's own fixed refresh interval advances its electrical state.
   const timestamp=performance.now();
   if(lastPhysicalTime===0)frameDebt=physicalFrameMs;
   else frameDebt+=Math.min(100,timestamp-lastPhysicalTime);
@@ -315,8 +364,23 @@ export function createPhysicalLCDPass(){
   const steps=Math.min(6,Math.floor(frameDebt/physicalFrameMs));
   frameDebt-=steps*physicalFrameMs;
   if(steps>0){
+   // Read the full-resolution composed scene rather than a pre-sampled
+   // 160-column image. The transfer is byte RGBA to bridge the independent
+   // WebGL2 physical panel; vector geometry and screen art stay untouched.
+   const sourceWidth=readBuffer.width,sourceHeight=readBuffer.height;
+   if(!rawSceneRT||rawWidth!==sourceWidth||rawHeight!==sourceHeight){
+    rawSceneRT?.dispose();
+    rawSceneRT=new THREE.WebGLRenderTarget(sourceWidth,sourceHeight,targetOptions);
+    rawSceneRT.texture.colorSpace=THREE.NoColorSpace;
+    rawScenePixels=new Uint8Array(sourceWidth*sourceHeight*4);
+    rawWidth=sourceWidth;rawHeight=sourceHeight;
+   }
+   sourceMaterial.uniforms.tDiffuse.value=readBuffer.texture;
+   renderer.setRenderTarget(rawSceneRT);
+   inputQuad.render(renderer);
+   renderer.readRenderTargetPixels(rawSceneRT,0,0,rawWidth,rawHeight,rawScenePixels);
    for(let i=0;i<steps;i++)
-    core.render(samples,Math.min(size.x,size.y));
+    core.render(rawScenePixels,rawWidth,rawHeight,Math.min(size.x,size.y));
    texture.image=core.canvas;
    texture.needsUpdate=true;
   }
@@ -324,7 +388,7 @@ export function createPhysicalLCDPass(){
   outputQuad.render(renderer);
  };
  pass.dispose=()=>{
-  generation++;core?.dispose();sourceRT?.dispose();texture.dispose();
+  generation++;core?.dispose();rawSceneRT?.dispose();texture.dispose();
   sourceMaterial.dispose();outputMaterial.dispose();inputQuad.dispose();outputQuad.dispose();
  };
  return pass;
