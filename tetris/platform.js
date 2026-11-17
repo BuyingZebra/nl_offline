@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v258';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v258';
+import {createInputController} from './input.js?v259';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v259';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v258';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v259';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v258';
+export {createInputController} from './input.js?v259';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -423,7 +423,7 @@ const presentedBoardStatus=()=>lineClearFX?.finalPoints?'playing':game.status;
 const visualScene=createVisualScene({document,window,screen,fatal,
  onControlsFallback:()=>{layers.mark('controls');invalidate('gpu-controls-fallback');}
 });
-const {input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls}=visualScene;
+const {input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,pickerCanvas,pickerContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,pickerTexture,modalPlane,disableGpuControls}=visualScene;
 let g=baseContext; // Current Canvas2D drawing target.
 
 // Source-owned button brightness; no fullscreen press overlay or extra glow.
@@ -1172,6 +1172,19 @@ function paintLightDirectionOverlay(){
  const {x:tx,y:ty,w:th}=headerThemeBounds(r,UI_SPACE);
  region(tx+th+UI_SPACE.headIconGap,ty,th,th,'options',{kind:'button'});
 }
+function paintOverlayCanvas(canvas,context,source,draw){
+ const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
+ if(canvas.width!==cw||canvas.height!==ch){
+  canvas.width=cw;canvas.height=ch;
+ }
+ context.setTransform(1,0,0,1,0,0);
+ context.clearRect(0,0,cw,ch);
+ context.setTransform(DPR,0,0,DPR,0,0);
+ const previous=g;g=context;
+ try{draw();}finally{g=previous;}
+ source.needsUpdate=true;
+ perf.textureChanged('modal');
+}
 function paintModalOverlay(){
  if(screenManager.isScores){
   surface.visible=true;boardPlane.visible=true;sidebarPlane.visible=true;
@@ -1185,25 +1198,19 @@ function paintModalOverlay(){
  sidebarPlane.visible=!editorVisible;
  controlsPlane.visible=!editorVisible;
  terminalPlane.visible=true;
- const q=modalUI.modalBounds(screenManager.active);
- const cw=Math.max(1,Math.round(W*DPR)),ch=Math.max(1,Math.round(H*DPR));
- if(modalCanvas.width!==cw||modalCanvas.height!==ch){
-  modalCanvas.width=cw;modalCanvas.height=ch;
+ // The editor belongs to the source scene so it passes through the picker blur.
+ modalPlane.visible=editorVisible;scrimPlane.visible=false;
+ if(editorVisible){
+  paintOverlayCanvas(modalCanvas,modalContext,modalTexture,()=>{
+   if(scene==='property')modalUI.paintProperty();
+   else paintLightDirectionOverlay();
+  });
  }
- modalContext.setTransform(1,0,0,1,0,0);
- modalContext.clearRect(0,0,cw,ch);
- modalContext.setTransform(DPR,0,0,DPR,0,0);
- modalPlane.visible=!screenManager.isOptions;scrimPlane.visible=false;
- g=modalContext;
- try{
-  if(scene==='property')modalUI.paintProperty();
-  else if(scene==='light')paintLightDirectionOverlay();
-  if(screenManager.isOptions){
-   modalUI.paintModal(q);
-  }
- }finally{g=baseContext;}
- modalTexture.needsUpdate=true;
- perf.textureChanged('modal');
+ // Only the picker sits above its blur. Drawing it last also gives it input priority.
+ if(screenManager.isOptions){
+  const bounds=modalUI.modalBounds('options');
+  paintOverlayCanvas(pickerCanvas,pickerContext,pickerTexture,()=>modalUI.paintModal(bounds));
+ }
 }
 inputController=createInputController({
  screen,document,window,
@@ -1281,7 +1288,7 @@ function syncFX(){
  // except phosphor persistence is paused so dragging remains immediate.
  // The paused-board popup blur is suppressed separately in the compositor.
  const scene=propertyScene();
- compositor.setPicker(screenManager.isOptions?modalTexture:null);
+ compositor.setPicker(screenManager.isOptions?pickerTexture:null);
  compositor.syncFX({fx:scene==='light'?
   {...settings.effects,persistence:false}:settings.effects,
   theme:settings.theme,lcd:settings.lcdDisplay,width:W,height:H,dpr:DPR,
@@ -1406,7 +1413,8 @@ function frame(now){
    if(sidebarPlane.visible)textureUploads.upload(sidebarTexture,'sidebar');
    if(controlsPlane.visible)textureUploads.upload(controlsTexture,'controls');
    if(terminalPlane.visible)textureUploads.upload(terminalTexture,'terminal');
-   if(modalPlane.visible||screenManager.isOptions)textureUploads.upload(modalTexture,'modal');
+   if(modalPlane.visible)textureUploads.upload(modalTexture,'modal');
+   if(screenManager.isOptions)textureUploads.upload(pickerTexture,'modal');
    if(!screenManager.isLight)
     textureUploads.upload(boardPopupTexture,'popup');
    renderer.info.reset();

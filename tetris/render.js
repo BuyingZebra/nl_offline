@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v258';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v258';
+import {instrumentCompositorPasses} from './diagnostics.js?v259';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v259';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -2638,7 +2638,7 @@ const RenderResourceLifecycle=(()=>{
  * Runs only when Copy Debug is requested by the user.
  */
 function estimateCanvasSourceBytes(canvases=[]){
- const names=['base','board','sidebar','controls','terminal','modal','popup'];
+ const names=['base','board','piece-mask','sidebar','controls','terminal','modal','popup','picker'];
  const seen=new Set(),surfaces=[];
  let pixels=0;
  for(const [i,canvas] of canvases.entries()){
@@ -2801,10 +2801,12 @@ const terminalCanvas=document.createElement('canvas');
 const terminalContext=terminalCanvas.getContext('2d',{alpha:false});
 const g=baseContext; // Validate the initial Canvas2D drawing target.
 const modalCanvas=document.createElement('canvas'),modalContext=modalCanvas.getContext('2d',{alpha:true});
+const pickerCanvas=document.createElement('canvas'),pickerContext=pickerCanvas.getContext('2d',{alpha:true});
+pickerCanvas.width=pickerCanvas.height=1;
 // Sharp board popup UI is a separate grayscale layer composed after GPU blur.
 const boardPopupCanvas=document.createElement('canvas');
 const boardPopupContext=boardPopupCanvas.getContext('2d',{alpha:true});
-if(!g||!boardContext||!pieceBloomMaskContext||!sidebarContext||!controlsContext||!terminalContext||!modalContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
+if(!g||!boardContext||!pieceBloomMaskContext||!sidebarContext||!controlsContext||!terminalContext||!modalContext||!pickerContext||!boardPopupContext){fatal.hidden=false;fatal.textContent='Canvas2D missing';throw Error('Canvas2D missing');}
 const texture=new THREE.CanvasTexture(input);
 texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;
 const boardTexture=new THREE.CanvasTexture(boardCanvas);
@@ -2885,9 +2887,12 @@ const scrimPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
 scrimPlane.frustumCulled=false;scrimPlane.renderOrder=1;scrimPlane.position.z=.02;
 scrimPlane.visible=false;scene.add(scrimPlane);
 const modalTexture=new THREE.CanvasTexture(modalCanvas);
-modalTexture.colorSpace=THREE.SRGBColorSpace;
-modalTexture.minFilter=THREE.LinearFilter;modalTexture.magFilter=THREE.LinearFilter;
-modalTexture.generateMipmaps=false;
+const pickerTexture=new THREE.CanvasTexture(pickerCanvas);
+for(const texture of [modalTexture,pickerTexture]){
+ texture.colorSpace=THREE.SRGBColorSpace;
+ texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
+ texture.generateMipmaps=false;
+}
 const modalPlane=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
  new THREE.MeshBasicMaterial({map:modalTexture,transparent:true,depthTest:false,
   depthWrite:false}));
@@ -2898,11 +2903,11 @@ modalPlane.visible=false;scene.add(modalPlane);
 
 
  const canvases=Object.freeze([input,boardCanvas,pieceBloomMaskCanvas,sidebarCanvas,controlsCanvas,
-  terminalCanvas,modalCanvas,boardPopupCanvas]);
+  terminalCanvas,modalCanvas,boardPopupCanvas,pickerCanvas]);
  const textures=Object.freeze([texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,
-  terminalTexture,modalTexture,boardPopupTexture]);
+  terminalTexture,modalTexture,boardPopupTexture,pickerTexture]);
  return Object.freeze({
-  input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,modalPlane,disableGpuControls,
+  input,baseContext,boardCanvas,boardContext,pieceBloomMaskCanvas,pieceBloomMaskContext,sidebarCanvas,sidebarContext,controlsCanvas,controlsContext,terminalCanvas,terminalContext,modalCanvas,modalContext,pickerCanvas,pickerContext,boardPopupCanvas,boardPopupContext,texture,boardTexture,pieceBloomMaskTexture,sidebarTexture,controlsTexture,terminalTexture,boardPopupTexture,renderer,scene,camera,surface,boardPlane,sidebarPlane,controlsPlane,controlsFallbackMaterial,controlLighting,terminalPlane,scrimPlane,modalTexture,pickerTexture,modalPlane,disableGpuControls,
   get controlsGpuEnabled(){return controlsGpuEnabled;},
   canvases,textures
  });
