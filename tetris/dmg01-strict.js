@@ -2,16 +2,14 @@
  * Copyright (c) original shader contributors, Apache-2.0; see
  * ./dmg01-reference-lab/upstream/LICENSE.
  *
- * Fixed 640 × 1388 electrode grid; all five LCD physical passes retained.
+ * Fixed 320 × 694 electrode grid; all five LCD physical passes retained.
  * Original five-pass physics, regenerated nominal WS5 row/column calibration.
  * No hybrid high-detail optical bypass or extra app mode.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v277';
+import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v280';
 
-const WIDTH=640, PANEL_HEIGHT=1388, DMG_HEIGHT=144;
-const SEAMLESS_OPTICS=new URLSearchParams(window.location.search).get('lcdCells')==='hidden';
-const PRECOMPUTED='nomad-crosstalk-640x1388.inc';
+const WIDTH=320, PANEL_HEIGHT=694, DMG_HEIGHT=144;
 function panelRows(){return PANEL_HEIGHT;}
 const VS='#version 300 es\nprecision highp float; out vec2 vTexCoord; void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));vTexCoord=p;gl_Position=vec4(p*2.-1.,0.,1.);}';
 // NOMAD source comes from a GPU framebuffer (bottom-up). Unlike the 2D
@@ -67,22 +65,15 @@ export function physicalLCDGrid(width=WIDTH,height=PANEL_HEIGHT){
 }
 
 async function loadSources(rows){
- const files=Object.fromEntries(await Promise.all([...NAMES,...INCLUDE,PRECOMPUTED].map(async name=>{
+ const files=Object.fromEntries(await Promise.all([...NAMES,...INCLUDE].map(async name=>{
   const response=await fetch(SOURCE_BASE+name,{cache:'force-cache'});
   if(!response.ok)throw Error('DMG source unavailable: '+name+' / HTTP '+response.status);
   return [name,await response.text()];
  })));
  // Regenerate the original author's nominal RC baselines for the additional
  // rows. Fail closed if the original 144-row tables cannot be reproduced.
- // Precomputed from the same source equations so the iPhone doesn't
- // spend ~30 seconds regenerating 1388-row baselines during every launch.
- const calibrated=WIDTH===640&&rows===1388
-  ? files[PRECOMPUTED]
-  : extendDmgCalibration(files['dmg01-crosstalk-lumped.inc'],rows,WIDTH);
- if(!calibrated.includes('DMG_CROSSTALK_ROWS = '+rows+';')||
-    !calibrated.includes('DMG_CROSSTALK_COLUMNS = '+WIDTH+';'))
-  throw Error('LCD electrical calibration dimensions do not match the panel');
- files['dmg01-crosstalk-lumped.inc']=calibrated;
+ files['dmg01-crosstalk-lumped.inc']=extendDmgCalibration(
+  files['dmg01-crosstalk-lumped.inc'],rows,WIDTH);
  // The original source packs two row-counts into one float using an 8-bit
  // radix. Counts now reach 320, so the exact same two-count representation
  // needs a 9-bit radix. This does not alter any RC or STN equations.
@@ -91,7 +82,7 @@ async function loadSources(rows){
   const original='mod(exact, 256.0), floor(exact / 256.0)';
   if(!phase.includes(original))throw Error('Unexpected source count unpacking');
   files['dmg01-crosstalk-phase-local.inc']=phase.replace(
-   original,'mod(exact, 1024.0), floor(exact / 1024.0)');
+   original,'mod(exact, 512.0), floor(exact / 512.0)');
  }
  const expand=(src,depth=0)=>{
   if(depth>5)throw Error('DMG source include cycle');
@@ -107,8 +98,8 @@ async function loadSources(rows){
    const pack='256.0 * vec3(previousCounts)';
    if(!src.includes(loop)||!src.includes(pack))
     throw Error('Upstream row-count packer has changed');
-   src=src.replace(loop,'for (int x = 0; x < 640; ++x)')
-    .replace(pack,'1024.0 * vec3(previousCounts)');
+   src=src.replace(loop,'for (int x = 0; x < 320; ++x)')
+    .replace(pack,'512.0 * vec3(previousCounts)');
   }
   if(name==='dmg01-response-v1.slang'&&rows!==DMG_HEIGHT){
    const original=') / 154.0;';
@@ -228,15 +219,7 @@ class ReferencePanel {
   }
   for(const [name,value] of Object.entries(REFERENCE)){
    const at=this.location(p,'params.'+name);
-   if(at!==null){
-    // Geometry-only comparison. The entire five-pass electronics, temporal
-    // state and palette remain identical. Only final electrode aperture
-    // boundaries and their associated gap shadows are visually suppressed.
-    const seamless=SEAMLESS_OPTICS&&p===this.programs[4];
-    const opticalValue=seamless&&name==='PixelFill'?1.0:
-                       seamless&&name==='ShadowStrength'?0.0:value;
-    gl.uniform1f(at,opticalValue);
-   }
+   if(at!==null)gl.uniform1f(at,value);
   }
   const panelSize=this.location(p,'uPanelSize');
   if(panelSize!==null)gl.uniform2f(panelSize,WIDTH,this.rows);
@@ -398,7 +381,7 @@ export function createPhysicalLCDPass(){
   frameDebt-=steps*physicalFrameMs;
   if(steps>0){
    // Read the full-resolution composed scene rather than a pre-sampled
-   // 640-column image. The transfer is byte RGBA to bridge the independent
+   // 320-column image. The transfer is byte RGBA to bridge the independent
    // WebGL2 physical panel; vector geometry and screen art stay untouched.
    const sourceWidth=readBuffer.width,sourceHeight=readBuffer.height;
    if(!rawSceneRT||rawWidth!==sourceWidth||rawHeight!==sourceHeight){
