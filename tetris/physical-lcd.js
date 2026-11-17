@@ -72,7 +72,11 @@ const STATE_FRAGMENT=PRELUDE+`
   vec3 scene=texture2D(tSource,vUv).rgb;
   // The UI is authored in grayscale; sample at the cell's physical center.
   float lum=dot(scene,vec3(.2126,.7152,.0722));
-  float drive=floor(clamp(1.0-lum,0.0,1.0)*3.0+.5);
+  // Recover the Canvas2D artwork's encoded grey before quantizing drive.
+  // The compositor samples textures in linear light; quantizing there would
+  // incorrectly make light-grey panels into middle Game Boy shades.
+  float sourceGrey=lum<=.0031308?lum*12.92:1.055*pow(lum,1.0/2.4)-.055;
+  float drive=floor(clamp(1.0-sourceGrey,0.0,1.0)*3.0+.5);
   vec4 previous=texture2D(tHistory,vUv);
   float q=uReset>.5?targetQ(drive):unpack16(previous.rg);
   float ions=uReset>.5?0.0:previous.b;
