@@ -1,3 +1,61 @@
+# NOMAD Tetris System v270 — original Lab physics, full-detail artwork (CURRENT)
+
+The Tetris System once again uses the source-derived STN response model from **/lcd-lab/** / v268, but no longer treats its coarse four-electrical-state image as the finished visible artwork. The raw grayscale artwork remains full resolution through the reflective display, its original details are naturally clipped by the optical cell apertures, and the original per-cell STN dynamics are applied as a **temporal optical correction**.
+
+## Architecture
+
+```
+Original Canvas2D/Three.js artwork (unchanged native raster resolution)
+     ├── DIRECT VISUAL PATH ──> continuous grayscale image
+     │                         → natural square-cell aperture / reflector / glass
+     │
+     └── ELECTRICAL RESPONSE ─> one measured-drive sample per simulated cell
+                               → four Lab electrical drive states
+                               → original STN director-drift LUT
+                               → original ionic-retention and nonlinear optical LUT
+                               → observed optical state minus static reference state
+                                                        |
+                                                        v
+                        transient correction added to the DIRECT VISUAL PATH
+                                                        |
+                                                        v
+                                  unchanged physical cell material / OutputPass
+```
+
+**What is preserved EXACTLY from the earlier local Lab-style engine (v268):**
+- The four reference voltages' director targets `TARGET_Q`, 65-sample/drive `DRIFT_Q`, calibrated `OPTICAL_LUT` and anchor/correction data from Retro Display Lab.
+- The same per-logical-cell 16-bit packed director history, slow ionic retention state, measured drift integration, temperature scaling and derived optical state/ionic bias.
+- The same square-cell aperture coverage, shifted shadow overlap, five-state reflective colour interpolation, and independent front-glass controls.
+- The same density-to-cell-grid rule and existing game artwork.
+
+**What changed to preserve image fidelity:** the final optical shader now reads the **unquantized original image at output-pixel resolution**, not the four-level electrical drive texture as the displayed picture. The per-cell electrical state and its measured optical response still evolve exactly as in v268; however, only their difference from the calibrated settled state influences the full-resolution image. At rest, the transient difference approaches zero, preserving v269's detail. A small ionic residual or RGBA8 precision difference can remain.
+
+The screen is therefore a **hybrid physical simulation**, not an exact historical per-electrode reconstruction: thin details within one simulated cell can be optically visible even if they don't independently change its electrical drive. The Lab itself is a reduced-order adaptation and does not claim all original Retro Display Lab's row/column RC/loading passes.
+
+## Controls and comparison
+
+- **PHYSICAL LCD MATERIAL** — original material optics and optional STN response.
+- **LCD RESPONSE** — controls the original per-cell STN history when physical material is enabled; OFF or 0% strength bypasses the electrical state passes and leaves the v269 direct raw-image optics.
+- **DECAY / STRENGTH** — 210ms/60% defaults. At 210ms the integration uses the source's original ~59.7275 Hz reference steps; other decay values adjust the integration speed and strength blends the transient difference.
+- **TEMPERATURE** — original 5–40°C viscous response model, default 20°C.
+- **INK CONTRAST** — optional 75–150% continuous tonal adjustment, default 100%. It affects both the electrical input interpretation and the full-detail optical image. **It is not a four-level image quantizer** and does not add a second grayscale pass.
+- **CELL DENSITY / FILL / REFLECTOR SHADOW / DMG REFERENCE COLOUR / FRONT GLASS** — existing presentation controls kept.
+
+The simplest test is to pause on a detailed piece, use **INK CONTRAST 100%**, then compare LCD RESPONSE OFF and ON while moving an active piece. If OFF is clear but ON introduces distorted outlines at rest, check per-cell target/reference interpolation and STN history. In both modes the source image should retain its geometric detail. Compare against the independent /lcd-lab/ STN motion fixture for response direction and timing.
+
+**Performance:** the restored electrical model uses three small-to-medium per-cell RGBA8 render targets (electrical drive plus two director-history buffers) only when LCD RESPONSE is active, and the final optical presentation runs at output framebuffer resolution. It is not the large full-output-pixel history proposed by the discarded early v270 continuous-voltage experiment. Real-device shader compilation and mobile frame pacing still require user verification.
+
+## Historical experiments (v264–v269)
+
+The material history below documents earlier builds; any statement claiming the physical response has been removed applies only to v269.
+
+---
+
+
+The material history below documents earlier versions; any statement claiming that electrical response is disabled applies **only to v269**, not to the new v270 hybrid.
+
+---
+
 # NOMAD v269 — raw-image optical LCD experiment (CURRENT)
 
 The LCD Properties switch now reads **RAW LCD MATERIAL**. This is a deliberately stripped-back optical test: the existing, full-resolution grayscale Tetris scene is sampled **directly at the final output pixel**, converted continuously through the existing reflective olive/green palette, then shown beneath the same **square-cell aperture lattice, analytic reflector shadows and optional front-glass reflection**. The physical cell count is still controllable with **CELL DENSITY**, but it no longer reduces the artwork to one electrical drive per logical cell.
