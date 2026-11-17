@@ -473,10 +473,12 @@ function reset(){
  step();
 }
 function animation(now){
- requestAnimationFrame(animation);
  if(!autoplay||!runtime)return;
  const msPerFrame=1000/59.7275;
- if(now-lastFrameTs<msPerFrame)return;
+ if(now-lastFrameTs<msPerFrame){
+  requestAnimationFrame(animation);
+  return;
+ }
  lastFrameTs=now;
  try{
   step();
@@ -491,6 +493,7 @@ function animation(now){
   autoplay=false;document.querySelector('#run').textContent='RUN';
   output('ERROR • '+error.message);log(error.stack||error.message);
  }
+ if(autoplay)requestAnimationFrame(animation);
 }
 async function boot(){
  gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true,powerPreference:'default'});
@@ -527,6 +530,7 @@ async function boot(){
  document.querySelector('#run').addEventListener('click',()=>{
     autoplay=!autoplay;lastFrameTs=0;
     document.querySelector('#run').textContent=autoplay?'PAUSE':'RUN';
+    if(autoplay)requestAnimationFrame(animation);
  });
  // Do not autoplay. The first manual RUN click begins the frame simulation.
  autoplay=false;document.querySelector('#run').textContent='RUN';
@@ -539,7 +543,6 @@ async function boot(){
   document.querySelector('#run').textContent='RUN';
   output('WEBGL CONTEXT LOST · renderer stopped.');
  });
- requestAnimationFrame(animation);
 }
 document.getElementById('initialize').addEventListener('click',async()=>{
  const button=document.getElementById('initialize');
