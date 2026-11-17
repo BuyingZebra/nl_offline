@@ -1243,6 +1243,15 @@ inputController=createInputController({
   if(act==='pattern:previous'||act==='pattern:next'){
    modalUI.cyclePattern(act==='pattern:next'?1:-1);return;
   }
+  if(act?.startsWith('density-preset:')){
+   // Fast A/B study: change only simulated cell count while preserving the
+   // aperture, STN response, palette, and game artwork.
+   const value=Number(act.slice('density-preset:'.length));
+   if(screenManager.isProperty&&modalUI.property==='lcdPhysical'&&
+      [1,1.5,2,2.5].includes(value))
+    actions.setSetting('lcdPhysicalDensity',value);
+   return;
+  }
   const previous=game.status;
   const result=actions.dispatch(act);
   // PAUSE must retain its active button until release, even though
