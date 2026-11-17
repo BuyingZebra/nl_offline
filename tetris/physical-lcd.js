@@ -8,13 +8,17 @@
  * optical palette, physical square-cell aperture, reflector shadow and
  * optional virtual front glass.
  *
- * This is NOT an electrical STN simulation. Its appearance can be compared
- * directly with v268 in Git history, including the complete reference STN
- * model. It deliberately has NO cell-centre rasterization, temporal memory
- * or forced 4-shade quantization.
+ * v270 reintroduces temporal STN-inspired electrical response at full
+ * framebuffer resolution. A continuous drive is interpolated between
+ * measured four-drive reference drift curves, while the original image
+ * remains full resolution and the visible cell apertures clip it directly.
+ *
+ * Continuous subcell electrical addressing is an intentional approximation
+ * rather than an exact hardware reconstruction. No fixed four-shade
+ * quantization or cell-centre resampling occurs.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {PALETTE} from './physical-lcd-data.js?v269';
+import {PALETTE,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,REFRESH_HZ} from './physical-lcd-data.js?v270';
 
 const {Pass,FullScreenQuad}=THREE;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -36,6 +40,121 @@ const palettes={
  nomad:[[124,137,86],[180,198,139],[143,170,111],[87,128,94],[45,83,63]]
   .map(row=>new THREE.Color().setRGB(...row.map(srgbLinear)))
 };
+
+
+// The historical lookup data is retained, but a continuous electrical drive
+// is interpolated between its four sampled input voltages. All lookup
+// textures use 16-bit RG packing because NOMAD's Three.js bundle exports
+// CanvasTexture, but not DataTexture or floating-point texture formats.
+function lutTexture(samples,width,height,{signed=false}={}){
+ if(samples.length!==width*height)throw Error('STN lookup dimensions mismatch');
+ const canvas=document.createElement('canvas');
+ canvas.width=width;canvas.height=height;
+ const ctx=canvas.getContext('2d',{alpha:false});
+ if(!ctx)throw Error('STN lookup canvas unavailable');
+ const data=ctx.createImageData(width,height);
+ for(let i=0;i<samples.length;i++){
+  const v=Math.round(clamp((signed?samples[i]+.5:samples[i]),0,1)*65535);
+  const p=i*4;
+  data.data[p]=(v>>8)&255;data.data[p+1]=v&255;
+  data.data[p+2]=0;data.data[p+3]=255;
+ }
+ ctx.putImageData(data,0,0);
+ const t=new THREE.CanvasTexture(canvas);
+ t.flipY=false;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;
+ t.colorSpace=THREE.NoColorSpace;t.generateMipmaps=false;t.needsUpdate=true;
+ return t;
+}
+function driftRoot(drive){
+ // Solve each continuous-drive equilibrium from the same source curves used
+ // by the response shader, rather than rounding to one of four voltages.
+ const level=clamp(drive,0,1)*3;
+ const lo=Math.min(2,Math.floor(level)),hi=lo+1,f=level-lo;
+ function curve(row,q){
+  const p=clamp(q,0,1)*64,i=Math.min(63,Math.floor(p)),t=p-i;
+  const a=DRIFT_Q[row*65+i],b=DRIFT_Q[row*65+i+1];
+  return a+(b-a)*t;
+ }
+ const drift=q=>curve(lo,q)*(1-f)+curve(hi,q)*f;
+ let a=.8,b=.99;
+ for(let i=0;i<26;i++){
+  const mid=(a+b)*.5;
+  if(drift(mid)>0)a=mid;else b=mid;
+ }
+ return (a+b)*.5;
+}
+const TARGET_CURVE=Array.from({length:256},(_,i)=>driftRoot(i/255));
+
+// Shared source conversion. The existing Canvas2D authored content arrives
+// in linear RGB. Convert back to encoded grayscale only for the drive signal.
+const SOURCE_GREY=String.raw`
+ float sourceDarkness(vec2 uv){
+  vec3 linearRGB=texture2D(tSource,clamp(uv,vec2(0.),vec2(1.))).rgb;
+  float lum=clamp(dot(linearRGB,vec3(.2126,.7152,.0722)),0.,1.);
+  float grey=lum<=.0031308?lum*12.92:1.055*pow(lum,1./2.4)-.055;
+  return 1.-clamp(grey,0.,1.);
+ }
+`;
+
+// State is resolved at the SAME resolution as the original artwork.
+// Drift dynamics use the measured STN curves with continuous-drive
+// interpolation; the target curve corrects the reference equilibrium so
+// steady-state image fidelity is identical to the v269 raw optical view.
+const RESPONSE_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SOURCE_GREY+String.raw`
+ uniform sampler2D tHistory,uDrift,uOptical,uTargetCurve;
+ uniform float uDelta,uResponseMs,uTemperature,uReset;
+ uniform float uAnchor[4],uCorrection[4];
+ vec2 pack16(float q){
+  float n=floor(clamp(q,0.,1.)*65535.+.5);
+  return vec2(floor(n/256.),mod(n,256.))/255.;
+ }
+ float unpackRG(vec4 c){
+  vec2 bytes=floor(c.rg*255.+.5);
+  return dot(bytes,vec2(256.,1.))/65535.;
+ }
+ float lookup(sampler2D t,float q,float row,float height){
+  float p=clamp(q,0.,1.)*64.,a=floor(p),w=fract(p);
+  float low=unpackRG(texture2D(t,vec2((a+.5)/65.,(row+.5)/height)));
+  float high=unpackRG(texture2D(t,vec2((min(64.,a+1.)+.5)/65.,(row+.5)/height)));
+  return mix(low,high,w);
+ }
+ float drift(float drive,float q){
+  float p=clamp(drive,0.,1.)*3.;
+  float low=floor(p),high=min(3.,low+1.),a=fract(p);
+  return mix(lookup(uDrift,q,low,4.),lookup(uDrift,q,high,4.),a)-.5;
+ }
+ float optical(float q){
+  float raw=lookup(uOptical,q,0.,1.),c=0.;
+  if(q<=uAnchor[0])c=uCorrection[0]*q/max(uAnchor[0],.000001);
+  else if(q<=uAnchor[3]){
+   int n=q<=uAnchor[1]?0:q<=uAnchor[2]?1:2;
+   c=mix(uCorrection[n],uCorrection[n+1],
+    (q-uAnchor[n])/max(.000001,uAnchor[n+1]-uAnchor[n]));
+  }else c=uCorrection[3]*(1.-q)/max(.000001,1.-uAnchor[3]);
+  return clamp(raw+c,.25,1.);
+ }
+ void main(){
+  float darkness=sourceDarkness(vUv);
+  // 256-point 16-bit target table preserves continuous greyscale input;
+  // there is no rounding to one of the original four voltage levels.
+  float index=floor(clamp(darkness,0.,1.)*255.+.5);
+  float target=unpackRG(texture2D(uTargetCurve,vec2((index+.5)/256.,.5)));
+  vec4 previous=texture2D(tHistory,vUv);
+  float q=uReset>.5?target:unpackRG(previous);
+  float thermal=exp(3800.*(1./293.15-1./(uTemperature+273.15)));
+  float frames=clamp(min(.08,max(.001,uDelta))*59.7275*
+   210./max(30.,uResponseMs)*thermal,.0001,5.4);
+  int n=int(clamp(ceil(frames/.45),1.,12.));
+  float fraction=frames/float(n);
+  if(uReset<.5)for(int step=0;step<12;step++){
+   if(step>=n)break;
+   q=clamp(q+drift(darkness,q)*fraction,0.,1.);
+  }
+  // The calibrated equilibrium is stored separately so that at rest
+  // source detail and ink contrast are not remapped by an STN response curve.
+  gl_FragColor=vec4(pack16(q),optical(target),optical(q));
+ }
+`;
 
 const FRAGMENT=String.raw`
  precision highp float;
