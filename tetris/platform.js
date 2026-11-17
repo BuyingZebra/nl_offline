@@ -1243,20 +1243,6 @@ inputController=createInputController({
   if(act==='pattern:previous'||act==='pattern:next'){
    modalUI.cyclePattern(act==='pattern:next'?1:-1);return;
   }
-  if(act?.startsWith('sampling-method:')){
-   const mode=Number(act.slice('sampling-method:'.length));
-   if(screenManager.isProperty&&modalUI.property==='lcdSamplingStudy'&&
-      Number.isInteger(mode)&&mode>=0&&mode<=2)
-    actions.setSetting('lcdPhysicalSamplingMode',mode);
-   return;
-  }
-  if(act?.startsWith('signal-view:')){
-   const value=Number(act.slice('signal-view:'.length));
-   if(screenManager.isProperty&&modalUI.property==='lcdSignalStudy'&&
-      Number.isInteger(value)&&value>=0&&value<=5)
-    actions.setSetting('lcdPhysicalSignalView',value);
-   return;
-  }
   if(act?.startsWith('density-preset:')){
    // Fast A/B study: change only simulated cell count while preserving the
    // aperture, STN response, palette, and game artwork.
