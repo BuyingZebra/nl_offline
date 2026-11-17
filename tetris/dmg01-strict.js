@@ -223,7 +223,7 @@ const OUTPUT_FS='varying vec2 vUv; uniform sampler2D tLCD; uniform float uAspect
  +'vec3 linearize(vec3 x){vec3 lo=x/12.92;vec3 hi=pow((max(x,vec3(0.))+.055)/1.055,vec3(2.4));'
  +'return mix(lo,hi,step(vec3(.04045),x));}'
  +'void main(){float panelAspect=160.0/144.0;float ratio=uAspect/panelAspect;'
- +'vec2 extent=ratio<1.0?vec2(ratio,1.):vec2(1.,1./ratio);'
+ +'vec2 extent=ratio<1.0?vec2(1.,ratio):vec2(1./ratio,1.);'
  +'vec2 point=(vUv-(.5-.5*extent))/extent;'
  +'float visible=step(0.,point.x)*step(point.x,1.)*step(0.,point.y)*step(point.y,1.);'
  +'vec3 optical=texture2D(tLCD,clamp(point,vec2(0.),vec2(1.))).rgb;'
