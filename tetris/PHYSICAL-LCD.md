@@ -56,12 +56,12 @@ This release has source/static validation. WebGL compilation, actual phone perfo
 
 ## v266: density comparison controls and independent glass optics
 
-In LCD mode, enable **PHYSICAL LCD MATERIAL** and select its Properties editor:
+In LCD mode, enable **PHYSICAL LCD MATERIAL**, then open the dedicated **CELL DENSITY** Properties entry. Its editor contains:
 
 - A fine **CELL DENSITY** slider remains available from 1× to 2.5×.
 - Four quick preset buttons (**1×, 1.5×, 2×, 2.5×**) are interactive and preserve the game's existing settings Confirm/Cancel behaviour.
 - A live **PHYSICAL CELLS** readout shows the exact `columns × rows` simulation dimensions for the current CSS viewport and selected density. It uses the exact `physicalLCDGrid()` function that allocates the GPU simulation history, so no duplicated estimation formula can drift.
-- **CELL FILL**, **REFLECTOR SHADOW** and **TEMPERATURE** remain independently adjustable.
+- **CELL FILL**, **REFLECTOR SHADOW** and **TEMPERATURE** remain independently adjustable in the **PHYSICAL LCD MATERIAL** panel.
 
 With the physical material enabled, the new **FRONT GLASS** Properties entry exposes **REFLECTION** (0–2×), **LIGHT ANGLE** (0–360°) and **VIEW ANGLE** (−45° to +45°). It is separately toggleable, so we can first judge the simulated LCD itself and only then add a virtual surface reflection.
 
