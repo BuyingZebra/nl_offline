@@ -471,7 +471,7 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  boardBlur:0,menuBlur:47,menuFade:87,
  lcdTint:true,lcdTintSaturation:100,lcdCells:true,lcdCellOpacity:20,lcdCellSize:3,
  lcdVignette:false,lcdVignetteAmount:75,lcdVignetteFalloff:32,
- lcdReflection:false,lcdReflectionOpacity:18,lcdReflectionSoftness:42,
+ lcdEdgeBlur:false,lcdEdgeBlurFalloff:32,lcdEdgeBlurSigma:3,
  vignette:true,vignetteAmount:.57,
  persistence:true,persistenceMs:120,
  shadows:true,shadowAngle:55,shadowDistance:13,shadowBlur:14,
@@ -488,8 +488,8 @@ export const DISPLAY_EFFECTS=[
   sliders:[['OPACITY','lcdCellOpacity',0,100,1,'%'],['SCALE','lcdCellSize',2,12,.5,'px']]},
  {id:'lcdVignette',lcdOnly:true,title:'SCREEN VIGNETTE',toggle:'lcdVignette',
   sliders:[['AMOUNT','lcdVignetteAmount',0,100,1,'%'],['FALLOFF','lcdVignetteFalloff',2,100,1,'%']]},
- {id:'lcdReflection',lcdOnly:true,title:'GLASS REFLECTION',toggle:'lcdReflection',
-  sliders:[['OPACITY','lcdReflectionOpacity',0,100,1,'%'],['SOFTNESS','lcdReflectionSoftness',0,100,1,'%']]},
+ {id:'lcdEdgeBlur',lcdOnly:true,title:'EDGE BLUR',toggle:'lcdEdgeBlur',
+  sliders:[['FALLOFF','lcdEdgeBlurFalloff',2,100,1,'%'],['BLUR','lcdEdgeBlurSigma',0,8,.5,'px']]},
  {id:'phosphor',crtOnly:true,section:'CRT EFFECTS',title:'PHOSPHOR COLOR',toggle:'phosphor'},
  {id:'persistence',crtOnly:true,title:'PHOSPHOR RESPONSE',toggle:'persistence',
   sliders:[['DECAY','persistenceMs',10,120,10,'ms']]},
@@ -522,7 +522,7 @@ export const EFFECT_NUMBER_RANGES=Object.freeze({
  boardBlur:[0,4],menuBlur:[0,100],menuFade:[0,100],
  lcdTintSaturation:[0,220],lcdCellOpacity:[0,100],lcdCellSize:[2,12],
  lcdVignetteAmount:[0,100],lcdVignetteFalloff:[2,100],
- lcdReflectionOpacity:[0,100],lcdReflectionSoftness:[0,100],
+ lcdEdgeBlurFalloff:[2,100],lcdEdgeBlurSigma:[0,8],
  vignetteAmount:[0,1],persistenceMs:[10,120],...SHADOW_RANGES
 });
 // Validate persisted, migrated and user-submitted effects using one schema.

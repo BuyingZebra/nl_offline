@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v259';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v259';
+import {instrumentCompositorPasses} from './diagnostics.js?v260';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v260';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -257,11 +257,24 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
  // genuinely smooth 2D Gaussian, without the widely spaced 7x7 samples that
  // caused tiled duplicates at stronger blur settings. Edge Softness uses
  // the same normalized Gaussian weighting in a single 2D pass.
+ // Shared by LCD vignette and edge blur, in CSS pixels.
+ const roundedScreenFeather=`
+   float screenEdgeFeather(vec2 uv,vec2 size,float falloff){
+    float shortSide=min(size.x,size.y);
+    float radius=0.115*shortSide;
+    vec2 q=abs((uv-0.5)*size)-(0.5*size-radius);
+    float inside=radius-length(max(q,vec2(0.0)))-min(max(q.x,q.y),0.0);
+    return 1.0-smoothstep(0.0,falloff*shortSide,inside);
+   }`;
  const gaussianBackdropShader=`
    varying vec2 vUv;uniform sampler2D tDiffuse,uPopup;
    uniform vec4 uRect;uniform vec2 uSize,uAxis;
    uniform float uSigma,uComposite,uCanvasBlend,uFade;
    uniform vec3 uFadeTo;
+   #ifdef LCD_EDGE_BLUR
+   uniform float uFalloff;
+   ${roundedScreenFeather}
+   #endif
    vec3 encodeSRGB(vec3 x){
     return mix(12.92*x,1.055*pow(max(x,vec3(0.0)),vec3(1.0/2.4))-.055,
      step(vec3(.0031308),x));
@@ -277,19 +290,23 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     vec3 backdrop=texture2D(tDiffuse,vUv).rgb;
     float inside=step(uRect.x,vUv.x)*step(vUv.x,uRect.z)*
                  step(uRect.y,vUv.y)*step(vUv.y,uRect.w);
-    if(inside>.5&&uSigma>.01){
+    float sigma=uSigma;
+    #ifdef LCD_EDGE_BLUR
+    sigma*=screenEdgeFeather(vUv,uSize,uFalloff);
+    #endif
+    if(inside>.5&&sigma>.01){
      // Keep taps one CSS pixel apart and widen the kernel with sigma.
      // Increasing tap spacing exposed the sampling grid at high blur.
      vec3 sum=backdrop;
      float weights=1.0;
      vec2 texel=uAxis/max(vec2(1.0),uSize);
-     float inverseVariance=1.0/(uSigma*uSigma);
+     float inverseVariance=1.0/(sigma*sigma);
      float weight=exp(-0.5*inverseVariance);
      float decay=exp(-inverseVariance);
      float ratio=decay;
      for(int i=1;i<=${3*MAX_MENU_BLUR_SIGMA};i++){
       float offset=float(i);
-      if(offset>ceil(3.0*uSigma))break;
+      if(offset>ceil(3.0*sigma))break;
       vec2 delta=offset*texel;
       vec3 a=texture2D(tDiffuse,clamp(vUv-delta,uRect.xy,uRect.zw)).rgb;
       vec3 b=texture2D(tDiffuse,clamp(vUv+delta,uRect.xy,uRect.zw)).rgb;
@@ -310,14 +327,15 @@ if(glow.highPassUniforms?.smoothWidth)glow.highPassUniforms.smoothWidth.value=.0
     }
     gl_FragColor=vec4(backdrop,1.0);
    }`;
- function createGaussianBackdropPass(axis,composite){
+ function createGaussianBackdropPass(axis,composite,edgeOnly=false){
   return new ShaderPass({
+   defines:edgeOnly?{LCD_EDGE_BLUR:1}:{},
    uniforms:{
     tDiffuse:{value:null},uPopup:{value:null},
     uRect:{value:new THREE.Vector4(0,0,0,0)},
     uSize:{value:new THREE.Vector2(1,1)},
     uAxis:{value:new THREE.Vector2(axis,1-axis)},
-    uSigma:{value:0},uFade:{value:0},uFadeTo:{value:new THREE.Color(0x101010)},
+    uSigma:{value:0},uFalloff:{value:.16},uFade:{value:0},uFadeTo:{value:new THREE.Color(0x101010)},
     uComposite:{value:composite?1:0},uCanvasBlend:{value:0}
    },
    vertexShader:passVertex,fragmentShader:gaussianBackdropShader
@@ -592,22 +610,13 @@ void main(){
   }`);
  lcdCells.uniforms.uTile.value=lcdCellTile;
 
- // A single soft oval reflected on the display glass.
- const lcdReflection=addLCDOverlay({
-  uOpacity:{value:0},uSoftness:{value:.40},uAspect:{value:1}
- },`
-  uniform float uOpacity,uSoftness,uAspect;
-  void main(){
-   vec3 src=texture2D(tDiffuse,vUv).rgb;
-   // Correct for aspect so the ellipse keeps its proportions in screen space.
-   vec2 p=vec2((vUv.x-0.31)*uAspect,0.73-vUv.y);
-   p=mat2(0.94,-0.342,0.342,0.94)*p;
-   float radius=length(p/vec2(0.255,0.115));
-   float outside=mix(0.82,1.62,uSoftness);
-   float reflection=1.0-smoothstep(0.0,outside,radius);
-   vec3 glass=src+vec3(1.0,0.97,0.86)*(1.0-src)*reflection*uOpacity;
-   gl_FragColor=vec4(glass,1.0);
-  }`);
+ // Soften the displayed image, including its LCD cells, before vignette darkening.
+ const lcdEdgeBlurPasses=[createGaussianBackdropPass(1,false,true),createGaussianBackdropPass(0,false,true)];
+ for(const pass of lcdEdgeBlurPasses){
+  pass.enabled=false;
+  pass.uniforms.uRect.value.set(0,0,1,1);
+  composer.addPass(pass);
+ }
 
  // Feather inward from all four drawable screen edges, including safe-area margins.
  const lcdVignette=addLCDOverlay({
@@ -615,14 +624,10 @@ void main(){
  },`
   uniform float uAmount,uFalloff;
   uniform vec2 uSize;
+  ${roundedScreenFeather}
   void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
-   float shortSide=min(uSize.x,uSize.y);
-   float radius=0.115*shortSide;
-   vec2 q=abs((vUv-0.5)*uSize)-(0.5*uSize-radius);
-   float inside=radius-length(max(q,vec2(0.0)))-min(max(q.x,q.y),0.0);
-   float feather=smoothstep(0.0,uFalloff*shortSide,inside);
-   float darkness=uAmount*(1.0-feather);
+   float darkness=uAmount*screenEdgeFeather(vUv,uSize,uFalloff);
    gl_FragColor=vec4(src*(1.0-darkness),1.0);
   }`);
  // Vertical hold/roll is a pure signal-space transform AFTER all existing
@@ -670,7 +675,7 @@ void main(){
   'Scene + uploads','Board blur H','Board popup','Picker blur H','Picker popup',
   'Phosphor history','Ghost','Bloom',
   'Phosphor','Edge softness','Vignette','CRT mask','LCD colour','LCD cells',
-  'LCD reflection','LCD vignette','Boot roll','Output'
+  'LCD edge blur H','LCD edge blur V','LCD vignette','Boot roll','Output'
  ],onPassTiming);
  // Restore the original fixed green and amber phosphor ratios;
  // the blue experiment is removed without changing luminance or bloom.
@@ -698,16 +703,21 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  tint.enabled=!lcd;
  lcdTint.enabled=lcd&&fx.lcdTint;
  lcdCells.enabled=lcd&&fx.lcdCells&&fx.lcdCellOpacity>0;
- lcdReflection.enabled=lcd&&fx.lcdReflection&&fx.lcdReflectionOpacity>0;
+ const lcdEdgeBlurEnabled=lcd&&fx.lcdEdgeBlur&&fx.lcdEdgeBlurSigma>0;
+ for(const pass of lcdEdgeBlurPasses){
+  pass.enabled=lcdEdgeBlurEnabled;
+  if(lcdEdgeBlurEnabled){
+   pass.uniforms.uSigma.value=fx.lcdEdgeBlurSigma;
+   pass.uniforms.uFalloff.value=fx.lcdEdgeBlurFalloff*0.005;
+   pass.uniforms.uSize.value.set(W,H);
+  }
+ }
  lcdVignette.enabled=lcd&&fx.lcdVignette&&fx.lcdVignetteAmount>0;
  if(lcd){
   lcdTint.uniforms.uSaturation.value=fx.lcdTintSaturation/100;
   lcdCells.uniforms.uOpacity.value=fx.lcdCellOpacity/100;
   lcdCells.uniforms.uScale.value=fx.lcdCellSize;
   lcdCells.uniforms.uSize.value.set(W,H);
-  lcdReflection.uniforms.uOpacity.value=fx.lcdReflectionOpacity/100;
-  lcdReflection.uniforms.uSoftness.value=fx.lcdReflectionSoftness/100;
-  lcdReflection.uniforms.uAspect.value=W/H;
   lcdVignette.uniforms.uAmount.value=fx.lcdVignetteAmount/100;
   lcdVignette.uniforms.uFalloff.value=fx.lcdVignetteFalloff*0.005;
   lcdVignette.uniforms.uSize.value.set(W,H);
