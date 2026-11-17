@@ -19,7 +19,8 @@ select,button{font:inherit;background:#263827;border:1px solid #617957;border-ra
 select{width:100%}button{cursor:pointer;font-weight:bold}button:active{background:#3b5534}
 .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 label{display:block;font-size:10px;letter-spacing:.05em;color:#a8b99d;margin-bottom:5px}
-#status{color:#b6cdad;line-height:1.5;margin:10px 0;min-height:35px}#log{font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:270px;overflow:auto;color:#ffc8ae;background:#180e0d;padding:12px}
+#status{color:#b6cdad;line-height:1.5;margin:10px 0;min-height:35px}
+button:disabled{opacity:.45;cursor:not-allowed}#log{font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:270px;overflow:auto;color:#ffc8ae;background:#180e0d;padding:12px}
 .stats{display:flex;gap:20px;flex-wrap:wrap}.stats span{font-variant-numeric:tabular-nums}
 code{font-size:11px}#probes{font-size:10px;color:#d1dab5;overflow-wrap:anywhere;line-height:1.7}
 a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
@@ -34,7 +35,7 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 <main>
 <div class="panel"><div class="tag">160 × 144 PHYSICAL DRIVE MATRIX · 640 × 576 FINE ARTWORK</div>
 <div class="screen"><canvas id="panel" role="img" aria-label="TETRIS and blinking PLAY button with vector-quality edges and independently simulated LCD material response"></canvas></div>
-<div id="status">Checking required WebGL2 floating-point precision and compiling the upstream shaders…</div>
+<div id="status">Ready to initialize. No GPU work begins until you press LOAD MODEL.</div>
 <pre id="log" hidden aria-live="polite"></pre>
 <button id="copyError" type="button" hidden style="margin-bottom:12px">COPY DIAGNOSTIC</button>
 <div class="stats"><span>Frames: <strong id="count">0</strong></span><span>Completed step: <strong id="ms">—</strong></span></div>
@@ -62,7 +63,8 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
   <option value="direct">Direct device-pixel output</option>
  </select></div>
 </div>
-<div class="actions"><button id="step" type="button">STEP 1 FRAME</button><button id="run" type="button">RUN</button><button id="reset" type="button">RESET HISTORY</button></div>
+<div class="actions"><button id="step" type="button" disabled>STEP 1 FRAME</button><button id="run" type="button" disabled>RUN</button><button id="reset" type="button" disabled>RESET HISTORY</button></div>
+<div style="margin-top:12px"><button id="initialize" type="button" style="width:100%;border-color:#cde3a4;color:#f0f5df">LOAD ORIGINAL FIVE-PASS MODEL</button></div>
 <p><strong>Original matrix:</strong> five upstream shader stages remain intact, including 160 × 144 row/column loading, distributed-RC crosstalk, director response, ionic memory and row-latch timing. <strong>Cell-less reconstruction:</strong> a lightweight high-resolution detail-history layer retains edges inside those virtual electrical rows. It uses the source optical palette but does not draw electrode apertures or cell gaps.</p>
 <div><label for="pixelInfo">ACTUAL OPTICAL FRAMEBUFFER</label><div id="pixelInfo" style="color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div>
 <p><strong>Why two layers?</strong> The original Game Boy hardware model cannot exactly reproduce independent behaviour within an electrode. Its electric field and original five passes are preserved here, while fine detail response is a separate approximation. Compare the three views to distinguish the physically calculated behaviour from the reconstruction. RUN must be started manually.</p>
@@ -513,6 +515,7 @@ async function boot(){
  // Cell-less mode interpolates the native field in its shader using texelFetch,
  // avoiding float-linear-filter extension requirements on mobile Safari.
  runtime=true;reset();
+ for(const id of ['step','run','reset'])document.getElementById(id).disabled=false;
  document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
  document.querySelector('#cadence').addEventListener('change',event=>{blinkEvery=Math.max(1,Number(event.target.value)||36);reset();});
  document.querySelector('#view').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
@@ -524,9 +527,9 @@ async function boot(){
     autoplay=!autoplay;lastFrameTs=0;
     document.querySelector('#run').textContent=autoplay?'PAUSE':'RUN';
  });
- // The page starts its demonstration automatically, but never queues
- // multiple concurrent LCD simulations. PAUSE and single-step remain available.
- autoplay=true;document.querySelector('#run').textContent='PAUSE';
+ // Do not autoplay. The first manual RUN click begins the frame simulation.
+ autoplay=false;document.querySelector('#run').textContent='RUN';
+ output('Model loaded, paused. Three views available. Press RUN or STEP to study response.');
  document.addEventListener('visibilitychange',()=>{
   if(document.hidden){autoplay=false;document.querySelector('#run').textContent='RUN';}
  });
@@ -537,7 +540,17 @@ async function boot(){
  });
  requestAnimationFrame(animation);
 }
-boot().catch(fail);
+document.getElementById('initialize').addEventListener('click',async()=>{
+ const button=document.getElementById('initialize');
+ button.disabled=true;button.textContent='LOADING PHYSICAL MODEL…';
+ try{
+  await boot();
+  button.textContent='MODEL LOADED';
+ }catch(error){
+  fail(error);
+  button.textContent='MODEL COULD NOT LOAD';
+ }
+});
 
 </script>
 </body></html>
