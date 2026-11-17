@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b100d"><meta name="color-scheme" content="dark">
-<title>NOMAD — Source DMG-01 Reference Laboratory</title>
+<title>NOMAD — Physical LCD Response Study</title>
 <style>
 :root{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#e3eadb;background:#0b100d}
 *{box-sizing:border-box}body{margin:0;min-height:100vh}header,main,footer{max-width:860px;margin:auto;padding:18px}
@@ -26,26 +26,44 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 </style>
 </head>
 <body>
-<header><div class="tag">NOMAD / PHYSICAL DISPLAY STUDY / UPSTREAM SOURCE</div>
-<h1>DMG-01 Reference Laboratory</h1>
-<p>Research fixture using the original Retro Display Lab's <strong>five shader passes</strong> and generated physical constants. WebGL2 adapter changes the graphics interface, not the original physical equations. This does not alter Tetris gameplay or artwork.</p>
+<header><div class="tag">NOMAD / INDEPENDENT LCD EXPERIMENT</div>
+<h1>TETRIS · Physical LCD Behaviour</h1>
+<p>One TETRIS title and one blinking PLAY button, displayed through the <strong>original five-pass Retro Display Lab DMG-01 shaders</strong>. This independent page does not import NOMAD or register any service worker.</p>
 </header>
 <main>
-<div class="panel"><div class="tag">NATIVE 160 × 144 · FOUR DRIVEN LEVELS</div>
-<div class="screen"><canvas id="panel" role="img" aria-label="Native Game Boy LCD reference rendering"></canvas></div>
+<div class="panel"><div class="tag">NATIVE 160 × 144 · FOUR DRIVE CODES · ORIGINAL STN MODEL</div>
+<div class="screen"><canvas id="panel" role="img" aria-label="TETRIS and blinking PLAY button, simulated through the original Game Boy LCD model"></canvas></div>
 <div id="status">Checking required WebGL2 floating-point precision and compiling the upstream shaders…</div>
 <pre id="log" hidden aria-live="polite"></pre>
 <button id="copyError" type="button" hidden style="margin-bottom:12px">COPY DIAGNOSTIC</button>
 <div class="stats"><span>Frames: <strong id="count">0</strong></span><span>Completed step: <strong id="ms">—</strong></span></div>
-<p id="probes">Waiting for reference measurements…</p>
+<p id="probes">Only the PLAY button changes. Study slow transitions, ghosting, and retention while the title remains stationary.</p>
 </div>
-<div class="group"><h2>Native stimulus &amp; diagnostic</h2>
-<div class="controls"><div><label for="scene">INPUT PATTERN</label><select id="scene"><option value="shades">Four driven shades</option><option value="cross">Row/column loading</option><option value="cells">Pixel aperture fixture</option><option value="motion">Moving tile / STN retention</option><option value="matchedTitle">Original Lab title (identical input)</option><option value="matchedGrid">Original Lab cell geometry (identical input)</option></select></div>
-<div><label for="view">OUTPUT</label><select id="view"><option value="reference">Original five-pass LCD</option><option value="raw">Unprocessed native input</option></select></div></div>
-<div class="controls" style="margin-top:12px"><div><label for="presentation">PRESENTATION (same optical model)</label><select id="presentation"><option value="fixed">Source 4× framebuffer, browser-fit</option><option value="direct">Direct device-pixel output</option></select></div><div><label for="pixelInfo">OUTPUT MEASUREMENT</label><div id="pixelInfo" role="status" style="padding:12px 9px;color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div></div>
-<p>DIRECT renders the original display shader at the actual canvas resolution, including the original host-pixel aperture integration. FIXED retains the exact 4× 640 × 576 framebuffer, then lets the browser fit it. Neither option changes 160 × 144 physical pixels, five electrical passes, shader constants or state feedback.</p>
+<div class="group"><h2>PLAY button electrical-response test</h2>
+<div class="controls">
+ <div><label for="scene">BUTTON INPUT</label><select id="scene">
+  <option value="blink">Blinking PLAY button</option>
+  <option value="steady">PLAY always on</option>
+  <option value="off">PLAY always off</option>
+ </select></div>
+ <div><label for="cadence">TIME PER STATE</label><select id="cadence">
+  <option value="18">18 frames · 0.30 s</option>
+  <option value="36" selected>36 frames · 0.60 s</option>
+  <option value="60">60 frames · 1.00 s</option>
+ </select></div>
+ <div><label for="view">RENDERING</label><select id="view">
+  <option value="reference">Original five-pass LCD output</option>
+  <option value="raw">Raw 4-level electrical input</option>
+ </select></div>
+ <div><label for="presentation">PRESENTATION ONLY</label><select id="presentation">
+  <option value="fixed">Fixed 4× optical framebuffer</option>
+  <option value="direct">Direct device-pixel output</option>
+ </select></div>
+</div>
 <div class="actions"><button id="step" type="button">STEP 1 FRAME</button><button id="run" type="button">RUN</button><button id="reset" type="button">RESET HISTORY</button></div>
-<p>The model advances by one simulated DMG frame per step (59.7275 Hz). RUN tries to step at this rate; if the device is too slow, the frame counter and completed-step time reveal it. There is no substituted blur or low-precision fallback.</p>
+<p>Five original shader passes. Native 160 × 144 drive matrix. The electrical stimulus changes between the lightest and darkest drive codes; the same optical, liquid-crystal, and ionic response equations run unmodified.</p>
+<div><label for="pixelInfo">ACTUAL OPTICAL FRAMEBUFFER</label><div id="pixelInfo" style="color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div>
+<p>Watch the PLAY button appear, switch off, and leave a fading afterimage. Compare RAW INPUT with LCD OUTPUT to see what the physical engine—not the artwork—is doing. RUN attempts 59.7275 simulated frames/s; a slower device may play the response more slowly.</p>
 </div>
 <div class="group"><h2>Exact upstream model conditions</h2>
 <p><strong>Optics:</strong> 0.875 cell fill, 1.00 host-footprint filtering, 0.18 reflector shadow, 0.11/0.13-cell shadow offset, contrast 1.00, optical bias 0.00, zero simulated aging.</p>
@@ -54,7 +72,7 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 </div>
 </main>
 <footer>
-Original shaders, tables and crosstalk constants: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Source is preserved in the <code>upstream/</code> folder. NOMAD test adapter is separate. <a href="https://github.com/BuyingZebra/nl_offline/blob/research/dmg01-source-parity-20261117/tetris/DMG01-REFERENCE-CONTRACT.md">Engineering contract</a> and <a href="https://github.com/BuyingZebra/nl_offline/blob/research/dmg01-source-parity-20261117/tetris/dmg01-upstream-reference.json">parameter manifest</a>.
+Original DMG-01 shaders, crosstalk tables and STN optical reconstruction: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Original source files remain unchanged in this independent study's <code>upstream/</code> folder.
 </footer>
 <script type="module">
 /*
