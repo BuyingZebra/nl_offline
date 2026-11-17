@@ -837,7 +837,10 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   reference:fx.lcdPhysicalReference,
   glass:fx.lcdPhysicalGlass,glassStrength:fx.lcdPhysicalGlassStrength,
   glassLightAngle:fx.lcdPhysicalGlassLightAngle,
-  glassViewAngle:fx.lcdPhysicalGlassViewAngle
+  glassViewAngle:fx.lcdPhysicalGlassViewAngle,
+  responseOn:fx.lcdResponse,responseMs:fx.lcdResponseMs,
+  responseStrength:fx.lcdResponseAmount,
+  temperature:fx.lcdPhysicalTemperature,inkContrast:fx.lcdInkContrast
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
@@ -2168,7 +2171,9 @@ function createModalUI({
   {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'}];
  const lcdProperties=properties.filter(property=>!property.crtOnly);
  const crtProperties=properties.filter(property=>!property.lcdOnly);
- const legacyLCD=new Set(['lcdTint','lcdResponse','lcdBleed','lcdCells',
+ // LCD RESPONSE is shared: legacy LCD uses its historical grayscale
+ // persistence pass; RAW LCD uses continuous-drive STN lookup history.
+ const legacyLCD=new Set(['lcdTint','lcdBleed','lcdCells',
   'lcdVignette','lcdEdgeColour','lcdEdgeBlur']);
  // When physical material is selected, hide inactive post-FX sliders;
  // otherwise they would appear to be broken while the physical pass owns LCD.
