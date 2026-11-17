@@ -1,4 +1,4 @@
-/* NOMAD continuous LCD experiment v278.
+/* NOMAD continuous LCD experiment v279.
  * Standalone full-resolution display-behaviour engine.
  * DMG-01 reference physics retained separately at dmg01-strict.js and
  * dmg01-reference-lab/. Neither is imported into the running application.
@@ -28,8 +28,9 @@ void main(){
  }
  gl_FragColor=vec4(individual,total/8.0,0.0,1.0);
 }`;
-// Second stage: estimate column loading. Keep the complete native-pixel
-// image spatially intact; the electrical field influences drive only.
+// Second stage: estimate column loading on the same compact electrical
+// field. The original artwork never passes through this lower-resolution
+// intermediate image; it is sampled directly by the next native-pixel pass.
 const COLUMN=String.raw`
 precision highp float;
 varying vec2 vUv;
@@ -41,9 +42,7 @@ void main(){
   columnMean+=texture2D(tRow,vec2(vUv.x,(float(i)+0.5)/8.0)).r;
  }
  columnMean/=8.0;
- float effective=clamp(center.r+
-  0.026*(center.g-center.r)+0.018*(columnMean-center.r),0.0,1.0);
- gl_FragColor=vec4(1.0-effective,center.g,columnMean,1.0);
+ gl_FragColor=vec4(center.g,columnMean,0.0,1.0);
 }`;
 // Third stage: analog liquid-crystal orientation and independently accumulating
 // adsorbed-ion memory. Both are integrated at every DISPLAY pixel. One
@@ -53,7 +52,7 @@ void main(){
 const TEMPORAL=String.raw`
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D tElectric,tPrevious;
+uniform sampler2D tOriginal,tElectric,tPrevious;
 uniform float uDelta,uReset,uTemperatureC;
 float unpackIon(vec2 gb){
  float hi=floor(gb.x*255.0+0.5);
@@ -65,7 +64,12 @@ vec2 packIon(float c){
  return vec2(floor(value/256.0),mod(value,256.0))/255.0;
 }
 void main(){
- float drive=texture2D(tElectric,vUv).r;
+ // The full-resolution original pixel is never downsampled. Only its
+ // electrical surroundings are calculated on a compact shared field.
+ float raw=dot(texture2D(tOriginal,vUv).rgb,vec3(.2126,.7152,.0722));
+ vec2 load=texture2D(tElectric,vUv).rg;
+ float effective=clamp(raw+0.026*(load.r-raw)+0.018*(load.g-raw),0.0,1.0);
+ float drive=1.0-effective;
  vec4 previous=texture2D(tPrevious,vUv);
  float director=previous.r*previous.r;
  float ionic=unpackIon(previous.gb);
@@ -144,9 +148,10 @@ export function createContinuousLCDPass(){
  pass.needsSwap=true;
  pass.enabled=false;
  let width=1,height=1,row=null,drive=null,history=[null,null],active=0,first=true;
+ let fieldW=1,fieldH=1;
  const rowU={tSource:{value:null}};
  const columnU={tRow:{value:null}};
- const timeU={tElectric:{value:null},tPrevious:{value:null},
+ const timeU={tOriginal:{value:null},tElectric:{value:null},tPrevious:{value:null},
   uDelta:{value:1/60},uReset:{value:1},uTemperatureC:{value:20}};
  const outputU={tState:{value:null}};
  const mats=[
@@ -159,14 +164,22 @@ export function createContinuousLCDPass(){
   for(const h of history)h?.dispose();
   row=null;drive=null;history=[null,null];
  }
- function target(){
-  const t=new THREE.WebGLRenderTarget(width,height,options);
+ function target(w=width,h=height){
+  const t=new THREE.WebGLRenderTarget(w,h,options);
   t.texture.colorSpace=THREE.NoColorSpace;
   return t;
  }
  function allocate(){
   disposeTargets();
-  row=target();drive=target();history=[target(),target()];
+  // Row/column loading is a shared electrical effect, not an image.
+  // Keep it compact; only the director/ionic state requires one sample per
+  // actual display pixel. This avoids the two full-resolution 8-tap passes
+  // that overwhelmed mobile Safari in v278.
+  fieldW=Math.min(96,Math.max(16,Math.ceil(width/8)));
+  fieldH=Math.min(192,Math.max(16,Math.ceil(height/8)));
+  row=target(fieldW,fieldH);
+  drive=target(fieldW,fieldH);
+  history=[target(),target()];
   active=0;first=true;
  }
  pass.setSize=(w,h)=>{
@@ -178,15 +191,15 @@ export function createContinuousLCDPass(){
  pass.reset=()=>{first=true;};
  pass.configure=()=>{}; // No screen-resolution or physical cell layout required.
  pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
-  if(!row||!drive||!history[0])allocate();
-  if(readBuffer.width!==width||readBuffer.height!==height){
+  if(readBuffer.width!==width||readBuffer.height!==height)
    pass.setSize(readBuffer.width,readBuffer.height);
-  }
+  if(!row||!drive||!history[0])allocate();
   rowU.tSource.value=readBuffer.texture;
   quad.material=mats[0];renderer.setRenderTarget(row);quad.render(renderer);
   columnU.tRow.value=row.texture;
   quad.material=mats[1];renderer.setRenderTarget(drive);quad.render(renderer);
   const next=1-active;
+  timeU.tOriginal.value=readBuffer.texture;
   timeU.tElectric.value=drive.texture;
   timeU.tPrevious.value=history[active].texture;
   timeU.uDelta.value=Math.max(0.001,Math.min(0.1,Number(deltaTime)||1/60));
