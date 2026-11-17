@@ -129,6 +129,7 @@ function fail(error){
 
 let runtime=null,autoplay=false,frames=0,scene='blink',blinkEvery=36,renderMs=0;
 let framePrev=null,frameNext=null,sourceCtx=null,sourceCanvas=null;
+let fineCanvas=null,fineCtx=null,fineTexture=null,detailTargets=[],detailCurrent=0,detailProgram=null,celllessProgram=null;
 let targets=[],programs=[],staticProgram=null,fbIndex=0,lastFrameTs=0;
 const referenceParams={
   DriveContrast:1,PanelTemperatureCelsius:20,IonicMobility:.05,
@@ -256,7 +257,13 @@ function imgContext(){
  sourceCanvas=document.createElement('canvas');
  sourceCanvas.width=NATIVE_W;sourceCanvas.height=NATIVE_H;
  sourceCtx=sourceCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
- sourceCtx.imageSmoothingEnabled=false;
+ sourceCtx.imageSmoothingEnabled=true;
+ sourceCtx.imageSmoothingQuality='high';
+ fineCanvas=document.createElement('canvas');
+ fineCanvas.width=OPTICAL_W;fineCanvas.height=OPTICAL_H;
+ fineCtx=fineCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
+ if(!fineCtx)throw Error('High-resolution artwork canvas unavailable');
+ fineCtx.imageSmoothingEnabled=true;
 }
 function textureFromCanvas(){
  const texture=oneTexture(NATIVE_W,NATIVE_H,gl.RGBA8);
@@ -265,15 +272,24 @@ function textureFromCanvas(){
  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,sourceCanvas);
  return texture;
 }
-function refreshInputTexture(texture){
+function refreshInputTexture(texture,canvas=sourceCanvas){
  gl.bindTexture(gl.TEXTURE_2D,texture);
  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
- gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,sourceCanvas);
+ gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+}
+function createFineTexture(){
+ const texture=oneTexture(OPTICAL_W,OPTICAL_H,gl.RGBA8);
+ refreshInputTexture(texture,fineCanvas);
+ return texture;
 }
 
 const DRIVE=['#ffffff','#aaaaaa','#555555','#000000'];
 function renderPattern(frame){
- const g=sourceCtx,P=DRIVE;
+ // True 640x576 artwork: smooth edges never enter the DMG pixel aperture
+ // function. The native 160x144 input is independently averaged from it,
+ // so the ORIGINAL matrix still receives exactly four drive levels.
+ const g=fineCtx,P=DRIVE;
+ g.setTransform(SCALE,0,0,SCALE,0,0);
  g.fillStyle=P[0];g.fillRect(0,0,NATIVE_W,NATIVE_H);
  g.textAlign='center';g.textBaseline='middle';
  g.fillStyle=P[3];g.font='700 30px "Roboto Condensed", monospace';
@@ -291,16 +307,18 @@ function renderPattern(frame){
  }
  g.fillStyle=P[2];g.font='bold 7px monospace';
  g.fillText('DMG-01 / RESPONSE STUDY',80,136);
- // Antialiased title and icon pixels are rounded internally to the same
- // FOUR electrical codes used by the original DMG-01 engine.
- const pixels=g.getImageData(0,0,NATIVE_W,NATIVE_H);
+ // Four native electrical levels only in the MATRIX path. The output
+ // artwork above is never quantized or resized for optical reconstruction.
+ sourceCtx.fillStyle=P[0];sourceCtx.fillRect(0,0,NATIVE_W,NATIVE_H);
+ sourceCtx.drawImage(fineCanvas,0,0,NATIVE_W,NATIVE_H);
+ const pixels=sourceCtx.getImageData(0,0,NATIVE_W,NATIVE_H);
  const data=pixels.data;
  for(let i=0;i<data.length;i+=4){
   const code=Math.max(0,Math.min(3,Math.round((255-data[i])/85)));
   const value=255-85*code;
   data[i]=value;data[i+1]=value;data[i+2]=value;data[i+3]=255;
  }
- g.putImageData(pixels,0,0);
+ sourceCtx.putImageData(pixels,0,0);
 }
 function syncPresentationSize(){
  const direct=document.querySelector('#presentation').value==='direct';
