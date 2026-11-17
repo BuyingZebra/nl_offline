@@ -118,6 +118,14 @@ self.addEventListener('install',event=>{
  })());
 });
 
+// A launch-time boot gate requests this ONLY after the new worker has
+// atomically precached and verified the complete release. The old cached
+// application can remain playable while installation is incomplete.
+self.addEventListener('message',event=>{
+ if(event.data?.type==='NOMAD_ACTIVATE_UPDATE')
+  event.waitUntil(self.skipWaiting());
+});
+
 self.addEventListener('activate',event=>{
  event.waitUntil((async()=>{
   const keys=await caches.keys();
