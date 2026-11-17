@@ -2,17 +2,15 @@
  * Copyright (c) original shader contributors, Apache-2.0; see
  * ./dmg01-reference-lab/upstream/LICENSE.
  *
- * Native 160-column cell pitch, extended only by portrait rows.
+ * Fixed 320 × 694 electrode grid; all five LCD physical passes retained.
  * Original five-pass physics, regenerated nominal WS5 row/column calibration.
  * No hybrid high-detail optical bypass or extra app mode.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v275';
+import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v276';
 
-const WIDTH=160, DMG_HEIGHT=144;
-function panelRows(width,height){
- return Math.max(DMG_HEIGHT,Math.min(520,Math.round(WIDTH*Math.max(1,height)/Math.max(1,width))));
-}
+const WIDTH=320, PANEL_HEIGHT=694, DMG_HEIGHT=144;
+function panelRows(){return PANEL_HEIGHT;}
 const VS='#version 300 es\nprecision highp float; out vec2 vTexCoord; void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));vTexCoord=p;gl_Position=vec4(p*2.-1.,0.,1.);}';
 // NOMAD source comes from a GPU framebuffer (bottom-up). Unlike the 2D
 // canvas-origin laboratory fixture, it must NOT be inverted on output.
@@ -62,7 +60,7 @@ const REFERENCE=Object.freeze({
  ScreenBrightness:1,ScreenChroma:1,PolarizerAge:0,DebugView:0,DebugGain:12
 });
 
-export function physicalLCDGrid(width=WIDTH,height=DMG_HEIGHT){
+export function physicalLCDGrid(width=WIDTH,height=PANEL_HEIGHT){
  return {columns:WIDTH,rows:panelRows(width,height)};
 }
 
@@ -75,7 +73,17 @@ async function loadSources(rows){
  // Regenerate the original author's nominal RC baselines for the additional
  // rows. Fail closed if the original 144-row tables cannot be reproduced.
  files['dmg01-crosstalk-lumped.inc']=extendDmgCalibration(
-  files['dmg01-crosstalk-lumped.inc'],rows);
+  files['dmg01-crosstalk-lumped.inc'],rows,WIDTH);
+ // The original source packs two row-counts into one float using an 8-bit
+ // radix. Counts now reach 320, so the exact same two-count representation
+ // needs a 9-bit radix. This does not alter any RC or STN equations.
+ if(WIDTH>255){
+  const phase=files['dmg01-crosstalk-phase-local.inc'];
+  const original='mod(exact, 256.0), floor(exact / 256.0)';
+  if(!phase.includes(original))throw Error('Unexpected source count unpacking');
+  files['dmg01-crosstalk-phase-local.inc']=phase.replace(
+   original,'mod(exact, 512.0), floor(exact / 512.0)');
+ }
  const expand=(src,depth=0)=>{
   if(depth>5)throw Error('DMG source include cycle');
   return src.replace(/^\s*#include\s+"([^"]+)"\s*$/gm,(_,name)=>{
@@ -85,6 +93,14 @@ async function loadSources(rows){
  };
  return NAMES.map(name=>{
   let src=files[name];
+  if(name==='dmg01-row-load-v2.slang'&&WIDTH>160){
+   const loop='for (int x = 0; x < 160; ++x)';
+   const pack='256.0 * vec3(previousCounts)';
+   if(!src.includes(loop)||!src.includes(pack))
+    throw Error('Upstream row-count packer has changed');
+   src=src.replace(loop,'for (int x = 0; x < 320; ++x)')
+    .replace(pack,'512.0 * vec3(previousCounts)');
+  }
   if(name==='dmg01-response-v1.slang'&&rows!==DMG_HEIGHT){
    const original=') / 154.0;';
    if(!src.includes(original))throw Error('Upstream scan-latch timing expression changed');
@@ -325,7 +341,7 @@ export function createPhysicalLCDPass(){
   minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter};
  pass.enabled=false;
  pass.setSize=()=>{};
- pass.configure=({width=WIDTH,height=DMG_HEIGHT}={})=>{
+ pass.configure=({width=WIDTH,height=PANEL_HEIGHT}={})=>{
   const required=panelRows(width,height);
   if(required!==rows){
    rows=required;generation++;
@@ -365,7 +381,7 @@ export function createPhysicalLCDPass(){
   frameDebt-=steps*physicalFrameMs;
   if(steps>0){
    // Read the full-resolution composed scene rather than a pre-sampled
-   // 160-column image. The transfer is byte RGBA to bridge the independent
+   // 320-column image. The transfer is byte RGBA to bridge the independent
    // WebGL2 physical panel; vector geometry and screen art stay untouched.
    const sourceWidth=readBuffer.width,sourceHeight=readBuffer.height;
    if(!rawSceneRT||rawWidth!==sourceWidth||rawHeight!==sourceHeight){
