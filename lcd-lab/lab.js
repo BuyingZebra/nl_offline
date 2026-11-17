@@ -102,10 +102,10 @@ void main(){
  // Optional experimental glass optics; never modifies the underlying LCD state.
  if(uDebug==0&&uGlass>0.){
   vec2 screen=vec2(vUv.x,1.-vUv.y);
-  float radians=radians(uLightAngle);
-  vec2 normal=normalize(vec2(cos(radians),sin(radians)));
+  float rad=radians(uLightAngle);
+  vec2 normal=normalize(vec2(cos(rad),sin(rad)));
   float center=dot(screen-vec2(.5),normal);
-  float stripe=exp(-pow((center-.14)/.16,2.));
+  float dx=(center-.14)/.16;float stripe=exp(-dx*dx);
   float angleFactor=abs(uViewAngle)/45.;
   float grazing=pow(cl(.08+angleFactor),3.);
   float reflection=(.037*stripe+.015*grazing)*uGlass;
@@ -139,7 +139,7 @@ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
 gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
 gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,LCD_W,LCD_H,0,gl.RED,gl.UNSIGNED_BYTE,physics.getImage());
-const uniform=name=>gl.getUniformLocation(prog,name);
+const uniform=name=>gl.getUniformLocation(prog,name==='uPalette'?'uPalette[0]':name);
 const U={};
 for(const id of ['State','SourceSize','OutputSize','Palette','Fill','Edge','Shadow','ShadowX','ShadowY','Contrast','Bias','Brightness','Chroma','Glass','LightAngle','ViewAngle','Debug'])U[id]=uniform('u'+id);
 gl.uniform1i(U.State,0);
@@ -206,7 +206,7 @@ function drawFrame(now){
  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texture);
  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,LCD_W,LCD_H,gl.RED,gl.UNSIGNED_BYTE,physics.getImage());
  gl.drawArrays(gl.TRIANGLES,0,6);
- if(!gl.getError()){
+ if(gl.getError()===gl.NO_ERROR){
   status.textContent='REFERENCE DATA: WS2 NOMINAL STN • 160 × 144 • '+(UI.profile==='nomad'?'EXPERIMENTAL NOMAD COLOUR':'DMG COLOUR');
  }
  requestAnimationFrame(drawFrame);
