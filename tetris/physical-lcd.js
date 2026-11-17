@@ -18,7 +18,7 @@
  * quantization or cell-centre resampling occurs.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {PALETTE,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,REFRESH_HZ} from './physical-lcd-data.js?v270';
+import {PALETTE,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION} from './physical-lcd-data.js?v270';
 
 const {Pass,FullScreenQuad}=THREE;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -100,7 +100,7 @@ const SOURCE_GREY=String.raw`
 // Drift dynamics use the measured STN curves with continuous-drive
 // interpolation; the target curve corrects the reference equilibrium so
 // steady-state image fidelity is identical to the v269 raw optical view.
-const RESPONSE_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SOURCE_GREY+String.raw`
+const RESPONSE_FRAGMENT='precision highp float;varying vec2 vUv;uniform sampler2D tSource;\n'+SOURCE_GREY+String.raw`
  uniform sampler2D tHistory,uDrift,uOptical,uTargetCurve;
  uniform float uDelta,uResponseMs,uTemperature,uReset;
  uniform float uAnchor[4],uCorrection[4];
@@ -159,8 +159,9 @@ const RESPONSE_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SOURCE_GREY+
 const FRAGMENT=String.raw`
  precision highp float;
  varying vec2 vUv;
- uniform sampler2D tSource;
+ uniform sampler2D tSource,tResponse;
  uniform vec2 uGrid,uOutputSize;
+ uniform float uResponseAmount,uInkContrast;
  uniform vec3 uPalette[5];
  uniform float uFill,uShadow,uShadowX,uShadowY;
  uniform float uGlass,uLightAngle,uViewAngle;
@@ -210,8 +211,16 @@ const FRAGMENT=String.raw`
   return clamp(sum/max(.00001,footprint),0.,1.);
  }
  void main(){
-  // Full-resolution source drives continuous optical transmission directly.
+  // The direct source is still the authority for settled appearance.
+  // Electrical history contributes only a transient difference from the
+  // same source's calibrated equilibrium. No cell-value quantization.
   float darkness=sourceDarkness(vUv);
+  if(uResponseAmount>0.00001){
+   vec4 state=texture2D(tResponse,vUv);
+   float responding=clamp(darkness+(state.a-state.b)/.75,0.,1.);
+   darkness=mix(darkness,responding,uResponseAmount);
+  }
+  darkness=clamp((darkness-.5)*uInkContrast+.5,0.,1.);
   vec2 p=vUv*uGrid;
   vec2 footprint=max(uGrid/max(uOutputSize,vec2(1.)),vec2(.00001));
   float mask=aperture(p,footprint);
@@ -220,7 +229,15 @@ const FRAGMENT=String.raw`
 
   // Geometry and reflector cast shadows from the full-resolution input too.
   vec2 shift=vec2(uShadowX,uShadowY);
-  float shadowDarkness=sourceDarkness(vUv-shift/uGrid);
+  vec2 shadowUv=clamp(vUv-shift/uGrid,vec2(0.),vec2(1.));
+  float shadowDarkness=sourceDarkness(shadowUv);
+  if(uResponseAmount>0.00001){
+   vec4 shadowState=texture2D(tResponse,shadowUv);
+   float responding=clamp(shadowDarkness+
+    (shadowState.a-shadowState.b)/.75,0.,1.);
+   shadowDarkness=mix(shadowDarkness,responding,uResponseAmount);
+  }
+  shadowDarkness=clamp((shadowDarkness-.5)*uInkContrast+.5,0.,1.);
   float displaced=aperture(p-shift,footprint);
   float joint=jointAxis(p.x,shift.x,footprint.x)*
               jointAxis(p.y,shift.y,footprint.y);
