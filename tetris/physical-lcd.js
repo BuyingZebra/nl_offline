@@ -94,50 +94,20 @@ const PRELUDE=`
  }
 `;
 // Physical-cell source encoder. A single GPU signal target feeds both STN state and diagnostics.
-const SIGNAL_INPUT=`
+const SIGNAL_FRAGMENT=`
+ precision highp float;varying vec2 vUv;
  uniform sampler2D tSource;
- uniform vec2 uGrid;
- uniform int uSamplingMode;
- float encodedGrey(vec3 rgb){
-  float lum=dot(rgb,vec3(.2126,.7152,.0722));
-  return lum<=.0031308?lum*12.92:1.055*pow(max(lum,0.),1.0/2.4)-.055;
- }
- float sampledGrey(vec2 uv){
-  if(uSamplingMode==0)return encodedGrey(texture2D(tSource,uv).rgb);
-  if(uSamplingMode==1){
-   // Historical v267: four symmetric taps close to cell centre.
-   vec2 shift=.25/max(uGrid,vec2(1.));
-   vec3 avg=(texture2D(tSource,uv+vec2(-shift.x,-shift.y)).rgb+
-             texture2D(tSource,uv+vec2( shift.x,-shift.y)).rgb+
-             texture2D(tSource,uv+vec2(-shift.x, shift.y)).rgb+
-             texture2D(tSource,uv+vec2( shift.x, shift.y)).rgb)*.25;
-   return encodedGrey(avg);
-  }
-  // Experimental 4x4 coverage spanning the entire cell footprint.
-  vec3 sum=vec3(0.);
-  for(int y=0;y<4;y++)for(int x=0;x<4;x++){
-   vec2 shift=(vec2(float(x),float(y))+.5)/4.-.5;
-   sum+=texture2D(tSource,uv+shift/max(uGrid,vec2(1.))).rgb;
-  }
-  return encodedGrey(sum/16.);
- }
- float sampledDrive(vec2 uv){
-  return floor(clamp(1.0-sampledGrey(uv),0.0,1.0)*3.0+.5);
- }
- float displayLinear(float encoded){
-  return encoded<=.04045?encoded/12.92:pow((encoded+.055)/1.055,2.4);
- }
-`;
-const SIGNAL_FRAGMENT='precision highp float;varying vec2 vUv;\n'+SIGNAL_INPUT+`
+ uniform float uInkContrast;
  void main(){
-  float centre=encodedGrey(texture2D(tSource,vUv).rgb);
-  float grey=sampledGrey(vUv);
-  // Reuse one cell-area sample for grey and drive, avoiding 32 taps.
-  float drive=floor(clamp(1.-grey,0.,1.)*3.+.5);
-  // R: encoded grey, G: electrical drive, B: prequant delta.
-  gl_FragColor=vec4(grey,drive/3.,abs(grey-centre),1.);
- }
-`;
+  vec3 rgb=texture2D(tSource,vUv).rgb;
+  float lum=clamp(dot(rgb,vec3(.2126,.7152,.0722)),0.,1.);
+  float grey=lum<=.0031308?lum*12.92:1.055*pow(lum,1./2.4)-.055;
+  float darkness=clamp(((1.-grey)-.5)*uInkContrast+.5,0.,1.);
+  // Only the physical electrical input is reduced to four Lab drive states.
+  // The final visual does not read this as its displayed pixel colour.
+  float drive=floor(darkness*3.+.5);
+  gl_FragColor=vec4(grey,drive/3.,0.,1.);
+ }`;
 const STATE_FRAGMENT=PRELUDE+`
  uniform sampler2D tHistory,tSignal;
  uniform float uDelta,uTemperature,uReset,uSettled;
@@ -172,6 +142,7 @@ const OUTPUT_FRAGMENT=`
  precision highp float;varying vec2 vUv;
  uniform sampler2D uState,uSignal,tSource;
  uniform vec2 uGrid;
+ uniform float uResponseAmount,uInkContrast;
  float displayLinear(float grey){
   return grey<=.04045?grey/12.92:pow((grey+.055)/1.055,2.4);
  }
@@ -191,9 +162,24 @@ const OUTPUT_FRAGMENT=`
   if(p<3.)return mix(uPalette[2],uPalette[3],p-2.);
   return mix(uPalette[3],uPalette[4],p-3.);
  }
- float stateAt(vec2 p){
-  vec2 uv=(clamp(floor(p),vec2(0.),uGrid-vec2(1.))+.5)/uGrid;
-  return texture2D(uState,uv).a;
+ // Original source is sampled at the final output resolution, NOT the
+ // logical LCD cell grid. The optical stage preserves fine vector detail.
+ float sourceDarkness(vec2 uv){
+  vec3 rgb=texture2D(tSource,clamp(uv,vec2(0.),vec2(1.))).rgb;
+  float linearGrey=clamp(dot(rgb,vec3(.2126,.7152,.0722)),0.,1.);
+  float grey=linearGrey<=.0031308?linearGrey*12.92:
+   1.055*pow(linearGrey,1./2.4)-.055;
+  float darkness=1.-clamp(grey,0.,1.);
+  return clamp((darkness-.5)*uInkContrast+.5,0.,1.);
+ }
+ // Actual optical state minus the Lab's calibrated equilibrium. These
+ // reference levels are .25/.50/.75/1.00: at rest, the original image
+ // is reproduced without electrical bitmap quantization.
+ float labResponseDifference(vec2 p){
+  vec2 cell=(clamp(floor(p),vec2(0.),uGrid-vec2(1.))+.5)/uGrid;
+  float measured=texture2D(uState,cell).a;
+  float electrical=texture2D(uSignal,cell).g;
+  return (measured-(.25+.75*electrical))/.75;
  }
  float coverage1(float p,float gap,float footprint){
   float center=fract(p);
@@ -226,28 +212,18 @@ const OUTPUT_FRAGMENT=`
  void main(){
   vec2 p=vUv*uGrid;
   vec2 footprint=max(uGrid/max(uOutputSize,vec2(1.))*max(.01,uFootprint),vec2(.00001));
-  if(uDiagnostic==1){
-   gl_FragColor=vec4(texture2D(tSource,vUv).rgb,1.0);
-   return;
-  }
-  if(uDiagnostic==2||uDiagnostic==3||uDiagnostic==5){
-   vec2 uv=(floor(p)+.5)/uGrid;
-   vec3 signal=texture2D(uSignal,uv).rgb;
-   if(uDiagnostic==5){
-    float difference=signal.b;
-    gl_FragColor=vec4(clamp(vec3(difference*14.,difference*5.,0.),0.,1.),1.);
-   }else{
-    float grey=uDiagnostic==3?1.-signal.g:signal.r;
-    gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
-   }
-   return;
-  }
-  float s=stateAt(p);
+  // Keep the full-resolution optical input and only add STN's transient
+  // director/ionic response, weighted by the normal LCD RESPONSE setting.
+  float s=sourceDarkness(vUv);
+  if(uResponseAmount>0.)s=clamp(
+   s+uResponseAmount*labResponseDifference(p),0.,1.);
   vec3 background=opticalColour(0.);
   float mask=aperture(p,footprint);
   vec3 rgb=mix(background,opticalColour(s),mask);
   vec2 shift=vec2(uShadowX,uShadowY);
-  float shaded=stateAt(p-shift);
+  float shaded=sourceDarkness(vUv-shift/uGrid);
+  if(uResponseAmount>0.)shaded=clamp(
+   shaded+uResponseAmount*labResponseDifference(p-shift),0.,1.);
   float displaced=aperture(p-shift,footprint);
   float joint=jointAxis(p.x,shift.x,footprint.x)*jointAxis(p.y,shift.y,footprint.y);
   float shadowGap=max(displaced-joint,0.);
@@ -257,7 +233,7 @@ const OUTPUT_FRAGMENT=`
   // Optional FRONT GLASS. This is a separate artistic optical-surface model,
   // adapted from /lcd-lab/, not part of the sourced STN response reconstruction.
   // It does not alter the simulated cell state, aperture or reflector shadows.
-  if(uGlass>0.0&&uDiagnostic==0){
+  if(uGlass>0.0){
    vec2 panel=vec2(vUv.x,1.0-vUv.y);
    float angle=radians(uLightAngle);
    vec2 lightAxis=vec2(cos(angle),sin(angle));
