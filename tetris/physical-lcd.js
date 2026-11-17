@@ -261,14 +261,14 @@ export function createPhysicalLCDPass(){
   uTarget:{value:TARGET_Q},uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION}
  };
  const signalUniforms={tSource:{value:null},uGrid:{value:new THREE.Vector2(160,320)},
-  uSamplingMode:{value:0}};
+  uSamplingMode:{value:0},uInkContrast:{value:1}};
  const stateUniforms={...common,tSignal:{value:null},tHistory:{value:null},
   uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1},
   uSettled:{value:0}};
  const outputUniforms={
   uState:{value:null},tSource:{value:null},uSignal:{value:null},
   uGrid:{value:new THREE.Vector2(160,320)},
-  uDiagnostic:{value:0},
+  uResponseAmount:{value:0},uInkContrast:{value:1},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
   uFill:{value:.875},uFootprint:{value:1},
@@ -282,6 +282,7 @@ export function createPhysicalLCDPass(){
  const quad=new FullScreenQuad(signalMaterial);
  let gridWidth=1,gridHeight=1,targetA=null,targetB=null,targetSignal=null,reset=true;
  let configured=false,cssWidth=1,cssHeight=1,density=1.5;
+ let responseEnabled=false,responseMs=210;
  function allocate(){
   targetA?.dispose();targetB?.dispose();targetSignal?.dispose();
   const opts={depthBuffer:false,stencilBuffer:false,
@@ -305,18 +306,23 @@ export function createPhysicalLCDPass(){
  pass.reset=()=>{reset=true;};
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
   temperature=20,reference=true,glass=false,glassStrength=.8,
-  glassLightAngle=35,glassViewAngle=0,samplingMode=0,diagnostic=0}={})=>{
+  glassLightAngle=35,glassViewAngle=0,responseOn=true,
+  responseMs:ms=210,responseStrength=60,inkContrast=100}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
   setGrid();
-  const nextMode=clamp(Math.round(Number(samplingMode)||0),0,2);
-  const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,5);
-  if(nextMode!==signalUniforms.uSamplingMode.value||
-     nextDebug!==outputUniforms.uDiagnostic.value)reset=true;
-  signalUniforms.uSamplingMode.value=nextMode;
-  outputUniforms.uDiagnostic.value=nextDebug;
-  stateUniforms.uSettled.value=nextDebug===4?1:0;
+  // Source tonal correction is applied consistently to the discrete
+  // electrical drive AND the full-detail optical image.
+  const contrast=clamp(Number(inkContrast)||100,75,150)/100;
+  signalUniforms.uInkContrast.value=contrast;
+  outputUniforms.uInkContrast.value=contrast;
+  responseMs=clamp(Number(ms)||210,30,600);
+  const strength=clamp(Number(responseStrength)||0,0,100)/100;
+  const active=Boolean(responseOn)&&strength>0;
+  if(responseEnabled!==active)reset=true;
+  responseEnabled=active;
+  outputUniforms.uResponseAmount.value=active?strength:0;
   stateUniforms.uTemperature.value=clamp(Number(temperature)||20,5,40);
   outputUniforms.uFill.value=clamp(Number(cellFill)||.875,.55,.95);
   outputUniforms.uShadow.value=clamp(Number(shadow)||0,0,.5);
@@ -328,31 +334,39 @@ export function createPhysicalLCDPass(){
  };
  pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
   if(!configured)pass.configure({width:readBuffer.width,height:readBuffer.height});
-  if(!targetA||!targetB||!targetSignal)allocate();
-  // Compute one input/drive value per physical cell, not per display pixel.
-  signalUniforms.tSource.value=readBuffer.texture;
-  quad.material=signalMaterial;
-  renderer.setRenderTarget(targetSignal);
-  quad.render(renderer);
-  // Both the STN history and diagnostics sample this exact GPU signal.
-  stateUniforms.tSignal.value=targetSignal.texture;
-  stateUniforms.tHistory.value=targetA.texture;
-  stateUniforms.uDelta.value=clamp(Number(deltaTime)||1/60,.001,.08);
-  stateUniforms.uReset.value=reset?1:0;
-  quad.material=stateMaterial;
-  renderer.setRenderTarget(targetB);
-  quad.render(renderer);
-  // Analytical aperture/gap/shadow projected onto full phone resolution.
-  outputUniforms.uState.value=targetB.texture;
+  if(responseEnabled){
+   if(!targetA||!targetB||!targetSignal)allocate();
+   // The exact v268/Lab per-cell signal and STN history stages.
+   signalUniforms.tSource.value=readBuffer.texture;
+   quad.material=signalMaterial;
+   renderer.setRenderTarget(targetSignal);
+   quad.render(renderer);
+   stateUniforms.tSignal.value=targetSignal.texture;
+   stateUniforms.tHistory.value=targetA.texture;
+   // 210 ms = nominal 59.7275 Hz reference response speed.
+   const elapsed=Number(deltaTime)||1/60;
+   stateUniforms.uDelta.value=clamp(elapsed*210/responseMs,.001,.08);
+   stateUniforms.uReset.value=reset?1:0;
+   quad.material=stateMaterial;
+   renderer.setRenderTarget(targetB);
+   quad.render(renderer);
+   outputUniforms.uState.value=targetB.texture;
+   outputUniforms.uSignal.value=targetSignal.texture;
+  }else{
+   // Exact raw optical path of v269 at 100% ink contrast.
+   outputUniforms.uState.value=readBuffer.texture;
+   outputUniforms.uSignal.value=readBuffer.texture;
+  }
   outputUniforms.tSource.value=readBuffer.texture;
-  outputUniforms.uSignal.value=targetSignal.texture;
   outputUniforms.uOutputSize.value.set(readBuffer.width,readBuffer.height);
   quad.material=outputMaterial;
   renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
   if(pass.clear)renderer.clear();
   quad.render(renderer);
-  [targetA,targetB]=[targetB,targetA];
-  reset=false;
+  if(responseEnabled){
+   [targetA,targetB]=[targetB,targetA];
+   reset=false;
+  }
  };
  pass.dispose=()=>{
   targetA?.dispose();targetB?.dispose();targetSignal?.dispose();
