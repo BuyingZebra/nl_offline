@@ -307,11 +307,27 @@ function step(){
  document.querySelector('#ms').textContent=renderMs.toFixed(1)+' ms';
  const b=new Uint8Array(4), samples=[];
  if(scene==='shades'){
+   // Compare the centre of each optical aperture, not its edge.
+   // Prior probe sampled at a cell corner (.125,.125 cell at 4x),
+   // where the original source correctly mixes illuminated gaps and ink.
+   // The geometric offset below lands at (.625,.625), fully within the
+   // 0.875 aperture and clear of its area-filtered boundary.
+   const centerOffset=Math.floor(SCALE/2);
+   let largestChannelDifference=0;
    for(let i=0;i<4;i++){
-     gl.readPixels((i*40+20)*SCALE,72*SCALE,1,1,gl.RGBA,gl.UNSIGNED_BYTE,b);
-     samples.push(`${i}: ${[...b.slice(0,3)].join(',')} (ref ${palettes[i+1].join(',')})`);
+     const px=(i*40+20)*SCALE+centerOffset;
+     const py=72*SCALE+centerOffset;
+     gl.readPixels(px,py,1,1,gl.RGBA,gl.UNSIGNED_BYTE,b);
+     const actual=[b[0],b[1],b[2]];
+     const expected=palettes[i+1];
+     const maximum=Math.max(...actual.map((v,ch)=>Math.abs(v-expected[ch])));
+     largestChannelDifference=Math.max(largestChannelDifference,maximum);
+     samples.push(`${i}: ${actual.join(',')} (ref ${expected.join(',')}; Δmax ${maximum})`);
    }
-   document.querySelector('#probes').textContent=samples.join('  |  ');
+   document.querySelector('#probes').textContent=
+     'CENTRE OF ACTIVE CELLS — '+samples.join(' | ')+
+     ' · Maximum RGB-channel difference: '+largestChannelDifference+
+     ' · Diagnostic only: crosstalk and optical dynamics can shift these values; not a validated parity result.';
  }else document.querySelector('#probes').textContent='Use 4 SHADES for numeric palette probes';
  output('UPSTREAM FIVE-PASS WEBGL2 • native 160 × 144 • exact 4× framebuffer • reference model active');
 }
