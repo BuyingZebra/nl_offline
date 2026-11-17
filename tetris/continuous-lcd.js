@@ -10,8 +10,7 @@
  */
 import * as THREE from './vendor/three/three.bundle.js';
 
-const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.,0.);}'
- .replace('vec4(position,1.,0.)','vec4(position,1.0)');
+const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 // First stage: estimate load across each horizontal row, retaining the
 // original pixel as R and the row-wide average as G. No quantization.
 const ROW=String.raw`
