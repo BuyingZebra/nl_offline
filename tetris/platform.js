@@ -1363,9 +1363,11 @@ function frame(now){
   perf.recordGameChanges({advanced,visualChanged});
   // Pressed buttons animate their original grayscale Canvas2D artwork.
   const phosphorOn=settings.effects.persistence===true&&!settings.lcdDisplay&&!screenManager.isLight;
-   const lcdResponseOn=settings.lcdDisplay&&settings.effects.lcdResponse===true&&
+   const physicalLCDOn=settings.lcdDisplay&&settings.effects.lcdPhysical===true&&
+    !screenManager.isLight;
+   const lcdResponseOn=settings.lcdDisplay&&!physicalLCDOn&&settings.effects.lcdResponse===true&&
     settings.effects.lcdResponseAmount>0&&!screenManager.isLight;
-   const historyOn=phosphorOn||lcdResponseOn;
+   const historyOn=phosphorOn||lcdResponseOn||physicalLCDOn;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
   if(historyOn&&now-lastHistoryRender>=33)
