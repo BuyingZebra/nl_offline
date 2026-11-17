@@ -273,7 +273,7 @@ export function createPhysicalLCDPass(){
   uState:{value:null},tSource:{value:null},uSignal:{value:null},
   uGrid:{value:new THREE.Vector2(160,320)},
   uResponseAmount:{value:0},uInkContrast:{value:1},
-  uViewContrast:{value:1.65},uAmbientLight:{value:1.15},
+  uViewContrast:{value:1.90},uAmbientLight:{value:1.20},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
   uFill:{value:.875},uFootprint:{value:1},
@@ -313,7 +313,7 @@ export function createPhysicalLCDPass(){
   temperature=20,reference=true,glass=false,glassStrength=.8,
   glassLightAngle=35,glassViewAngle=0,responseOn=true,
   responseMs:ms=210,responseStrength=60,inkContrast=100,
-  viewContrast=165,ambientLight=115}={})=>{
+  viewContrast=190,ambientLight=120}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
