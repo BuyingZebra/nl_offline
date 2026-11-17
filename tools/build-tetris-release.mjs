@@ -29,10 +29,10 @@ function files(directory, pattern, recursive = false) {
 // tests and pixel preview tiles are source material for development.
 const assets = ['./', ...[
   'index.html', 'three-v027.html', 'manifest.webmanifest',
-  ...files('', /^(?!sw\.js$)[^.]+\.(?:js|png|svg)$/).filter(path=>path!=='continuous-lcd.js'),
+  ...files('', /^(?!sw\.js$)[^.]+\.(?:js|png|svg)$/),
   ...files('assets/frames', /\.mjs$/),
   'assets/frames/vector/brick.svg',
-  ...files('dmg01-reference-lab/upstream', /\.(?:slang|inc)$/).filter(path=>!path.endsWith('/nomad-crosstalk-640x1388.inc')),
+  ...files('dmg01-reference-lab/upstream', /\.(?:slang|inc)$/),
   ...files('assets/tiles', /\.mjs$/),
   ...files('assets/tiles/vector', /\.svg$/),
   ...files('vendor/three', /\.js$/, true),
