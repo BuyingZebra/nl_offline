@@ -12,7 +12,7 @@
  * Subcell optical detail is a hybrid, not historically addressable hardware.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v270';
+import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v271';
 const {Pass,FullScreenQuad}=THREE;
 const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
