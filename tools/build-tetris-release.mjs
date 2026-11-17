@@ -40,12 +40,12 @@ const assets = ['./', ...[
 // only a subset of Three r180; runtime constructors MUST exist in that export
 // list, or the app fails before the first frame (e.g. DataTexture in v264).
 const threeBundle=readFileSync(join(root,'vendor/three/three.bundle.js'),'utf8');
-const threeExports=threeBundle.match(/export\\{([^}]+)\\};?\\s*$/)?.[1];
+const threeExports=threeBundle.match(/export\{([^}]+)\};?\s*$/)?.[1];
 if(!threeExports)throw Error('Cannot locate customised Three.js bundle exports');
 const availableThree=new Set(threeExports.split(',').map(entry=>
- entry.trim().split(/\\s+as\\s+/).at(-1)));
+ entry.trim().split(/\s+as\s+/).at(-1)));
 const physicalModule=readFileSync(join(root,'physical-lcd.js'),'utf8');
-for(const match of physicalModule.matchAll(/\\bTHREE\\.([A-Za-z_$][\\w$]*)/g)){
+for(const match of physicalModule.matchAll(/\bTHREE\.([A-Za-z_$][\w$]*)/g)){
  if(!availableThree.has(match[1]))
   throw Error('Unsupported Three.js export used by physical LCD: '+match[1]);
 }
