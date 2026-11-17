@@ -1,4 +1,4 @@
-/* NOMAD Tetris V270 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V271 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
