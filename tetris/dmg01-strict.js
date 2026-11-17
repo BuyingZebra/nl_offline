@@ -194,6 +194,7 @@ class ReferencePanel {
   }
   this.program(this.programs[4],[['Source',this.targets[3].texture]],
    null,this.canvas.width,this.canvas.height,WIDTH,HEIGHT);
+  gl.finish(); // The second WebGL context must sample completed LCD optics.
  }
  dispose(){
   const gl=this.gl;
