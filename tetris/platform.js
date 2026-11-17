@@ -1372,14 +1372,13 @@ function frame(now){
   perf.recordGameChanges({advanced,visualChanged});
   // Pressed buttons animate their original grayscale Canvas2D artwork.
   const phosphorOn=settings.effects.persistence===true&&!settings.lcdDisplay&&!screenManager.isLight;
-   const physicalLCDOn=settings.lcdDisplay&&settings.effects.lcdPhysical===true&&
-    !screenManager.isLight;
+   const physicalLCDOn=settings.lcdDisplay&&!screenManager.isLight;
    const lcdResponseOn=settings.lcdDisplay&&!physicalLCDOn&&settings.effects.lcdResponse===true&&
     settings.effects.lcdResponseAmount>0&&!screenManager.isLight;
    const historyOn=phosphorOn||lcdResponseOn||physicalLCDOn;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
-  if(historyOn&&now-lastHistoryRender>=33)
+  if(historyOn&&now-lastHistoryRender>=(physicalLCDOn?16:33))
    layers.reason(phosphorOn?'phosphor-history':'lcd-response-history');
   // Only repaint when the actual source luminance changes (206..255),
   // including the final return to baseline. Phosphor history owns the fade.
