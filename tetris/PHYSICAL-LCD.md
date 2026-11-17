@@ -89,3 +89,22 @@ Switching sampling mode or diagnostic stage resets the STN history, ensuring tem
 Pause the board or choose a stationary menu layout. First compare SOURCE → SAMPLED → 4-SHADE → SETTLED → PHYSICAL at 1.5× cell density. If a detail disappears in SAMPLED, inspect sampling. If present in SAMPLED but absent in 4-SHADE, investigate quantization. If present in 4-SHADE but not SETTLED, inspect optical palette/reflector/aperture. If SETTLED looks clear but PHYSICAL does not, inspect STN history/response or FRONT GLASS. Repeat with 4-TAP AREA SAMPLING on, changing no other parameters.
 
 This does not add more than four electrical levels, and does not change pixel density or the physical model's reference lookup tables. GPU cost of four samples per cell may be significant on high-density phone/desktop settings. Four-tap integration is strictly opt-in.
+
+
+## v268: prove whether area sampling actually changes the signal
+
+**CELL INPUT SAMPLING** replaces the former 4-TAP AREA SAMPLING toggle, preserving existing four-tap preferences by migrating the saved setting to numeric sampling mode 1. Three mutually exclusive input methods are available:
+
+- **CENTRE** (0; baseline/default): one bilinearly filtered sample at the physical cell's centre.
+- **4 TAPS** (1; v267): four symmetric quarter-cell-offset samples, averaged in linear RGB before grayscale encoding. On a bilinearly filtered input these frequently equal the centre sample, so little change may be visible.
+- **16 TAPS** (2; new): an experimental stratified 4×4 grid across the full physical cell, averaged in linear RGB before grayscale encoding. This can retain information from lines that the central sample misses, but is not an exact analytical vector coverage rasterizer.
+
+The separate **LCD SIGNAL STUDY** now has six views; **DELTA** (5) shows amplified absolute prequantization grey difference between the selected method and CENTRE. Black = no detected difference; orange indicates measurable change. This exists precisely because **4-SHADE** can remain unchanged even if the sampled grey has changed slightly.
+
+Controlled experiment at 1× cell density: select CELL INPUT SAMPLING → CENTRE and LCD SIGNAL STUDY → DELTA (should be black). Switch to 4 TAPS; see if DELTA reveals any difference. Then switch to 16 TAPS and inspect DELTA, SAMPLED, 4-SHADE and SETTLED. Keep glass and other material settings unchanged. A bright DELTA does **not** itself prove improved fidelity; evaluate whether thin lines and lettering actually become more consistent.
+
+### Performance and limitations
+
+The current experiment samples the source 16 times per *logical cell* when the 16 TAPS method is selected. In SAMPLED, 4-SHADE and DELTA diagnostic modes, the source is additionally sampled per output pixel. This is GPU-expensive at 2×–2.5× density, particularly on phones. Begin at 1×, and turn the 16-tap method off when finished. A future production renderer should cache a logical-cell signal texture once and share it across state and diagnostic passes.
+
+The original STN response tables, physical aperture/shadow geometry, and prior single-sample rendering remain available unchanged. The experiment does not assume four shades are sufficient for all authored grayscale content.
