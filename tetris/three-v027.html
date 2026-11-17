@@ -77,17 +77,6 @@ html.ios-standalone #display{height:100vh}
 </div>
 <div id="safeArea" aria-hidden="true"></div>
 <div id="error" role="alert" hidden></div>
-<script>
-// Install the scoped offline cache. Registration is asynchronous and never
-// interrupts an active game. A successful online install is needed before the
-// app can be launched offline; subsequent visits can use its cached modules.
-if('serviceWorker' in navigator){
- window.addEventListener('load',()=>{
-  navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'})
-   .catch(error=>console.warn('NOMAD offline setup unavailable:',error));
- },{once:true});
-}
-</script>
 <script type="module">
 // NOMAD launch gate: one pinned release at a time, network-check on every open.
 
@@ -109,7 +98,7 @@ async function refreshBeforeBoot(){
   }finally{clearTimeout(timeout);}
   if(!response.ok)return false;
   const html=await response.text();
-  const found=html.match(/<meta\\s+name=["']tetris-build["']\\s+content=["'](\\d{3})["']/i);
+  const found=html.match(/<meta\s+name=["']tetris-build["']\s+content=["'](\d{3})["']/i);
   const published=found?Number(found[1]):0;
   if(!Number.isFinite(published)||published<=build)return false;
   // Use the network worker script, ignoring any stale HTTP cache.
@@ -155,9 +144,15 @@ async function refreshBeforeBoot(){
 }
 async function start(){
  if(await refreshBeforeBoot())return;
+ // Background registration only after the preboot version gate completes.
+ // It does not mutate the currently pinned release while gameplay is running.
+ if('serviceWorker' in navigator)
+  void navigator.serviceWorker.register('./sw.js',
+   {scope:'./',updateViaCache:'none'})
+   .catch(error=>console.warn('NOMAD offline setup unavailable:',error));
  import('./three-v027.js?build='+build).catch(error=>{
   banner.hidden=false;
-  banner.textContent='Three.js renderer could not load. Please reconnect and reload.\\n'+String(error);
+  banner.textContent='Three.js renderer could not load. Please reconnect and reload.\n'+String(error);
   console.error('Tetris System renderer failed to start:',error);
  });
 }
