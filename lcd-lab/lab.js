@@ -152,7 +152,7 @@ const UI={
  shadow:.18,shadowX:.11,shadowY:.13,contrast:1,bias:0,
  brightness:1,chroma:1,glass:.8,lightAngle:35,viewAngle:0,debug:0
 };
-let offset=0,last=0,lastAdvance=0,dirty=true,initialized=false;
+let offset=0,last=0,lastAdvance=0,dirty=true,initialized=false,lastStatus=0;
 function readUI(){
  for(const key of Object.keys(UI)){
   const control=document.querySelector('[data-prop="'+key+'"]');
@@ -206,8 +206,12 @@ function drawFrame(now){
  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texture);
  gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,LCD_W,LCD_H,gl.RED,gl.UNSIGNED_BYTE,physics.getImage());
  gl.drawArrays(gl.TRIANGLES,0,6);
- if(gl.getError()===gl.NO_ERROR){
-  status.textContent='REFERENCE DATA: WS2 NOMINAL STN • 160 × 144 • '+(UI.profile==='nomad'?'EXPERIMENTAL NOMAD COLOUR':'DMG COLOUR');
+ if(now-lastStatus>800){
+  const error=gl.getError();
+  status.textContent=error===gl.NO_ERROR?
+    'REFERENCE DATA: WS2 NOMINAL STN • 160 × 144 • '+(UI.profile==='nomad'?'EXPERIMENTAL NOMAD COLOUR':'DMG COLOUR'):
+    'WEBGL ERROR '+error+' — try reloading or switching to a compatible browser';
+  lastStatus=now;
  }
  requestAnimationFrame(drawFrame);
 }
