@@ -89,15 +89,79 @@ if('serviceWorker' in navigator){
 }
 </script>
 <script type="module">
-// Pin the renderer to the shell build so repeat visits can reuse its HTTP cache.
-const build=document.querySelector('meta[name="tetris-build"]').content;
-const freshModule='./three-v027.js?build='+build;
-import(freshModule).catch(error=>{
- const banner=document.getElementById('error');
- banner.hidden=false;
- banner.textContent='Three.js renderer could not load. Please reconnect and reload.\n'+String(error);
- console.error('Tetris System renderer failed to start:',error);
-});
+// NOMAD launch gate: one pinned release at a time, network-check on every open.
+
+const build=Number(document.querySelector('meta[name="tetris-build"]').content);
+const banner=document.getElementById('error');
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+// Check published HTML through the old worker's explicit network bypass.
+// No gameplay script loads until the new worker has staged + activated a
+// complete release or the online check has failed.
+async function refreshBeforeBoot(){
+ if(!('serviceWorker' in navigator)||navigator.onLine===false)return false;
+ try{
+  const abort=new AbortController();
+  const timeout=setTimeout(()=>abort.abort(),4500);
+  let response;
+  try{
+   response=await fetch('./three-v027.html?update-check='+Date.now(),
+    {cache:'no-store',credentials:'same-origin',signal:abort.signal});
+  }finally{clearTimeout(timeout);}
+  if(!response.ok)return false;
+  const html=await response.text();
+  const found=html.match(/<meta\\s+name=["']tetris-build["']\\s+content=["'](\\d{3})["']/i);
+  const published=found?Number(found[1]):0;
+  if(!Number.isFinite(published)||published<=build)return false;
+  // Use the network worker script, ignoring any stale HTTP cache.
+  const registration=await navigator.serviceWorker.register('./sw.js',
+   {scope:'./',updateViaCache:'none'});
+  await registration.update();
+  // A waiting worker is proof install and its pinned-cache verification passed.
+  const originalController=navigator.serviceWorker.controller;
+  let waiting=registration.waiting;
+  const deadline=Date.now()+10000;
+  while(!waiting&&Date.now()<deadline){
+   if(navigator.serviceWorker.controller!==originalController)break;
+   await sleep(120);
+   waiting=registration.waiting;
+  }
+  if(navigator.serviceWorker.controller!==originalController){
+   window.location.reload();return true;
+  }
+  if(!waiting)return false; // failed/unfinished install: keep old playable build
+  const changed=new Promise(resolve=>{
+   if(!originalController){resolve(false);return;}
+   let settled=false;
+   const handler=()=>{
+    if(settled)return;settled=true;
+    navigator.serviceWorker.removeEventListener('controllerchange',handler);
+    resolve(true);
+   };
+   navigator.serviceWorker.addEventListener('controllerchange',handler);
+   setTimeout(()=>{
+    if(settled)return;settled=true;
+    navigator.serviceWorker.removeEventListener('controllerchange',handler);
+    resolve(false);
+   },8000);
+  });
+  waiting.postMessage({type:'NOMAD_ACTIVATE_UPDATE'});
+  if(await changed){
+   window.location.reload();return true;
+  }
+ }catch(error){
+  console.warn('NOMAD launch update check unavailable; using coherent cached build',error);
+ }
+ return false;
+}
+async function start(){
+ if(await refreshBeforeBoot())return;
+ import('./three-v027.js?build='+build).catch(error=>{
+  banner.hidden=false;
+  banner.textContent='Three.js renderer could not load. Please reconnect and reload.\\n'+String(error);
+  console.error('Tetris System renderer failed to start:',error);
+ });
+}
+void start();
 </script>
 </body>
 </html>
