@@ -493,7 +493,7 @@ function animation(now){
  }
 }
 async function boot(){
- gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:false,powerPreference:'default'});
+ gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true,powerPreference:'default'});
  if(!gl)throw Error('WebGL2 unavailable; no alternate approximation will be used');
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float unavailable; original RGBA32F feedback cannot be reproduced. No low-precision fallback.');
  const raw=await importOriginalShaders();
