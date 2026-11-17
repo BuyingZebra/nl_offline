@@ -1,3 +1,44 @@
+# NOMAD v270 — continuous electrical response with raw-image fidelity (CURRENT)
+
+v270 restores time-dependent liquid-crystal dynamics to the full-detail v269 optical material. Crucially, it **does not** restore the damaging four-drive-state image quantizer or cell-centre source resampling. The raw Canvas2D/Three.js grayscale image still drives the reflective panel at its original raster output resolution, while the physical square-cell aperture geometry clips the image and the original reflector and front-glass optics remain intact.
+
+## Exact rendering sequence
+
+```
+Original full-resolution artwork (already rasterized Canvas2D/Three.js)
+       ↓
+Direct continuous grayscale signal (no four-state colour reduction)
+       ↓
+Optional: per-output-pixel STN-inspired director history, interpolating
+the four sourced STN drift curves for continuous drive voltages
+       ↓
+Difference from calibrated static optical response applied as a
+temporary correction to the ORIGINAL grayscale image
+       ↓
+Full-resolution optical colour pass with physical square-cell aperture,
+reflector-gap shadows, independently adjustable glass, ink contrast
+       ↓
+OutputPass / display
+```
+
+**Preservation rule:** when temporal response reaches equilibrium, the transient difference cancels and the original v269 grayscale appearance is retained. Turning **LCD RESPONSE** off (or setting strength to 0%) bypasses the temporal state update entirely and exactly restores v269's one-pass optical path at **INK CONTRAST 100%**.
+
+**Controls:** RAW LCD MATERIAL, CELL DENSITY, CELL FILL, REFLECTOR SHADOW, **TEMPERATURE** (5–40°C), **INK CONTRAST** (75–150%, default 100%), DMG REFERENCE COLOUR and FRONT GLASS remain in Properties. **LCD RESPONSE** (Decay 30–600ms, Strength 0–100%) is visible in the physical view; enabled by default at 210ms/60%. The legacy LCD mode still uses its separate existing grayscale response pass.
+
+**Source data:** the temporal history is based on the same Apache-licensed STN drift tables and nonlinear optical lookup/corrections as the original v264–v268 experiment. A new 256-level 16-bit equilibrium LUT is derived from the four source drift curves by interpolating drive voltage and solving each corresponding equilibrium. Director/optical state history is stored in two full-output-resolution RGBA8 render targets, not downscaled to the simulated cell lattice. Response dynamics follow the reference curves, but are **interpolated between the four originally measured drive settings** and adjusted by the temperature/decay controls.
+
+**Physical-accuracy caveat:** a historical STN LCD's electrodes are discretely addressed. Here, a single *visible* aperture can contain more than one independently simulated full-resolution electrical sample, and continuous-voltage interpolation isn't directly measured historical data. It is a physically informed **hybrid**, not an exact hardware reconstruction. This deliberate compromise preserves detailed artwork while retaining material geometry and STN-based response. The previous discrete-drive hardware-oriented model remains in v268 Git history; the pure static optical baseline is v269.
+
+**Readability:** the source was already converted continuously to luminance before optical colouring. A second grayscale pass would be redundant. INK CONTRAST operates on continuous encoded-grey brightness immediately before mapping to the original five-colour reflective material palette; it introduces **no new bit depth or grid quantization**. The default 100% preserves the existing v269 look.
+
+**Performance:** when response is active, the renderer runs one full-output-resolution STN update pass plus the original optical pass and holds two full-resolution RGBA8 history textures (4 bytes/pixel each). With response OFF it uses the same single optical pass as v269. Mobile performance and WebGL shader compilation still require actual testing.
+
+## Historical experiments (v264–v269)
+
+The material history below documents earlier versions; any statement claiming that electrical response is disabled applies **only to v269**, not to the new v270 hybrid.
+
+---
+
 # NOMAD v269 — raw-image optical LCD experiment (CURRENT)
 
 The LCD Properties switch now reads **RAW LCD MATERIAL**. This is a deliberately stripped-back optical test: the existing, full-resolution grayscale Tetris scene is sampled **directly at the final output pixel**, converted continuously through the existing reflective olive/green palette, then shown beneath the same **square-cell aperture lattice, analytic reflector shadows and optional front-glass reflection**. The physical cell count is still controllable with **CELL DENSITY**, but it no longer reduces the artwork to one electrical drive per logical cell.
