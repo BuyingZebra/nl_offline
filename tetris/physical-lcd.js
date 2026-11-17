@@ -14,6 +14,15 @@ import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} fro
 const {Pass,FullScreenQuad}=THREE;
 const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
+// Same density-to-logical-cell calculation is used by the renderer and live
+// properties readout. CSS viewport dimensions do not change output resolution.
+export function physicalLCDGrid(width,height,density=1.5){
+ const d=clamp(Number.isFinite(Number(density))?Number(density):1.5,1,2.5);
+ return Object.freeze({
+  columns:Math.max(1,Math.ceil(Math.max(1,Number(width)||1)*d/2.5)),
+  rows:Math.max(1,Math.ceil(Math.max(1,Number(height)||1)*d/2.5))
+ });
+}
 function srgbLinear(v){
  const x=v/255;return x<=.04045?x/12.92:Math.pow((x+.055)/1.055,2.4);
 }
@@ -124,6 +133,7 @@ const OUTPUT_FRAGMENT=`
  uniform vec2 uGrid,uOutputSize;
  uniform vec3 uPalette[5];
  uniform float uFill,uFootprint,uShadow,uShadowX,uShadowY,uBrightness,uChroma;
+ uniform float uGlass,uLightAngle,uViewAngle;
  vec3 enc(vec3 x){
   return mix(x*12.92,1.055*pow(max(x,vec3(0.0)),vec3(1./2.4))-.055,
    step(vec3(.0031308),x));
@@ -182,6 +192,21 @@ const OUTPUT_FRAGMENT=`
   rgb=max(vec3(0.),rgb-background*uShadow*shaded*shadowGap);
   float gray=dot(rgb,vec3(.2126,.7152,.0722));
   rgb=mix(vec3(gray),rgb,uChroma)*uBrightness;
+  // Optional FRONT GLASS. This is a separate artistic optical-surface model,
+  // adapted from /lcd-lab/, not part of the sourced STN response reconstruction.
+  // It does not alter the simulated cell state, aperture or reflector shadows.
+  if(uGlass>0.0){
+   vec2 panel=vec2(vUv.x,1.0-vUv.y);
+   float angle=radians(uLightAngle);
+   vec2 lightAxis=vec2(cos(angle),sin(angle));
+   float along=dot(panel-vec2(.5),lightAxis);
+   float distanceToHighlight=(along-.14)/.16;
+   float highlight=exp(-distanceToHighlight*distanceToHighlight);
+   float grazing=pow(clamp(.08+abs(uViewAngle)/45.0,0.0,1.0),3.0);
+   float reflection=clamp((.037*highlight+.015*grazing)*uGlass,0.0,1.0);
+   rgb=mix(rgb,vec3(.86,.92,.86),reflection);
+   rgb*=1.0-uGlass*.045*pow(abs(panel.x-.5)*2.0,5.0);
+  }
   // EffectComposer expects LINEAR RGB; OutputPass performs display encoding.
   gl_FragColor=vec4(max(vec3(0.),rgb),1.0);
  }`;
@@ -205,7 +230,8 @@ export function createPhysicalLCDPass(){
   uPalette:{value:palettes.reference},
   uFill:{value:.875},uFootprint:{value:1},
   uShadow:{value:.18},uShadowX:{value:.11},uShadowY:{value:.13},
-  uBrightness:{value:1},uChroma:{value:1}
+  uBrightness:{value:1},uChroma:{value:1},
+  uGlass:{value:0},uLightAngle:{value:35},uViewAngle:{value:0}
  };
  const stateMaterial=newMaterial(stateUniforms,STATE_FRAGMENT);
  const outputMaterial=newMaterial(outputUniforms,OUTPUT_FRAGMENT);
@@ -222,10 +248,9 @@ export function createPhysicalLCDPass(){
   targetA=make();targetB=make();reset=true;
  }
  function setGrid(){
-  const x=Math.max(1,Math.ceil(cssWidth/2.5*density));
-  const y=Math.max(1,Math.ceil(cssHeight/2.5*density));
-  if(gridWidth!==x||gridHeight!==y){
-   gridWidth=x;gridHeight=y;
+  const {columns,rows}=physicalLCDGrid(cssWidth,cssHeight,density);
+  if(gridWidth!==columns||gridHeight!==rows){
+   gridWidth=columns;gridHeight=rows;
    if(targetA||targetB)allocate();
   }
   outputUniforms.uGrid.value.set(gridWidth,gridHeight);
@@ -234,7 +259,8 @@ export function createPhysicalLCDPass(){
  pass.setSize=()=>{}; // fixed physical cell size is configured in CSS pixels by syncFX
  pass.reset=()=>{reset=true;};
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
-  temperature=20,reference=true}={})=>{
+  temperature=20,reference=true,glass=false,glassStrength=.8,
+  glassLightAngle=35,glassViewAngle=0}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
@@ -243,6 +269,9 @@ export function createPhysicalLCDPass(){
   outputUniforms.uFill.value=clamp(Number(cellFill)||.875,.55,.95);
   outputUniforms.uShadow.value=clamp(Number(shadow)||0,0,.5);
   outputUniforms.uPalette.value=reference?palettes.reference:palettes.nomad;
+  outputUniforms.uGlass.value=glass?clamp(Number(glassStrength)||0,0,2):0;
+  outputUniforms.uLightAngle.value=clamp(Number(glassLightAngle)||0,0,360);
+  outputUniforms.uViewAngle.value=clamp(Number(glassViewAngle)||0,-45,45);
   configured=true;
  };
  pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
