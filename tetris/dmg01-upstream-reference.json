@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DMG-01 original-source reference parameters (NOT a complete NOMAD renderer)",
+  "status": "upstream baseline snapshot; data only, NOT yet applied in game",
+  "upstream": {
+    "repository": "https://github.com/JohnnySun/retro-display-lab",
+    "evidence": "models/nintendo-dmg-01/REFERENCES.md",
+    "reconstruction": "models/nintendo-dmg-01/data/reconstruction-v1.json",
+    "displayShader": "models/nintendo-dmg-01/shaders/dmg01-display-v1.slang",
+    "referencePreset": "targets/konkr-gt78-vn/960x640-srgb-neutral/presets/dmg01-reference-v1.slangp"
+  },
+  "model": {
+    "panel": "Nintendo DMG-01 reflective STN (best-effort reconstructed, not specimen-calibrated)",
+    "nativePixels": {
+      "width": 160,
+      "height": 144
+    },
+    "refreshHz": 59.7275,
+    "logicalDriveStates": 4,
+    "paletteSrgb8": {
+      "undrivenGap": [
+        148,
+        138,
+        4
+      ],
+      "shade0": [
+        117,
+        152,
+        51
+      ],
+      "shade1": [
+        88,
+        143,
+        81
+      ],
+      "shade2": [
+        59,
+        117,
+        96
+      ],
+      "shade3": [
+        46,
+        97,
+        90
+      ]
+    },
+    "aperture": {
+      "fillPerAxis": 0.875,
+      "hostPixelFootprint": 1,
+      "sourceClass": "reference-image-matched idealization, not measured DMG electrode pitch"
+    },
+    "reflector": {
+      "strength": 0.18,
+      "offsetXCell": 0.11,
+      "offsetYCell": 0.13
+    },
+    "optics": {
+      "contrast": 1,
+      "contrastBias": 0,
+      "polarizerAge": 0
+    },
+    "electrical": {
+      "driveContrast": 1,
+      "temperatureC": 20,
+      "rowCrosstalk": 1,
+      "columnCrosstalk": 1,
+      "ionicMobility": 0.05,
+      "stickingOpticalGain": 0.082,
+      "ionicChargeResponse": 0.000126777389,
+      "ionicReleaseResponse": 0.000007115625,
+      "bakedScanout": 1,
+      "latchOffsetLines": 1
+    }
+  },
+  "defaultGenericOutputCompensation": {
+    "brightness": 1,
+    "chroma": 1,
+    "note": "Shader defaults; not calibrated to iPhone"
+  },
+  "sourceDeviceOnlyOutputCompensation": {
+    "name": "KONKR GT78-VN target reference preset",
+    "exactScale": 4,
+    "brightness": 0.68,
+    "chroma": 0.9,
+    "note": "NOT DMG material values; do not transplant to iPhone without independent host calibration"
+  },
+  "notUpstreamModelParameters": [
+    "NOMAD viewContrast 190%",
+    "NOMAD reflectedLight 120%",
+    "NOMAD virtual front-glass reflection",
+    "NOMAD variable viewport density",
+    "NOMAD full-resolution hybrid artwork path"
+  ]
+}
