@@ -1,4 +1,4 @@
-/* NOMAD Tetris V264 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V265 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v264';
+const CACHE_VERSION='v265';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -116,6 +116,14 @@ self.addEventListener('install',event=>{
    throw error;
   }
  })());
+});
+
+// A launch-time boot gate requests this ONLY after the new worker has
+// atomically precached and verified the complete release. The old cached
+// application can remain playable while installation is incomplete.
+self.addEventListener('message',event=>{
+ if(event.data?.type==='NOMAD_ACTIVATE_UPDATE')
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate',event=>{

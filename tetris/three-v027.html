@@ -7,7 +7,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
 <!-- Generated with the offline asset list by tools/build-tetris-release.mjs. -->
-<meta name="tetris-build" content="264">
+<meta name="tetris-build" content="265">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- Draw the full-screen phosphor field behind the iPhone status bar.
      The JS layout already honors the top/bottom env(safe-area-inset-*) values. -->
@@ -55,6 +55,9 @@ html.ios-standalone #display{height:100vh}
 #error{position:fixed;inset:25px;color:#e9e9e9;background:#080808;
  font:13px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;z-index:30}
 #error[hidden]{display:none}
+#bootStatus{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;
+ color:#92a697;background:#080808;font:700 12px ui-monospace,Menlo,monospace;letter-spacing:.13em;z-index:2}
+#bootStatus[hidden]{display:none}
 #rotateNotice{display:none;position:fixed;inset:0;place-content:center;text-align:center;
  padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right))
          max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
@@ -70,6 +73,7 @@ html.ios-standalone #display{height:100vh}
 <body>
 <div id="display" role="application" aria-label="Tetris System — Three.js">
  <canvas id="screen" aria-label="Tetris, with on-screen controls and CRT and LCD display modes"></canvas>
+ <div id="bootStatus" role="status">CHECKING DISPLAY BUILD</div>
 </div>
 <div id="rotateNotice" role="status">
  <strong>NOMAD TETRIS</strong>
@@ -77,27 +81,89 @@ html.ios-standalone #display{height:100vh}
 </div>
 <div id="safeArea" aria-hidden="true"></div>
 <div id="error" role="alert" hidden></div>
-<script>
-// Install the scoped offline cache. Registration is asynchronous and never
-// interrupts an active game. A successful online install is needed before the
-// app can be launched offline; subsequent visits can use its cached modules.
-if('serviceWorker' in navigator){
- window.addEventListener('load',()=>{
-  navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'})
-   .catch(error=>console.warn('NOMAD offline setup unavailable:',error));
- },{once:true});
-}
-</script>
 <script type="module">
-// Pin the renderer to the shell build so repeat visits can reuse its HTTP cache.
-const build=document.querySelector('meta[name="tetris-build"]').content;
-const freshModule='./three-v027.js?build='+build;
-import(freshModule).catch(error=>{
- const banner=document.getElementById('error');
- banner.hidden=false;
- banner.textContent='Three.js renderer could not load. Please reconnect and reload.\n'+String(error);
- console.error('Tetris System renderer failed to start:',error);
-});
+// NOMAD launch gate: one pinned release at a time, network-check on every open.
+
+const build=Number(document.querySelector('meta[name="tetris-build"]').content);
+const banner=document.getElementById('error');
+const bootStatus=document.getElementById('bootStatus');
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+// Check published HTML through the old worker's explicit network bypass.
+// No gameplay script loads until the new worker has staged + activated a
+// complete release or the online check has failed.
+async function refreshBeforeBoot(){
+ if(!('serviceWorker' in navigator)||navigator.onLine===false)return false;
+ try{
+  const abort=new AbortController();
+  const timeout=setTimeout(()=>abort.abort(),4500);
+  let response;
+  try{
+   response=await fetch('./three-v027.html?update-check='+Date.now(),
+    {cache:'no-store',credentials:'same-origin',signal:abort.signal});
+  }finally{clearTimeout(timeout);}
+  if(!response.ok)return false;
+  const html=await response.text();
+  const found=html.match(/<meta\s+name=["']tetris-build["']\s+content=["'](\d{3})["']/i);
+  const published=found?Number(found[1]):0;
+  if(!Number.isFinite(published)||published<=build)return false;
+  bootStatus.textContent='INSTALLING VERIFIED BUILD '+published;
+  // Use the network worker script, ignoring any stale HTTP cache.
+  const registration=await navigator.serviceWorker.register('./sw.js',
+   {scope:'./',updateViaCache:'none'});
+  await registration.update();
+  // A waiting worker is proof install and its pinned-cache verification passed.
+  const originalController=navigator.serviceWorker.controller;
+  let waiting=registration.waiting;
+  const deadline=Date.now()+10000;
+  while(!waiting&&Date.now()<deadline){
+   if(navigator.serviceWorker.controller!==originalController)break;
+   await sleep(120);
+   waiting=registration.waiting;
+  }
+  if(navigator.serviceWorker.controller!==originalController){
+   window.location.reload();return true;
+  }
+  if(!waiting)return false; // failed/unfinished install: keep old playable build
+  const changed=new Promise(resolve=>{
+   if(!originalController){resolve(false);return;}
+   let settled=false;
+   const handler=()=>{
+    if(settled)return;settled=true;
+    navigator.serviceWorker.removeEventListener('controllerchange',handler);
+    resolve(true);
+   };
+   navigator.serviceWorker.addEventListener('controllerchange',handler);
+   setTimeout(()=>{
+    if(settled)return;settled=true;
+    navigator.serviceWorker.removeEventListener('controllerchange',handler);
+    resolve(false);
+   },8000);
+  });
+  waiting.postMessage({type:'NOMAD_ACTIVATE_UPDATE'});
+  if(await changed){
+   window.location.reload();return true;
+  }
+ }catch(error){
+  console.warn('NOMAD launch update check unavailable; using coherent cached build',error);
+ }
+ return false;
+}
+async function start(){
+ if(await refreshBeforeBoot())return;
+ // Background registration only after the preboot version gate completes.
+ // It does not mutate the currently pinned release while gameplay is running.
+ if('serviceWorker' in navigator)
+  void navigator.serviceWorker.register('./sw.js',
+   {scope:'./',updateViaCache:'none'})
+   .catch(error=>console.warn('NOMAD offline setup unavailable:',error));
+ import('./three-v027.js?build='+build).then(()=>{bootStatus.hidden=true;}).catch(error=>{
+  bootStatus.hidden=true;
+  banner.hidden=false;
+  banner.textContent='Three.js renderer could not load. Please reconnect and reload.\n'+String(error);
+  console.error('Tetris System renderer failed to start:',error);
+ });
+}
+void start();
 </script>
 </body>
 </html>

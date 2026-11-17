@@ -10,7 +10,7 @@
  * reflector shadow -> physical-display image. No framebuffer readbacks.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v264';
+import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v265';
 const {Pass,FullScreenQuad}=THREE;
 const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
@@ -23,10 +23,28 @@ const palettes={
  // A comparison profile, deliberately NOT a measured historical panel.
  nomad:palette([[124,137,86],[180,198,139],[143,170,111],[87,128,94],[45,83,63]])
 };
-function lookupTexture(samples,width,height){
- const texture=new THREE.DataTexture(new Float32Array(samples),width,height,THREE.RedFormat,THREE.FloatType);
+// The trimmed NOMAD Three.js bundle deliberately exports CanvasTexture but
+// NOT DataTexture, FloatType or RedFormat. Pack each LUT entry to 16-bit RG
+// unorm (8 bits per canvas channel); no float-texture extension is needed.
+function lookupTexture(samples,width,height,{signed=false}={}){
+ if(samples.length!==width*height)throw Error('Physical LCD LUT shape mismatch');
+ const canvas=document.createElement('canvas');
+ canvas.width=width;canvas.height=height;
+ const ctx=canvas.getContext('2d',{alpha:false});
+ if(!ctx)throw Error('Physical LCD lookup canvas unavailable');
+ const picture=ctx.createImageData(width,height);
+ for(let i=0;i<samples.length;i++){
+  const encoded=clamp(signed?samples[i]+.5:samples[i],0,1);
+  const value=Math.round(encoded*65535),p=i*4;
+  picture.data[p]=(value>>8)&255;
+  picture.data[p+1]=value&255;
+  picture.data[p+2]=0;
+  picture.data[p+3]=255;
+ }
+ ctx.putImageData(picture,0,0);
+ const texture=new THREE.CanvasTexture(canvas);
+ texture.flipY=false; // shader row 0 corresponds to the first canvas row
  texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.NearestFilter;
- texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;
  texture.colorSpace=THREE.NoColorSpace;texture.generateMipmaps=false;
  texture.needsUpdate=true;return texture;
 }
@@ -35,11 +53,15 @@ const PRELUDE=`
  varying vec2 vUv;
  uniform sampler2D uDrift,uOptical;
  uniform float uTarget[4],uAnchor[4],uCorrection[4];
+ float unpackRG(vec4 c){
+  vec2 bytes=floor(c.rg*255.0+0.5);
+  return dot(bytes,vec2(256.0,1.0))/65535.0;
+ }
  float lut(sampler2D tex,float x,float row,float height){
   float p=clamp(x,0.0,1.0)*64.0;
   float low=floor(p),alpha=fract(p);
-  float a=texture2D(tex,vec2((low+.5)/65.0,(row+.5)/height)).r;
-  float b=texture2D(tex,vec2((min(64.0,low+1.0)+.5)/65.0,(row+.5)/height)).r;
+  float a=unpackRG(texture2D(tex,vec2((low+.5)/65.0,(row+.5)/height)));
+  float b=unpackRG(texture2D(tex,vec2((min(64.0,low+1.0)+.5)/65.0,(row+.5)/height)));
   return mix(a,b,alpha);
  }
  float targetQ(float drive){
@@ -47,7 +69,7 @@ const PRELUDE=`
   return uTarget[i];
  }
  float drift(float drive,float q){
-  return lut(uDrift,q,clamp(floor(drive+.5),0.0,3.0),4.0);
+  return lut(uDrift,q,clamp(floor(drive+.5),0.0,3.0),4.0)-0.5;
  }
  float optical(float q){
   float s=lut(uOptical,q,0.0,1.0),c;
@@ -169,7 +191,7 @@ function newMaterial(uniforms,fragmentShader){
 }
 export function createPhysicalLCDPass(){
  const pass=new Pass();
- const driftTexture=lookupTexture(DRIFT_Q,65,4);
+ const driftTexture=lookupTexture(DRIFT_Q,65,4,{signed:true});
  const opticalTexture=lookupTexture(OPTICAL_LUT,65,1);
  const common={
   uDrift:{value:driftTexture},uOptical:{value:opticalTexture},
