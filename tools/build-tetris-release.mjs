@@ -29,10 +29,10 @@ function files(directory, pattern, recursive = false) {
 // tests and pixel preview tiles are source material for development.
 const assets = ['./', ...[
   'index.html', 'three-v027.html', 'manifest.webmanifest',
-  ...files('', /^(?!sw\.js$)[^.]+\.(?:js|png|svg)$/)
-   .filter(path=>!path.startsWith('dmg01-')),
+  ...files('', /^(?!sw\.js$)[^.]+\.(?:js|png|svg)$/),
   ...files('assets/frames', /\.mjs$/),
   'assets/frames/vector/brick.svg',
+  ...files('dmg01-reference-lab/upstream', /\.(?:slang|inc)$/).filter(path=>!path.endsWith('/nomad-crosstalk-640x1388.inc')),
   ...files('assets/tiles', /\.mjs$/),
   ...files('assets/tiles/vector', /\.svg$/),
   ...files('vendor/three', /\.js$/, true),
@@ -57,7 +57,8 @@ const pinnedImports = [
  ['three-v027.js',['platform.js']],
  ['platform.js',['input.js','render.js','game.js']],
  ['input.js',['render.js']],
- ['render.js',['diagnostics.js','continuous-lcd.js']]
+ ['render.js',['diagnostics.js','dmg01-strict.js']],
+ ['dmg01-strict.js',['dmg01-portrait-calibration.js']]
 ];
 const updatedModules = pinnedImports.map(([module,dependencies]) => {
  const file = join(root,module);
