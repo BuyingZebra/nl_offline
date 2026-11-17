@@ -143,8 +143,22 @@ function celllessOpticalFragment(referenceFragment){
  if(cut<0)throw Error('Original optical fragment has no main');
  return referenceFragment.slice(0,cut)+`
 uniform sampler2D FineDetailHistory;
+// Four native texelFetch samples provide bilinear field interpolation
+// without needing OES_texture_float_linear on mobile GPUs.
+float physicalField(vec2 uv){
+ vec2 texSize=global.SourceSize.xy;
+ vec2 cell=uv*texSize-.5;
+ ivec2 low=ivec2(floor(cell));
+ vec2 weight=fract(cell);
+ ivec2 upper=ivec2(texSize)-ivec2(1);
+ float a=texelFetch(Source,clamp(low,ivec2(0),upper),0).r;
+ float b=texelFetch(Source,clamp(low+ivec2(1,0),ivec2(0),upper),0).r;
+ float c=texelFetch(Source,clamp(low+ivec2(0,1),ivec2(0),upper),0).r;
+ float d=texelFetch(Source,clamp(low+ivec2(1,1),ivec2(0),upper),0).r;
+ return mix(mix(a,b,weight.x),mix(c,d,weight.x),weight.y);
+}
 void main(){
- float reference=texture(Source,vTexCoord).r;
+ float reference=physicalField(vTexCoord);
  float detail=(texture(FineDetailHistory,vTexCoord).r-.5)*1.5;
  float state=clamp((reference+detail-.25)*params.Contrast+.25
   +params.ContrastBias,0.,1.);
@@ -154,7 +168,7 @@ void main(){
  // electrode gaps here, use a continuous displaced-backplane analogue.
  vec2 offset=vec2(params.ShadowOffsetX,params.ShadowOffsetY)
   /max(global.SourceSize.xy,vec2(1.));
- float behind=texture(Source,clamp(vTexCoord-offset,vec2(0.),vec2(1.))).r;
+ float behind=physicalField(clamp(vTexCoord-offset,vec2(0.),vec2(1.)));
  float shadow=max(0.,behind-reference);
  color-=background*params.ShadowStrength*.35*shadow;
  float luminance=dot(color,vec3(.2126,.7152,.0722));
@@ -495,11 +509,9 @@ async function boot(){
  // The reference simulator owns ALL physics at 160x144; only the inexpensive
  // residual history (RGBA8) gets the extra 640x576 display samples.
  detailTargets=[target(OPTICAL_W,OPTICAL_H,gl.RGBA8),target(OPTICAL_W,OPTICAL_H,gl.RGBA8)];
- // Only optical presentation uses linear interpolation of the physical field;
- // original electrical calculations continue using exact integer texelFetch.
- gl.bindTexture(gl.TEXTURE_2D,targets[3].texture);
- gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
- gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ // Original electrical calculations and optical reference remain unchanged.
+ // Cell-less mode interpolates the native field in its shader using texelFetch,
+ // avoiding float-linear-filter extension requirements on mobile Safari.
  runtime=true;reset();
  document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
  document.querySelector('#cadence').addEventListener('change',event=>{blinkEvery=Math.max(1,Number(event.target.value)||36);reset();});
