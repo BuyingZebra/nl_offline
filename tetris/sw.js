@@ -1,4 +1,4 @@
-/* NOMAD Tetris V273 — immutable, version-coherent offline application shell.
+/* NOMAD Tetris V274 — immutable, version-coherent offline application shell.
  * Ownership: ONLY the /tetris/ scope and optional existing Google font requests.
  * Do not touch map caches, user settings, scores or unrelated service workers.
  *
@@ -7,7 +7,7 @@
  * new bundle has been cached and validated.
  */
 'use strict';
-const CACHE_VERSION='v273';
+const CACHE_VERSION='v274';
 const CACHE_NAME='nomad-tetris-offline-'+CACHE_VERSION;
 const CACHE_PREFIX='nomad-tetris-offline-';
 const LEGACY_PIXI_PREFIX='field-atlas-arcade-';
@@ -41,6 +41,7 @@ const CORE_ASSETS=Object.freeze([
  './dmg01-reference-lab/upstream/dmg01-row-load-v2.slang',
  './dmg01-reference-lab/upstream/dmg01-stn-surrogate.inc',
  './dmg01-strict.js',
+ './dmg01-portrait-calibration.js',
  './game.js',
  './icon-192.png',
  './icon-512.png',
@@ -65,7 +66,8 @@ const PINNED_IMPORTS=Object.freeze([
  ['./platform.js','./game.js'],
  ['./input.js','./render.js'],
  ['./render.js','./diagnostics.js'],
- ['./render.js','./dmg01-strict.js']
+ ['./render.js','./dmg01-strict.js'],
+ ['./dmg01-strict.js','./dmg01-portrait-calibration.js']
 ]);
 async function verifyPinnedModules(cache){
  const build=CACHE_VERSION.slice(1);
