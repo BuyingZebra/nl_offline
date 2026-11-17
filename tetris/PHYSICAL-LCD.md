@@ -1,3 +1,29 @@
+# NOMAD v269 — raw-image optical LCD experiment (CURRENT)
+
+The LCD Properties switch now reads **RAW LCD MATERIAL**. This is a deliberately stripped-back optical test: the existing, full-resolution grayscale Tetris scene is sampled **directly at the final output pixel**, converted continuously through the existing reflective olive/green palette, then shown beneath the same **square-cell aperture lattice, analytic reflector shadows and optional front-glass reflection**. The physical cell count is still controllable with **CELL DENSITY**, but it no longer reduces the artwork to one electrical drive per logical cell.
+
+**Current path:**
+
+```
+Original grayscale Canvas2D/Three.js scene (full source resolution)
+  → direct continuous grayscale-to-reflectance mapping (NO palette quantization)
+  → analytical repeating square aperture / reflector shadow (geometric material)
+  → optional virtual glass optics
+  → existing OutputPass and game screen
+```
+
+**What has intentionally been bypassed:** the four-state per-cell electrical quantization, STN drift/ionic response, director history textures, per-cell source resampling, temporal-response temperature setting and all experimental signal/sampling diagnostic menus. This is **not** a validated historical STN response model; it is an optical material experiment to test the visual preservation of the original Tetris artwork. The original full STN model remains in Git history, notably **v268**.
+
+**What remains:** Tetris and its original art/layout/controls unchanged, LCD/CRT selection, legacy LCD mode when RAW LCD MATERIAL is off, the cell-density slider/presets, CELL FILL, REFLECTOR SHADOW, the DMG REFERENCE COLOUR toggle, and FRONT GLASS with reflection and viewing controls. The general Properties debug-report menu is hidden in this experiment; low-level performance/crash instrumentation can remain available to developers.
+
+**Important caveat:** the source reaching this GPU pass is an already-rasterized Canvas2D/Three.js scene, not SVG paths or editable vector primitives. It retains the original rendered scene's native detail rather than forcing it through a reduced-size electrical-cell texture. A monitor cannot display detail beyond its own output pixel grid; and when the simulated cell lattice is very dense, grid gaps can still visually average away. The output palette converts colour/contrast, so it is not a pixel-exact copy of the source image.
+
+## Historical STN experiments (v264–v268)
+
+The sections below describe the earlier physical STN model and diagnostic experiments for reference. Their previous input sampling, temporal response and signal debug settings are **not active in v269**.
+
+---
+
 # Physical LCD material — Tetris System v264 experiment
 
 The **PHYSICAL LCD MATERIAL** switch in the LCD Properties view routes the entire live Tetris System scene through a separate reflective LCD simulation. The existing v263 LCD colour, screen cells, response, optical bleed, vignette, perimeter tint and blur passes are bypassed while this mode is active. Switching the physical model off restores those original passes. CRT is unchanged.
