@@ -253,7 +253,9 @@ export function createPhysicalLCDPass(){
  });
  const inputQuad=new THREE.FullScreenQuad(sourceMaterial);
  const outputQuad=new THREE.FullScreenQuad(outputMaterial);
- let core=null,failure=null,configured=false,enabledPreviously=false;
+ let core=null,failure=null,configured=false;
+ let lastPhysicalTime=0,frameDebt=0;
+ const physicalFrameMs=1000/59.7275;
  const ready=new ReferencePanel();
  ready.init().then(value=>{core=value;}).catch(error=>{
   failure=error;console.error('Strict DMG-01 initialization failed:',error);
@@ -265,7 +267,7 @@ export function createPhysicalLCDPass(){
   outputMaterial.uniforms.uAspect.value=width/Math.max(1,height);
   configured=true;
  };
- pass.reset=()=>{core?.reset();};
+ pass.reset=()=>{core?.reset();lastPhysicalTime=0;frameDebt=0;};
  pass.render=(renderer,writeBuffer,readBuffer)=>{
   if(!configured)pass.configure({width:readBuffer.width,height:readBuffer.height});
   if(failure)throw failure;
@@ -280,8 +282,21 @@ export function createPhysicalLCDPass(){
   inputQuad.render(renderer);
   renderer.readRenderTargetPixels(sourceRT,0,0,WIDTH,HEIGHT,samples);
   const size=renderer.getDrawingBufferSize(new THREE.Vector2());
-  core.render(samples,Math.min(size.x,size.y)*1.25);
-  texture.image=core.canvas;texture.needsUpdate=true;
+  // Run exactly one electrical update per simulated DMG frame. Source
+  // content is held between address latches if the browser redraws slower.
+  // Do not speed up or slow down STN response based on requestAnimationFrame.
+  const timestamp=performance.now();
+  if(lastPhysicalTime===0)frameDebt=physicalFrameMs;
+  else frameDebt+=Math.min(100,timestamp-lastPhysicalTime);
+  lastPhysicalTime=timestamp;
+  const steps=Math.min(6,Math.floor(frameDebt/physicalFrameMs));
+  frameDebt-=steps*physicalFrameMs;
+  if(steps>0){
+   for(let i=0;i<steps;i++)
+    core.render(samples,Math.min(size.x,size.y)*1.25);
+   texture.image=core.canvas;
+   texture.needsUpdate=true;
+  }
   renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
   outputQuad.render(renderer);
  };
