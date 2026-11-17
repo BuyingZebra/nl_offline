@@ -181,7 +181,7 @@ void main(){
 const statusEl=document.querySelector('#status');
 const logEl=document.querySelector('#log');
 const canvas=document.querySelector('#panel');
-const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+let gl=null; // WebGL context is acquired only after explicit LOAD.
 const output=(s)=>{statusEl.textContent=s;};
 const log=(s)=>{logEl.textContent=s+'\n'+logEl.textContent.slice(0,12000);logEl.hidden=false;};
 const copyError=document.querySelector('#copyError');
@@ -493,6 +493,7 @@ function animation(now){
  }
 }
 async function boot(){
+ gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:false,powerPreference:'default'});
  if(!gl)throw Error('WebGL2 unavailable; no alternate approximation will be used');
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float unavailable; original RGBA32F feedback cannot be reproduced. No low-precision fallback.');
  const raw=await importOriginalShaders();
