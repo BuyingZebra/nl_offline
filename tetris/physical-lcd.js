@@ -12,7 +12,7 @@
  * Subcell optical detail is a hybrid, not historically addressable hardware.
  */
 import * as THREE from './vendor/three/three.bundle.js';
-import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v270';
+import {REFRESH_HZ,TARGET_Q,DRIFT_Q,OPTICAL_LUT,ANCHOR_Q,CORRECTION,PALETTE} from './physical-lcd-data.js?v271';
 const {Pass,FullScreenQuad}=THREE;
 const VERTEX='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}';
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
@@ -143,16 +143,25 @@ const OUTPUT_FRAGMENT=`
  uniform sampler2D uState,uSignal,tSource;
  uniform vec2 uGrid;
  uniform float uResponseAmount,uInkContrast;
+ uniform float uViewContrast,uAmbientLight;
  uniform vec2 uOutputSize;
  uniform vec3 uPalette[5];
  uniform float uFill,uFootprint,uShadow,uShadowX,uShadowY,uBrightness,uChroma;
  uniform float uGlass,uLightAngle,uViewAngle;
  vec3 opticalColour(float s){
-  float p=clamp(s,0.,1.)*4.;
-  if(p<1.)return mix(uPalette[0],uPalette[1],p);
-  if(p<2.)return mix(uPalette[1],uPalette[2],p-1.);
-  if(p<3.)return mix(uPalette[2],uPalette[3],p-2.);
-  return mix(uPalette[3],uPalette[4],p-3.);
+  float darkness=clamp(s,0.,1.);
+  float p=darkness*4.;
+  vec3 reflected;
+  if(p<1.)reflected=mix(uPalette[0],uPalette[1],p);
+  else if(p<2.)reflected=mix(uPalette[1],uPalette[2],p-1.);
+  else if(p<3.)reflected=mix(uPalette[2],uPalette[3],p-2.);
+  else reflected=mix(uPalette[3],uPalette[4],p-3.);
+  // Viewing contrast is a reversible post-optical density grade, NOT a
+  // change to the original artwork, electrode drive or Lab STN lookup.
+  // 100% preserves the exact original five-colour optical curve.
+  // The added absorption grows smoothly with ink darkness and therefore
+  // never changes pixel positions, stroke sizes or aperture boundaries.
+  return reflected*exp(-max(0.,uViewContrast-1.)*darkness);
  }
  // Original source is sampled at the final output resolution, NOT the
  // logical LCD cell grid. The optical stage preserves fine vector detail.
@@ -221,7 +230,10 @@ const OUTPUT_FRAGMENT=`
   float shadowGap=max(displaced-joint,0.);
   rgb=max(vec3(0.),rgb-background*uShadow*shaded*shadowGap);
   float gray=dot(rgb,vec3(.2126,.7152,.0722));
-  rgb=mix(vec3(gray),rgb,uChroma)*uBrightness;
+  // Reflective illumination affects the optical image, after cell
+  // apertures and reflector shadows; the glass reflection remains a
+  // separate front-surface light contribution.
+  rgb=mix(vec3(gray),rgb,uChroma)*uBrightness*uAmbientLight;
   // Optional FRONT GLASS. This is a separate artistic optical-surface model,
   // adapted from /lcd-lab/, not part of the sourced STN response reconstruction.
   // It does not alter the simulated cell state, aperture or reflector shadows.
@@ -261,6 +273,7 @@ export function createPhysicalLCDPass(){
   uState:{value:null},tSource:{value:null},uSignal:{value:null},
   uGrid:{value:new THREE.Vector2(160,320)},
   uResponseAmount:{value:0},uInkContrast:{value:1},
+  uViewContrast:{value:1.90},uAmbientLight:{value:1.20},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
   uFill:{value:.875},uFootprint:{value:1},
@@ -299,7 +312,8 @@ export function createPhysicalLCDPass(){
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
   temperature=20,reference=true,glass=false,glassStrength=.8,
   glassLightAngle=35,glassViewAngle=0,responseOn=true,
-  responseMs:ms=210,responseStrength=60,inkContrast=100}={})=>{
+  responseMs:ms=210,responseStrength=60,inkContrast=100,
+  viewContrast=190,ambientLight=120}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
@@ -309,6 +323,10 @@ export function createPhysicalLCDPass(){
   const contrast=clamp(Number(inkContrast)||100,75,150)/100;
   signalUniforms.uInkContrast.value=contrast;
   outputUniforms.uInkContrast.value=contrast;
+  // These are optical presentation controls only: neither enters the
+  // source signal shader nor the director/ionic feedback uniforms.
+  outputUniforms.uViewContrast.value=clamp(Number(viewContrast)||100,100,250)/100;
+  outputUniforms.uAmbientLight.value=clamp(Number(ambientLight)||100,75,160)/100;
   responseMs=clamp(Number(ms)||210,30,600);
   const strength=clamp(Number(responseStrength)||0,0,100)/100;
   const active=Boolean(responseOn)&&strength>0;

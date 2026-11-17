@@ -1,13 +1,13 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {createPhysicalLCDPass,physicalLCDGrid} from './physical-lcd.js?v270';
+import {createPhysicalLCDPass,physicalLCDGrid} from './physical-lcd.js?v271';
 import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v270';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v270';
+import {instrumentCompositorPasses} from './diagnostics.js?v271';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v271';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -840,7 +840,8 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   glassViewAngle:fx.lcdPhysicalGlassViewAngle,
   responseOn:fx.lcdResponse,responseMs:fx.lcdResponseMs,
   responseStrength:fx.lcdResponseAmount,
-  temperature:fx.lcdPhysicalTemperature,inkContrast:fx.lcdInkContrast
+  temperature:fx.lcdPhysicalTemperature,inkContrast:fx.lcdInkContrast,
+  viewContrast:fx.lcdViewContrast,ambientLight:fx.lcdAmbientLight
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
@@ -2180,7 +2181,8 @@ function createModalUI({
  const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
   lcdProperties.filter(property=>getFX().lcdPhysical?
    !legacyLCD.has(property.id):
-   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy'].includes(property.id));
+   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy',
+    'lcdVisibility'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){

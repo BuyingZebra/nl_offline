@@ -1,3 +1,22 @@
+# NOMAD Tetris System v271 — reflective LCD visibility (CURRENT)
+
+**Goal:** make the replica more readable without modifying any source artwork, tile designs, stroke widths, coordinates, board geometry, Tetris gameplay or the original STN dynamic model. The v270 Lab-derived physics stays untouched.
+
+## LCD VISIBILITY — optical viewing conditions only
+
+Two new sliders live on their own **LCD VISIBILITY** Properties page, visible only when the physical LCD material is selected:
+
+- **VIEW CONTRAST:** 100–250%, **default 190%**. A reversible optical-density adjustment in the *final optical-colour shader*: after the original full-resolution grayscale image and Lab response determine the optical darkness, each reflected linear RGB colour is multiplied by `exp(-(contrast/100 - 1)*darkness)`. This preferentially absorbs more light in dark LCD areas while preserving the optical pixel locations, original hues, glass, grid aperture and 5-reference-palette ordering. No altered source image, stroke size, bitmap conversion, cell count or STN dynamics. At **100%**, the original v270 measured/palette response is passed through unmodified.
+- **REFLECTED LIGHT:** 75–160%, **default 120%**. Multiplies the resulting **linear-light** panel image *after* aperture coverage/reflector shadows and before the separate front-glass highlight. This simulates the apparent illumination of a reflective panel; it is not a backlight and does not feed the electrical state.
+
+**To reproduce the original v270 colour and brightness exactly, set VIEW CONTRAST = 100%, REFLECTED LIGHT = 100%, and leave INK CONTRAST = 100%.** These viewing controls are intentionally *art-direction adjustments*, not a claim that the revised palette represents a newly measured historical LCD. The original palette samples, drift lookup, director, ionic memory, temperature behaviour, electrical states, physical cell aperture and reflector overlap all remain unchanged.
+
+The base wallpaper/lettering/playfield, original 0.6px LCD board grid, alpha, geometry, original vector tile artwork and game controls are **not changed**. This is an optical-side visibility experiment, not a new image interpreter or a board drawing redesign.
+
+The surrounding region of the virtual LCD contains dark source pixels and therefore receives greater optical absorption, which should make the bright Tetris board distinguish itself more clearly against the field. Actual brightness/contrast and mobile GPU operation need user visual confirmation.
+
+## Previous work — v270 electrical response and full-detail raw presentation
+
 # NOMAD Tetris System v270 — original Lab physics, full-detail artwork (CURRENT)
 
 The Tetris System once again uses the source-derived STN response model from **/lcd-lab/** / v268, but no longer treats its coarse four-electrical-state image as the finished visible artwork. The raw grayscale artwork remains full resolution through the reflective display, its original details are naturally clipped by the optical cell apertures, and the original per-cell STN dynamics are applied as a **temporal optical correction**.
