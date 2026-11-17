@@ -143,18 +143,10 @@ const OUTPUT_FRAGMENT=`
  uniform sampler2D uState,uSignal,tSource;
  uniform vec2 uGrid;
  uniform float uResponseAmount,uInkContrast;
- float displayLinear(float grey){
-  return grey<=.04045?grey/12.92:pow((grey+.055)/1.055,2.4);
- }
  uniform vec2 uOutputSize;
- uniform int uDiagnostic;
  uniform vec3 uPalette[5];
  uniform float uFill,uFootprint,uShadow,uShadowX,uShadowY,uBrightness,uChroma;
  uniform float uGlass,uLightAngle,uViewAngle;
- vec3 enc(vec3 x){
-  return mix(x*12.92,1.055*pow(max(x,vec3(0.0)),vec3(1./2.4))-.055,
-   step(vec3(.0031308),x));
- }
  vec3 opticalColour(float s){
   float p=clamp(s,0.,1.)*4.;
   if(p<1.)return mix(uPalette[0],uPalette[1],p);
@@ -261,7 +253,7 @@ export function createPhysicalLCDPass(){
   uTarget:{value:TARGET_Q},uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION}
  };
  const signalUniforms={tSource:{value:null},uGrid:{value:new THREE.Vector2(160,320)},
-  uSamplingMode:{value:0},uInkContrast:{value:1}};
+  uInkContrast:{value:1}};
  const stateUniforms={...common,tSignal:{value:null},tHistory:{value:null},
   uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1},
   uSettled:{value:0}};
