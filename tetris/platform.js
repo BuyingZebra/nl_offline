@@ -1446,7 +1446,7 @@ function frame(now){
    gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
    redrawPending:layers.needsRender(),
    buttonsActive:buttonSparks.length>0
-  )||(legacyIdleRAF&&historyOn);
+  })||(legacyIdleRAF&&historyOn);
   // A continuously active RAF already advances the terminal. Scheduling a
   // second timeout for the same work wastes callbacks and timer allocations.
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
