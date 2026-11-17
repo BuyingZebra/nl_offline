@@ -1247,7 +1247,7 @@ inputController=createInputController({
    // Fast A/B study: change only simulated cell count while preserving the
    // aperture, STN response, palette, and game artwork.
    const value=Number(act.slice('density-preset:'.length));
-   if(screenManager.isProperty&&modalUI.property==='lcdPhysical'&&
+   if(screenManager.isProperty&&modalUI.property==='lcdDensityStudy'&&
       [1,1.5,2,2.5].includes(value))
     actions.setSetting('lcdPhysicalDensity',value);
    return;
