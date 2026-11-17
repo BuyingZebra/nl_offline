@@ -263,26 +263,62 @@ const FRAGMENT=String.raw`
 
 export function createPhysicalLCDPass(){
  const pass=new Pass();
+ const driftTexture=lutTexture(DRIFT_Q,65,4,{signed:true});
+ const opticalTexture=lutTexture(OPTICAL_LUT,65,1);
+ const targetTexture=lutTexture(TARGET_CURVE,256,1);
+
+ const stateUniforms={
+  tSource:{value:null},tHistory:{value:null},
+  uDrift:{value:driftTexture},uOptical:{value:opticalTexture},
+  uTargetCurve:{value:targetTexture},
+  uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION},
+  uDelta:{value:1/60},uResponseMs:{value:210},
+  uTemperature:{value:20},uReset:{value:1}
+ };
  const uniforms={
-  tSource:{value:null},
+  tSource:{value:null},tResponse:{value:null},
   uGrid:{value:new THREE.Vector2(160,320)},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
   uFill:{value:.875},uShadow:{value:.18},
   uShadowX:{value:.11},uShadowY:{value:.13},
-  uGlass:{value:0},uLightAngle:{value:35},uViewAngle:{value:0}
+  uGlass:{value:0},uLightAngle:{value:35},uViewAngle:{value:0},
+  uResponseAmount:{value:0},uInkContrast:{value:1}
  };
- const material=new THREE.ShaderMaterial({
+ const stateMaterial=new THREE.ShaderMaterial({
+  uniforms:stateUniforms,vertexShader:VERTEX,fragmentShader:RESPONSE_FRAGMENT,
+  depthTest:false,depthWrite:false,blending:THREE.NoBlending
+ });
+ const outputMaterial=new THREE.ShaderMaterial({
   uniforms,vertexShader:VERTEX,fragmentShader:FRAGMENT,
   depthTest:false,depthWrite:false,blending:THREE.NoBlending
  });
- const quad=new FullScreenQuad(material);
+ const quad=new FullScreenQuad(outputMaterial);
+ let prior=null,next=null,frameW=0,frameH=0,reset=true,responseEnabled=false;
+
+ function allocate(width,height){
+  prior?.dispose();next?.dispose();
+  frameW=width;frameH=height;
+  const options={depthBuffer:false,stencilBuffer:false,
+   minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,
+   format:THREE.RGBAFormat,type:THREE.UnsignedByteType};
+  const make=()=>{
+   const target=new THREE.WebGLRenderTarget(width,height,options);
+   target.texture.colorSpace=THREE.NoColorSpace;
+   return target;
+  };
+  prior=make();next=make();reset=true;
+ }
+
  pass.enabled=false;
- pass.setSize=()=>{}; // viewport dimensions are set in CSS pixels by syncFX
- pass.reset=()=>{}; // no persistence or electrical history in RAW test
+ // History must match the real GPU framebuffer, not CSS cell dimensions.
+ // Read from EffectComposer's actual buffer every render to catch DPR changes.
+ pass.setSize=()=>{};
+ pass.reset=()=>{reset=true;};
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
   reference=true,glass=false,glassStrength=.8,glassLightAngle=35,
-  glassViewAngle=0}={})=>{
+  glassViewAngle=0,responseOn=true,responseMs=210,responseStrength=60,
+  temperature=20,inkContrast=100}={})=>{
   const {columns,rows}=physicalLCDGrid(width,height,cellDensity);
   uniforms.uGrid.value.set(columns,rows);
   uniforms.uFill.value=clamp(Number(cellFill),.55,.95);
@@ -291,15 +327,51 @@ export function createPhysicalLCDPass(){
   uniforms.uGlass.value=glass?clamp(Number(glassStrength)||0,0,2):0;
   uniforms.uLightAngle.value=clamp(Number(glassLightAngle)||0,0,360);
   uniforms.uViewAngle.value=clamp(Number(glassViewAngle)||0,-45,45);
+  uniforms.uInkContrast.value=clamp(Number(inkContrast)||100,75,150)/100;
+
+  const nextStrength=clamp(Number(responseStrength)||0,0,100)/100;
+  const nextEnabled=Boolean(responseOn)&&nextStrength>0;
+  if(nextEnabled!==responseEnabled)reset=true;
+  responseEnabled=nextEnabled;
+  uniforms.uResponseAmount.value=responseEnabled?nextStrength:0;
+  stateUniforms.uResponseMs.value=clamp(Number(responseMs)||210,30,600);
+  stateUniforms.uTemperature.value=clamp(Number(temperature)||20,5,40);
  };
- pass.render=(renderer,writeBuffer,readBuffer)=>{
+ pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
+  const width=readBuffer.width,height=readBuffer.height;
   uniforms.tSource.value=readBuffer.texture;
-  uniforms.uOutputSize.value.set(readBuffer.width,readBuffer.height);
-  quad.material=material;
+  uniforms.uOutputSize.value.set(width,height);
+
+  if(responseEnabled){
+   if(!prior||!next||width!==frameW||height!==frameH)allocate(width,height);
+   stateUniforms.tSource.value=readBuffer.texture;
+   stateUniforms.tHistory.value=prior.texture;
+   stateUniforms.uDelta.value=clamp(Number(deltaTime)||1/60,.001,.08);
+   stateUniforms.uReset.value=reset?1:0;
+   quad.material=stateMaterial;
+   renderer.setRenderTarget(next);
+   quad.render(renderer);
+   uniforms.tResponse.value=next.texture;
+  }else{
+   // This is exactly the v269 direct-source optics path.
+   uniforms.tResponse.value=readBuffer.texture;
+  }
+
+  quad.material=outputMaterial;
   renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
   if(pass.clear)renderer.clear();
   quad.render(renderer);
+
+  if(responseEnabled){
+   [prior,next]=[next,prior];
+   reset=false;
+  }
  };
- pass.dispose=()=>{material.dispose();quad.dispose();};
+ pass.dispose=()=>{
+  prior?.dispose();next?.dispose();
+  prior=null;next=null;
+  driftTexture.dispose();opticalTexture.dispose();targetTexture.dispose();
+  stateMaterial.dispose();outputMaterial.dispose();quad.dispose();
+ };
  return pass;
 }
