@@ -57,7 +57,8 @@ const pinnedImports = [
  ['three-v027.js',['platform.js']],
  ['platform.js',['input.js','render.js','game.js']],
  ['input.js',['render.js']],
- ['render.js',['diagnostics.js','dmg01-strict.js']]
+ ['render.js',['diagnostics.js','dmg01-strict.js']],
+ ['dmg01-strict.js',['dmg01-portrait-calibration.js']]
 ];
 const updatedModules = pinnedImports.map(([module,dependencies]) => {
  const file = join(root,module);
