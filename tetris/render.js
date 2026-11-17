@@ -1,6 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
-import {createPhysicalLCDPass,physicalLCDGrid} from './physical-lcd.js?v271';
+import {createPhysicalLCDPass,physicalLCDGrid} from './dmg01-strict.js?v272';
 import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
@@ -827,23 +827,12 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  tint.enabled=!lcd;
- const physicalEnabled=lcd&&fx.lcdPhysical===true;
+ const physicalEnabled=lcd; // Strict DMG-01 is the only LCD material path.
  if(physicalEnabled!==physicalWasEnabled)physicalLCDPass.reset();
  physicalWasEnabled=physicalEnabled;
  physicalLCDPass.enabled=physicalEnabled;
- if(physicalEnabled)physicalLCDPass.configure({
-  width:W,height:H,cellDensity:fx.lcdPhysicalDensity,
-  cellFill:fx.lcdPhysicalFill,shadow:fx.lcdPhysicalShadow,
-  reference:fx.lcdPhysicalReference,
-  glass:fx.lcdPhysicalGlass,glassStrength:fx.lcdPhysicalGlassStrength,
-  glassLightAngle:fx.lcdPhysicalGlassLightAngle,
-  glassViewAngle:fx.lcdPhysicalGlassViewAngle,
-  responseOn:fx.lcdResponse,responseMs:fx.lcdResponseMs,
-  responseStrength:fx.lcdResponseAmount,
-  temperature:fx.lcdPhysicalTemperature,inkContrast:fx.lcdInkContrast,
-  viewContrast:fx.lcdViewContrast,ambientLight:fx.lcdAmbientLight
- });
- const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
+ if(physicalEnabled)physicalLCDPass.configure({width:W,height:H});
+ const lcdResponseEnabled=false; // No legacy response/colour bypass.
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
  lcdResponseWasEnabled=lcdResponseEnabled;
  lcdResponsePass.enabled=lcdResponseEnabled;
