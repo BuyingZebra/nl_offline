@@ -1243,10 +1243,17 @@ inputController=createInputController({
   if(act==='pattern:previous'||act==='pattern:next'){
    modalUI.cyclePattern(act==='pattern:next'?1:-1);return;
   }
+  if(act?.startsWith('sampling-method:')){
+   const mode=Number(act.slice('sampling-method:'.length));
+   if(screenManager.isProperty&&modalUI.property==='lcdSamplingStudy'&&
+      Number.isInteger(mode)&&mode>=0&&mode<=2)
+    actions.setSetting('lcdPhysicalSamplingMode',mode);
+   return;
+  }
   if(act?.startsWith('signal-view:')){
    const value=Number(act.slice('signal-view:'.length));
    if(screenManager.isProperty&&modalUI.property==='lcdSignalStudy'&&
-      Number.isInteger(value)&&value>=0&&value<=4)
+      Number.isInteger(value)&&value>=0&&value<=5)
     actions.setSetting('lcdPhysicalSignalView',value);
    return;
   }
