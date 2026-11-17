@@ -2171,8 +2171,8 @@ function createModalUI({
   {id:'defaults',toggle:'defaultsEnabled',title:'RESTORE DEFAULTS'}];
  const lcdProperties=properties.filter(property=>!property.crtOnly);
  const crtProperties=properties.filter(property=>!property.lcdOnly);
- // LCD RESPONSE is shared: legacy LCD uses its historical grayscale
- // persistence pass; RAW LCD uses continuous-drive STN lookup history.
+ // LCD RESPONSE is shared: legacy LCD uses its grayscale persistence
+ // pass; PHYSICAL LCD uses the restored Lab four-drive per-cell STN state.
  const legacyLCD=new Set(['lcdTint','lcdBleed','lcdCells',
   'lcdVignette','lcdEdgeColour','lcdEdgeBlur']);
  // When physical material is selected, hide inactive post-FX sliders;
