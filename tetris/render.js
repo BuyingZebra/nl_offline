@@ -1,5 +1,6 @@
 /* NOMAD — internally compartmentalized visual engine; game rules live elsewhere. */
 import * as THREE from './vendor/three/three.bundle.js';
+import {createPhysicalLCDPass} from './physical-lcd.js?v264';
 import {directionalShadowProfile,createDirectionalShadowRenderer,createBoardInsetShadowRenderer} from './shadows.js?v223';
 export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
@@ -634,6 +635,9 @@ void main(){
  scanlineOverlay.enabled=false;
  composer.addPass(scanlineOverlay);
 
+ // Physical STN cell simulation: separate render pass, before legacy LCD FX.
+ const physicalLCDPass=createPhysicalLCDPass();
+ composer.addPass(physicalLCDPass);
  // LCD segment response happens BEFORE tint, optical bleed and cell apertures.
  const lcdResponsePass=createLCDResponsePass();
  composer.addPass(lcdResponsePass);
@@ -795,7 +799,7 @@ void main(){
  const passProfiler=instrumentCompositorPasses(composer.passes,[
   'Scene + uploads','Board blur H','Board popup','Picker blur H','Picker popup',
   'Phosphor history','Ghost','Bloom',
-  'Phosphor','Edge softness','Vignette','CRT mask','LCD response','LCD colour',
+  'Phosphor','Edge softness','Vignette','CRT mask','Physical STN LCD','LCD response','LCD colour',
   'LCD bleed','LCD cells','LCD edge blur H','LCD edge blur V',
   'LCD vignette','LCD edge colour','Boot roll','Output'
  ],onPassTiming);
@@ -803,7 +807,7 @@ void main(){
  // the blue experiment is removed without changing luminance or bloom.
  const hues={green:new THREE.Vector3(.2,1,.2),
   amber:new THREE.Vector3(185/255,79/255,9/255)};
- let persistenceWasEnabled=false,lcdResponseWasEnabled=false;
+ let persistenceWasEnabled=false,lcdResponseWasEnabled=false,physicalWasEnabled=false;
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
  const lcdPopupBase=new THREE.Color(0xd8d8d8),crtPopupBase=new THREE.Color(0x101010);
 function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,propertiesPreview=null,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
@@ -823,22 +827,31 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  tint.enabled=!lcd;
- const lcdResponseEnabled=lcd&&fx.lcdResponse&&fx.lcdResponseAmount>0;
+ const physicalEnabled=lcd&&fx.lcdPhysical===true;
+ if(physicalEnabled!==physicalWasEnabled)physicalLCDPass.reset();
+ physicalWasEnabled=physicalEnabled;
+ physicalLCDPass.enabled=physicalEnabled;
+ if(physicalEnabled)physicalLCDPass.configure({
+  width:W,height:H,cellDensity:fx.lcdPhysicalDensity,
+  cellFill:fx.lcdPhysicalFill,shadow:fx.lcdPhysicalShadow,
+  temperature:fx.lcdPhysicalTemperature,reference:fx.lcdPhysicalReference
+ });
+ const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
  lcdResponseWasEnabled=lcdResponseEnabled;
  lcdResponsePass.enabled=lcdResponseEnabled;
  lcdResponsePass.configure(fx.lcdResponseMs,fx.lcdResponseAmount);
- lcdTint.enabled=lcd;
- lcdBleed.enabled=lcd&&fx.lcdBleed&&fx.lcdBleedAmount>0&&fx.lcdBleedRadius>0;
+ lcdTint.enabled=lcd&&!physicalEnabled;
+ lcdBleed.enabled=lcd&&!physicalEnabled&&fx.lcdBleed&&fx.lcdBleedAmount>0&&fx.lcdBleedRadius>0;
  lcdBleed.uniforms.uAmount.value=fx.lcdBleedAmount/100;
  lcdBleed.uniforms.uRadius.value=fx.lcdBleedRadius;
  lcdBleed.uniforms.uSize.value.set(W,H);
- lcdEdgeColour.enabled=lcd&&fx.lcdEdgeColour&&fx.lcdEdgeColourAmount>0;
+ lcdEdgeColour.enabled=lcd&&!physicalEnabled&&fx.lcdEdgeColour&&fx.lcdEdgeColourAmount>0;
  lcdEdgeColour.uniforms.uAmount.value=fx.lcdEdgeColourAmount/100;
  lcdEdgeColour.uniforms.uFalloff.value=fx.lcdEdgeColourFalloff*.005;
  lcdEdgeColour.uniforms.uSize.value.set(W,H);
- lcdCells.enabled=lcd&&fx.lcdCells&&fx.lcdCellOpacity>0;
- const lcdEdgeBlurEnabled=lcd&&fx.lcdEdgeBlur&&fx.lcdEdgeBlurSigma>0;
+ lcdCells.enabled=lcd&&!physicalEnabled&&fx.lcdCells&&fx.lcdCellOpacity>0;
+ const lcdEdgeBlurEnabled=lcd&&!physicalEnabled&&fx.lcdEdgeBlur&&fx.lcdEdgeBlurSigma>0;
  for(const pass of lcdEdgeBlurPasses){
   pass.enabled=lcdEdgeBlurEnabled;
   if(lcdEdgeBlurEnabled){
@@ -847,7 +860,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
    pass.uniforms.uSize.value.set(W,H);
   }
  }
- lcdVignette.enabled=lcd&&fx.lcdVignette&&fx.lcdVignetteAmount>0;
+ lcdVignette.enabled=lcd&&!physicalEnabled&&fx.lcdVignette&&fx.lcdVignetteAmount>0;
  if(lcd){
   lcdTint.uniforms.uSaturation.value=fx.lcdTint?fx.lcdOliveSaturation/100:0;
   lcdCells.uniforms.uOpacity.value=fx.lcdCellOpacity/100;
