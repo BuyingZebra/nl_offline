@@ -91,31 +91,50 @@ const PRELUDE=`
   return clamp(s+c,.25,1.0);
  }
 `;
-const STATE_FRAGMENT=PRELUDE+`
- uniform sampler2D tSource,tHistory;
- uniform float uDelta,uTemperature,uReset;
+// Shared source encoder: both diagnostic and actual STN cell states use this.
+const SIGNAL_INPUT=`
+ uniform sampler2D tSource;
+ uniform vec2 uGrid;
+ uniform float uAreaSampling;
+ float encodedGrey(vec3 rgb){
+  float lum=dot(rgb,vec3(.2126,.7152,.0722));
+  return lum<=.0031308?lum*12.92:1.055*pow(max(lum,0.),1.0/2.4)-.055;
+ }
+ float sampledGrey(vec2 uv){
+  if(uAreaSampling<.5)return encodedGrey(texture2D(tSource,uv).rgb);
+  vec2 shift=.25/max(uGrid,vec2(1.));
+  vec3 avg=(texture2D(tSource,uv+vec2(-shift.x,-shift.y)).rgb+
+            texture2D(tSource,uv+vec2( shift.x,-shift.y)).rgb+
+            texture2D(tSource,uv+vec2(-shift.x, shift.y)).rgb+
+            texture2D(tSource,uv+vec2( shift.x, shift.y)).rgb)*.25;
+  return encodedGrey(avg);
+ }
+ float sampledDrive(vec2 uv){
+  return floor(clamp(1.0-sampledGrey(uv),0.0,1.0)*3.0+.5);
+ }
+ float displayLinear(float encoded){
+  return encoded<=.04045?encoded/12.92:pow((encoded+.055)/1.055,2.4);
+ }
+`;
+const STATE_FRAGMENT=PRELUDE+SIGNAL_INPUT+`
+ uniform sampler2D tHistory;
+ uniform float uDelta,uTemperature,uReset,uSettled;
  vec2 pack16(float v){
   float n=floor(clamp(v,0.0,1.0)*65535.0+.5);
   return vec2(floor(n/256.0),mod(n,256.0))/255.0;
  }
  float unpack16(vec2 p){return dot(floor(p*255.0+.5),vec2(256.0,1.0))/65535.0;}
  void main(){
-  vec3 scene=texture2D(tSource,vUv).rgb;
-  // The UI is authored in grayscale; sample at the cell's physical center.
-  float lum=dot(scene,vec3(.2126,.7152,.0722));
-  // Recover the Canvas2D artwork's encoded grey before quantizing drive.
-  // The compositor samples textures in linear light; quantizing there would
-  // incorrectly make light-grey panels into middle Game Boy shades.
-  float sourceGrey=lum<=.0031308?lum*12.92:1.055*pow(lum,1.0/2.4)-.055;
-  float drive=floor(clamp(1.0-sourceGrey,0.0,1.0)*3.0+.5);
+  // Cell-centred point sample (original) or experimental 4-tap area sample.
+  float drive=sampledDrive(vUv);
   vec4 previous=texture2D(tHistory,vUv);
-  float q=uReset>.5?targetQ(drive):unpack16(previous.rg);
+  float q=(uReset>.5||uSettled>.5)?targetQ(drive):unpack16(previous.rg);
   float ions=uReset>.5?0.0:previous.b;
   float tScale=exp(3800.0*(1.0/293.15-1.0/(uTemperature+273.15)));
   float frames=min(.08,max(0.0,uDelta))*59.7275000;
   int n=int(clamp(ceil(frames/.45),1.0,12.0));
   float fraction=frames/float(n);
-  if(uReset<.5)for(int step=0;step<12;step++){
+  if(uReset<.5&&uSettled<.5)for(int step=0;step<12;step++){
    if(step>=n)break;
    q=clamp(q+drift(drive,q)*fraction*tScale,0.0,1.0);
    float aim=drive/3.0;
@@ -127,10 +146,11 @@ const STATE_FRAGMENT=PRELUDE+`
   opticalState=clamp(opticalState+bias,.25,1.0);
   gl_FragColor=vec4(pack16(q),ions,opticalState);
  }`;
-const OUTPUT_FRAGMENT=`
+const OUTPUT_FRAGMENT=SIGNAL_INPUT+`
  precision highp float;varying vec2 vUv;
  uniform sampler2D uState;
- uniform vec2 uGrid,uOutputSize;
+ uniform vec2 uOutputSize;
+ uniform int uDiagnostic;
  uniform vec3 uPalette[5];
  uniform float uFill,uFootprint,uShadow,uShadowX,uShadowY,uBrightness,uChroma;
  uniform float uGlass,uLightAngle,uViewAngle;
@@ -180,6 +200,17 @@ const OUTPUT_FRAGMENT=`
  void main(){
   vec2 p=vUv*uGrid;
   vec2 footprint=max(uGrid/max(uOutputSize,vec2(1.))*max(.01,uFootprint),vec2(.00001));
+  if(uDiagnostic==1){
+   gl_FragColor=vec4(texture2D(tSource,vUv).rgb,1.0);
+   return;
+  }
+  if(uDiagnostic==2||uDiagnostic==3){
+   vec2 cellUV=(floor(p)+.5)/uGrid;
+   float grey=sampledGrey(cellUV);
+   if(uDiagnostic==3)grey=1.0-sampledDrive(cellUV)/3.0;
+   gl_FragColor=vec4(vec3(displayLinear(grey)),1.);
+   return;
+  }
   float s=stateAt(p);
   vec3 background=opticalColour(0.);
   float mask=aperture(p,footprint);
@@ -195,7 +226,7 @@ const OUTPUT_FRAGMENT=`
   // Optional FRONT GLASS. This is a separate artistic optical-surface model,
   // adapted from /lcd-lab/, not part of the sourced STN response reconstruction.
   // It does not alter the simulated cell state, aperture or reflector shadows.
-  if(uGlass>0.0){
+  if(uGlass>0.0&&uDiagnostic==0){
    vec2 panel=vec2(vUv.x,1.0-vUv.y);
    float angle=radians(uLightAngle);
    vec2 lightAxis=vec2(cos(angle),sin(angle));
@@ -223,9 +254,13 @@ export function createPhysicalLCDPass(){
   uTarget:{value:TARGET_Q},uAnchor:{value:ANCHOR_Q},uCorrection:{value:CORRECTION}
  };
  const stateUniforms={...common,tSource:{value:null},tHistory:{value:null},
-  uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1}};
+  uGrid:{value:new THREE.Vector2(160,320)},uAreaSampling:{value:0},
+  uDelta:{value:1/60},uTemperature:{value:20},uReset:{value:1},
+  uSettled:{value:0}};
  const outputUniforms={
-  uState:{value:null},uGrid:{value:new THREE.Vector2(160,320)},
+  uState:{value:null},tSource:{value:null},
+  uGrid:{value:new THREE.Vector2(160,320)},uAreaSampling:{value:0},
+  uDiagnostic:{value:0},
   uOutputSize:{value:new THREE.Vector2(1,1)},
   uPalette:{value:palettes.reference},
   uFill:{value:.875},uFootprint:{value:1},
@@ -254,17 +289,26 @@ export function createPhysicalLCDPass(){
    if(targetA||targetB)allocate();
   }
   outputUniforms.uGrid.value.set(gridWidth,gridHeight);
+  stateUniforms.uGrid.value.set(gridWidth,gridHeight);
  }
  pass.enabled=false;
  pass.setSize=()=>{}; // fixed physical cell size is configured in CSS pixels by syncFX
  pass.reset=()=>{reset=true;};
  pass.configure=({width,height,cellDensity=1.5,cellFill=.875,shadow=.18,
   temperature=20,reference=true,glass=false,glassStrength=.8,
-  glassLightAngle=35,glassViewAngle=0}={})=>{
+  glassLightAngle=35,glassViewAngle=0,areaSampling=false,diagnostic=0}={})=>{
   cssWidth=Math.max(1,Number(width)||1);
   cssHeight=Math.max(1,Number(height)||1);
   density=clamp(Number(cellDensity)||1.5,1,2.5);
   setGrid();
+  const nextArea=areaSampling?1:0;
+  const nextDebug=clamp(Math.round(Number(diagnostic)||0),0,4);
+  if(nextArea!==stateUniforms.uAreaSampling.value||
+     nextDebug!==outputUniforms.uDiagnostic.value)reset=true;
+  stateUniforms.uAreaSampling.value=nextArea;
+  outputUniforms.uAreaSampling.value=nextArea;
+  outputUniforms.uDiagnostic.value=nextDebug;
+  stateUniforms.uSettled.value=nextDebug===4?1:0;
   stateUniforms.uTemperature.value=clamp(Number(temperature)||20,5,40);
   outputUniforms.uFill.value=clamp(Number(cellFill)||.875,.55,.95);
   outputUniforms.uShadow.value=clamp(Number(shadow)||0,0,.5);
@@ -287,6 +331,7 @@ export function createPhysicalLCDPass(){
   quad.render(renderer);
   // Analytical aperture/gap/shadow projected onto full phone resolution.
   outputUniforms.uState.value=targetB.texture;
+  outputUniforms.tSource.value=readBuffer.texture;
   outputUniforms.uOutputSize.value.set(readBuffer.width,readBuffer.height);
   quad.material=outputMaterial;
   renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
