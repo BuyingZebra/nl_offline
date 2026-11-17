@@ -196,7 +196,7 @@ function fail(error){
 let runtime=null,autoplay=false,frames=0,scene='blink',blinkEvery=36,renderMs=0;
 let framePrev=null,frameNext=null,sourceCtx=null,sourceCanvas=null;
 let fineCanvas=null,fineCtx=null,fineTexture=null,detailTargets=[],detailCurrent=0,detailProgram=null,celllessProgram=null;
-let targets=[],programs=[],staticProgram=null,fbIndex=0,lastFrameTs=0;
+let targets=[],programs=[],staticProgram=null,fbIndex=0,lastFrameTs=0,lastPaintedLit=null;
 const referenceParams={
   DriveContrast:1,PanelTemperatureCelsius:20,IonicMobility:.05,
   StickingOpticalGain:.082,IonicChargeResponse:.000126777389,
@@ -351,6 +351,9 @@ function createFineTexture(){
 
 const DRIVE=['#ffffff','#aaaaaa','#555555','#000000'];
 function renderPattern(frame){
+ const lit=scene==='steady'||(scene==='blink'&&Math.floor(frame/blinkEvery)%2===0);
+ if(lastPaintedLit===lit)return false;
+ lastPaintedLit=lit;
  // True 640x576 artwork: smooth edges never enter the DMG pixel aperture
  // function. The native 160x144 input is independently averaged from it,
  // so the ORIGINAL matrix still receives exactly four drive levels.
@@ -362,7 +365,6 @@ function renderPattern(frame){
  g.fillText('TETRIS',80,39);
  g.fillStyle=P[2];g.font='bold 9px monospace';
  g.fillText('NOMAD / LCD',80,63);
- const lit=scene==='steady'||(scene==='blink'&&Math.floor(frame/blinkEvery)%2===0);
  if(lit){
   g.fillStyle=P[3];g.fillRect(27,82,106,36);
   g.fillStyle=P[0];g.fillRect(30,85,100,30);
@@ -385,6 +387,7 @@ function renderPattern(frame){
   data[i]=value;data[i+1]=value;data[i+2]=value;data[i+3]=255;
  }
  sourceCtx.putImageData(pixels,0,0);
+ return true;
 }
 function syncPresentationSize(){
  const direct=document.querySelector('#presentation').value==='direct';
@@ -417,9 +420,9 @@ function present(){
 function step(){
  if(!runtime)return;
  const begin=performance.now();
- renderPattern(frames);
+ const artworkChanged=renderPattern(frames);
  refreshInputTexture(frameNext);
- refreshInputTexture(fineTexture,fineCanvas);
+ if(artworkChanged)refreshInputTexture(fineTexture,fineCanvas);
  // Five original physics shader passes; unchanged values and equations.
  // Source frame 0 of input tex maps to GL y=0, every intermediate pass keeps
  // that ordering. The final vertex alone flips to top-left visual presentation.
@@ -458,7 +461,7 @@ function step(){
 }
 function reset(){
  autoplay=false;document.querySelector('#run').textContent='RUN';
- frames=0;fbIndex=0;detailCurrent=0;
+ frames=0;fbIndex=0;detailCurrent=0;lastPaintedLit=null;
  renderPattern(0);
  refreshInputTexture(framePrev);
  refreshInputTexture(frameNext);
