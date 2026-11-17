@@ -837,7 +837,9 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   temperature:fx.lcdPhysicalTemperature,reference:fx.lcdPhysicalReference,
   glass:fx.lcdPhysicalGlass,glassStrength:fx.lcdPhysicalGlassStrength,
   glassLightAngle:fx.lcdPhysicalGlassLightAngle,
-  glassViewAngle:fx.lcdPhysicalGlassViewAngle
+  glassViewAngle:fx.lcdPhysicalGlassViewAngle,
+   areaSampling:fx.lcdPhysicalAreaSampling,
+   diagnostic:fx.lcdPhysicalSignalView
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
  if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
@@ -2175,7 +2177,8 @@ function createModalUI({
  const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
   lcdProperties.filter(property=>getFX().lcdPhysical?
    !legacyLCD.has(property.id):
-   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy'].includes(property.id));
+   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy',
+     'lcdSignalStudy','lcdPhysicalAreaSampling'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
@@ -2284,6 +2287,27 @@ function drawProperty(){
     C.bright,'center',Math.max(1,patternW-2*arrowW-4));
   }});
   else rows.push(toggle);
+ }
+ if(property.id==='lcdSignalStudy'){
+  rows.push({height:Math.min(96,Math.max(70,r.dh-2*r.deckPad)),draw:(x,y,w,h)=>{
+   const modes=[['SOURCE',1],['SAMPLED',2],['4-SHADE',3],
+    ['SETTLED',4],['PHYSICAL',0]];
+   const selected=Number(settingValue('lcdPhysicalSignalView'))||0;
+   const spacer=Math.max(3,gap*.5),height=Math.min(30,(h-16-spacer)/2);
+   const firstW=(w-2*spacer)/3,secondW=(w-spacer)/2;
+   modes.forEach(([label,mode],i)=>{
+    const row=i>=3?1:0,j=i>=3?i-3:i;
+    const bw=row?secondW:firstW;
+    key(label,x+j*(bw+spacer),y+row*(height+spacer),bw,height,
+     'signal-view:'+mode,{
+      modalControl:true,onLight:lcd,light:selected===mode,
+      fontSize:Math.min(11,Math.max(8,bw*.13)),labelPadding:2
+     });
+   });
+   text('ORIGINAL → SIGNAL → PHYSICAL',
+    x+w/2,y+2*height+spacer+(h-2*height-spacer)/2,
+    9,colors.ink,'center',w-4,'terminal');
+  }});
  }
  const sliders=property.sliders??[];
  for(const [label,field,min,max,step,unit] of sliders){
