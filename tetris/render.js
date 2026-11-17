@@ -2175,7 +2175,7 @@ function createModalUI({
  const visibleProperties=()=>!settingValue('lcdDisplay')?crtProperties:
   lcdProperties.filter(property=>getFX().lcdPhysical?
    !legacyLCD.has(property.id):
-   !['lcdPhysicalReference','lcdPhysicalGlass'].includes(property.id));
+   !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
@@ -2245,9 +2245,15 @@ function drawOptions(q){
   region(frameX,y,statusX-frameX,view.rowHeight,'property:'+property.id,{kind:'button',modalControl:true});
   const dotStart=Math.min(labelEnd-q.pad,labelX+textWidth(label,labelSize)+q.pad);
   for(let x=dotStart;x<labelEnd-1;x+=q.pad)rect(x,mid-.5,1,1,colors.ink);
-  const enabled=Boolean(settingValue(property.toggle)),height=Math.min(barH,view.rowHeight-2);
-  key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
-   {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
+  const height=Math.min(barH,view.rowHeight-2);
+  if(property.noToggle){
+   key('OPEN',statusX,mid-height/2,statusW,height,'property:'+property.id,
+    {onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
+  }else{
+   const enabled=Boolean(settingValue(property.toggle));
+   key(enabled?'ENABLED':'DISABLED',statusX,mid-height/2,statusW,height,'toggle',
+    {field:property.toggle,light:enabled,onLight:lcd,modalControl:true,fontSize:labelSize,labelPadding:q.pad});
+  }
  }
  const w=q.buttonW,y=view.y+view.h+q.pad;
  key('CONFIRM',q.x+q.pad,y,w,q.buttonH,'confirmProperties',{light:true,onLight:lcd});
@@ -2283,7 +2289,7 @@ function drawProperty(){
  for(const [label,field,min,max,step,unit] of sliders){
   rows.push({setting:{label:label||'STRENGTH',field,min,max,step,unit},
    value:Number(settingValue(field))});
-  if(property.id==='lcdPhysical'&&field==='lcdPhysicalDensity'){
+  if(property.id==='lcdDensityStudy'&&field==='lcdPhysicalDensity'){
    rows.push({height:Math.min(61,Math.max(49,r.extraH+13)),draw:(x,y,w,h)=>{
     const current=Number(settingValue('lcdPhysicalDensity'));
     const presets=[1,1.5,2,2.5],space=gap,buttonW=(w-3*space)/4;
