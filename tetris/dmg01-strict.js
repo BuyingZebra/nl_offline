@@ -2,14 +2,21 @@
  * Copyright (c) original shader contributors, Apache-2.0; see
  * ./dmg01-reference-lab/upstream/LICENSE.
  *
- * One 160×144 four-level electrically addressed LCD, source five-pass
- * shaders unmodified. No hybrid high-detail optical bypass or extra app mode.
+ * Native 160-column cell pitch, extended only by portrait rows.
+ * Original five-pass physics, regenerated nominal WS5 row/column calibration.
+ * No hybrid high-detail optical bypass or extra app mode.
  */
 import * as THREE from './vendor/three/three.bundle.js';
+import {extendDmgCalibration} from './dmg01-portrait-calibration.js?v274';
 
-const WIDTH=160, HEIGHT=144;
+const WIDTH=160, DMG_HEIGHT=144;
+function panelRows(width,height){
+ return Math.max(DMG_HEIGHT,Math.min(520,Math.round(WIDTH*Math.max(1,height)/Math.max(1,width))));
+}
 const VS='#version 300 es\nprecision highp float; out vec2 vTexCoord; void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));vTexCoord=p;gl_Position=vec4(p*2.-1.,0.,1.);}';
-const FINAL_VS='#version 300 es\nprecision highp float; out vec2 vTexCoord; void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));vTexCoord=vec2(p.x,1.-p.y);gl_Position=vec4(p*2.-1.,0.,1.);}';
+// NOMAD source comes from a GPU framebuffer (bottom-up). Unlike the 2D
+// canvas-origin laboratory fixture, it must NOT be inverted on output.
+const FINAL_VS=VS;
 const NAMES=['dmg01-row-load-v2.slang','dmg01-crosstalk-summary-v3.slang','dmg01-response-v1.slang','dmg01-matrix-v1.slang','dmg01-display-v1.slang'];
 const INCLUDE=['dmg01-crosstalk-phase-local.inc','dmg01-crosstalk-lumped.inc','dmg01-stn-surrogate.inc'];
 const SOURCE_BASE='./dmg01-reference-lab/upstream/';
@@ -24,14 +31,20 @@ const REFERENCE=Object.freeze({
  ScreenBrightness:1,ScreenChroma:1,PolarizerAge:0,DebugView:0,DebugGain:12
 });
 
-export function physicalLCDGrid(){return {columns:WIDTH,rows:HEIGHT};}
+export function physicalLCDGrid(width=WIDTH,height=DMG_HEIGHT){
+ return {columns:WIDTH,rows:panelRows(width,height)};
+}
 
-async function loadSources(){
+async function loadSources(rows){
  const files=Object.fromEntries(await Promise.all([...NAMES,...INCLUDE].map(async name=>{
   const response=await fetch(SOURCE_BASE+name,{cache:'force-cache'});
   if(!response.ok)throw Error('DMG source unavailable: '+name+' / HTTP '+response.status);
   return [name,await response.text()];
  })));
+ // Regenerate the original author's nominal RC baselines for the additional
+ // rows. Fail closed if the original 144-row tables cannot be reproduced.
+ files['dmg01-crosstalk-lumped.inc']=extendDmgCalibration(
+  files['dmg01-crosstalk-lumped.inc'],rows);
  const expand=(src,depth=0)=>{
   if(depth>5)throw Error('DMG source include cycle');
   return src.replace(/^\s*#include\s+"([^"]+)"\s*$/gm,(_,name)=>{
@@ -40,7 +53,13 @@ async function loadSources(){
   });
  };
  return NAMES.map(name=>{
-  const src=files[name],vi=src.indexOf('#pragma stage vertex'),fi=src.indexOf('#pragma stage fragment');
+  let src=files[name];
+  if(name==='dmg01-response-v1.slang'&&rows!==DMG_HEIGHT){
+   const original=') / 154.0;';
+   if(!src.includes(original))throw Error('Upstream scan-latch timing expression changed');
+   src=src.replace(original,') / float(DMG_CROSSTALK_ROWS + 10);');
+  }
+  const vi=src.indexOf('#pragma stage vertex'),fi=src.indexOf('#pragma stage fragment');
   if(vi<0||fi<0)throw Error('Invalid upstream source stages: '+name);
   const defs=[...src.slice(0,vi).matchAll(/layout\s*\((?:push_constant|std140[^)]*)\)\s*uniform\s+(Push|UBO)\s*\{([\s\S]*?)\}\s*(params|global)\s*;/g)]
    .map(([,type,fields,instance])=>'struct '+type+' {'+fields+'}; uniform '+type+' '+instance+';').join('\n');
@@ -56,9 +75,10 @@ async function loadSources(){
 }
 
 class ReferencePanel {
- constructor(){
+ constructor(rows){
+  this.rows=rows;
   this.canvas=document.createElement('canvas');
-  this.canvas.width=640;this.canvas.height=576;
+  this.canvas.width=640;this.canvas.height=Math.round(640*rows/WIDTH);
   const gl=this.canvas.getContext('webgl2',{alpha:false,antialias:false,
    depth:false,stencil:false,preserveDrawingBuffer:true});
   if(!gl)throw Error('WebGL2 is required for strict DMG-01 physics');
@@ -114,13 +134,13 @@ class ReferencePanel {
   return {texture:t,fb,w,h};
  }
  async init(){
-  const shaders=await loadSources();
+  const shaders=await loadSources(this.rows);
   this.programs=shaders.map((source,i)=>this.link(i===4?FINAL_VS:VS,source.shader,source.name));
-  this.input=[this.texture(WIDTH,HEIGHT,this.gl.RGBA8),
-              this.texture(WIDTH,HEIGHT,this.gl.RGBA8)];
-  this.targets=[this.target(1,HEIGHT),this.target(WIDTH,1),
-   this.target(WIDTH,HEIGHT),this.target(WIDTH,HEIGHT),null,
-   this.target(WIDTH,HEIGHT)];
+  this.input=[this.texture(WIDTH,this.rows,this.gl.RGBA8),
+              this.texture(WIDTH,this.rows,this.gl.RGBA8)];
+  this.targets=[this.target(1,this.rows),this.target(WIDTH,1),
+   this.target(WIDTH,this.rows),this.target(WIDTH,this.rows),null,
+   this.target(WIDTH,this.rows)];
   return this;
  }
  program(p,inputs,target,w,h,sw,sh){
@@ -136,7 +156,7 @@ class ReferencePanel {
   });
   for(const [name,values] of [
    ['global.OutputSize',[w,h,1/w,1/h]],
-   ['global.OriginalSize',[WIDTH,HEIGHT,1/WIDTH,1/HEIGHT]],
+   ['global.OriginalSize',[WIDTH,this.rows,1/WIDTH,1/this.rows]],
    ['global.SourceSize',[sw,sh,1/sw,1/sh]]
   ]){
    const at=this.location(p,name);
@@ -170,30 +190,30 @@ class ReferencePanel {
   for(const t of this.frames===0?[prev,next]:[next]){
    gl.bindTexture(gl.TEXTURE_2D,t);
    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
-   gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,WIDTH,HEIGHT,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+   gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,WIDTH,this.rows,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
   }
   this.program(this.programs[0],[['Source',next],['OriginalHistory1',prev]],
-   this.targets[0],1,HEIGHT,WIDTH,HEIGHT);
+   this.targets[0],1,this.rows,WIDTH,this.rows);
   this.program(this.programs[1],[['Source',this.targets[0].texture],
     ['Original',next],['OriginalHistory1',prev]],
-    this.targets[1],WIDTH,1,1,HEIGHT);
+    this.targets[1],WIDTH,1,1,this.rows);
   const read=this.targets[this.feedback===0?5:2];
   const write=this.targets[this.feedback===0?2:5];
   this.program(this.programs[2],[['Source',this.targets[1].texture],
     ['Original',next],['OriginalHistory1',prev],
     ['PassOutput0',this.targets[0].texture],['PassFeedback2',read.texture]],
-    write,WIDTH,HEIGHT,WIDTH,1);
+    write,WIDTH,this.rows,WIDTH,1);
   this.program(this.programs[3],[['Source',write.texture]],
-    this.targets[3],WIDTH,HEIGHT,WIDTH,HEIGHT);
+    this.targets[3],WIDTH,this.rows,WIDTH,this.rows);
   this.feedback=1-this.feedback;
   this.input.reverse();this.frames++;
   const targetWidth=Math.max(640,Math.min(1440,Math.round(width)));
-  const targetHeight=Math.round(targetWidth*HEIGHT/WIDTH);
+  const targetHeight=Math.round(targetWidth*this.rows/WIDTH);
   if(this.canvas.width!==targetWidth||this.canvas.height!==targetHeight){
    this.canvas.width=targetWidth;this.canvas.height=targetHeight;
   }
   this.program(this.programs[4],[['Source',this.targets[3].texture]],
-   null,this.canvas.width,this.canvas.height,WIDTH,HEIGHT);
+   null,this.canvas.width,this.canvas.height,WIDTH,this.rows);
   gl.finish(); // The second WebGL context must sample completed LCD optics.
  }
  dispose(){
@@ -209,37 +229,23 @@ const SOURCE_VS='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatri
 // The raw image is generated at full device resolution upstream; only this
 // input stage reduces it to the native four-level drive resolution.
 // Explicit linear -> encoded RGB conversion matches Retro Display Lab input.
-const SOURCE_FS='varying vec2 vUv;uniform sampler2D tDiffuse;uniform float uAspect;'
+const SOURCE_FS='varying vec2 vUv;uniform sampler2D tDiffuse;'
  +'vec3 srgb(vec3 c){vec3 lo=12.92*c;vec3 hi=1.055*pow(max(c,vec3(0.)),vec3(1.0/2.4))-.055;'
  +'return mix(lo,hi,step(vec3(.0031308),c));}'
- +'void main(){float panelAspect=160.0/144.0;float ratio=uAspect/panelAspect;'
- +'vec2 extent=ratio<1.0?vec2(ratio,1.):vec2(1.,1./ratio);'
- +'vec2 point=(vUv-(.5-.5*extent))/extent;'
- +'float visible=step(0.,point.x)*step(point.x,1.)*step(0.,point.y)*step(point.y,1.);'
- +'vec3 original=texture2D(tDiffuse,clamp(point,vec2(0.),vec2(1.))).rgb;'
- +'gl_FragColor=vec4(srgb(mix(vec3(1.),original,visible)),1.); }';
+ +'void main(){vec3 original=texture2D(tDiffuse,vUv).rgb;'
+ +'gl_FragColor=vec4(srgb(original),1.); }';
 
-const OUTPUT_FS='varying vec2 vUv; uniform sampler2D tLCD; uniform float uAspect;'
+const OUTPUT_FS='varying vec2 vUv; uniform sampler2D tLCD;'
  +'vec3 linearize(vec3 x){vec3 lo=x/12.92;vec3 hi=pow((max(x,vec3(0.))+.055)/1.055,vec3(2.4));'
  +'return mix(lo,hi,step(vec3(.04045),x));}'
- +'void main(){float panelAspect=160.0/144.0;float ratio=uAspect/panelAspect;'
- +'vec2 extent=ratio<1.0?vec2(1.,ratio):vec2(1./ratio,1.);'
- +'vec2 point=(vUv-(.5-.5*extent))/extent;'
- +'float visible=step(0.,point.x)*step(point.x,1.)*step(0.,point.y)*step(point.y,1.);'
- +'vec3 optical=texture2D(tLCD,clamp(point,vec2(0.),vec2(1.))).rgb;'
- +'vec3 field=vec3(.015);gl_FragColor=vec4(mix(field,linearize(optical),visible),1.); }';
+ +'void main(){gl_FragColor=vec4(linearize(texture2D(tLCD,vUv).rgb),1.); }';
 
 export function createPhysicalLCDPass(){
  const pass=new THREE.Pass();
  pass.needsSwap=true;
- const sourceRT=new THREE.WebGLRenderTarget(WIDTH,HEIGHT,{
-  depthBuffer:false,stencilBuffer:false,format:THREE.RGBAFormat,
-  type:THREE.UnsignedByteType,minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter
- });
- sourceRT.texture.colorSpace=THREE.NoColorSpace;
- const samples=new Uint8Array(WIDTH*HEIGHT*4);
+ let sourceRT=null,samples=null,rows=0,generation=0;
  const sourceMaterial=new THREE.ShaderMaterial({
-  uniforms:{tDiffuse:{value:null},uAspect:{value:1}},
+  uniforms:{tDiffuse:{value:null}},
   vertexShader:SOURCE_VS,fragmentShader:SOURCE_FS,depthWrite:false,depthTest:false
  });
  const textureCanvas=document.createElement('canvas');
@@ -249,7 +255,7 @@ export function createPhysicalLCDPass(){
  texture.magFilter=THREE.LinearFilter;
  texture.generateMipmaps=false;
  const outputMaterial=new THREE.ShaderMaterial({
-  uniforms:{tLCD:{value:texture},uAspect:{value:1}},
+  uniforms:{tLCD:{value:texture}},
   vertexShader:SOURCE_VS,fragmentShader:OUTPUT_FS,depthWrite:false,depthTest:false
  });
  const inputQuad=new THREE.FullScreenQuad(sourceMaterial);
@@ -257,15 +263,31 @@ export function createPhysicalLCDPass(){
  let core=null,failure=null,configured=false;
  let lastPhysicalTime=0,frameDebt=0;
  const physicalFrameMs=1000/59.7275;
- const ready=new ReferencePanel();
- ready.init().then(value=>{core=value;}).catch(error=>{
-  failure=error;console.error('Strict DMG-01 initialization failed:',error);
- });
+ const targetOptions={depthBuffer:false,stencilBuffer:false,
+  format:THREE.RGBAFormat,type:THREE.UnsignedByteType,
+  minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter};
  pass.enabled=false;
  pass.setSize=()=>{};
- pass.configure=({width=160,height=144}={})=>{
-  sourceMaterial.uniforms.uAspect.value=width/Math.max(1,height);
-  outputMaterial.uniforms.uAspect.value=width/Math.max(1,height);
+ pass.configure=({width=WIDTH,height=DMG_HEIGHT}={})=>{
+  const required=panelRows(width,height);
+  if(required!==rows){
+   rows=required;generation++;
+   core?.dispose();core=null;failure=null;
+   sourceRT?.dispose();
+   sourceRT=new THREE.WebGLRenderTarget(WIDTH,rows,targetOptions);
+   sourceRT.texture.colorSpace=THREE.NoColorSpace;
+   samples=new Uint8Array(WIDTH*rows*4);
+   lastPhysicalTime=0;frameDebt=0;
+   const current=generation;
+   const candidate=new ReferencePanel(rows);
+   candidate.init().then(value=>{
+    if(current===generation)core=value;
+    else value.dispose();
+   }).catch(error=>{
+    if(current===generation)failure=error;
+    console.error('Extended LCD reference initialization failed:',error);
+   });
+  }
   configured=true;
  };
  pass.reset=()=>{core?.reset();lastPhysicalTime=0;frameDebt=0;};
@@ -281,7 +303,7 @@ export function createPhysicalLCDPass(){
   sourceMaterial.uniforms.tDiffuse.value=readBuffer.texture;
   renderer.setRenderTarget(sourceRT);
   inputQuad.render(renderer);
-  renderer.readRenderTargetPixels(sourceRT,0,0,WIDTH,HEIGHT,samples);
+  renderer.readRenderTargetPixels(sourceRT,0,0,WIDTH,rows,samples);
   const size=renderer.getDrawingBufferSize(new THREE.Vector2());
   // Run exactly one electrical update per simulated DMG frame. Source
   // content is held between address latches if the browser redraws slower.
@@ -302,7 +324,7 @@ export function createPhysicalLCDPass(){
   outputQuad.render(renderer);
  };
  pass.dispose=()=>{
-  core?.dispose();sourceRT.dispose();texture.dispose();
+  generation++;core?.dispose();sourceRT?.dispose();texture.dispose();
   sourceMaterial.dispose();outputMaterial.dispose();inputQuad.dispose();outputQuad.dispose();
  };
  return pass;
