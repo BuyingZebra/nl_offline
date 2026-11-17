@@ -1,5 +1,5 @@
 /* NOMAD v209 — device pointer and keyboard input; UI supplies hitbox geometry. */
-import {findRegionAt,sliderValueAt} from './render.js?v260';
+import {findRegionAt,sliderValueAt} from './render.js?v261';
 export function createInputController({screen,document,window,
  getViewport,getRegions,getModal,getModalView=()=>null,getOptionsScroll=()=>0,
  setOptionsScroll,getOptionsMaxScroll,setScrollVelocity=()=>{},setBaseDirty,

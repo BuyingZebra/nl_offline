@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v260';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v260';
+import {instrumentCompositorPasses} from './diagnostics.js?v261';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v261';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -574,7 +574,7 @@ void main(){
   return pass;
  }
  const lcdTint=addLCDOverlay({
-  uInk:{value:new THREE.Color(0x171910)},uPaper:{value:new THREE.Color(0xe1e2c5)},uSaturation:{value:1}
+  uInk:{value:new THREE.Color(0x171910)},uPaper:{value:new THREE.Color(0xe1e2c5)},uSaturation:{value:.45}
  },`
   uniform vec3 uInk,uPaper;
   uniform float uSaturation;
@@ -582,7 +582,11 @@ void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
    vec3 olive=mix(uInk,uPaper,clamp(src.r,0.0,1.0));
    float luma=dot(olive,vec3(0.2126,0.7152,0.0722));
-   vec3 color=vec3(luma)+(olive-luma)*uSaturation;
+   // Keep a hint of green at the bottom of the slider and match the
+   // original olive palette at the 45% default.
+   vec3 color=vec3(luma)+(olive-luma)*mix(0.19,1.99,uSaturation);
+   float greenPush=smoothstep(0.45,1.0,uSaturation)*olive.g*0.12;
+   color+=greenPush*vec3(-1.0,0.29726,0.0);
    gl_FragColor=vec4(clamp(color,0.0,1.0),1.0);
   }`);
 
@@ -701,7 +705,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  tint.enabled=!lcd;
- lcdTint.enabled=lcd&&fx.lcdTint;
+ lcdTint.enabled=lcd;
  lcdCells.enabled=lcd&&fx.lcdCells&&fx.lcdCellOpacity>0;
  const lcdEdgeBlurEnabled=lcd&&fx.lcdEdgeBlur&&fx.lcdEdgeBlurSigma>0;
  for(const pass of lcdEdgeBlurPasses){
@@ -714,7 +718,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  }
  lcdVignette.enabled=lcd&&fx.lcdVignette&&fx.lcdVignetteAmount>0;
  if(lcd){
-  lcdTint.uniforms.uSaturation.value=fx.lcdTintSaturation/100;
+  lcdTint.uniforms.uSaturation.value=fx.lcdTint?fx.lcdTintLevel/100:0;
   lcdCells.uniforms.uOpacity.value=fx.lcdCellOpacity/100;
   lcdCells.uniforms.uScale.value=fx.lcdCellSize;
   lcdCells.uniforms.uSize.value.set(W,H);
