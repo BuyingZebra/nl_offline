@@ -838,7 +838,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   glass:fx.lcdPhysicalGlass,glassStrength:fx.lcdPhysicalGlassStrength,
   glassLightAngle:fx.lcdPhysicalGlassLightAngle,
   glassViewAngle:fx.lcdPhysicalGlassViewAngle,
-   areaSampling:fx.lcdPhysicalAreaSampling,
+   samplingMode:fx.lcdPhysicalSamplingMode,
    diagnostic:fx.lcdPhysicalSignalView
  });
  const lcdResponseEnabled=lcd&&!physicalEnabled&&fx.lcdResponse&&fx.lcdResponseAmount>0;
@@ -2178,7 +2178,7 @@ function createModalUI({
   lcdProperties.filter(property=>getFX().lcdPhysical?
    !legacyLCD.has(property.id):
    !['lcdPhysicalReference','lcdPhysicalGlass','lcdDensityStudy',
-     'lcdSignalStudy','lcdPhysicalAreaSampling'].includes(property.id));
+     'lcdSignalStudy','lcdSamplingStudy'].includes(property.id));
  let selected=properties[0],debugCopyState='idle';
  const activeProperty=()=>visibleProperties().includes(selected)?selected:properties[0];
  function currentPattern(){
@@ -2291,13 +2291,12 @@ function drawProperty(){
  if(property.id==='lcdSignalStudy'){
   rows.push({height:Math.min(96,Math.max(70,r.dh-2*r.deckPad)),draw:(x,y,w,h)=>{
    const modes=[['SOURCE',1],['SAMPLED',2],['4-SHADE',3],
-    ['SETTLED',4],['PHYSICAL',0]];
+    ['SETTLED',4],['PHYSICAL',0],['DELTA',5]];
    const selected=Number(settingValue('lcdPhysicalSignalView'))||0;
    const spacer=Math.max(3,gap*.5),height=Math.min(30,(h-16-spacer)/2);
-   const firstW=(w-2*spacer)/3,secondW=(w-spacer)/2;
+   const bw=(w-2*spacer)/3;
    modes.forEach(([label,mode],i)=>{
-    const row=i>=3?1:0,j=i>=3?i-3:i;
-    const bw=row?secondW:firstW;
+    const row=Math.floor(i/3),j=i%3;
     key(label,x+j*(bw+spacer),y+row*(height+spacer),bw,height,
      'signal-view:'+mode,{
       modalControl:true,onLight:lcd,light:selected===mode,
@@ -2307,6 +2306,22 @@ function drawProperty(){
    text('ORIGINAL → SIGNAL → PHYSICAL',
     x+w/2,y+2*height+spacer+(h-2*height-spacer)/2,
     9,colors.ink,'center',w-4,'terminal');
+  }});
+ }
+ if(property.id==='lcdSamplingStudy'){
+  rows.push({height:Math.min(79,Math.max(59,r.dh-2*r.deckPad)),draw:(x,y,w,h)=>{
+   const current=Number(settingValue('lcdPhysicalSamplingMode'))||0;
+   const choices=[['CENTRE',0],['4 TAPS',1],['16 TAPS',2]];
+   const space=Math.max(3,gap*.5),bw=(w-2*space)/3;
+   const bh=Math.max(23,Math.min(42,h-24));
+   choices.forEach(([label,mode],i)=>key(label,x+i*(bw+space),y,bw,bh,
+    'sampling-method:'+mode,{
+     modalControl:true,onLight:lcd,light:current===mode,
+     fontSize:Math.min(11,Math.max(8,bw*.15)),labelPadding:2
+    }));
+   text(current===0?'1 POINT / CELL':current===1?'4 NEAR-CENTRE TAPS':
+    '16 FULL-CELL TAPS',x+w/2,y+bh+(h-bh)/2,
+     9,colors.ink,'center',w-4,'terminal');
   }});
  }
  const sliders=property.sliders??[];
