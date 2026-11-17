@@ -469,7 +469,7 @@ export const DEFAULT_EFFECTS=Object.freeze({phosphor:true,bloom:true,bloomStreng
  softness:false,softnessStrength:.64,softnessRadius:3,
  boardBlurEnabled:true,menuBackdropEnabled:true,defaultsEnabled:true,diagnosticsEnabled:true,
  boardBlur:0,menuBlur:47,menuFade:87,
- lcdTint:true,lcdTintLevel:45,lcdCells:true,lcdCellOpacity:20,lcdCellSize:3,
+ lcdTint:true,lcdOliveSaturation:20,lcdCells:true,lcdCellOpacity:20,lcdCellSize:3,
  lcdVignette:false,lcdVignetteAmount:75,lcdVignetteFalloff:32,
  lcdEdgeBlur:false,lcdEdgeBlurFalloff:32,lcdEdgeBlurSigma:3,
  vignette:true,vignetteAmount:.57,
@@ -483,7 +483,7 @@ export const DISPLAY_EFFECTS=[
   sliders:[['BLUR','boardBlur',0,4,.5,'px']]},
  {id:'shadows',title:'DIRECTIONAL LIGHT',toggle:'shadows'},
  {id:'lcdTint',lcdOnly:true,title:'OLIVE TINT',toggle:'lcdTint',
-  sliders:[['SATURATION','lcdTintLevel',0,100,1,'%']]},
+  sliders:[['SATURATION','lcdOliveSaturation',0,100,1,'%']]},
  {id:'lcdCells',lcdOnly:true,title:'LCD CELLS',toggle:'lcdCells',
   sliders:[['OPACITY','lcdCellOpacity',0,100,1,'%'],['SCALE','lcdCellSize',2,12,.5,'px']]},
  {id:'lcdVignette',lcdOnly:true,title:'SCREEN VIGNETTE',toggle:'lcdVignette',
@@ -520,7 +520,7 @@ export const EFFECT_NUMBER_RANGES=Object.freeze({
  bloomStrength:[0,1],ghostX:[-32,32],ghostY:[-32,32],ghostStrength:[0,100],
  scanlineOpacity:[0,100],softnessStrength:[0,1],softnessRadius:[0,10],
  boardBlur:[0,4],menuBlur:[0,100],menuFade:[0,100],
- lcdTintLevel:[0,100],lcdCellOpacity:[0,100],lcdCellSize:[2,12],
+ lcdOliveSaturation:[0,100],lcdCellOpacity:[0,100],lcdCellSize:[2,12],
  lcdVignetteAmount:[0,100],lcdVignetteFalloff:[2,100],
  lcdEdgeBlurFalloff:[2,100],lcdEdgeBlurSigma:[0,8],
  vignetteAmount:[0,1],persistenceMs:[10,120],...SHADOW_RANGES
@@ -600,10 +600,14 @@ export function createSettingsManager(storage){
     saved[key]=previous;
     migrated=true;
    }
-   if(!Number.isFinite(saved.lcdTintLevel)&&Number.isFinite(saved.lcdTintSaturation)){
-    // Convert the previous 0–220% chroma multiplier to the palette slider.
-    saved.lcdTintLevel=Math.round((saved.lcdTintSaturation-19)/1.8);
-    migrated=true;
+   if(!Number.isFinite(saved.lcdOliveSaturation)){
+    // Keep the old chroma where the new olive range allows it.
+    const previous=Number.isFinite(saved.lcdTintLevel)?
+     19+1.8*saved.lcdTintLevel:saved.lcdTintSaturation;
+    if(Number.isFinite(previous)){
+     saved.lcdOliveSaturation=Math.round((previous-74.8)/1.26);
+     migrated=true;
+    }
    }
    for(const key of Object.keys(DEFAULT_EFFECTS))
     effects[key]=normalizeEffectValue(key,saved[key]);
