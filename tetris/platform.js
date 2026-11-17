@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v262';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v262';
+import {createInputController} from './input.js?v263';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v263';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v262';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v263';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -295,7 +295,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v262';
+export {createInputController} from './input.js?v263';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -1290,7 +1290,7 @@ function syncFX(){
  const scene=propertyScene();
  compositor.setPicker(screenManager.isOptions?pickerTexture:null);
  compositor.syncFX({fx:scene==='light'?
-  {...settings.effects,persistence:false}:settings.effects,
+  {...settings.effects,persistence:false,lcdResponse:false}:settings.effects,
   theme:settings.theme,lcd:settings.lcdDisplay,width:W,height:H,dpr:DPR,
  boardStatus:presentedBoardStatus(),modalOpen:screenManager.hasModal&&(!screenManager.isOptions||!!scene),
   scoresOverlay:screenManager.isScores,
@@ -1363,10 +1363,13 @@ function frame(now){
   perf.recordGameChanges({advanced,visualChanged});
   // Pressed buttons animate their original grayscale Canvas2D artwork.
   const phosphorOn=settings.effects.persistence===true&&!settings.lcdDisplay&&!screenManager.isLight;
+   const lcdResponseOn=settings.lcdDisplay&&settings.effects.lcdResponse===true&&
+    settings.effects.lcdResponseAmount>0&&!screenManager.isLight;
+   const historyOn=phosphorOn||lcdResponseOn;
   // Decay continues over the *whole display* while gameplay is paused.
   // This GPU-only update does not repaint stationary source canvases.
-  if(phosphorOn&&now-lastHistoryRender>=33)
-   layers.reason('phosphor-history');
+  if(historyOn&&now-lastHistoryRender>=33)
+   layers.reason(phosphorOn?'phosphor-history':'lcd-response-history');
   // Only repaint when the actual source luminance changes (206..255),
   // including the final return to baseline. Phosphor history owns the fade.
   const previousButtonSparks=buttonSparks;
@@ -1400,7 +1403,7 @@ function frame(now){
    const why=layers.beginRender();
    perf.recordRedrawReasons(why);
    const canvasDirty=['base','board','sidebar','controls','terminal','modal'].some(layer=>layers.needs(layer));
-   if(canvasDirty||why.some(reason=>reason!=='phosphor-history'))paintGame();
+   if(canvasDirty||why.some(reason=>reason!=='phosphor-history'&&reason!=='lcd-response-history'))paintGame();
    // Game remains visible immediately; terminal startup runs only in its own branch.
    surface.material.map=texture;
    const syncStarted=performance.now();
@@ -1443,7 +1446,7 @@ function frame(now){
    gameStatus:game.status,lineClearPending:Boolean(lineClearFX?.finalPoints),
    redrawPending:layers.needsRender(),
    buttonsActive:buttonSparks.length>0
-  })||(legacyIdleRAF&&phosphorOn);
+  })||(legacyIdleRAF&&historyOn);
   // A continuously active RAF already advances the terminal. Scheduling a
   // second timeout for the same work wastes callbacks and timer allocations.
   if(terminalTimer!==null){window.clearTimeout(terminalTimer);terminalTimer=null;}
@@ -1453,7 +1456,7 @@ function frame(now){
     terminalTimer=null;
     if(!document.hidden)requestFrame();
    },idleFrameDelayMs({
-    persistence:phosphorOn,lastRenderAt:lastHistoryRender,now,
+    persistence:historyOn,lastRenderAt:lastHistoryRender,now,
     terminalDelayMs:terminalLog.nextDelay(now)
    }));
   }

@@ -458,3 +458,14 @@ Modules: frame diagnostics and the platform-independent input controller are ext
 ## v212 preview geometry — constant cell size, never scaled tetrominoes
 
 For HOLD and NEXT the individual preview **cell** is exactly `((boardW - 4)/10) * .75` CSS pixels, calculated once in `computeLayout`. `fitPreviewCells` now only centers occupied cells on that grid; it does not shrink any tetromino based on shape footprint or panel bounds. The old per-piece `Math.min(cellSize, w/cols, h/rows)` and legacy no-target scaler are removed. This holds identically for all six standard four-cell preview tetrominoes and the three-cell I-only preview. Gameplay pieces keep their original four-cell shapes and full-size geometry. The HOLD/NEXT boxes, fonts, vector artwork, border and glow settings remain unchanged. Automated tests check exact per-cell dimensions and container containment at common small/large phone and landscape viewports, and ensure a deliberately cramped synthetic frame cannot rescale a preview.
+
+
+## v263 LCD optics study — three independent physical-display layers
+
+This experimental release preserves v262 by turning **LCD RESPONSE**, **OPTICAL BLEED**, and **OPTICAL EDGE TINT** off independently; existing LCD colour, cells, edge blur, and vignette remain unchanged. All three new layers default to on for a first visual comparison.
+
+- **LCD RESPONSE** models temporal pixel transmission as a full-physical-resolution grayscale history, before olive colourization; darkening is faster than clearing. The DECAY (30–600 ms) and STRENGTH (0–100%) controls are independent of CRT phosphor history and signal ghosting. The platform requests approximately 30 Hz history-only renders when otherwise idle, avoiding unnecessary CanvasTexture updates; the Light Rig suspends response while dragging.
+- **OPTICAL BLEED** applies a nine-sample, spatial-only diffusion before the LCD cell aperture, with configurable RADIUS (0–4 CSS pixels) and AMOUNT (0–100%). Samples do not cross the shadow-box board boundary; the cell grid is applied afterward to keep the individual apertures legible.
+- **OPTICAL EDGE TINT** adds a small warm colour shift at the physical screen rim after cells, LCD edge blur, and vignette. AMOUNT and FALLOFF are independent of the darkening vignette and the Gaussian edge blur.
+
+These layers are artistic approximations for controlled visual study, not a calibrated optical measurement of any particular historical LCD panel. The v263 code is source/syntax checked; physical-device WebGL performance and visual accuracy still require on-device comparison.

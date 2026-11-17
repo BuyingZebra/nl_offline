@@ -5,8 +5,8 @@ export {createBoardInsetShadowRenderer};
 import {I_GRAVEL_BITS,J_GRAVEL_BITS} from './assets/tiles/gravel-layout.mjs?v119';
 import {PIECE_LUMINANCE,renderIFragmentSVG} from './assets/tiles/smooth-geometry.mjs?v126';
 // Rendering diagnostics: frame timing, GPU pass instrumentation and reports.
-import {instrumentCompositorPasses} from './diagnostics.js?v262';
-export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v262';
+import {instrumentCompositorPasses} from './diagnostics.js?v263';
+export {createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport} from './diagnostics.js?v263';
 
 // Visual interaction geometry: drawn buttons and hitboxes share one definition.
 const InteractionGeometry=(()=>{
@@ -202,6 +202,78 @@ function createPhosphorPersistencePass(){
  };
  pass.dispose=()=>{
   read?.dispose();write?.dispose();read=null;write=null;
+  update.dispose();output.dispose();quad.dispose();
+ };
+ return pass;
+}
+
+
+/* LCD pixels retain their OWN transmission history before optical colouring.
+ * Do not use CRT phosphor or shifted TV signal ghosting for this effect. */
+function createLCDResponsePass(){
+ const pass=new Pass();let width=1,height=1,prior=null,next=null,first=true;
+ let ms=210,strength=.6;
+ const history={tSource:{value:null},tPrevious:{value:null},uDelta:{value:.016},
+  uTau:{value:.210},uReset:{value:1}};
+ const display={tSource:{value:null},tHistory:{value:null},uAmount:{value:.6}};
+ const material=(uniforms,fragmentShader)=>new THREE.ShaderMaterial({
+  uniforms,vertexShader:vertex,fragmentShader,
+  depthTest:false,depthWrite:false,blending:THREE.NoBlending});
+ const update=material(history,`
+ precision highp float;varying vec2 vUv;
+ uniform sampler2D tSource,tPrevious;uniform float uDelta,uTau,uReset;
+ void main(){
+  vec3 src=texture2D(tSource,vUv).rgb;
+  vec3 prev=texture2D(tPrevious,vUv).rgb;
+  if(uReset>.5)prev=src;
+  float a=dot(src,vec3(.2126,.7152,.0722));
+  float b=dot(prev,vec3(.2126,.7152,.0722));
+  float tau=a>b?uTau:uTau*.55;
+  gl_FragColor=vec4(clamp(src+(prev-src)*exp(-uDelta/max(.001,tau)),0.0,1.0),1.0);
+ }`);
+ const output=material(display,`
+ precision highp float;varying vec2 vUv;
+ uniform sampler2D tSource,tHistory;uniform float uAmount;
+ void main(){
+  vec3 src=texture2D(tSource,vUv).rgb;
+  vec3 old=texture2D(tHistory,vUv).rgb;
+  gl_FragColor=vec4(mix(src,old,clamp(uAmount,0.0,1.0)),1.0);
+ }`);
+ const quad=new FullScreenQuad(update);
+ function alloc(){
+  prior?.dispose();next?.dispose();
+  const opts={depthBuffer:false,stencilBuffer:false,
+   minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,
+   format:THREE.RGBAFormat,type:THREE.UnsignedByteType};
+  const make=()=>{const rt=new THREE.WebGLRenderTarget(width,height,opts);
+   rt.texture.colorSpace=THREE.NoColorSpace;return rt;};
+  prior=make();next=make();first=true;
+ }
+ pass.enabled=false;
+ pass.setSize=(w,h)=>{
+  const x=Math.max(1,Math.ceil(w)),y=Math.max(1,Math.ceil(h));
+  if(x!==width||y!==height){width=x;height=y;if(prior||next)alloc();}
+ };
+ pass.reset=()=>{first=true;};
+ pass.configure=(responseMs,amount)=>{
+  ms=clamp(Number(responseMs)||210,30,600);
+  strength=clamp(Number(amount)/100||0,0,1);
+ };
+ pass.render=(renderer,writeBuffer,readBuffer,deltaTime)=>{
+  if(!prior||!next)alloc();
+  history.tSource.value=readBuffer.texture;history.tPrevious.value=prior.texture;
+  history.uDelta.value=clamp(Number(deltaTime)||1/60,.001,.1);
+  history.uTau.value=ms/1000;history.uReset.value=first?1:0;
+  quad.material=update;renderer.setRenderTarget(next);quad.render(renderer);
+  display.tSource.value=readBuffer.texture;display.tHistory.value=next.texture;
+  display.uAmount.value=strength;
+  quad.material=output;renderer.setRenderTarget(pass.renderToScreen?null:writeBuffer);
+  if(pass.clear)renderer.clear();
+  quad.render(renderer);
+  [prior,next]=[next,prior];first=false;
+ };
+ pass.dispose=()=>{
+  prior?.dispose();next?.dispose();prior=null;next=null;
   update.dispose();output.dispose();quad.dispose();
  };
  return pass;
@@ -562,6 +634,9 @@ void main(){
  scanlineOverlay.enabled=false;
  composer.addPass(scanlineOverlay);
 
+ // LCD segment response happens BEFORE tint, optical bleed and cell apertures.
+ const lcdResponsePass=createLCDResponsePass();
+ composer.addPass(lcdResponsePass);
  // LCD overlays operate on the complete image in linear light.
  function addLCDOverlay(uniforms,shader){
   const pass=new ShaderPass({
@@ -588,6 +663,37 @@ void main(){
    gl_FragColor=vec4(clamp(color,0.0,1.0),1.0);
   }`);
 
+
+ // Diffuse adjacent segments locally without erasing the LCD cell mask.
+ // Respect the recessed board's shadow-box optical boundary.
+ const lcdBleed=addLCDOverlay({uSize:{value:new THREE.Vector2(1,1)},
+  uBoardRect:{value:new THREE.Vector4(0,0,0,0)},
+  uRadius:{value:1.5},uAmount:{value:.44}},`
+  uniform vec2 uSize;uniform vec4 uBoardRect;
+  uniform float uRadius,uAmount;
+  float inside(vec2 p){
+   return step(uBoardRect.x,p.x)*step(p.x,uBoardRect.z)*
+          step(uBoardRect.y,p.y)*step(p.y,uBoardRect.w);
+  }
+  vec3 sampleSafe(vec2 uv,vec3 original,float centerDomain){
+   vec2 p=clamp(uv,vec2(0.0),vec2(1.0));
+   return abs(inside(p)-centerDomain)>.5?original:texture2D(tDiffuse,p).rgb;
+  }
+  void main(){
+   vec3 src=texture2D(tDiffuse,vUv).rgb;
+   float domain=inside(vUv);
+   vec2 px=vec2(uRadius)/max(vec2(1.0),uSize);
+   vec3 sum=src*4.0;
+   sum+=sampleSafe(vUv+vec2(px.x,0.),src,domain)*2.0;
+   sum+=sampleSafe(vUv-vec2(px.x,0.),src,domain)*2.0;
+   sum+=sampleSafe(vUv+vec2(0.,px.y),src,domain)*2.0;
+   sum+=sampleSafe(vUv-vec2(0.,px.y),src,domain)*2.0;
+   sum+=sampleSafe(vUv+px,src,domain);
+   sum+=sampleSafe(vUv-px,src,domain);
+   sum+=sampleSafe(vUv+vec2(px.x,-px.y),src,domain);
+   sum+=sampleSafe(vUv+vec2(-px.x,px.y),src,domain);
+   gl_FragColor=vec4(mix(src,sum/16.0,clamp(uAmount,0.0,1.0)),1.0);
+  }`);
  // A separated square with a continuous gap on all four sides.
  const lcdTileSize=16;
  const lcdCellRows=Array.from({length:lcdTileSize},(_,y)=>
@@ -631,6 +737,19 @@ void main(){
    vec3 src=texture2D(tDiffuse,vUv).rgb;
    float darkness=uAmount*screenEdgeFeather(vUv,uSize,uFalloff);
    gl_FragColor=vec4(src*(1.0-darkness),1.0);
+  }`);
+
+ // Warm colour at the physical glass perimeter, separate from darkness vignette.
+ const lcdEdgeColour=addLCDOverlay({
+  uSize:{value:new THREE.Vector2(1,1)},uAmount:{value:.4},uFalloff:{value:.06}
+ },`
+  uniform vec2 uSize;uniform float uAmount,uFalloff;
+  ${roundedScreenFeather}
+  void main(){
+   vec3 src=texture2D(tDiffuse,vUv).rgb;
+   float rim=screenEdgeFeather(vUv,uSize,uFalloff);
+   vec3 warm=src*vec3(1.18,.94,.90);
+   gl_FragColor=vec4(clamp(mix(src,warm,rim*clamp(uAmount,0.0,1.0)),0.0,1.0),1.0);
   }`);
  // Vertical hold/roll is a pure signal-space transform AFTER all existing
  // phosphor and CRT treatments. It is disabled outside the boot handoff.
@@ -676,14 +795,15 @@ void main(){
  const passProfiler=instrumentCompositorPasses(composer.passes,[
   'Scene + uploads','Board blur H','Board popup','Picker blur H','Picker popup',
   'Phosphor history','Ghost','Bloom',
-  'Phosphor','Edge softness','Vignette','CRT mask','LCD colour','LCD cells',
-  'LCD edge blur H','LCD edge blur V','LCD vignette','Boot roll','Output'
+  'Phosphor','Edge softness','Vignette','CRT mask','LCD response','LCD colour',
+  'LCD bleed','LCD cells','LCD edge blur H','LCD edge blur V',
+  'LCD vignette','LCD edge colour','Boot roll','Output'
  ],onPassTiming);
  // Restore the original fixed green and amber phosphor ratios;
  // the blue experiment is removed without changing luminance or bloom.
  const hues={green:new THREE.Vector3(.2,1,.2),
   amber:new THREE.Vector3(185/255,79/255,9/255)};
- let persistenceWasEnabled=false;
+ let persistenceWasEnabled=false,lcdResponseWasEnabled=false;
  const popupPasses=[boardBlurHorizontal,boardPopupPass];
  const lcdPopupBase=new THREE.Color(0xd8d8d8),crtPopupBase=new THREE.Color(0x101010);
 function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOpen,scoresOverlay=false,popupStatus,layoutInfo,isolateLightWindow=false,propertiesPreview=null,pieceMaskEnabled=true,phosphorStrength=1,voltage=1,glitch=0,signalTime=0,contentLuminance=1}){
@@ -703,7 +823,20 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
  // Identical artistic hue whether history is on or off; decay is neutral.
  tint.uniforms.uTint.value.copy(hues[theme]||hues.green);
  tint.enabled=!lcd;
+ const lcdResponseEnabled=lcd&&fx.lcdResponse&&fx.lcdResponseAmount>0;
+ if(lcdResponseEnabled!==lcdResponseWasEnabled)lcdResponsePass.reset();
+ lcdResponseWasEnabled=lcdResponseEnabled;
+ lcdResponsePass.enabled=lcdResponseEnabled;
+ lcdResponsePass.configure(fx.lcdResponseMs,fx.lcdResponseAmount);
  lcdTint.enabled=lcd;
+ lcdBleed.enabled=lcd&&fx.lcdBleed&&fx.lcdBleedAmount>0&&fx.lcdBleedRadius>0;
+ lcdBleed.uniforms.uAmount.value=fx.lcdBleedAmount/100;
+ lcdBleed.uniforms.uRadius.value=fx.lcdBleedRadius;
+ lcdBleed.uniforms.uSize.value.set(W,H);
+ lcdEdgeColour.enabled=lcd&&fx.lcdEdgeColour&&fx.lcdEdgeColourAmount>0;
+ lcdEdgeColour.uniforms.uAmount.value=fx.lcdEdgeColourAmount/100;
+ lcdEdgeColour.uniforms.uFalloff.value=fx.lcdEdgeColourFalloff*.005;
+ lcdEdgeColour.uniforms.uSize.value.set(W,H);
  lcdCells.enabled=lcd&&fx.lcdCells&&fx.lcdCellOpacity>0;
  const lcdEdgeBlurEnabled=lcd&&fx.lcdEdgeBlur&&fx.lcdEdgeBlurSigma>0;
  for(const pass of lcdEdgeBlurPasses){
@@ -785,7 +918,7 @@ function syncFX({fx,theme,lcd=false,width:W,height:H,dpr:DPR,boardStatus,modalOp
   const x1=active?(x+w)/W:0,y1=active?1-y/H:0;
   for(const uniform of [glow.highPassUniforms?.uBoardRect,
    tint.uniforms.uBoardRect,ghostPass.uniforms.uBoardRect,
-   edgeSoftness.uniforms.uBoardRect]){
+   edgeSoftness.uniforms.uBoardRect,lcdBleed.uniforms.uBoardRect]){
    uniform?.value.set(x0,y0,x1,y1);
   }
   // Piece-mask coordinates track the ENTIRE cropped board texture, while
