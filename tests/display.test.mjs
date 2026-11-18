@@ -21,7 +21,7 @@ describe('CRT composition',()=>{
   class Vec2{constructor(x,y){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
   class Vec3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}copy(o){this.x=o.x;this.y=o.y;this.z=o.z;return this;}}
   class Vec4{constructor(x,y,z,w){this.x=x;this.y=y;this.z=z;this.w=w;}set(x,y,z,w){Object.assign(this,{x,y,z,w});return this;}}
-  class Color{constructor(value){this.value=value;}}
+  class Color{constructor(value){this.value=value;}set(value){this.value=value;return this;}}
   class Texture{constructor(canvas){this.canvas=canvas;this.disposed=false;textures.push(this);}dispose(){this.disposed=true;}}
   class EffectComposer{
    constructor(){this.passes=[];this.renderCount=0;this.disposed=false;instances.push(this);}
@@ -38,10 +38,11 @@ describe('CRT composition',()=>{
     this.uniforms=shader.uniforms;
     this.fragmentShader=shader.fragmentShader;
     const u=this.uniforms;
-    this.label='uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
+    this.label=shader.defines?.LCD_EDGE_BLUR?'LCD EDGE BLUR':'uComposite' in u ? (u.uComposite.value?'BOARD POPUP':'BOARD BLUR'):
      'uX' in u?'GHOST':'uTint' in u?'PHOSPHOR':
      'uRadius' in u?'SOFTNESS':'uStart' in u?'VIGNETTE':
-     'uPattern' in u?'CRT':'uOffset' in u?'ROLL':'UNKNOWN';
+     'uPattern' in u?'CRT':'uOffset' in u?'ROLL':
+     'LCD OVERLAY';
    }
    dispose(){this.disposeCount=(this.disposeCount||0)+1;}
   }
@@ -85,16 +86,30 @@ describe('CRT composition',()=>{
   boardStatus:'playing',popupStatus:'ready',modalOpen:false,
   layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}
  });
+
+ // The compositor gains passes over time (picker blur, LCD optics). Tests look
+ // passes up by label, so inserting a pass cannot silently shift other tests.
+ // Order: render, board blur, board popup, history, ghost, bloom, phosphor,
+ // softness, vignette, CRT, roll, output. Board and picker share a pass class;
+ // the board's pair is created first, so ordinal 0 is the board.
+ const passView=composer=>{
+  const named=(label,nth=0)=>composer.passes.filter(pass=>pass.label===label)[nth];
+  return ['RENDER','BOARD BLUR','BOARD POPUP','HISTORY','GHOST','BLOOM','PHOSPHOR',
+   'SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'].map(label=>named(label));
+ };
  test('pass order remains exactly the approved version',()=>{
   const {composer}=setup();
+  // Second BOARD BLUR/BOARD POPUP pair is the Properties picker (v259);
+  // the LCD overlay and edge-blur passes were added in v255-v262.
   assert.deepEqual(composer.passes.map(p=>p.label),[
-   'RENDER','BOARD BLUR','BOARD POPUP','HISTORY','GHOST','BLOOM',
-   'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','ROLL','OUTPUT'
+   'RENDER','BOARD BLUR','BOARD POPUP','BOARD BLUR','BOARD POPUP','HISTORY','GHOST','BLOOM',
+   'PHOSPHOR','SOFTNESS','VIGNETTE','CRT','LCD OVERLAY','LCD OVERLAY',
+   'LCD EDGE BLUR','LCD EDGE BLUR','LCD OVERLAY','ROLL','OUTPUT'
   ]);
  });
  test('picker fade is independent of board fade and treats the screen as one optical surface',()=>{
   const {pipeline,composer}=setup({pieceMask:true});
-  const [,,popup,,,bloom,tint,softness]=composer.passes;
+  const [,,popup,,,bloom,tint,softness]=passView(composer);
   const picker={picker:true};
   pipeline.setPicker(picker);
   update(pipeline,{crtMenuFade:5});
@@ -111,7 +126,7 @@ describe('CRT composition',()=>{
  });
  test('LCD reuses the compositor, suspends CRT optics and restores them on return',()=>{
   const {pipeline,composer}=setup();
-  const [,,popup,history,ghost,bloom,tint,softness,vignette,mask]=composer.passes;
+  const [,,popup,history,ghost,bloom,tint,softness,vignette,mask]=passView(composer);
   const switchDisplay=lcd=>pipeline.syncFX({
    fx:states,theme:'amber',lcd,width:393,height:852,dpr:2,
    boardStatus:'paused',popupStatus:'paused',modalOpen:false,
@@ -134,8 +149,9 @@ describe('CRT composition',()=>{
  });
  test('v189 bloom separates board and cover light without extra passes',()=>{
   const {pipeline,composer}=setup();
+  const passCount=composer.passes.length;
   update(pipeline);
-  const bloom=composer.passes[5],phosphor=composer.passes[6];
+  const bloom=passView(composer)[5],phosphor=passView(composer)[6];
   assert.match(bloom.materialHighPassFilter.fragmentShader,/brightness\*\(1\.0-inside\)/);
   assert.match(bloom.materialHighPassFilter.fragmentShader,/brightness\*inside/);
   assert.match(phosphor.fragmentShader,/coverBloom/);
@@ -144,14 +160,15 @@ describe('CRT composition',()=>{
   assert.ok(box.x<box.z&&box.y<box.w,'window is nonempty while playing');
   assert.deepEqual([box.x,box.y,box.z,box.w],
    Object.values(phosphor.uniforms.uBoardRect.value));
-  assert.equal(composer.passes.length,12,'no new full-screen pass added');
+  assert.equal(composer.passes.length,passCount,'no new full-screen pass added');
   pipeline.dispose();
  });
  test('v202 piece-face mask preserves half the normal bloom without another pass or changing original RGB',()=>{
   const {pipeline,composer,externalPieceMask}=setup({pieceMask:true});
+  const passCount=composer.passes.length;
   update(pipeline);
-  const bloom=composer.passes[5],tint=composer.passes[6];
-  assert.equal(composer.passes.length,12);
+  const bloom=passView(composer)[5],tint=passView(composer)[6];
+  assert.equal(composer.passes.length,passCount);
   assert.equal(bloom.highPassUniforms.uPieceMask.value,externalPieceMask);
   assert.equal(bloom.materialHighPassFilter.uniforms.uPieceMask.value,externalPieceMask);
   assert.equal(bloom.highPassUniforms.uPieceMaskEnabled.value,1);
@@ -185,24 +202,24 @@ describe('CRT composition',()=>{
  test('v189 A/B switch makes the window mask empty, recreating global bloom',()=>{
   const {pipeline,composer}=setup({shadowBox:false});
   update(pipeline);
-  for(const rect of [composer.passes[5].highPassUniforms.uBoardRect.value,
-   composer.passes[6].uniforms.uBoardRect.value,
-   composer.passes[4].uniforms.uBoardRect.value,
-   composer.passes[7].uniforms.uBoardRect.value])
+  for(const rect of [passView(composer)[5].highPassUniforms.uBoardRect.value,
+   passView(composer)[6].uniforms.uBoardRect.value,
+   passView(composer)[4].uniforms.uBoardRect.value,
+   passView(composer)[7].uniforms.uBoardRect.value])
     assert.deepEqual([rect.x,rect.y,rect.z,rect.w],[0,0,0,0]);
   pipeline.dispose();
  });
  test('v189 optional spatial filters cannot sample across the aperture',()=>{
   const {pipeline,composer}=setup();
   update(pipeline);
-  assert.match(composer.passes[4].fragmentShader,/sameDomain=1\.0-step/);
-  assert.match(composer.passes[7].fragmentShader,/abs\(currentIn-sampledIn\)>\.5\?sharp/);
+  assert.match(passView(composer)[4].fragmentShader,/sameDomain=1\.0-step/);
+  assert.match(passView(composer)[7].fragmentShader,/abs\(currentIn-sampledIn\)>\.5\?sharp/);
   pipeline.dispose();
  });
  test('display effect settings target their own passes',()=>{
   const {pipeline,composer}=setup();
   update(pipeline);
-  const p=composer.passes;
+  const p=passView(composer);
   assert.equal(p[3].enabled,true,'history active');
   assert.equal(p[3].ms,120);
   assert.equal(p[4].enabled,true);
@@ -231,7 +248,7 @@ describe('CRT composition',()=>{
  test('whole-screen decay and tint stay independent; optional legacy mask is separate',()=>{
   const {pipeline,composer}=setup();
   update(pipeline,{persistence:true,persistenceMs:120});
-  const p=composer.passes;
+  const p=passView(composer);
   assert.equal(p[9].enabled,true);
   update(pipeline,{persistence:true,persistenceMs:90});
   assert.equal(p[3].ms,90);
@@ -246,7 +263,7 @@ describe('CRT composition',()=>{
  });
  test('scanlines and bloom are separately controllable with phosphor persistence',()=>{
   const {pipeline,composer}=setup();
-  const p=composer.passes;
+  const p=passView(composer);
   update(pipeline,{persistence:true,scanlines:true,scanlineOpacity:49,bloom:false});
   assert.equal(p[3].enabled,true,'phosphor history remains enabled');
   assert.equal(p[5].enabled,false,'Bloom alone governs external glow');
@@ -262,7 +279,7 @@ describe('CRT composition',()=>{
  });
  test('original NOMAD green and amber are unchanged by persistence or decay',()=>{
   const {pipeline,composer}=setup();
-  const tint=composer.passes[6];
+  const tint=passView(composer)[6];
   const expected={green:[.2,1,.2],amber:[185/255,79/255,9/255]};
   const rgba=()=>[tint.uniforms.uTint.value.x,tint.uniforms.uTint.value.y,tint.uniforms.uTint.value.z];
   for(const theme of ['green','amber']){
@@ -281,7 +298,7 @@ describe('CRT composition',()=>{
  });
  test('gameplay blur follows the selected display and stays inside the board',()=>{
   const {pipeline,composer}=setup();
-  const [,horizontal,vertical]=composer.passes;
+  const [,horizontal,vertical]=passView(composer);
   const state={fx:{...states,crtBoardBlur:1,lcdBoardBlur:2.5},theme:'green',
    width:393,height:852,dpr:3,boardStatus:'playing',popupStatus:'playing',
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
@@ -299,7 +316,7 @@ describe('CRT composition',()=>{
  });
  test('menu blur uses the selected display amount and ignores old opacity values',()=>{
   const {pipeline,composer}=setup();
-  const [,horizontal,popup]=composer.passes;
+  const [,horizontal,popup]=passView(composer);
   const effect=DISPLAY_EFFECTS.find(effect=>effect.id==='menuBlur');
   assert.deepEqual(effect.sliders.map(slider=>slider[1]),['crtMenuBlur','crtMenuFade']);
   assert.deepEqual(effect.lcdSliders.map(slider=>slider[1]),['lcdMenuBlur','lcdMenuFade']);
@@ -320,7 +337,7 @@ describe('CRT composition',()=>{
  });
  test('menu fade is independent of blur and targets the display background',()=>{
   const {pipeline,composer}=setup();
-  const [,horizontal,popup]=composer.passes;
+  const [,horizontal,popup]=passView(composer);
   const state={fx:{...states,crtMenuBlur:0,crtMenuFade:0,lcdMenuFade:100},
    theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',popupStatus:'paused',
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
@@ -345,7 +362,7 @@ describe('CRT composition',()=>{
   const r={boardX:11,boardY:120,boardW:234.5,boardH:469};
   const state={fx:states,theme:'green',width:393,height:852,dpr:3,boardStatus:'paused',
    popupStatus:'paused',modalOpen:true,layoutInfo:r};
-  const popup=composer.passes[2];
+  const popup=passView(composer)[2];
   pipeline.syncFX({...state,propertiesPreview:{backdrop:true}});
   assert.equal(popup.enabled,true);
   assert.equal(popup.uniforms.uFade.value,.87);
@@ -361,24 +378,24 @@ describe('CRT composition',()=>{
    boardStatus:'ready',popupStatus:'ready',modalOpen:false,
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}};
   pipeline.syncFX(state);
-  assert.equal(composer.passes[1].enabled,true);
-  assert.equal(composer.passes[2].enabled,true);
-  assert.ok(composer.passes[2].uniforms.uRect.value.z>composer.passes[2].uniforms.uRect.value.x);
+  assert.equal(passView(composer)[1].enabled,true);
+  assert.equal(passView(composer)[2].enabled,true);
+  assert.ok(passView(composer)[2].uniforms.uRect.value.z>passView(composer)[2].uniforms.uRect.value.x);
   state.modalOpen=true;
   pipeline.syncFX(state);
-  assert.equal(composer.passes[1].enabled,false);
-  assert.equal(composer.passes[2].enabled,false);
+  assert.equal(passView(composer)[1].enabled,false);
+  assert.equal(passView(composer)[2].enabled,false);
   // The board is blurred and faded behind Top Five, despite an open modal.
   state.scoresOverlay=true;
   pipeline.syncFX(state);
-  assert.equal(composer.passes[1].enabled,true);
-  assert.equal(composer.passes[2].enabled,true);
+  assert.equal(passView(composer)[1].enabled,true);
+  assert.equal(passView(composer)[2].enabled,true);
   // Never blur active play, even when scoresOverlay is passed unexpectedly.
   state.boardStatus='playing';
   pipeline.syncFX(state);
-  assert.equal(composer.passes[1].enabled,false,'no horizontal blur during play');
-  assert.equal(composer.passes[2].enabled,true,'post-blur shadow compositing remains on');
-  assert.equal(composer.passes[2].uniforms.uSigma.value,0,'no vertical blur during play');
+  assert.equal(passView(composer)[1].enabled,false,'no horizontal blur during play');
+  assert.equal(passView(composer)[2].enabled,true,'post-blur shadow compositing remains on');
+  assert.equal(passView(composer)[2].uniforms.uSigma.value,0,'no vertical blur during play');
  });
  test('PAUSED and HIGH SCORE share the same shadow-box domain and compositor objects',()=>{
   const {pipeline,composer,externalPopup}=setup();
@@ -388,19 +405,19 @@ describe('CRT composition',()=>{
    layoutInfo:{boardX:11,boardY:120,boardW:234.5,boardH:469}
   };
   const aperture=()=>[5,6,4,7].map(i=>{
-   const r=i===5?composer.passes[i].highPassUniforms.uBoardRect.value:
-    composer.passes[i].uniforms.uBoardRect.value;
+   const r=i===5?passView(composer)[i].highPassUniforms.uBoardRect.value:
+    passView(composer)[i].uniforms.uBoardRect.value;
    return [r.x,r.y,r.z,r.w];
   });
-  const passRefs=[...composer.passes],popup=composer.passes[2];
+  const passRefs=[...composer.passes],popup=passView(composer)[2];
   pipeline.syncFX({...common,modalOpen:false});
   const paused=aperture();
   assert.ok(paused.every(r=>r[2]>r[0]&&r[3]>r[1]));
-  assert.equal(composer.passes[1].enabled,true);
+  assert.equal(passView(composer)[1].enabled,true);
   assert.equal(popup.enabled,true);
   pipeline.syncFX({...common,modalOpen:true,scoresOverlay:true});
   assert.deepEqual(aperture(),paused,'score menu must preserve the board aperture');
-  assert.equal(composer.passes[1].enabled,true);
+  assert.equal(passView(composer)[1].enabled,true);
   assert.equal(popup.enabled,true);
   assert.strictEqual(popup.uniforms.uPopup.value,externalPopup,'reuse live popup texture');
   assert.equal(composer.passes.length,passRefs.length,'no new render passes');
@@ -408,10 +425,10 @@ describe('CRT composition',()=>{
   pipeline.syncFX({...common,modalOpen:true,scoresOverlay:false});
   assert.deepEqual(aperture(),Array.from({length:4},()=>[0,0,0,0]),
    'full-screen Display System hides the game aperture');
-  assert.equal(composer.passes[1].enabled,false);
+  assert.equal(passView(composer)[1].enabled,false);
   pipeline.syncFX({...common,modalOpen:true,isolateLightWindow:true});
   assert.deepEqual(aperture(),paused,'Light Control still isolates the board');
-  assert.equal(composer.passes[1].enabled,false,'light lab keeps popup blur off');
+  assert.equal(passView(composer)[1].enabled,false,'light lab keeps popup blur off');
   pipeline.syncFX({...common,modalOpen:false});
   assert.deepEqual(aperture(),paused,'return to PAUSED restores the same masks');
   pipeline.dispose();
@@ -429,8 +446,8 @@ describe('CRT composition',()=>{
   assert.deepEqual(composer.size,[844,390]);
   assert.equal(composer.dpr,3);
   for(const i of [1,2,4,7]){
-   assert.equal(composer.passes[i].uniforms.uSize.value.x,844);
-   assert.equal(composer.passes[i].uniforms.uSize.value.y,390);
+   assert.equal(passView(composer)[i].uniforms.uSize.value.x,844);
+   assert.equal(passView(composer)[i].uniforms.uSize.value.y,390);
   }
   pipeline.render();
   assert.equal(composer.renderCount,1);
@@ -447,7 +464,7 @@ describe('CRT composition',()=>{
  });
  test('a failing compositor pass cannot prevent other effects or composer cleanup',()=>{
   const {pipeline,composer,textures}=setup();
-  const failing=composer.passes[2];
+  const failing=passView(composer)[2];
   failing.dispose=()=>{throw Error('failed shader cleanup')};
   assert.throws(()=>pipeline.dispose(),/failed shader cleanup/);
   assert.equal(composer.disposed,true);
@@ -460,7 +477,7 @@ describe('CRT composition',()=>{
   const {pipeline,composer}=setup();
   assert.ok(composer.passes.every(p=>p.label!=='BUTTON RESPONSE'));
   assert.equal(typeof pipeline.syncButtonFeedback,'undefined');
-  assert.equal(composer.passes[3].label,'HISTORY');
+  assert.equal(passView(composer)[3].label,'HISTORY');
   assert.doesNotMatch(compositor,/BUTTON_FEEDBACK|buttonPulsePass|uRects\[/);
   pipeline.dispose();
  });
