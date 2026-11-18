@@ -96,7 +96,7 @@ export function makeShapeOptics(reference){
   // Original optical_color() interpolates the measured sRGB reference
   // palette in linear light. No new colour curve is introduced.
   return reference.slice(0,start)+[
-    'uniform sampler2D FineArtwork;',
+    'uniform sampler2D ShapeCoverage;',
     'float fineState(vec2 uv){',
     ' vec2 dimensions=vec2(textureSize(Source,0));',
     ' vec2 at=clamp(uv,vec2(0.),vec2(1.))*dimensions-.5;',
@@ -110,8 +110,7 @@ export function makeShapeOptics(reference){
     ' return mix(mix(a,b,w.x),mix(c,d,w.x),w.y);',
     '}',
     'float activeCoverage(vec2 uv){',
-    ' vec3 rgb=texture(FineArtwork,clamp(uv,vec2(0.),vec2(1.))).rgb;',
-    ' return clamp((1.-dot(rgb,vec3(.2126,.7152,.0722)))*3.,0.,1.);',
+    ' return texture(ShapeCoverage,clamp(uv,vec2(0.),vec2(1.))).r;',
     '}',
     'void main(){',
     ' vec2 uv=vTexCoord;',
