@@ -15,12 +15,14 @@
  * and inverts off-axis as on a real TN panel. The front surface adds Fresnel
  * glare: the mirror image of the room light, seen from a finite eye distance.
  * Temperature scales the crystal's speed and threshold from measured data.
+ * A bezel frame above the glass blocks light near the edges facing the room
+ * light, casting a soft shadow band onto the screen.
  * Content is digital and free: the glass is treated as a grid finer than the
  * device pixel, so any art can be shown. That is the one stated compromise.
  *
  * Pure model functions are exported for testing; the shaders mirror them.
  */
-export const PHYSICAL_LCD_VERSION='0.4.0';
+export const PHYSICAL_LCD_VERSION='0.5.0';
 
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const interp=(x,xs,ys)=>{
@@ -228,6 +230,35 @@ export function glare(profile,toEye,{angleDeg,azimuthDeg,sourceDeg}){
   /(2*sigma*sigma*Math.max(.05,Math.cos(angleDeg*Math.PI/180)));
 }
 
+/* ---------- Bezel shadow ---------- */
+/** Where light that reaches the crystal at a point crossed the bezel's plane:
+ * the shift toward the light (mm, screen axes). Light passes the bezel lip
+ * (air), then the front polarizer and front glass, refracting in each. */
+export function bezelShiftMm(profile,{angleDeg,azimuthDeg},lipMm){
+ const g=profile.sources.geometry,s=Math.sin(angleDeg*Math.PI/180);
+ const through=(t,n)=>t*Math.tan(Math.asin(clamp(s/n,-1,1)));
+ const d=through(g.glass_mm,g.n_glass)+through(g.rear_polarizer_mm,g.n_polarizer)+lipMm*Math.tan(Math.min(89,angleDeg)*Math.PI/180);
+ const az=azimuthDeg*Math.PI/180;
+ return {x:Math.sin(az)*d,y:-Math.cos(az)*d};
+}
+/** Width (mm, one standard deviation) of the bezel shadow's soft edge, from the
+ * room light's angular size (Gaussian, FWHM sourceDeg). */
+export function bezelPenumbraMm(profile,lighting,lipMm){
+ const h=.05,a=lighting.angleDeg;
+ const mag=deg=>{const v=bezelShiftMm(profile,{angleDeg:deg,azimuthDeg:0},lipMm);return Math.hypot(v.x,v.y);};
+ const slope=(mag(a+h)-mag(Math.max(0,a-h)))/((a+h-Math.max(0,a-h))*Math.PI/180);
+ return slope*lighting.sourceDeg/(2*Math.sqrt(2*Math.LN2))*Math.PI/180;
+}
+const erf=x=>{const t=1/(1+.3275911*Math.abs(x)),y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x);return Math.sign(x)*y;};
+/** Fraction of the room light reaching the crystal at pointMm (screen axes),
+ * inside a viewing window panelMm = {w, h} framed by the bezel. */
+export function bezelLight(profile,pointMm,panelMm,lighting,lipMm){
+ const shift=bezelShiftMm(profile,lighting,lipMm),sigma=Math.max(1e-4,bezelPenumbraMm(profile,lighting,lipMm));
+ const q={x:pointMm.x+shift.x,y:pointMm.y+shift.y};
+ const step=d=>.5*(1+erf(d/(sigma*Math.SQRT2)));
+ return step(q.x)*step(panelMm.w-q.x)*step(q.y)*step(panelMm.h-q.y);
+}
+
 /** Linear-sRGB reflectance for (entry state, exit state), bilinear in the table. */
 export function reflectance(profile,aIn,aOut){
  const {size,a_max,linear_srgb:t}=profile.lut;
@@ -267,11 +298,18 @@ void main(){
 const ENTRY_FS=`#version 300 es
 precision highp float;
 uniform sampler2D uState,uEntryLut;uniform float uAmax,uN;uniform vec4 uLo,uSpan;
+uniform vec2 uPanelMm,uBezelShift;uniform float uBezelSigma,uPxPerMm,uHeightPx;
 out vec4 o;
+float erf1(float x){float t=1.0/(1.0+0.3275911*abs(x));
+ float y=1.0-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*exp(-x*x);return sign(x)*y;}
+float step1(float d){return 0.5*(1.0+erf1(d/(uBezelSigma*1.41421356)));}
 void main(){
  float a=texelFetch(uState,ivec2(gl_FragCoord.xy),0).r;
  vec4 e=texture(uEntryLut,vec2((clamp(a/uAmax,0.0,1.0)*(uN-1.0)+0.5)/uN,0.5));
- o=(e-uLo)/uSpan;
+ // Light reaching the crystal here crossed the bezel plane at q; the frame blocks it outside the window.
+ vec2 q=vec2(gl_FragCoord.x,uHeightPx-gl_FragCoord.y)/uPxPerMm+uBezelShift;
+ float lit=step1(q.x)*step1(uPanelMm.x-q.x)*step1(q.y)*step1(uPanelMm.y-q.y);
+ o=(e*lit-uLo)/uSpan;
 }`;
 
 // One-dimensional Gaussian along any direction (two passes = elliptical blur).
@@ -326,7 +364,7 @@ export async function loadProfile(url){
  return response.json();
 }
 
-export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio=2}={}){
+export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio=2,bezelLipMm=1}={}){
  if(!profile?.oblique||!profile?.drive)throw new TypeError('A screen profile with oblique optics is required');
  if(!(widthMm>0)||!(heightMm>0))throw new TypeError('Panel size must be positive millimetres');
  const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false});
@@ -461,6 +499,10 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
    bind(p,0,'uState',to.tex);bind(p,1,'uEntryLut',gpu.entryLut);
    gl.uniform1f(p.u('uAmax'),optics.aMax);gl.uniform1f(p.u('uN'),optics.size);
    gl.uniform4fv(p.u('uLo'),lo);gl.uniform4fv(p.u('uSpan'),span);
+   const shift=bezelShiftMm(profile,lighting,bezelLipMm);
+   gl.uniform2f(p.u('uPanelMm'),W/pxPerMm,H/pxPerMm);gl.uniform2f(p.u('uBezelShift'),shift.x,shift.y);
+   gl.uniform1f(p.u('uBezelSigma'),Math.max(1e-3,bezelPenumbraMm(profile,lighting,bezelLipMm)));
+   gl.uniform1f(p.u('uPxPerMm'),pxPerMm);gl.uniform1f(p.u('uHeightPx'),H);
   });
   // Screen y runs down; texture rows run up.
   const radial=[k.radial.x,-k.radial.y],across=[-radial[1],radial[0]];
@@ -526,6 +568,7 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   get temperature(){return celsius;},
   setTemperature(c){celsius=Number(c);},
   get opticsError(){return optics?.error??null;},
+  bezelLipMm,
   info(){return {version:PHYSICAL_LCD_VERSION,stateFormat:gpu?.fmt.name??'none',fieldFormat:gpu?.fieldFmt.name??'none',width:W,height:H,pxPerMm,fps:fps.value,mode};},
   dispose(){canvas.removeEventListener('webglcontextlost',onLost);canvas.removeEventListener('webglcontextrestored',onRestored);}
  });

@@ -62,16 +62,28 @@ Light measured from the viewing direction, as for a reflective panel, gives cont
 
 **Temperature, 15–40 °C** (where the viscosity and refractive-index data overlap). Response times scale with γ1/K. Elastic constants scale as S² and the threshold as √S, with the order parameter S following the measured birefringence. The optics use the refractive indices measured at each temperature, so the unlit colour shifts too (ΔE ≈ 8 between 15 and 40 °C). From 15 °C to 40 °C the crystal goes from 1.6× slower to 0.58× faster than at 25 °C.
 
+**Bezel shadow.** The frame around the screen sits above the glass, assumed 1 mm above the front polarizer, since the VI-402 itself is bare glass. Light reaching the crystal near an edge must pass that frame first, so the edges facing the light get a soft shadow band. Its width follows from refraction through the front glass and polarizer plus the lip height, and its softness from the light's size. The room has one light and no fill, so the band reaches full darkness at the frame.
+
 **Not modelled, because there is no data for it:**
 - **Ionic image retention (burn-in).** The only measurements found are for TFT panels, with fitted time constants.
 - **Matte anti-glare haze.** No haze or gloss values were found, so the surface is treated as glossy, a real untreated option.
 - **Reflector texture.** No measurements were found for the grain of the reflector film.
 - **Per-point eye direction in the crystal optics.** At 300 mm the angle changes by about ±9° across the panel; only the glare uses it.
 
-## Drive modes
+## Drive and controls
 
-- **Static (datasheet):** every point is either 0 V or 3.0 V, exactly as on the VI-402. Content darker than 50% luminance switches on.
-- **Analog grays:** a digital compromise. Each point gets its own voltage, chosen so the static brightness matches the content's gray. On a TN cell, partial voltages come out slightly bluish, because a partly twisted crystal treats wavelengths differently. That tint is real and comes from the optics, not from a setting.
+The panel shows one ink colour: every point is either 0 V or 3.0 V, exactly as on the VI-402, and content darker than 50% luminance switches on. Design art in two tones.
+
+The app's controls are deliberately few:
+- **Pause and Reset panel.**
+- **Light angle and direction:** default 45° from the top-left corner.
+- **Panel temperature:** default 25 °C.
+
+Fixed at realistic defaults:
+- **Light:** 15° wide, at normal room brightness.
+- **Viewer:** straight on, 300 mm away.
+
+The engine still supports analog grays (`setMode('analog')`, a digital compromise, since the datasheet panel cannot do it), viewing angle and eye distance (`setViewing`), and light size and brightness (`setLighting`) for other uses.
 
 ## Files
 

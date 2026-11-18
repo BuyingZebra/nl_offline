@@ -4,7 +4,7 @@ import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.4.0';
+export const APP_VERSION='0.5.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -117,96 +117,29 @@ function fit(){
 new ResizeObserver(fit).observe(stage);fit();
 
 /* ---------- Controls: drive mode and the room's lighting ---------- */
-const modeButtons=[...document.querySelectorAll('[data-mode]')];
-function setMode(mode){lcd.setMode(mode);modeButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));
- $('modeNote').textContent=mode==='static'?
-  'As the datasheet panel: every point is fully on (3.0 V) or off. Art grays darker than 50% switch on.':
-  'Digital compromise: each point gets its own voltage, so grays become partial twist. Not a VI-402 feature.';}
-modeButtons.forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
-setMode('static');
+// One ink colour: the datasheet panel switches each point fully on or off.
+lcd.setMode('static');
+// Default room light: 45 degrees from straight on, from the top-left corner.
+lcd.setLighting({angleDeg:45,azimuthDeg:315,sourceDeg:15,exposure:1});
 
-const LIGHT=[
- ['angleDeg','Light angle',0,60,1,v=>v+'° from straight on'],
- ['azimuthDeg','Light from',0,359,1,v=>['top','top right','right','bottom right','bottom','bottom left','left','top left'][Math.round(v/45)%8]+' ('+v+'°)'],
- ['sourceDeg','Light size',0,40,1,v=>v===0?'point':v+'° across'],
- ['exposure','Room brightness',.5,2,.05,v=>Math.round(v*100)+'%']
-];
-const lightBox=$('lighting');
-for(const [key,label,min,max,step,format] of LIGHT){
- const row=document.createElement('label');row.className='row';
- const name=document.createElement('span');name.textContent=label;
- const input=Object.assign(document.createElement('input'),{type:'range',min,max,step,value:lcd.lighting[key]});
- const out=document.createElement('output');out.textContent=format(Number(input.value));
- input.addEventListener('input',()=>{lcd.setLighting({[key]:Number(input.value)});out.textContent=format(Number(input.value));});
- row.append(name,input,out);lightBox.append(row);
-}
 const DIRECTION=v=>['top','top right','right','bottom right','bottom','bottom left','left','top left'][Math.round(v/45)%8]+' ('+Math.round(v)+'°)';
 function sliderRows(box,rows,get,set){
- const outputs={};
  for(const [key,label,min,max,step,format] of rows){
   const row=document.createElement('label');row.className='row';
   const name=document.createElement('span');name.textContent=label;
   const input=Object.assign(document.createElement('input'),{type:'range',min,max,step,value:get()[key]});
   const out=document.createElement('output');out.textContent=format(Number(input.value));
   input.addEventListener('input',()=>{set({[key]:Number(input.value)});out.textContent=format(Number(input.value));});
-  row.append(name,input,out);box.append(row);outputs[key]={input,out,format};
+  row.append(name,input,out);box.append(row);
  }
- return outputs;
 }
-const viewControls=sliderRows($('viewing'),[
- ['polarDeg','Your viewing angle',0,80,1,v=>v+'° from straight on'],
- ['azimuthDeg','Viewing from',0,359,1,DIRECTION],
- ['distanceMm','Eye distance',150,600,10,v=>v+' mm']
-],()=>lcd.viewing,next=>lcd.setViewing(next));
+sliderRows($('lighting'),[
+ ['angleDeg','Light angle',0,75,1,v=>v+'° from straight on'],
+ ['azimuthDeg','Light from',0,359,1,DIRECTION]
+],()=>lcd.lighting,next=>lcd.setLighting(next));
 sliderRows($('environment'),[
  ['celsius','Panel temperature',15,40,1,v=>v+' °C']
 ],()=>({celsius:lcd.temperature}),next=>lcd.setTemperature(next.celsius));
-
-/* Phone tilt: the eye and the room light stay fixed in the room while the panel
- * turns, so both directions change relative to the glass. */
-function rotation(alpha,beta,gamma){
- const r=Math.PI/180,[a,b,g]=[alpha*r,beta*r,gamma*r];
- const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b),cg=Math.cos(g),sg=Math.sin(g);
- // W3C device orientation: R = Rz(alpha) Rx(beta) Ry(gamma), device -> earth.
- return [[ca*cg-sa*sb*sg,-cb*sa,ca*sg+cg*sa*sb],[cg*sa+ca*sb*sg,ca*cb,sa*sg-ca*cg*sb],[-cb*sg,sb,cb*cg]];
-}
-const mul=(m,v)=>m.map(row=>row[0]*v[0]+row[1]*v[1]+row[2]*v[2]);
-const transpose=m=>m[0].map((_,i)=>m.map(row=>row[i]));
-const screenToDevice=([x,y,z])=>[x,-y,z],deviceToScreen=([x,y,z])=>[x,-y,z];
-const toVector=(polar,azimuth)=>{const t=polar*Math.PI/180,a=azimuth*Math.PI/180;return [Math.sin(t)*Math.sin(a),-Math.sin(t)*Math.cos(a),Math.cos(t)];};
-const toAngles=([x,y,z])=>({polarDeg:Math.acos(Math.max(-1,Math.min(1,z)))*180/Math.PI,azimuthDeg:((Math.atan2(x,-y)*180/Math.PI)+360)%360});
-let tilt=null;
-function onOrientation(e){
- if(e.alpha===null||e.beta===null||e.gamma===null)return;
- const R=rotation(e.alpha,e.beta,e.gamma);
- if(!tilt.reference){
-  tilt.reference=R;
-  tilt.eye=mul(R,screenToDevice(toVector(lcd.viewing.polarDeg,lcd.viewing.azimuthDeg)));
-  tilt.light=mul(R,screenToDevice(toVector(lcd.lighting.angleDeg,lcd.lighting.azimuthDeg)));
- }
- const back=transpose(R);
- const eye=toAngles(deviceToScreen(mul(back,tilt.eye))),light=toAngles(deviceToScreen(mul(back,tilt.light)));
- // Light from behind the panel cannot reach the front: hold it at grazing.
- lcd.setViewing({polarDeg:Math.min(80,eye.polarDeg),azimuthDeg:eye.azimuthDeg});
- lcd.setLighting({angleDeg:Math.min(80,light.polarDeg),azimuthDeg:light.azimuthDeg});
- $('tiltNote').textContent='Eye '+Math.round(eye.polarDeg)+'° from '+DIRECTION(eye.azimuthDeg)+
-  ' · light '+Math.round(light.polarDeg)+'° from '+DIRECTION(light.azimuthDeg);
-}
-$('tilt').addEventListener('click',async e=>{
- const button=e.currentTarget;
- if(tilt){window.removeEventListener('deviceorientation',onOrientation);tilt=null;
-  button.setAttribute('aria-pressed','false');button.textContent='Use phone tilt';$('tiltNote').textContent='';return;}
- try{
-  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
-   if(await DeviceOrientationEvent.requestPermission()!=='granted')throw new Error('Motion access was not allowed.');
-  }
-  if(typeof DeviceOrientationEvent==='undefined')throw new Error('This device does not report its tilt.');
-  tilt={reference:null};
-  window.addEventListener('deviceorientation',onOrientation);
-  button.setAttribute('aria-pressed','true');button.textContent='Stop phone tilt';
-  $('tiltNote').textContent='Hold the phone where you like and tilt it. The starting position counts as the sliders above.';
- }catch(error){$('tiltNote').textContent=error.message;}
-});
 
 $('pause').addEventListener('click',e=>{paused=!paused;e.currentTarget.textContent=paused?'Resume':'Pause';});
 $('reset').addEventListener('click',()=>lcd.reset());
@@ -219,7 +152,7 @@ const facts=[
  ['Panel',src.panel.part],
  ['Response (datasheet)',src.panel.rise_ms_typ+' ms on, '+src.panel.decay_ms_typ+' ms off'],
  ['Contrast (datasheet)',src.panel.contrast_typ+':1'],
- ['Drive (datasheet)',src.panel.Vop_typ+' V, static'],
+ ['Drive (datasheet)',src.panel.Vop_typ+' V, static: one ink colour, each point on or off'],
  ['Liquid crystal',src.liquid_crystal.material],
  ['Cell gap (derived)',der.cell_gap_um+' µm, first transmission maximum'],
  ['Threshold (derived)',der.Vth_theory_V.toFixed(2)+' V'],
@@ -232,7 +165,10 @@ const facts=[
  ['Viewing cone (computed)',(()=>{const c=P.oblique.viewing_cone_CR2_deg;return 'contrast ≥ 2 to '+c.bottom+'° below, '+c.top+'° above, '+c.left+'° sides';})()],
  ['Viewing cone (datasheet)','70° below, 35° above, 70° sides'],
  ['Glare','glossy front surface, Fresnel n = '+P.oblique.front_index+' (assumed untreated polarizer)'],
- ['Temperature','15–40 °C from measured E7 viscosity (Merck) and refractive indices (Li, Wu et al.)']
+ ['Temperature','15–40 °C from measured E7 viscosity (Merck) and refractive indices (Li, Wu et al.)'],
+ ['Room light (fixed)','15° wide, as a typical lamp; normal room brightness'],
+ ['Viewing (fixed)','straight on, eye 300 mm away'],
+ ['Bezel (assumed)',lcd.bezelLipMm+' mm above the front polarizer; front glass '+src.geometry.glass_mm+' mm']
 ];
 const dl=$('facts');
 for(const [k,v] of facts){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd);}

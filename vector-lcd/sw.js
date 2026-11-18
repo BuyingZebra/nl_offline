@@ -1,7 +1,7 @@
 /* Vector LCD offline worker. Owns only the /vector-lcd/ scope and its own
  * caches. Bump VERSION with every release (a test checks it matches the app). */
 'use strict';
-const VERSION='0.4.0';
+const VERSION='0.5.0';
 const CACHE_PREFIX='vector-lcd-';
 const CACHE_NAME=CACHE_PREFIX+VERSION;
 const ASSETS=Object.freeze([

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,shadowKernel,entryVector,reflectanceFromEntry,reflectance,PHYSICAL_LCD_VERSION,
- passTransmission,reflectanceOblique,obliqueOptics,glare,fresnelReflectance,temperatureFactors,directionVector}
+ passTransmission,reflectanceOblique,obliqueOptics,glare,fresnelReflectance,temperatureFactors,directionVector,
+ bezelShiftMm,bezelPenumbraMm,bezelLight}
  from '../vector-lcd/physical-lcd.js';
 import {ENGINE_VERSION,DEFAULT_PARAMS as P,PARAM_RANGES,normalizeParams,electroOptic,switchingTimeMs,stepToward,
  stepPixel,visibleDarkness,reflectorShadowOffsetMm,shadowVectorMm,multiplexVoltages,srgbToLinear,driveColor}
@@ -245,6 +246,29 @@ describe('Reflective TN: viewing angle, glare and temperature',()=>{
   // Birefringence changes the optics too.
   const a=passTransmission(TN,0,0,15),b=passTransmission(TN,0,0,40);
   assert.ok(a.some((v,i)=>Math.abs(v-b[i])>.01));
+ });
+});
+
+describe('Reflective TN: bezel shadow',()=>{
+ const panel={w:48,h:92},lip=1;
+ test('no shift under straight-on light; under angled light the shift points toward the light',()=>{
+  const z=bezelShiftMm(TN,{angleDeg:0,azimuthDeg:0},lip);near(z.x,0,1e-12);near(z.y,0,1e-12);
+  const top=bezelShiftMm(TN,{angleDeg:45,azimuthDeg:0},lip);
+  assert.ok(top.y<0&&Math.abs(top.x)<1e-12);
+  const g=TN.sources.geometry,s=Math.sin(Math.PI/4);
+  near(-top.y,g.glass_mm*Math.tan(Math.asin(s/g.n_glass))+g.rear_polarizer_mm*Math.tan(Math.asin(s/g.n_polarizer))+lip,1e-9);
+ });
+ test('edges facing the light are shaded; the middle and the far edges are not',()=>{
+  const light={angleDeg:45,azimuthDeg:315,sourceDeg:15};
+  assert.ok(bezelLight(TN,{x:24,y:46},panel,light,lip)>.999);
+  assert.ok(bezelLight(TN,{x:24,y:.3},panel,light,lip)<.05,'top edge shaded');
+  assert.ok(bezelLight(TN,{x:.3,y:46},panel,light,lip)<.05,'left edge shaded');
+  assert.ok(bezelLight(TN,{x:24,y:91.7},panel,light,lip)>.999,'bottom edge lit');
+  assert.ok(bezelLight(TN,{x:47.7,y:46},panel,light,lip)>.999,'right edge lit');
+ });
+ test('a larger light softens the bezel shadow edge',()=>{
+  const a=bezelPenumbraMm(TN,{angleDeg:45,azimuthDeg:0,sourceDeg:5},lip),b=bezelPenumbraMm(TN,{angleDeg:45,azimuthDeg:0,sourceDeg:30},lip);
+  assert.ok(b>a&&a>0);near(b/a,6,1e-6);
  });
 });
 
