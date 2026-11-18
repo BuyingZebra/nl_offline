@@ -10,12 +10,17 @@
  *      Light from a source of finite size adds up over many entry points, so
  *      the light *entering* the glass is blurred (separable Gaussian along and
  *      across the light's direction), never the director state.
+ * Light and viewing directions both matter: each pass through the crystal is
+ * taken from the profile's oblique table (extended Jones), so contrast fades
+ * and inverts off-axis as on a real TN panel. The front surface adds Fresnel
+ * glare: the mirror image of the room light, seen from a finite eye distance.
+ * Temperature scales the crystal's speed and threshold from measured data.
  * Content is digital and free: the glass is treated as a grid finer than the
  * device pixel, so any art can be shown. That is the one stated compromise.
  *
  * Pure model functions are exported for testing; the shaders mirror them.
  */
-export const PHYSICAL_LCD_VERSION='0.3.0';
+export const PHYSICAL_LCD_VERSION='0.4.0';
 
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const interp=(x,xs,ys)=>{
@@ -29,23 +34,33 @@ export function driveVoltage(profile,gray,mode='static'){
  const table=mode==='analog'?profile.drive.analog_by_gray:profile.drive.static_by_gray;
  return table[clamp(Math.round(gray),0,255)];
 }
-/** Equilibrium director state for a voltage. */
-export function equilibriumState(profile,volts){
- return interp(volts,profile.drive.voltages,profile.drive.a_equilibrium);
+/** Temperature scaling (15-40 C, the range covered by the measured data):
+ * time constants follow gamma1/K, the threshold follows sqrt(K/delta-eps). */
+export function temperatureFactors(profile,celsius=25){
+ const t=profile.temperature;
+ if(!t)return {tauScale:1,voltageScale:1};
+ const c=clamp(celsius,t.temps_C[0],t.temps_C[t.temps_C.length-1]);
+ return {tauScale:interp(c,t.temps_C,t.tau_scale),voltageScale:interp(c,t.temps_C,t.voltage_scale)};
+}
+/** Equilibrium director state for a voltage. voltageScale > 1 means the crystal
+ * responds as if driven harder (a lower threshold). */
+export function equilibriumState(profile,volts,voltageScale=1){
+ return interp(volts*voltageScale,profile.drive.voltages,profile.drive.a_equilibrium);
 }
 /** Director time constant: field-driven switching speeds up as (V/Vth)^2 - 1;
  * relaxation has no field to help it. */
-export function timeConstantMs(profile,volts,target,current){
+export function timeConstantMs(profile,volts,target,current,{tauScale=1,voltageScale=1}={}){
  const {tau_on_at_Vop_ms:onOp,tau_off_ms:off,Vth,Vop}=profile.dynamics;
- if(target<=current)return off;
- const over=(volts/Vth)**2-1;
- if(over<=1e-3)return off;
- return onOp*((Vop/Vth)**2-1)/over;
+ if(target<=current)return off*tauScale;
+ const over=(volts*voltageScale/Vth)**2-1;
+ if(over<=1e-3)return off*tauScale;
+ return onOp*((Vop/Vth)**2-1)/over*tauScale;
 }
 /** Exact exponential step: identical results at any frame rate. */
-export function stepState(profile,a,volts,dtMs){
- const target=equilibriumState(profile,volts);
- const tau=timeConstantMs(profile,volts,target,a);
+export function stepState(profile,a,volts,dtMs,celsius=25){
+ const f=temperatureFactors(profile,celsius);
+ const target=equilibriumState(profile,volts,f.voltageScale);
+ const tau=timeConstantMs(profile,volts,target,a,f);
  return target+(a-target)*Math.exp(-dtMs/tau);
 }
 /** Entry-point offset (mm, screen axes, y down) for light arriving at
@@ -92,6 +107,127 @@ export function reflectanceFromEntry(profile,entryWeights,aOut){
  const u=clamp(aOut/profile.lut.a_max,0,1)*(n-1),j=Math.min(n-2,Math.floor(u)),f=u-j;
  return [0,1,2].map(c=>entryWeights.reduce((sum,w,k)=>sum+w*((1-f)*exit[(j*3+c)*rank+k]+f*exit[((j+1)*3+c)*rank+k]),0));
 }
+/* ---------- Oblique optics ---------- */
+const tableCache=new WeakMap();
+function obliqueTable(profile){
+ let t=tableCache.get(profile);
+ if(!t){
+  const b64=profile.oblique.table_float32_base64;
+  const bytes=typeof atob==='function'?Uint8Array.from(atob(b64),ch=>ch.charCodeAt(0)):Uint8Array.from(Buffer.from(b64,'base64'));
+  t=new Float32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/4);
+  tableCache.set(profile,t);
+ }
+ return t;
+}
+/** Single-pass transmission (a-grid x wavelengths) for light arriving from
+ * (polarDeg from the normal, azimuthDeg: 0 = from the top, clockwise),
+ * bilinear over the profile's direction grid. */
+export function passTransmission(profile,polarDeg,azimuthDeg,celsius=25){
+ const O=profile.oblique,T=obliqueTable(profile),[nT,nDir,A,L]=O.table_shape,block=A*L;
+ // Birefringence changes with temperature: interpolate between the computed tables.
+ const temps=O.table_temps_C,tc=clamp(celsius,temps[0],temps[nT-1]);
+ let ti=0;while(ti<nT-2&&tc>temps[ti+1])ti++;
+ const ft=nT>1?(tc-temps[ti])/(temps[ti+1]-temps[ti]):0;
+ const polars=O.polars_deg,azs=O.azimuths_deg,nAz=azs.length,step=360/nAz;
+ const p=clamp(polarDeg,0,polars[polars.length-1]);
+ const az=((azimuthDeg%360)+360)%360,j=Math.floor(az/step),fa=az/step-j;
+ const ring=i=>{
+  if(i===0)return [[0,1]];
+  const base=1+(i-1)*nAz;
+  return [[base+j,1-fa],[base+(j+1)%nAz,fa]];
+ };
+ let i=0;while(i<polars.length-2&&p>polars[i+1])i++;
+ const fp=(p-polars[i])/(polars[i+1]-polars[i]);
+ const terms=[...ring(i).map(([d,w])=>[d,w*(1-fp)]),...ring(i+1).map(([d,w])=>[d,w*fp])];
+ const out=new Float64Array(block);
+ for(const [tIndex,tw] of [[ti,1-ft],[Math.min(nT-1,ti+1),ft]]){
+  if(!tw)continue;
+  for(const [d,w] of terms){if(!w)continue;const o=(tIndex*nDir+d)*block;for(let k=0;k<block;k++)out[k]+=tw*w*T[o+k];}
+ }
+ return out;
+}
+function interpRow(grid,a){
+ const n=grid.length,u=clamp(a/grid[n-1],0,1)*(n-1),i=Math.min(n-2,Math.floor(u));
+ return [i,u-i];
+}
+/** Linear-sRGB reflectance for a light and a viewing direction (product model). */
+export function reflectanceOblique(profile,aIn,aOut,light,view,celsius=25){
+ const O=profile.oblique,[,,A,L]=O.table_shape;
+ const TL=passTransmission(profile,light.polarDeg,light.azimuthDeg,celsius),TV=passTransmission(profile,view.polarDeg,view.azimuthDeg,celsius);
+ const [i,fi]=interpRow(O.a_grid,aIn),[j,fj]=interpRow(O.a_grid,aOut);
+ const at=(T,r,f,l)=>(1-f)*T[r*L+l]+f*T[(r+1)*L+l];
+ return [0,1,2].map(c=>{let sum=0;for(let l=0;l<L;l++)sum+=O.rgb_weights[c][l]*at(TL,i,fi,l)*at(TV,j,fj,l);
+  return 2*O.reflector*sum+O.surface_diffuse;});
+}
+/** Symmetric eigen-decomposition (cyclic Jacobi). */
+function eigenSymmetric(m,n){
+ const a=Float64Array.from(m),v=new Float64Array(n*n);
+ for(let i=0;i<n;i++)v[i*n+i]=1;
+ for(let sweep=0;sweep<60;sweep++){
+  let off=0;for(let p=0;p<n;p++)for(let q=p+1;q<n;q++)off+=a[p*n+q]**2;
+  if(off<1e-22)break;
+  for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){
+   const apq=a[p*n+q];if(Math.abs(apq)<1e-30)continue;
+   const theta=(a[q*n+q]-a[p*n+p])/(2*apq),t=Math.sign(theta||1)/(Math.abs(theta)+Math.sqrt(theta*theta+1));
+   const c=1/Math.sqrt(t*t+1),s=t*c;
+   for(let k=0;k<n;k++){const akp=a[k*n+p],akq=a[k*n+q];a[k*n+p]=c*akp-s*akq;a[k*n+q]=s*akp+c*akq;}
+   for(let k=0;k<n;k++){const apk=a[p*n+k],aqk=a[q*n+k];a[p*n+k]=c*apk-s*aqk;a[q*n+k]=s*apk+c*aqk;}
+   for(let k=0;k<n;k++){const vkp=v[k*n+p],vkq=v[k*n+q];v[k*n+p]=c*vkp-s*vkq;v[k*n+q]=s*vkp+c*vkq;}
+  }
+ }
+ const order=[...Array(n).keys()].sort((x,y)=>a[y*n+y]-a[x*n+x]);
+ return {values:order.map(k=>a[k*n+k]),vectors:order.map(k=>Array.from({length:n},(_,i)=>v[i*n+k]))};
+}
+/** Rank-4 separable optics for the current light and viewing directions:
+ * R_c(a_in, a_out) ~= sum_k entry_k(a_in) * exit_k,c(a_out). Exact per
+ * wavelength; the truncation error is returned. */
+export function obliqueOptics(profile,light,view,celsius=25){
+ const O=profile.oblique,[,,A,L]=O.table_shape,cols=A*3;
+ const TL=passTransmission(profile,light.polarDeg,light.azimuthDeg,celsius),TV=passTransmission(profile,view.polarDeg,view.azimuthDeg,celsius);
+ const M=new Float64Array(A*cols),k2=2*O.reflector;
+ for(let j=0;j<A;j++)for(let c=0;c<3;c++){
+  const w=O.rgb_weights[c],col=j*3+c;
+  for(let i=0;i<A;i++){let s=0;for(let l=0;l<L;l++)s+=w[l]*TL[i*L+l]*TV[j*L+l];M[i*cols+col]=k2*s+O.surface_diffuse;}
+ }
+ const B=new Float64Array(A*A);
+ for(let i=0;i<A;i++)for(let k=i;k<A;k++){let s=0;for(let c=0;c<cols;c++)s+=M[i*cols+c]*M[k*cols+c];B[i*A+k]=B[k*A+i]=s;}
+ const {values,vectors}=eigenSymmetric(B,A);
+ const entry=new Float32Array(A*4),exit=new Float32Array(A*3*4);
+ for(let k=0;k<4;k++){
+  const sigma=Math.sqrt(Math.max(values[k],0)),root=Math.sqrt(sigma),u=vectors[k];
+  for(let i=0;i<A;i++)entry[i*4+k]=u[i]*root;
+  for(let c=0;c<cols;c++){let s=0;for(let i=0;i<A;i++)s+=M[i*cols+c]*u[i];exit[c*4+k]=sigma>0?s/sigma*root:0;}
+ }
+ let err=0,max=0;
+ for(let i=0;i<A;i++)for(let c=0;c<cols;c++){
+  let r=0;for(let k=0;k<4;k++)r+=entry[i*4+k]*exit[c*4+k];
+  err=Math.max(err,Math.abs(r-M[i*cols+c]));max=Math.max(max,M[i*cols+c]);
+ }
+ return {size:A,aMax:O.a_grid[A-1],entry,exit,error:err/max};
+}
+/** Direction toward the room light (screen axes: x right, y down, z out of the glass). */
+export function directionVector(polarDeg,azimuthDeg){
+ const t=polarDeg*Math.PI/180,a=azimuthDeg*Math.PI/180;
+ return [Math.sin(t)*Math.sin(a),-Math.sin(t)*Math.cos(a),Math.cos(t)];
+}
+/** Unpolarized Fresnel reflectance of the front surface. */
+export function fresnelReflectance(thetaRad,n=1.5){
+ const ci=Math.cos(thetaRad),st=Math.sin(thetaRad)/n,ct=Math.sqrt(Math.max(0,1-st*st));
+ const rs=(ci-n*ct)/(ci+n*ct),rp=(n*ci-ct)/(n*ci+ct);
+ return .5*(rs*rs+rp*rp);
+}
+/** Glare seen along unit vector toward the eye: the front surface mirrors a
+ * room light with a Gaussian angular profile (FWHM sourceDeg, at least 0.5 deg).
+ * Relative to a white diffuser under the same light. */
+export function glare(profile,toEye,{angleDeg,azimuthDeg,sourceDeg}){
+ const L=directionVector(angleDeg,azimuthDeg),m=[-toEye[0],-toEye[1],toEye[2]];
+ const dot=clamp(m[0]*L[0]+m[1]*L[1]+m[2]*L[2],-1,1),delta=Math.acos(dot);
+ const sigma=Math.max(.5,sourceDeg)/(2*Math.sqrt(2*Math.LN2))*Math.PI/180;
+ const n=profile.oblique?.front_index??1.5;
+ return fresnelReflectance(Math.acos(clamp(toEye[2],-1,1)),n)*Math.exp(-delta*delta/(2*sigma*sigma))
+  /(2*sigma*sigma*Math.max(.05,Math.cos(angleDeg*Math.PI/180)));
+}
+
 /** Linear-sRGB reflectance for (entry state, exit state), bilinear in the table. */
 export function reflectance(profile,aIn,aOut){
  const {size,a_max,linear_srgb:t}=profile.lut;
@@ -108,7 +244,7 @@ const UPDATE_FS=`#version 300 es
 precision highp float;
 uniform sampler2D uContent,uState,uDrive,uEq;
 uniform int uMode,uEqN;
-uniform float uVmax,uDt,uTauOnOp,uTauOff,uVth,uVop;
+uniform float uVmax,uDt,uTauOnOp,uTauOff,uVth,uVop,uVscale,uTauScale;
 out vec4 o;
 float eq(float v){
  float x=clamp(v/uVmax,0.0,1.0)*float(uEqN-1);
@@ -119,10 +255,11 @@ void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  int gray=int(floor(texelFetch(uContent,p,0).r*255.0+0.5));
  float v=texelFetch(uDrive,ivec2(gray,uMode),0).r;
- float target=eq(v),a=texelFetch(uState,p,0).r;
+ float ve=v*uVscale;
+ float target=eq(ve),a=texelFetch(uState,p,0).r;
  float tau=uTauOff;
- if(target>a){float over=(v/uVth)*(v/uVth)-1.0;if(over>1e-3)tau=uTauOnOp*((uVop/uVth)*(uVop/uVth)-1.0)/over;}
- o=vec4(target+(a-target)*exp(-uDt/tau),0.0,0.0,1.0);
+ if(target>a){float over=(ve/uVth)*(ve/uVth)-1.0;if(over>1e-3)tau=uTauOnOp*((uVop/uVth)*(uVop/uVth)-1.0)/over;}
+ o=vec4(target+(a-target)*exp(-uDt/(tau*uTauScale)),0.0,0.0,1.0);
 }`;
 
 // Light entering the glass at each point (rank-4 entry vector), stored
@@ -160,7 +297,13 @@ const DISPLAY_FS=`#version 300 es
 precision highp float;
 uniform sampler2D uState,uField,uExitLut;
 uniform vec2 uSize,uMean;uniform float uAmax,uN,uExposure;uniform vec4 uLo,uSpan;
+uniform float uPxPerMm,uGlareSigma,uGlareNorm,uFront;uniform vec3 uEye,uLight;
 out vec4 o;
+float fresnel(float ci){
+ float st=sqrt(max(0.0,1.0-ci*ci))/uFront,ct=sqrt(max(0.0,1.0-st*st));
+ float rs=(ci-uFront*ct)/(ci+uFront*ct),rp=(uFront*ci-ct)/(uFront*ci+ct);
+ return 0.5*(rs*rs+rp*rp);
+}
 vec3 toSRGB(vec3 c){c=clamp(c,0.0,1.0);return mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),c));}
 void main(){
  vec2 p=gl_FragCoord.xy;
@@ -169,7 +312,12 @@ void main(){
  float x=(clamp(aOut/uAmax,0.0,1.0)*(uN-1.0)+0.5)/uN;
  vec3 r=vec3(dot(e,texture(uExitLut,vec2(x,0.5/3.0))),dot(e,texture(uExitLut,vec2(x,1.5/3.0))),
   dot(e,texture(uExitLut,vec2(x,2.5/3.0))));
- o=vec4(toSRGB(r*uExposure),1.0);
+ // Front-surface glare: the room light mirrored toward this point's eye ray.
+ vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0);
+ vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
+ float d=acos(clamp(dot(m,uLight),-1.0,1.0));
+ float g=fresnel(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
+ o=vec4(toSRGB((r+vec3(g))*uExposure),1.0);
 }`;
 
 export async function loadProfile(url){
@@ -179,7 +327,7 @@ export async function loadProfile(url){
 }
 
 export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio=2}={}){
- if(!profile?.lut||!profile?.drive)throw new TypeError('A screen profile is required');
+ if(!profile?.oblique||!profile?.drive)throw new TypeError('A screen profile with oblique optics is required');
  if(!(widthMm>0)||!(heightMm>0))throw new TypeError('Panel size must be positive millimetres');
  const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false});
  if(!gl)throw new Error('This browser does not provide WebGL2, which the LCD renderer needs.');
@@ -187,6 +335,7 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
  const ctx=content.getContext('2d');
  let W=0,H=0,pxPerMm=1,last=null,current=0,lost=false,gpu=null,settle=false;
  let mode='static',lighting={angleDeg:30,azimuthDeg:0,sourceDeg:10,exposure:1};
+ let viewing={polarDeg:0,azimuthDeg:0,distanceMm:300},celsius=25,optics=null,opticsKey='';
  const fps={value:0,clock:0,frames:0};
 
  function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
@@ -231,36 +380,43 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,256,2,0,gl.RED,gl.FLOAT,new Float32Array([...d.static_by_gray,...d.analog_by_gray]));
   gl.bindTexture(gl.TEXTURE_2D,gpu.eq);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,n,1,0,gl.RED,gl.FLOAT,new Float32Array(d.a_equilibrium));
-  const F=profile.factor,G=profile.lut.size;
-  if(F.rank!==4)throw new Error('The renderer expects a rank-4 profile factorization');
-  gl.bindTexture(gl.TEXTURE_2D,gpu.entryLut);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,G,1,0,gl.RGBA,gl.FLOAT,new Float32Array(F.entry));
-  const exitRows=new Float32Array(G*3*4);
-  for(let j=0;j<G;j++)for(let c=0;c<3;c++)for(let k=0;k<4;k++)exitRows[(c*G+j)*4+k]=F.exit[(j*3+c)*4+k];
-  gl.bindTexture(gl.TEXTURE_2D,gpu.exitLut);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,G,3,0,gl.RGBA,gl.FLOAT,exitRows);
-  const lo=[0,1,2,3].map(k=>Math.min(...Array.from({length:G},(_,i)=>F.entry[i*4+k])));
-  const hi=[0,1,2,3].map(k=>Math.max(...Array.from({length:G},(_,i)=>F.entry[i*4+k])));
-  gpu.lo=lo;gpu.span=hi.map((h,k)=>Math.max(1e-9,h-lo[k]));
+  opticsKey='';
   if(W&&H)allocate();
  }
  function allocate(){
   for(const s of [...gpu.states,...gpu.fields]){gl.deleteFramebuffer(s.fb);gl.deleteTexture(s.tex);}
   gpu.states=[target(W,H,gpu.fmt),target(W,H,gpu.fmt)];
   gpu.fields=[target(W,H,gpu.fieldFmt),target(W,H,gpu.fieldFmt)];
-  // New textures have no history: let the crystal settle to the current image.
-  settle=true;
   for(const f of gpu.fields){gl.bindTexture(gl.TEXTURE_2D,f.tex);
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);}
   gl.bindTexture(gl.TEXTURE_2D,gpu.content);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,W,H,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
   reset();
+  // New textures have no history: let the crystal settle to the current image.
+  settle=true;
  }
  function reset(){
   if(!gpu||lost)return;
   gl.clearColor(0,0,0,0);
   for(const s of gpu.states){gl.bindFramebuffer(gl.FRAMEBUFFER,s.fb);gl.clear(gl.COLOR_BUFFER_BIT);}
-  gl.bindFramebuffer(gl.FRAMEBUFFER,null);last=null;
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);last=null;settle=false;   // an explicit reset starts blank
+ }
+ // Rebuild the separable optics when the light or the eye moves.
+ function updateOptics(){
+  const key=[lighting.angleDeg,lighting.azimuthDeg,viewing.polarDeg,viewing.azimuthDeg,celsius].map(v=>v.toFixed(2)).join();
+  if(key===opticsKey&&optics)return;
+  opticsKey=key;
+  optics=obliqueOptics(profile,{polarDeg:lighting.angleDeg,azimuthDeg:lighting.azimuthDeg},viewing,celsius);
+  const A=optics.size;
+  gl.bindTexture(gl.TEXTURE_2D,gpu.entryLut);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,A,1,0,gl.RGBA,gl.FLOAT,optics.entry);
+  const rows=new Float32Array(A*3*4);
+  for(let j=0;j<A;j++)for(let c=0;c<3;c++)for(let k=0;k<4;k++)rows[(c*A+j)*4+k]=optics.exit[(j*3+c)*4+k];
+  gl.bindTexture(gl.TEXTURE_2D,gpu.exitLut);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA16F,A,3,0,gl.RGBA,gl.FLOAT,rows);
+  const lo=[0,1,2,3].map(k=>Math.min(...Array.from({length:A},(_,i)=>optics.entry[i*4+k])));
+  const hi=[0,1,2,3].map(k=>Math.max(...Array.from({length:A},(_,i)=>optics.entry[i*4+k])));
+  gpu.lo=lo;gpu.span=hi.map((h,k)=>Math.max(1e-9,h-lo[k]));
  }
  function bind(p,unit,name,tex){gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(p.u(name),unit);}
  function run(p,fb,setup){gl.bindFramebuffer(gl.FRAMEBUFFER,fb);gl.viewport(0,0,W,H);gl.useProgram(p.p);setup(p);
@@ -290,13 +446,20 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
    gl.uniform1f(p.u('uVmax'),d.voltages[d.voltages.length-1]);gl.uniform1f(p.u('uDt'),dt);
    gl.uniform1f(p.u('uTauOnOp'),dyn.tau_on_at_Vop_ms);gl.uniform1f(p.u('uTauOff'),dyn.tau_off_ms);
    gl.uniform1f(p.u('uVth'),dyn.Vth);gl.uniform1f(p.u('uVop'),dyn.Vop);
+   const tf=temperatureFactors(profile,celsius);
+   gl.uniform1f(p.u('uVscale'),tf.voltageScale);gl.uniform1f(p.u('uTauScale'),tf.tauScale);
   });
   current=1-current;
+  updateOptics();
   const k=shadowKernel(profile,lighting);
+  // Light enters where it meets the crystal on the way in, and leaves where the
+  // eye's ray meets it: the shadow offset is the difference of the two.
+  const toView=entryOffsetMm(profile,viewing.polarDeg,viewing.azimuthDeg);
+  k.mean={x:k.mean.x-toView.x,y:k.mean.y-toView.y};
   const lo=gpu.lo,span=gpu.span;
   run(gpu.entry,gpu.fields[0].fb,p=>{
    bind(p,0,'uState',to.tex);bind(p,1,'uEntryLut',gpu.entryLut);
-   gl.uniform1f(p.u('uAmax'),profile.lut.a_max);gl.uniform1f(p.u('uN'),profile.lut.size);
+   gl.uniform1f(p.u('uAmax'),optics.aMax);gl.uniform1f(p.u('uN'),optics.size);
    gl.uniform4fv(p.u('uLo'),lo);gl.uniform4fv(p.u('uSpan'),span);
   });
   // Screen y runs down; texture rows run up.
@@ -310,9 +473,17 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   run(gpu.display,null,p=>{
    bind(p,0,'uState',to.tex);bind(p,1,'uField',gpu.fields[0].tex);bind(p,2,'uExitLut',gpu.exitLut);
    gl.uniform2f(p.u('uSize'),W,H);gl.uniform2f(p.u('uMean'),k.mean.x*pxPerMm,-k.mean.y*pxPerMm);
-   gl.uniform1f(p.u('uAmax'),profile.lut.a_max);gl.uniform1f(p.u('uN'),profile.lut.size);
+   gl.uniform1f(p.u('uAmax'),optics.aMax);gl.uniform1f(p.u('uN'),optics.size);
    gl.uniform1f(p.u('uExposure'),lighting.exposure);
    gl.uniform4fv(p.u('uLo'),lo);gl.uniform4fv(p.u('uSpan'),span);
+   // Eye position in panel millimetres (screen axes, z out of the glass).
+   const e=directionVector(viewing.polarDeg,viewing.azimuthDeg),D=viewing.distanceMm;
+   gl.uniform3f(p.u('uEye'),W/pxPerMm/2+e[0]*D,H/pxPerMm/2+e[1]*D,e[2]*D);
+   gl.uniform3fv(p.u('uLight'),directionVector(lighting.angleDeg,lighting.azimuthDeg));
+   const sigma=Math.max(.5,lighting.sourceDeg)/(2*Math.sqrt(2*Math.LN2))*Math.PI/180;
+   gl.uniform1f(p.u('uGlareSigma'),sigma);
+   gl.uniform1f(p.u('uGlareNorm'),1/(2*sigma*sigma*Math.max(.05,Math.cos(lighting.angleDeg*Math.PI/180))));
+   gl.uniform1f(p.u('uFront'),profile.oblique.front_index??1.5);gl.uniform1f(p.u('uPxPerMm'),pxPerMm);
   });
  }
 
@@ -350,6 +521,11 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   setMode(next){if(next!=='static'&&next!=='analog')throw new RangeError('Drive mode must be static or analog');mode=next;},
   get lighting(){return {...lighting};},
   setLighting(next){lighting={...lighting,...next};},
+  get viewing(){return {...viewing};},
+  setViewing(next){viewing={...viewing,...next};},
+  get temperature(){return celsius;},
+  setTemperature(c){celsius=Number(c);},
+  get opticsError(){return optics?.error??null;},
   info(){return {version:PHYSICAL_LCD_VERSION,stateFormat:gpu?.fmt.name??'none',fieldFormat:gpu?.fieldFmt.name??'none',width:W,height:H,pxPerMm,fps:fps.value,mode};},
   dispose(){canvas.removeEventListener('webglcontextlost',onLost);canvas.removeEventListener('webglcontextrestored',onRestored);}
  });

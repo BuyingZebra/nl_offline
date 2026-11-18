@@ -4,7 +4,7 @@ import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.3.0';
+export const APP_VERSION='0.4.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -140,6 +140,74 @@ for(const [key,label,min,max,step,format] of LIGHT){
  input.addEventListener('input',()=>{lcd.setLighting({[key]:Number(input.value)});out.textContent=format(Number(input.value));});
  row.append(name,input,out);lightBox.append(row);
 }
+const DIRECTION=v=>['top','top right','right','bottom right','bottom','bottom left','left','top left'][Math.round(v/45)%8]+' ('+Math.round(v)+'°)';
+function sliderRows(box,rows,get,set){
+ const outputs={};
+ for(const [key,label,min,max,step,format] of rows){
+  const row=document.createElement('label');row.className='row';
+  const name=document.createElement('span');name.textContent=label;
+  const input=Object.assign(document.createElement('input'),{type:'range',min,max,step,value:get()[key]});
+  const out=document.createElement('output');out.textContent=format(Number(input.value));
+  input.addEventListener('input',()=>{set({[key]:Number(input.value)});out.textContent=format(Number(input.value));});
+  row.append(name,input,out);box.append(row);outputs[key]={input,out,format};
+ }
+ return outputs;
+}
+const viewControls=sliderRows($('viewing'),[
+ ['polarDeg','Your viewing angle',0,80,1,v=>v+'° from straight on'],
+ ['azimuthDeg','Viewing from',0,359,1,DIRECTION],
+ ['distanceMm','Eye distance',150,600,10,v=>v+' mm']
+],()=>lcd.viewing,next=>lcd.setViewing(next));
+sliderRows($('environment'),[
+ ['celsius','Panel temperature',15,40,1,v=>v+' °C']
+],()=>({celsius:lcd.temperature}),next=>lcd.setTemperature(next.celsius));
+
+/* Phone tilt: the eye and the room light stay fixed in the room while the panel
+ * turns, so both directions change relative to the glass. */
+function rotation(alpha,beta,gamma){
+ const r=Math.PI/180,[a,b,g]=[alpha*r,beta*r,gamma*r];
+ const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b),cg=Math.cos(g),sg=Math.sin(g);
+ // W3C device orientation: R = Rz(alpha) Rx(beta) Ry(gamma), device -> earth.
+ return [[ca*cg-sa*sb*sg,-cb*sa,ca*sg+cg*sa*sb],[cg*sa+ca*sb*sg,ca*cb,sa*sg-ca*cg*sb],[-cb*sg,sb,cb*cg]];
+}
+const mul=(m,v)=>m.map(row=>row[0]*v[0]+row[1]*v[1]+row[2]*v[2]);
+const transpose=m=>m[0].map((_,i)=>m.map(row=>row[i]));
+const screenToDevice=([x,y,z])=>[x,-y,z],deviceToScreen=([x,y,z])=>[x,-y,z];
+const toVector=(polar,azimuth)=>{const t=polar*Math.PI/180,a=azimuth*Math.PI/180;return [Math.sin(t)*Math.sin(a),-Math.sin(t)*Math.cos(a),Math.cos(t)];};
+const toAngles=([x,y,z])=>({polarDeg:Math.acos(Math.max(-1,Math.min(1,z)))*180/Math.PI,azimuthDeg:((Math.atan2(x,-y)*180/Math.PI)+360)%360});
+let tilt=null;
+function onOrientation(e){
+ if(e.alpha===null||e.beta===null||e.gamma===null)return;
+ const R=rotation(e.alpha,e.beta,e.gamma);
+ if(!tilt.reference){
+  tilt.reference=R;
+  tilt.eye=mul(R,screenToDevice(toVector(lcd.viewing.polarDeg,lcd.viewing.azimuthDeg)));
+  tilt.light=mul(R,screenToDevice(toVector(lcd.lighting.angleDeg,lcd.lighting.azimuthDeg)));
+ }
+ const back=transpose(R);
+ const eye=toAngles(deviceToScreen(mul(back,tilt.eye))),light=toAngles(deviceToScreen(mul(back,tilt.light)));
+ // Light from behind the panel cannot reach the front: hold it at grazing.
+ lcd.setViewing({polarDeg:Math.min(80,eye.polarDeg),azimuthDeg:eye.azimuthDeg});
+ lcd.setLighting({angleDeg:Math.min(80,light.polarDeg),azimuthDeg:light.azimuthDeg});
+ $('tiltNote').textContent='Eye '+Math.round(eye.polarDeg)+'° from '+DIRECTION(eye.azimuthDeg)+
+  ' · light '+Math.round(light.polarDeg)+'° from '+DIRECTION(light.azimuthDeg);
+}
+$('tilt').addEventListener('click',async e=>{
+ const button=e.currentTarget;
+ if(tilt){window.removeEventListener('deviceorientation',onOrientation);tilt=null;
+  button.setAttribute('aria-pressed','false');button.textContent='Use phone tilt';$('tiltNote').textContent='';return;}
+ try{
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+   if(await DeviceOrientationEvent.requestPermission()!=='granted')throw new Error('Motion access was not allowed.');
+  }
+  if(typeof DeviceOrientationEvent==='undefined')throw new Error('This device does not report its tilt.');
+  tilt={reference:null};
+  window.addEventListener('deviceorientation',onOrientation);
+  button.setAttribute('aria-pressed','true');button.textContent='Stop phone tilt';
+  $('tiltNote').textContent='Hold the phone where you like and tilt it. The starting position counts as the sliders above.';
+ }catch(error){$('tiltNote').textContent=error.message;}
+});
+
 $('pause').addEventListener('click',e=>{paused=!paused;e.currentTarget.textContent=paused?'Resume':'Pause';});
 $('reset').addEventListener('click',()=>lcd.reset());
 $('toggleControls').addEventListener('click',e=>{
@@ -160,7 +228,11 @@ const facts=[
  ['Unlit colour (computed)',der.color_off_hex],
  ['Front-surface reflection',(der.front_surface_reflectance*100).toFixed(1)+'%, solved to match the datasheet contrast'],
  ['Rear glass',src.geometry.glass_mm+' mm, inferred from panel depth'],
- ['Pretilt (assumed)',src.geometry.pretilt_deg+'°, typical value']
+ ['Pretilt (assumed)',src.geometry.pretilt_deg+'°, typical value'],
+ ['Viewing cone (computed)',(()=>{const c=P.oblique.viewing_cone_CR2_deg;return 'contrast ≥ 2 to '+c.bottom+'° below, '+c.top+'° above, '+c.left+'° sides';})()],
+ ['Viewing cone (datasheet)','70° below, 35° above, 70° sides'],
+ ['Glare','glossy front surface, Fresnel n = '+P.oblique.front_index+' (assumed untreated polarizer)'],
+ ['Temperature','15–40 °C from measured E7 viscosity (Merck) and refractive indices (Li, Wu et al.)']
 ];
 const dl=$('facts');
 for(const [k,v] of facts){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd);}

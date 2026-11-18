@@ -29,7 +29,12 @@ A real light has size, so light reaches each exit point through many entry point
 | Liquid crystal | E7: K11 11.7, K22 6.8, K33 17.8 pN; ε∥ 19.5, ε⊥ 5.2 | As quoted in arXiv:2003.09706 (Merck; Raynes et al.) |
 | Refractive-index dispersion | Cauchy coefficients, 25 °C | Li, Wu et al., J. Appl. Phys. 97, 073501 (2005) |
 | Polarizer | Orient Display TP018 reflective: single 44.3%, parallel 38.1%, crossed 1.409%, CIELAB hues, reflectance 36.3% | Orient Display polarizer table |
-| Cell design | 90° twist, first transmission maximum | Gooch & Tarry, J. Phys. D 8, 1575 (1975) |
+| Cell design | 90° twist, first transmission maximum | Gooch & Tarry, J. Phys. D 8, 1575 (1975); chosen over the second maximum by the datasheet viewing cone (below) |
+| Viewing cone | Contrast ≥ 2 to 70° below, 35° above, 70° to the sides | VI-402 datasheet |
+| Oblique optics | Extended Jones matrices | Lien, Appl. Phys. Lett. 57, 2767 (1990) |
+| Front surface | Fresnel reflection at n = 1.5 (about 4%; an untreated polarizer reflects "about 5%") | displaymodule.com polarizer surface treatments |
+| Viscosity vs temperature | E7 γ1: 422, 224, 126, 74 mPa·s at 10, 20, 30, 40 °C | Merck data, tabulated in koreascience.kr JAKO201136151481811 |
+| Refractive index vs temperature | Cauchy coefficients, 15–50 °C | Li, Wu et al. (2005), Table I |
 | Rear glass | 1.1 mm | Standard option (0.4/0.55/0.7/1.1 mm); 1.1 mm inferred from the VI-402's 2.80 mm depth |
 | Colour | CIE 1931 2° observer, CIE D65 | colour-science datasets |
 
@@ -49,10 +54,19 @@ A real light has size, so light reaches each exit point through many entry point
 - **Refractive indices:** glass 1.52, polarizer film 1.50.
 - **Liquid crystal:** E7 stands in for the panel's proprietary mixture.
 
+**Viewing angle.** Each pass through the crystal is computed for its own direction with extended Jones matrices: the light's pass for the light direction, the eye's pass for the eye direction. Off-axis the panel loses contrast, and partly switched areas shift toward yellow or blue, as on real TN panels. Tilting the phone moves both directions relative to the glass, because the eye and the room light stay fixed in the room. The rear polarizer sits between the two passes, so the double pass is computed as a product per wavelength, within 1.9% of the exact double pass at normal incidence.
+
+Light measured from the viewing direction, as for a reflective panel, gives contrast ≥ 2 to 75° below, 50° above and 65° to the sides. The datasheet gives 70°, 35° and 70°. The second-maximum design gave 70°, 30° and 45°, a worse total fit, so the first maximum is kept. The remaining difference on the weak side (50° vs 35°) is a known gap. E7 stands in for the panel's own liquid crystal, and the pretilt is assumed.
+
+**Glare.** The front surface is treated as a glossy, untreated polarizer: the room light's mirror image at Fresnel reflectance, from an eye 300 mm away by default. With a large light in the mirror direction the panel washes out, because a 4% reflection of a lamp is brighter than white paper under the same lamp. The liquid-crystal pass uses the eye direction at the panel's centre; only the glare varies across the panel.
+
+**Temperature, 15–40 °C** (where the viscosity and refractive-index data overlap). Response times scale with γ1/K. Elastic constants scale as S² and the threshold as √S, with the order parameter S following the measured birefringence. The optics use the refractive indices measured at each temperature, so the unlit colour shifts too (ΔE ≈ 8 between 15 and 40 °C). From 15 °C to 40 °C the crystal goes from 1.6× slower to 0.58× faster than at 25 °C.
+
 **Not modelled, because there is no data for it:**
-- viewing-angle changes (the viewer is assumed straight on)
-- temperature
-- ionic image retention
+- **Ionic image retention (burn-in).** The only measurements found are for TFT panels, with fitted time constants.
+- **Matte anti-glare haze.** No haze or gloss values were found, so the surface is treated as glossy, a real untreated option.
+- **Reflector texture.** No measurements were found for the grain of the reflector film.
+- **Per-point eye direction in the crystal optics.** At 300 mm the angle changes by about ±9° across the panel; only the glare uses it.
 
 ## Drive modes
 
@@ -63,7 +77,7 @@ A real light has size, so light reaches each exit point through many entry point
 
 - `physical-lcd.js`: the renderer (WebGL2, no dependencies). It loads a profile and does drive, relaxation and double-pass optics. The pure model functions are exported, and the shaders mirror them.
 - `profiles/reflective-tn.json`: the computed profile: tables, sources and derived values.
-- `tools/reflective_tn.py`: regenerates the profile from first principles (NumPy and SciPy, about 90 s). `tools/cie-1931-d65.json` holds the colour tables it uses.
+- `tools/reflective_tn.py`: regenerates the profile from first principles (NumPy and SciPy, about 2 minutes). Set `TN_DESIGN=second` to compute the second-maximum design. `tools/cie-1931-d65.json` holds the colour tables it uses.
 - `tn-demo.js`, `index.html`: the Tetris screen test.
 - `concept.html`, `demo.js`, `vector-lcd.js`: the earlier hand-tuned concept model. Its values were chosen by hand rather than measured or derived.
 

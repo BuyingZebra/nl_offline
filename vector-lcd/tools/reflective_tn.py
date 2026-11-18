@@ -62,7 +62,10 @@ SOURCES = {
   "twist_deg": 90,
   "pretilt_deg": 2.0,
   "pretilt_note": "assumed typical rubbed-polyimide value; not in the datasheet",
-  "design": "first transmission maximum, Gooch & Tarry (J. Phys. D 8, 1575, 1975): 2 d dn / lambda = sqrt(3) at 550 nm",
+  "design": "Gooch & Tarry (J. Phys. D 8, 1575, 1975) transmission maximum at 550 nm: first (2 d dn / lambda = sqrt 3) or second (sqrt 15); chosen by which reproduces the datasheet viewing cone (see derived)",
+  "design_comparison_cone_CR2_deg": {"datasheet": {"bottom": 70, "top": 35, "left": 70, "right": 70},
+    "first_maximum": {"bottom": 75, "top": 50, "left": 65, "right": 65},
+    "second_maximum": {"bottom": 70, "top": 30, "left": 45, "right": 45}},
   "glass_mm": 1.1,
   "glass_note": "standard ITO glass option (0.4/0.55/0.7/1.1 mm, santechnology.com); 1.1 mm inferred from the VI-402's 2.80 mm depth",
   "rear_polarizer_mm": 0.18,
@@ -87,7 +90,12 @@ c = LC["cauchy_25C"]
 NE = c["Ae"] + c["Be_um2"] / lam_um**2 + c["Ce_um4"] / lam_um**4
 NO = c["Ao"] + c["Bo_um2"] / lam_um**2 + c["Co_um4"] / lam_um**4
 dn550 = float(np.interp(550, WL, NE - NO))
-CELL_GAP_UM = math.sqrt(3) * 0.550 / (2 * dn550)
+# Both standard designs were computed against the datasheet cone (bottom 70,
+# top 35, sides 70; contrast >= 2): first maximum gave 75/50/65/65 (total
+# miss 30 deg), second gave 70/30/45/45 (55 deg). The first is kept.
+DESIGN = os.environ.get("TN_DESIGN", "first")
+U_DESIGN = {"first": math.sqrt(3), "second": math.sqrt(15)}[DESIGN]
+CELL_GAP_UM = U_DESIGN * 0.550 / (2 * dn550)
 
 k11, k22, k33 = (LC[k] * 1e-12 / K_REF for k in ("K11_pN", "K22_pN", "K33_pN"))
 EPAR, EPERP = LC["eps_parallel"], LC["eps_perpendicular"]
@@ -246,6 +254,172 @@ for code in range(256):
     analog.append(float(np.interp(target, Y_of_V[mask][::-1], V_GRID[mask][::-1])))
     static.append(V_op if L < 0.5 else 0.0)
 
+
+# ---------------------------------------------------------------------------
+# 8. Oblique light and viewing (extended Jones matrices, Lien, Appl. Phys.
+#    Lett. 57, 2767 (1990)). Each pass is computed for light arriving from a
+#    direction (polar angle from the normal, azimuth 0 = from the top,
+#    clockwise). The rear polarizer sits between the two passes, so the double
+#    pass is very nearly a product per wavelength (checked below):
+#        R(lambda) = 2 * R_reflector * T(lambda; a_in, light) * T(lambda; a_out, view)
+#    where T is the single-pass transmission for unpolarized light and "view"
+#    means light arriving from the viewer's direction (reciprocity).
+# ---------------------------------------------------------------------------
+import base64
+r6 = lambda v: float("%.6g" % v)
+SOURCES["obliquity"] = {
+ "method": "extended Jones matrices (Lien 1990); polarizers as dichroic absorbers with transmitted field along k x absorption axis",
+ "front_surface_index": 1.5,
+ "front_surface_note": "Fresnel loss at the front surface relative to normal incidence; an untreated polarizer reflects about 5% (displaymodule.com), consistent with n = 1.5",
+ "viscosity_vs_temperature": {"temps_C": [10, 20, 30, 40], "gamma1_mPa_s": [422, 224, 126, 74],
+   "ref": "E7 rotational viscosity, experimental values supplied by Merck Korea, as tabulated in koreascience.kr JAKO201136151481811 (Table 2)"},
+ "temperature_scaling": "elastic constants scale as S^2 and dielectric anisotropy as S (mean-field), with order parameter S proportional to birefringence; birefringence from the Li-Wu Cauchy table at each temperature"
+}
+LAM_O = np.arange(400.0, 701.0, 10.0); lo = LAM_O / 1000
+sel = np.array([int(np.argmin(abs(WL - l))) for l in LAM_O])
+W_O = (CMF[sel] * D65[sel, None]) / np.sum(CMF[sel, 1] * D65[sel])
+RGBW_O = (M_SRGB @ W_O.T)                                  # (3, L): linear sRGB weights
+NE_O, NO_O = NE[sel], NO[sel]
+K1_O, K2_O = K1[sel], K2[sel]
+GRID_O = 25
+A_O = np.linspace(0, A_MAX, GRID_O)
+PROF_O = [profile_at(a) for a in A_O]
+TH = np.array([0.5 * (unpack(p)[0][1:] + unpack(p)[0][:-1]) for p in PROF_O])   # (A, layers)
+PH = np.array([0.5 * (unpack(p)[1][1:] + unpack(p)[1][:-1]) for p in PROF_O])
+DZ = H * CELL_GAP_UM
+N_FRONT = 1.5
+
+def fresnel_t(theta):
+    ci = math.cos(theta); st = math.sin(theta) / N_FRONT; ct = math.sqrt(1 - st * st)
+    rs = (ci - N_FRONT * ct) / (ci + N_FRONT * ct); rp = (N_FRONT * ci - ct) / (N_FRONT * ci + ct)
+    return 1 - 0.5 * (rs * rs + rp * rp)
+def fresnel_r(theta):
+    return 1 - fresnel_t(theta)
+
+def single_pass(polar_deg, azimuth_deg, psi, th=TH, ph=PH, ne=NE_O, no=NO_O):
+    """Unpolarized transmission front polarizer -> LC -> rear polarizer, (A, L)."""
+    s = math.sin(math.radians(polar_deg))
+    az = math.radians(azimuth_deg)
+    src = np.array([math.sin(az), -math.cos(az)])           # toward the source, screen axes (y down)
+    prop = -src * s                                          # transverse propagation
+    phi_k = math.atan2(prop[1], prop[0]) if s > 1e-9 else 0.0
+    rot = lambda ang: ang + psi - phi_k                      # lab azimuth -> incidence-plane frame
+    def polarizer(trans_az):                                 # transmission axis azimuth (lab)
+        a = np.array([math.cos(rot(trans_az) + math.pi / 2), math.sin(rot(trans_az) + math.pi / 2), 0.0])
+        kz = math.sqrt(N_FRONT**2 - s * s)
+        k = np.array([s, 0.0, kz]) / N_FRONT
+        t = np.cross(k, a); t /= np.linalg.norm(t)
+        u = np.cross(k, t); u /= np.linalg.norm(u)
+        B = np.array([[t[0], u[0]], [t[1], u[1]]]); Bi = np.linalg.inv(B)
+        P = np.zeros((len(LAM_O), 2, 2), complex)
+        for li in range(len(LAM_O)):
+            P[li] = B @ np.diag([math.sqrt(K1_O[li]), math.sqrt(K2_O[li])]) @ Bi
+        return P
+    P1 = polarizer(0.0); P2 = polarizer(TWIST)
+    nA = th.shape[0]
+    J = np.broadcast_to(np.eye(2, dtype=complex), (nA, len(LAM_O), 2, 2)).copy()
+    d = ne**2 - no**2                                        # (L,)
+    for l in range(th.shape[1]):
+        t, p = th[:, l][:, None], rot(ph[:, l])[:, None]     # (A,1)
+        cx, cy, cz = np.cos(t) * np.cos(p), np.cos(t) * np.sin(p), np.sin(t) * np.ones_like(p)
+        exx = no**2 + d * cx**2; exz = d * cx * cz; ezz = no**2 + d * cz**2     # (A, L)
+        koz = np.sqrt(no**2 - s * s) * np.ones_like(exx)
+        kez = (-exz * s + np.sqrt(exz**2 * s * s - ezz * (exx * s * s - no**2 * ne**2))) / ezz
+        c = np.stack(np.broadcast_arrays(cx, cy, cz), -1)  # (A, L, 3)
+        def unit(v):
+            n = np.linalg.norm(v, axis=-1, keepdims=True); return v / np.maximum(n, 1e-12)
+        ko = np.stack(np.broadcast_arrays(s * np.ones_like(koz), 0 * koz, koz), -1)
+        ke = np.stack(np.broadcast_arrays(s * np.ones_like(kez), 0 * kez, kez), -1)
+        Eo = np.cross(ko, c)
+        small = np.linalg.norm(Eo, axis=-1) < 1e-9
+        Eo[small] = np.array([0.0, 1.0, 0.0])
+        Eo = unit(Eo)
+        De = unit(np.cross(np.cross(ke, c), ke))
+        cdotD = np.sum(c * De, -1, keepdims=True)
+        Ee = De / no[None, :, None]**2 + (1 / ne[None, :, None]**2 - 1 / no[None, :, None]**2) * cdotD * c
+        Ee = unit(Ee)
+        S = np.stack([np.stack([Ee[..., 0], Eo[..., 0]], -1), np.stack([Ee[..., 1], Eo[..., 1]], -1)], -2)
+        k0 = 2 * np.pi / lo
+        D = np.zeros_like(S, dtype=complex)
+        D[..., 0, 0] = np.exp(1j * k0 * kez * DZ); D[..., 1, 1] = np.exp(1j * k0 * koz * DZ)
+        J = S @ D @ np.linalg.inv(S) @ J
+    T = 0.5 * np.sum(np.abs(P2[None] @ J @ P1[None])**2, axis=(-1, -2))
+    return T * fresnel_t(math.radians(polar_deg)) / fresnel_t(0.0)
+
+# Orientation: rotate the cell so the mid-plane director lies vertical, and pick
+# the sense that matches the datasheet's 6 o'clock viewing direction.
+R_SURF_TMP = R_SURFACE
+def cone_same(psi, azimuth):
+    last = 0; i_on = int(round(A_OP / A_MAX * (GRID_O - 1)))
+    for polar in range(0, 81, 5):
+        Tv = single_pass(polar, azimuth, psi)
+        cr = (2 * R_REFLECTOR * float(W_O[:, 1] @ (Tv[0] * Tv[0])) + R_SURF_TMP) / (2 * R_REFLECTOR * float(W_O[:, 1] @ (Tv[i_on] * Tv[i_on])) + R_SURF_TMP)
+        if cr < 2: return last
+        last = polar
+    return 80
+# Datasheet cones are for a reflective panel, so light and eye share a direction.
+cones_same = {d: {k: cone_same(math.radians(d), a) for k, a in (("top", 0), ("right", 90), ("bottom", 180), ("left", 270))} for d in (45, 225)}
+print("design", DESIGN, "gap", CELL_GAP_UM, "viewing cones (CR>=2, light from the viewing direction):", cones_same)
+PSI_DEG = 45 if cones_same[45]["bottom"] >= cones_same[45]["top"] else 225   # 6 o'clock: wide from below
+cones = cones_same
+PSI = math.radians(PSI_DEG)
+
+POLARS = [0] + list(range(10, 81, 10)); AZS = list(range(0, 360, 45))
+cauchy_T = {15: (1.7055, .0087, .0028, 1.5006, .0065, .0004), 20: (1.6993, .0085, .0027, 1.4998, .0067, .0004),
+            25: (1.6933, .0078, .0028, 1.4994, .0070, .0004), 30: (1.6846, .0090, .0025, 1.4989, .0072, .0004),
+            35: (1.6761, .0091, .0025, 1.4987, .0071, .0004), 40: (1.6662, .0091, .0024, 1.5033, .0049, .0008)}
+DIRS = [(0, 0)] + [(p, a) for p in POLARS[1:] for a in AZS]
+TABLE_TEMPS = [15, 25, 40]
+def indices_at(T):
+    Ae, Be, Ce, Ao, Bo, Co = cauchy_T[T]
+    return Ae + Be / lo**2 + Ce / lo**4, Ao + Bo / lo**2 + Co / lo**4
+TABLES = []
+for Tc in TABLE_TEMPS:
+    ne_T, no_T = indices_at(Tc)
+    TABLES.append([single_pass(p, a, PSI, ne=ne_T, no=no_T) for p, a in DIRS])
+TABLE_ALL = np.array(TABLES, dtype=np.float32)        # (temps, dirs, A, L)
+TABLE = TABLE_ALL[TABLE_TEMPS.index(25)]
+
+# Check the product model against the exact double pass at normal incidence.
+T0 = TABLE[0]
+prod_xyz = np.einsum("il,jl,lc->ijc", T0, T0, W_O) * 2 * R_REFLECTOR
+exact_idx = [int(round(a / A_MAX * (GRID - 1))) for a in A_O]
+exact_xyz = xyz[np.ix_(exact_idx, exact_idx)]
+PRODUCT_ERR = float(np.max(np.abs(prod_xyz[..., 1] - exact_xyz[..., 1])) / np.max(exact_xyz[..., 1]))
+# Recalibrate on the product model so the runtime and the datasheet agree exactly.
+Y0 = float(prod_xyz[0, 0, 1]); i_on = int(np.argmin(abs(A_O - A_OP)))
+Yon = float(np.interp(A_OP, A_O, np.diagonal(prod_xyz[..., 1])))
+R_SURFACE = max(0.0, (Y0 - CR_TARGET * Yon) / (CR_TARGET - 1))
+Ydiag_O = np.diagonal(prod_xyz[..., 1]) + R_SURFACE
+on_c = np.interp(A_OP * (1 - np.exp(-ts)), A_O, Ydiag_O); off_c = np.interp(A_OP * np.exp(-ts), A_O, Ydiag_O)
+TAU_ON_OP = PANEL["rise_ms_typ"] / ten_ninety(on_c); TAU_OFF = PANEL["decay_ms_typ"] / ten_ninety(off_c)
+Y_of_V = np.interp(np.interp(V_GRID, V_GRID, curve), A_O, Ydiag_O)
+Yb, Yd = float(Y_of_V[0]), float(np.interp(V_op, V_GRID, Y_of_V))
+analog = [float(np.interp(Yd + (Yb - Yd) * srgb_decode(code / 255), Y_of_V[mask][::-1], V_GRID[mask][::-1])) for code in range(256)]
+cones_final = cones[PSI_DEG]
+
+# Temperature (15-40 C: where the viscosity and refractive-index data overlap).
+TEMPS = [15, 20, 25, 30, 35, 40]
+def dn_at(T, l=0.55):
+    Ae, Be, Ce, Ao, Bo, Co = cauchy_T[T]
+    return (Ae + Be / l**2 + Ce / l**4) - (Ao + Bo / l**2 + Co / l**4)
+gT = SOURCES["obliquity"]["viscosity_vs_temperature"]
+inv = 1 / (np.array(gT["temps_C"]) + 273.15); slope, icpt = np.polyfit(inv, np.log(gT["gamma1_mPa_s"]), 1)
+gamma = lambda T: math.exp(icpt + slope / (T + 273.15))
+S_ratio = [dn_at(T) / dn_at(25) for T in TEMPS]
+temperature = {"temps_C": TEMPS, "order_ratio": [r6(v) for v in S_ratio],
+ "tau_scale": [r6((gamma(T) / gamma(25)) / (S_ratio[i]**2)) for i, T in enumerate(TEMPS)],
+ "voltage_scale": [r6(math.sqrt(1 / S_ratio[i])) for i in range(len(TEMPS))],
+ "arrhenius_activation_eV": r6(slope * 8.617333e-5)}
+# Optical effect of birefringence change alone at normal incidence (reported).
+def offcolor(T):
+    sc = dn_at(T) / dn_at(25)
+    Tt = single_pass(0, 0, PSI, ne=NO_O + (NE_O - NO_O) * sc)
+    return lab(2 * R_REFLECTOR * (W_O.T @ (Tt[0] * Tt[0])) + R_SURFACE * WHITE)
+TEMP_DE = float(np.linalg.norm(offcolor(15) - offcolor(40)))
+temperature["unlit_colour_change_deltaE_15_to_40C"] = r6(TEMP_DE)
+print("product model error", PRODUCT_ERR, "temp dE", TEMP_DE, "tau scale", temperature["tau_scale"])
+
 to_hex = lambda v: "#" + "".join("%02x" % round(255 * (12.92 * c if c <= 0.0031308 else 1.055 * c**(1 / 2.4) - 0.055)) for c in np.clip(v, 0, 1))
 r6 = lambda v: float("%.6g" % v)
 out = {
@@ -253,13 +427,14 @@ out = {
  "name": "Reflective TN (positive gray, static drive)",
  "sources": SOURCES,
  "derived": {
+  "viewing_cone_CR2_deg": cones_final, "cell_rotation_deg": PSI_DEG,
   "cell_gap_um": r6(CELL_GAP_UM), "dn_550": r6(dn550),
   "Vth_theory_V": r6(VTH), "a_at_Vop": r6(A_OP), "a_max": r6(A_MAX),
   "reflector_reflectance": r6(R_REFLECTOR),
   "polarizer_fit_deltaE": [r6(v) for v in POL_FIT_DE],
   "contrast_simulated_without_surface": r6(CR_SIM),
   "front_surface_reflectance": r6(R_SURFACE),
-  "contrast_final": r6(Y_off / Y_on if R_SURFACE == 0 else (Y_off + R_SURFACE) / (Y_on + R_SURFACE)),
+  "contrast_final": r6((Y0 + R_SURFACE) / (Yon + R_SURFACE)), "product_model_error": r6(PRODUCT_ERR),
   "tau_on_at_Vop_ms": r6(TAU_ON_OP), "tau_off_ms": r6(TAU_OFF),
   "luminance_off": r6(Yb), "luminance_on": r6(Yd),
   "color_off_hex": to_hex(rgb[0, 0]),
@@ -271,7 +446,16 @@ out = {
  "factor": {"rank": RANK, "max_relative_error": r6(FACTOR_ERR),
             "entry": [r6(v) for v in ENTRY.reshape(-1)],
             "exit": [r6(v) for v in EXIT.reshape(-1)]},
- "dynamics": {"tau_on_at_Vop_ms": r6(TAU_ON_OP), "tau_off_ms": r6(TAU_OFF), "Vth": r6(VTH), "Vop": V_op}
+ "dynamics": {"tau_on_at_Vop_ms": r6(TAU_ON_OP), "tau_off_ms": r6(TAU_OFF), "Vth": r6(VTH), "Vop": V_op},
+ "oblique": {"a_grid": [r6(v) for v in A_O], "wavelengths_nm": LAM_O.tolist(),
+   "rgb_weights": [[r6(v) for v in row] for row in RGBW_O], "reflector": r6(R_REFLECTOR),
+   "surface_diffuse": r6(R_SURFACE), "front_index": N_FRONT,
+   "polars_deg": POLARS, "azimuths_deg": AZS, "cell_rotation_deg": PSI_DEG,
+   "table_float32_base64": base64.b64encode(TABLE_ALL.astype("<f4").tobytes()).decode(),
+   "table_shape": list(TABLE_ALL.shape), "table_temps_C": TABLE_TEMPS, "product_model_error": r6(PRODUCT_ERR),
+   "viewing_cone_CR2_deg": cones_final,
+   "viewing_cone_note": "contrast >= 2 with light arriving from the viewing direction (reflective measurement); datasheet typ: bottom 70, top 35, left 70, right 70"},
+ "temperature": temperature
 }
 json.dump(out, open(os.path.join(HERE, "..", "profiles", "reflective-tn.json"), "w"), separators=(",", ":"))
 print(json.dumps(out["derived"], indent=1))

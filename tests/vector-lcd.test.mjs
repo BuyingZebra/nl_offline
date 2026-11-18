@@ -2,7 +2,8 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,shadowKernel,entryVector,reflectanceFromEntry,reflectance,PHYSICAL_LCD_VERSION}
+import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,shadowKernel,entryVector,reflectanceFromEntry,reflectance,PHYSICAL_LCD_VERSION,
+ passTransmission,reflectanceOblique,obliqueOptics,glare,fresnelReflectance,temperatureFactors,directionVector}
  from '../vector-lcd/physical-lcd.js';
 import {ENGINE_VERSION,DEFAULT_PARAMS as P,PARAM_RANGES,normalizeParams,electroOptic,switchingTimeMs,stepToward,
  stepPixel,visibleDarkness,reflectorShadowOffsetMm,shadowVectorMm,multiplexVoltages,srgbToLinear,driveColor}
@@ -188,6 +189,62 @@ describe('Reflective TN profile: physics and datasheet agreement',()=>{
   near(overhead.sigmaRadialMm,overhead.sigmaTangentialMm,1e-3);
   // The shadow's mean moves with the light direction.
   assert.deepEqual(Object.values(big.mean).map(v=>Math.sign(Math.round(v*1e9))),[0,-1]);
+ });
+});
+
+describe('Reflective TN: viewing angle, glare and temperature',()=>{
+ const normal={polarDeg:0,azimuthDeg:0};
+ const aOn=()=>equilibriumState(TN,TN.drive.Vop);
+ const Y=rgb=>luminance(rgb);
+ test('oblique tables cover temperatures, directions, states and wavelengths',()=>{
+  const [nT,nDir,A,L]=TN.oblique.table_shape;
+  assert.deepEqual([nT,A,L],[TN.oblique.table_temps_C.length,TN.oblique.a_grid.length,TN.oblique.wavelengths_nm.length]);
+  assert.equal(nDir,1+(TN.oblique.polars_deg.length-1)*TN.oblique.azimuths_deg.length);
+  assert.equal(passTransmission(TN,0,0).length,A*L);
+ });
+ test('at normal incidence the per-pass product model matches the exact double pass',()=>{
+  assert.ok(TN.oblique.product_model_error<.03,'product error '+TN.oblique.product_model_error);
+  for(const [ai,ao] of [[0,0],[aOn(),aOn()],[.5,.5]])
+   near(Y(reflectanceOblique(TN,ai,ao,normal,normal)),Y(reflectance(TN,ai,ao)),.03*Y(reflectance(TN,0,0)));
+ });
+ test('straight on, the oblique model keeps the datasheet 15:1 contrast',()=>{
+  const cr=Y(reflectanceOblique(TN,0,0,normal,normal))/Y(reflectanceOblique(TN,aOn(),aOn(),normal,normal));
+  assert.ok(Math.abs(cr-15)<.5,'contrast '+cr);
+ });
+ test('contrast falls off-axis, faster from the top than the bottom (a 6 o\'clock panel)',()=>{
+  const cr=az=>{const d={polarDeg:45,azimuthDeg:az};
+   return Y(reflectanceOblique(TN,0,0,d,d))/Y(reflectanceOblique(TN,aOn(),aOn(),d,d));};
+  const straight=Y(reflectanceOblique(TN,0,0,normal,normal))/Y(reflectanceOblique(TN,aOn(),aOn(),normal,normal));
+  assert.ok(cr(0)<straight&&cr(180)<straight);
+  assert.ok(cr(0)<cr(180),'top '+cr(0)+' bottom '+cr(180));
+  const c=TN.oblique.viewing_cone_CR2_deg;
+  assert.ok(c.top<c.bottom,'computed cone narrower at the top');
+  assert.deepEqual(TN.sources.geometry.design_comparison_cone_CR2_deg.datasheet,{bottom:70,top:35,left:70,right:70});
+ });
+ test('runtime separable optics stay within 1% for tilted light and eye',()=>{
+  for(const [l,v] of [[{polarDeg:30,azimuthDeg:315},normal],[{polarDeg:40,azimuthDeg:0},{polarDeg:30,azimuthDeg:180}]]){
+   const o=obliqueOptics(TN,l,v);
+   assert.ok(o.error<.01,'error '+o.error);
+  }
+ });
+ test('glare: Fresnel 4% straight on, peaks in the mirror direction, gone far from it',()=>{
+  near(fresnelReflectance(0),.04,1e-9);
+  assert.ok(fresnelReflectance(1.2)>fresnelReflectance(.3));
+  const light={angleDeg:20,azimuthDeg:0,sourceDeg:20};
+  const mirror=directionVector(20,180),straight=[0,0,1];
+  assert.ok(glare(TN,mirror,light)>glare(TN,straight,light));
+  assert.ok(glare(TN,directionVector(60,90),light)<1e-6);
+  // A wider light spreads the same reflection over more angles: lower peak.
+  assert.ok(glare(TN,mirror,{...light,sourceDeg:40})<glare(TN,mirror,light));
+ });
+ test('temperature: measured viscosity slows the crystal when cold and speeds it when warm',()=>{
+  near(temperatureFactors(TN,25).tauScale,1,1e-9);
+  assert.ok(temperatureFactors(TN,15).tauScale>1.4&&temperatureFactors(TN,40).tauScale<.7);
+  const step=c=>stepState(TN,0,TN.drive.Vop,20,c);
+  assert.ok(step(15)<step(25)&&step(25)<step(40));
+  // Birefringence changes the optics too.
+  const a=passTransmission(TN,0,0,15),b=passTransmission(TN,0,0,40);
+  assert.ok(a.some((v,i)=>Math.abs(v-b[i])>.01));
  });
 });
 
