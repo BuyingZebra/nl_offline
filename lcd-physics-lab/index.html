@@ -57,7 +57,8 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
  <div><label for="view">RENDERING</label><select id="view">
   <option value="cellless">Shape-driven with aperture fringes</option>
   <option value="flat">Previous cell-less (no aperture fringes)</option>
-  <option value="shadow">Reflector overlap geometry · diagnostic</option>
+  <option value="shadow">Reflector overlap · black/white diagnostic</option>
+  <option value="shadowDelta">Isolated reflector darkening · diagnostic</option>
   <option value="reference">Original DMG-01 square cells</option>
   <option value="raw">Original NOMAD v262 artwork</option>
   <option value="mask">Active sprite/electrode silhouette</option>
@@ -68,6 +69,16 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
  </select></div>
 </div>
 <div class="actions"><button id="step" type="button" disabled>STEP 1 FRAME</button><button id="run" type="button" disabled>RUN</button><button id="reset" type="button" disabled>RESET HISTORY</button></div>
+<div style="margin-top:12px">
+ <label for="shadowInspection">REFLECTOR SHADOW VISIBILITY</label>
+ <select id="shadowInspection">
+   <option value="1" selected>1× · unchanged physical reference</option>
+   <option value="4">4× · optical diagnostic exaggeration</option>
+   <option value="12">12× · optical diagnostic exaggeration</option>
+   <option value="24">24× · optical diagnostic exaggeration</option>
+ </select>
+ <p style="margin:6px 0 0">Gain above 1× is for inspection only: it magnifies the original calculated shadow without modifying the electrical matrix, liquid-crystal response, or history.</p>
+</div>
 <div class="controls" style="margin-top:12px">
  <div><label for="materialResolution">MATERIAL SIMULATION</label><select id="materialResolution">
   <option value="2" selected>2× native (320 × 288) · mobile</option>
@@ -85,7 +96,7 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 <p><strong>Scientific scope:</strong> this is a hypothetical nonrectangular-electrode STN model. Native matrix loading is sampled at 160 × 144 and interpolated across the finer state field. It preserves the model's material equations but cannot claim identical field physics for electrodes that never existed on a DMG-01. The original square-cell view is a numerical comparison reference.</p>
 </div>
 <div class="group"><h2>Physical model and validation</h2>
-<p><strong>Original reference mode:</strong> 0.875 pixel aperture fill, 1.00 host-footprint filtering, 0.18 reflector shadow, 0.11/0.13-cell shadow offset, contrast 1.00 and zero simulated aging. <strong>Cell-less mode:</strong> the aperture/gaps are omitted; a continuous displaced-shading analogue replaces the gap-dependent reflector shadow. Original optical colour and contrast parameters are retained.</p>
+<p><strong>Original reference:</strong> 0.875 square-cell fill, 0.18 reflector shadow, 0.11/0.13-cell offset, contrast 1 and zero aging. <strong>Shape-driven:</strong> uses the original inactive-to-active optical colour blend and the same reflector strength/offset, with geometry supplied by the NOMAD silhouette instead of square-cell apertures. At 640 × 576 the genuine offset is just 0.44 × 0.52 pixels. The shadow inspector reveals this very thin effect; any setting above 1× is deliberately not a calibrated physical rendering.</p>
 <p><strong>Electrical:</strong> reconstructed STN drive with original generated director tables, row+column crosstalk 1.00, 20°C, ionic history, captured row latch, 59.7275 Hz frame reference. The feedback buffer is 32-bit float.</p>
 <p><strong>Physical material:</strong> director coordinates and ionic charge are integrated each simulated frame by the original reference shader, with continuous artwork drive and a shared RC correction. Uses measured-source lookup tables, 20°C material reference, 59.7275 Hz timing and RGBA32F feedback. <strong>Optics:</strong> original colour curve and reflective shadow parameters, generalized to overlapping artwork silhouettes. The 160 × 144 original output is retained as a control.</p>
 </div>
@@ -274,8 +285,10 @@ function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH,original
  const shapeDiag=u(prog,'ShapeOpticalDebug');
  if(shapeDiag!==null){
    const mode=document.querySelector('#view').value;
-   gl.uniform1f(shapeDiag,mode==='shadow'?1:mode==='flat'?2:0);
+   gl.uniform1f(shapeDiag,mode==='shadow'?1:mode==='flat'?2:mode==='shadowDelta'?3:0);
  }
+ const shadowGain=u(prog,'ShadowInspectionGain');
+ if(shadowGain!==null)gl.uniform1f(shadowGain,Math.max(1,Number(document.querySelector('#shadowInspection').value)||1));
  gl.drawArrays(gl.TRIANGLES,0,3);
  const err=gl.getError();if(err!==gl.NO_ERROR)throw Error('WebGL error in '+prog.name+': 0x'+err.toString(16));
 }
@@ -523,6 +536,7 @@ async function boot(){
  document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
  document.querySelector('#cadence').addEventListener('change',event=>{blinkEvery=Math.max(1,Number(event.target.value)||36);reset();});
  document.querySelector('#view').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
+ document.querySelector('#shadowInspection').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
  document.querySelector('#presentation').addEventListener('change',()=>{try{present();}catch(e){fail(e);}});
  window.addEventListener('resize',()=>{if(runtime)try{present();}catch(e){fail(e);}});
  document.querySelector('#step').addEventListener('click',()=>{try{step();}catch(e){output(e.message);log(e.stack||e.message);}});
