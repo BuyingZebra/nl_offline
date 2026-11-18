@@ -5,12 +5,14 @@ on:
     branches: [main, 'refactor/**', 'feature/**']
     paths:
       - 'tetris/**'
+      - 'vector-lcd/**'
       - 'tests/**'
       - 'tools/build-tetris-*.mjs'
       - '.github/workflows/test-tetris.yml'
   pull_request:
     paths:
       - 'tetris/**'
+      - 'vector-lcd/**'
       - 'tests/**'
       - 'tools/build-tetris-*.mjs'
       - '.github/workflows/test-tetris.yml'
