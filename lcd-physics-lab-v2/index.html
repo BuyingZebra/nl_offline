@@ -450,7 +450,7 @@ function step(){
   ['Source',targets[1].texture]
  ];
  setSurfaceProgram(materialProgram,materialInputs,materialWrite,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
- setSurfaceProgram(equilibriumProgram,materialInputs,equilibriumTarget,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
+ setSurfaceProgram(equilibriumProgram,[['Source',materialWrite.texture]],equilibriumTarget,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
  // Reuse the actual upstream matrix optical-state pass (panel variation
  // remains zero at source defaults) on the fine material output.
  setSurfaceProgram(programs[3],[['Source',materialWrite.texture]],
@@ -625,12 +625,13 @@ async function boot(){
  if(!gl)throw Error('WebGL2 unavailable; no alternate approximation will be used');
  if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float unavailable; original RGBA32F feedback cannot be reproduced. No low-precision fallback.');
  const raw=await importOriginalShaders();
+ const stnTables=await originalSource('dmg01-stn-surrogate.inc');
  programs=raw.map((shader,i)=>{output('Compiling ORIGINAL reference pass '+(i+1)+' / 5: '+shader.path);return linked(i===4?GL_FINAL_VERTEX:GL_VERTEX,shader.fragment,shader.path);});
  staticProgram=linked(GL_FINAL_VERTEX,GL_RAW,'unaltered NOMAD artwork');
  output('Compiling original STN director + ionic physics for '+MATERIAL_W+' × '+MATERIAL_H+'…');
  materialProgram=linked(GL_VERTEX,makeFineMaterialResponse(raw[2].fragment),
   'source-STN fine material + native electrical coupling');
- equilibriumProgram=linked(GL_VERTEX,makeEquilibriumDiagnostic(raw[2].fragment),
+ equilibriumProgram=linked(GL_VERTEX,makeEquilibriumDiagnostic(raw[2].fragment,stnTables),
   'physical equilibrium from the same effective drive, without feedback');
  output('Compiling shape-aware optical reconstruction…');
  celllessProgram=linked(GL_FINAL_VERTEX,makeShapeOptics(raw[4].fragment),
