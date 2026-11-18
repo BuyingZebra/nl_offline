@@ -86,3 +86,55 @@ export function drawNomadReady(ctx,{lit=true,motion=false,frameNumber=0,scale=4}
  label(g,'HOLD',131,137,6,COLOUR.weak,'center');
  g.setTransform(1,0,0,1,0,0);
 }
+
+
+/**
+ * Corresponding optical aperture-coverage geometry. Screen-space physical
+ * electrodes follow CONTENT, not square Game Boy cells. The mask is drawn
+ * with the same original menu coordinates and fonts as drawNomadReady.
+ * Black = no driven graphical aperture; white = a driven graphic surface.
+ * Canvas antialiasing represents fractional boundary coverage directly.
+ */
+export function drawNomadCoverage(ctx,{lit=true,motion=false,frameNumber=0,scale=4}={}){
+ const g=ctx;
+ g.setTransform(scale,0,0,scale,0,0);
+ g.fillStyle='#000000';g.fillRect(0,0,160,144);
+ // Header branding follows the actual v262 vector mark and lettering.
+ g.save();g.globalCompositeOperation='screen';
+ g.drawImage(images.logo,6,4,28,14);
+ g.restore();
+ label(g,'NOMAD',40,10,13,'#ffffff');
+ label(g,'TETRIS SYSTEM',41,19,5.6,'#ffffff');
+ // Board frame / rails: the panel interior itself is NOT a dark sprite.
+ g.strokeStyle='#ffffff';g.lineWidth=.8;g.strokeRect(7.6,31.6,104.8,94.8);
+ for(let y=32;y<125;y+=4.2){
+   g.fillStyle='#ffffff';
+   g.fillRect(2,y,3,3);g.fillRect(116,y,3,3);
+ }
+ label(g,'TETRIS',60,59,16,'#ffffff','center');
+ if(lit){
+   g.fillStyle='#ffffff';g.fillRect(14,72,92,17);
+   // Negative spaces inside the illuminated button are apertures too:
+   // they remain within the continuous shaped surface.
+ }
+ label(g,'SURVIVE THE SOVIET CHALLENGE',60,99,5.1,'#ffffff','center');
+ // The original source SVG is drawn unchanged. Its internal grayscale
+ // detailing survives as fractional coverage instead of fake grid cells.
+ label(g,'NEXT',123,30,5,'#ffffff');
+ g.drawImage(images.preview,126,43,26,7);
+ label(g,'SCORE',123,69,5,'#ffffff');
+ label(g,'000000',139,79,8,'#ffffff','center');
+ label(g,'LEVEL',123,89,5,'#ffffff');
+ label(g,'00',139,99,7,'#ffffff','center');
+ label(g,'HOLD',123,110,5,'#ffffff');
+ if(motion){
+   const py=33+((frameNumber/4|0)%15)*5.5;
+   g.drawImage(images.piece,45,py,15,15);
+   g.drawImage(images.square,60,py,15,15);
+ }
+ label(g,'◀',11,137,7,'#ffffff');
+ label(g,'DROP',57,137,7,'#ffffff','center');
+ label(g,'▶',100,137,7,'#ffffff');
+ label(g,'HOLD',131,137,6,'#ffffff','center');
+ g.setTransform(1,0,0,1,0,0);
+}
