@@ -94,24 +94,47 @@ export function makeFineMaterialResponse(reference){
 /** Independent instantaneous-equilibrium reference for measuring persistence.
  * Uses exactly the same physical_target(), optical lookup, and effective
  * row/column-corrected drive as the history-integrated material pass. */
-export function makeEquilibriumDiagnostic(reference){
- const response=makeFineMaterialResponse(reference);
- const begin=response.lastIndexOf('void main()');
- if(begin<0)throw Error('Physical response main() missing');
- return response.slice(0,begin)+[
+export function makeEquilibriumDiagnostic(reference,surrogate){
+ // No second STN integration shader: sample the exact effective drive already
+ // packed into the main physical response's alpha channel, and calculate its
+ // no-history optical equilibrium using the source's original lookup curves.
+ // The generated lookup data is injected verbatim from upstream .inc.
+ function extract(name){
+  const anchor='float '+name+'(';
+  const i=reference.indexOf(anchor);
+  if(i<0||reference.indexOf(anchor,i+1)>=0)throw Error('Missing/duplicate physical function '+name);
+  const open=reference.indexOf('{',i);if(open<0)throw Error('Missing function body '+name);
+  let depth=0,close=-1;
+  for(let p=open;p<reference.length;p++){
+   if(reference[p]==='{')depth++;
+   if(reference[p]==='}'&&--depth===0){close=p+1;break;}
+  }
+  if(close<0)throw Error('Unbalanced physical function '+name);
+  return reference.slice(i,close);
+ }
+ const names=['condition_target','contrast_conditions','physical_target',
+  'physical_optical_correction','physical_optical_state'];
+ if(!surrogate.includes('DMG_PHYSICAL_TARGET_Q')||!surrogate.includes('DMG_PHYSICAL_OPTICAL'))
+  throw Error('Missing original generated physical tables');
+ return [
+  '#version 300 es',
+  'precision highp float;precision highp int;',
+  'struct Push {float DriveContrast;}; uniform Push params;',
+  'struct UBO {vec4 OriginalSize;}; uniform UBO global;',
+  'in vec2 vTexCoord;out vec4 FragColor;',
+  'uniform sampler2D Source;',
+  surrogate,
+  ...names.map(extract),
   'void main(){',
-  ' ivec2 coord=clamp(ivec2(floor(vTexCoord*global.OriginalSize.xy)),',
-  '   ivec2(0),ivec2(global.OriginalSize.xy)-ivec2(1));',
-  ' vec2 drive=phase_local_drive_coordinates(coord);',
-  ' float director=clamp(physical_target(drive.x),0.,1.);',
+  ' ivec2 pos=clamp(ivec2(floor(vTexCoord*global.OriginalSize.xy)),',
+  '    ivec2(0),textureSize(Source,0)-ivec2(1));',
+  ' float effectiveDrive=fract(texelFetch(Source,pos,0).a)*4.;',
+  ' float director=clamp(physical_target(effectiveDrive),0.,1.);',
   ' float optical=physical_optical_state(director);',
-  ' FragColor=vec4(optical,clamp(drive.x/3.,0.,1.),director,1.);',
+  ' FragColor=vec4(optical,clamp(effectiveDrive/3.,0.,1.),director,1.);',
   '}'
  ].join('\n');
 }
-/** Shape optics and independent observed-vs-equilibrium diagnostics.
- * Spectral-warm modes are clearly separated, unvalidated visual hypotheses.
- * The original 5-colour DMG optical palette and shadow coefficients remain. */
 export function makeShapeOptics(reference){
  const start=reference.lastIndexOf('void main()');
  if(start<0)throw Error('Source optics main() missing');
