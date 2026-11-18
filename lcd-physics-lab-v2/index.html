@@ -437,7 +437,7 @@ function step(){
  // response, ionic state and scan-time exposure. The only replacement is
  // the drive provider: fine optical drive + the original matrix's RC correction.
  const materialWrite=materialTargets[1-materialCurrent];
- setSurfaceProgram(materialProgram,[
+ const materialInputs=[
   ['Original',materialNext],
   ['OriginalHistory1',materialPrev],
   ['PassFeedback2',materialTargets[materialCurrent].texture],
@@ -446,7 +446,9 @@ function step(){
   ['NativeCurrentFeedback',next.texture],
   ['NativePreviousFeedback',feedback.texture],
   ['Source',targets[1].texture]
- ],materialWrite,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
+ ];
+ setSurfaceProgram(materialProgram,materialInputs,materialWrite,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
+ setSurfaceProgram(equilibriumProgram,materialInputs,equilibriumTarget,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
  // Reuse the actual upstream matrix optical-state pass (panel variation
  // remains zero at source defaults) on the fine material output.
  setSurfaceProgram(programs[3],[['Source',materialWrite.texture]],
@@ -485,8 +487,10 @@ function reset(){
  for(const item of materialTargets){
   gl.bindFramebuffer(gl.FRAMEBUFFER,item.fb);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  }
- gl.bindFramebuffer(gl.FRAMEBUFFER,materialMatrix.fb);
- gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+ for(const item of [materialMatrix,equilibriumTarget]){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,item.fb);
+  gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+ }
  // First stimulus is held on consecutive source frames; history starts neutral.
  step();
 }
@@ -528,6 +532,8 @@ async function boot(){
  output('Compiling original STN director + ionic physics for '+MATERIAL_W+' × '+MATERIAL_H+'…');
  materialProgram=linked(GL_VERTEX,makeFineMaterialResponse(raw[2].fragment),
   'source-STN fine material + native electrical coupling');
+ equilibriumProgram=linked(GL_VERTEX,makeEquilibriumDiagnostic(raw[2].fragment),
+  'physical equilibrium from the same effective drive, without feedback');
  output('Compiling shape-aware optical reconstruction…');
  celllessProgram=linked(GL_FINAL_VERTEX,makeShapeOptics(raw[4].fragment),
   'source optical palette + shape reflector geometry');
@@ -546,6 +552,10 @@ async function boot(){
  targets=[target(1,144),target(160,1),target(160,144),target(160,144),null,target(160,144)];
  materialTargets=[target(MATERIAL_W,MATERIAL_H),target(MATERIAL_W,MATERIAL_H)];
  materialMatrix=target(MATERIAL_W,MATERIAL_H);
+ equilibriumTarget=target(MATERIAL_W,MATERIAL_H);
+ gl.bindTexture(gl.TEXTURE_2D,equilibriumTarget.texture);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
  runtime=true;reset();
  for(const id of ['step','run','reset'])document.getElementById(id).disabled=false;
  document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
