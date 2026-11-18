@@ -4,7 +4,7 @@ This lab is **not** a NOMAD production-game modification. It lives at `/lcd-phys
 ## Engineering changes
 - **One geometry pipeline:** `nomad-stimulus.js` paints visible artwork and optical-coverage geometry through exactly the same `paint()` call sequence. Reverse START GAME lettering punches actual holes in the coverage. Original NOMAD SVGs are reused by relative path from v1 rather than redrawn.
 - **One electrical source of truth:** the existing five DMG upstream passes are preserved. The fine 320x288 STN history shader retains upstream target/drift/ionic/Simpson integration and receives the already established matrix correction.
-- **Independent target pass:** `makeEquilibriumDiagnostic()` uses the same physical target and optical mapping with the same effective drive, but zero feedback history. This produces a physically defined equilibrium comparison, rather than mixing arbitrary fade factors into the output.
+- **Independent target pass:** `makeEquilibriumDiagnostic()` reads the effective drive packed by the actual main response pass, then runs the original physical-target and optical equilibrium tables without temporal feedback. It does not compile or rerun the enormous STN integrator a second time. This yields an independent, physically defined comparison rather than arbitrary fade factors.
 - **Physical optics:** the continuous-substrate fill correction and original palette/reflector coefficients are retained. New optical debug views show normalized drive, observed state, signed residual, ionic state, coverage contour, reflector overlap, and isolated darkening.
 - **Explicitly uncalibrated warm-line experiment:** the original source contains **no** separate red-fringe mechanism. Warm-rim modes are isolated hypotheses and remain outside the normal 1x physical composite. Seeing them does not establish hardware authenticity.
 - **Measured probe:** the actual GPU buffer is sampled inside START GAME each frame. The readback graph uses unmodified observed response, equilibrium optical response, normalized drive, and ionic state.
@@ -20,7 +20,7 @@ This lab is **not** a NOMAD production-game modification. It lives at `/lcd-phys
 
 ## Validation status
 - JavaScript source parses in a V8 syntax check.
-- Source routing and independent shader assembly can be statically audited.
+- Source routing, JavaScript syntax and independent shader assembly passed static verification; the compact equilibrium shader assembles to one balanced GLSL entry point using upstream lookup data.
 - **A successful on-device iPhone WebGL2 compile and GPU output has not been independently observed.** Until the target phone shows results and the audit passes, the correct status is `unverified`.
 - A verified model output is **not** a photometric match to a real screen. Spectral/angle-dependent optics, actual nonrectangular electrodes, display-reflector thickness and empirically measured transients are out of scope unless new measurements are available.
 - This lab is a re-composed 160×144 fixture using original app assets and typography, **not** a byte-exact picture of the full portrait NOMAD app.
