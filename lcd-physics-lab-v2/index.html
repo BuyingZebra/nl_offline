@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b100d"><meta name="color-scheme" content="dark">
+<title>NOMAD — LCD Verification Lab v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap">
+<style>
+:root{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#e3eadb;background:#0b100d}
+*{box-sizing:border-box}body{margin:0;min-height:100vh}header,main,footer{max-width:860px;margin:auto;padding:18px}
+header{border-bottom:1px solid #3c4d39}h1{font-size:clamp(20px,5vw,28px);margin:7px 0 8px}h2{font-size:13px;margin:0 0 12px}
+p{line-height:1.55;color:#aab9a1}.tag{color:#a3c588;letter-spacing:.16em;font-size:10px;font-weight:bold}
+.panel{background:#192319;border:1px solid #445741;border-radius:12px;padding:15px;max-width:676px;margin:16px auto}
+.screen{background:#35412f;padding:10px;border-radius:6px;border:2px solid #50634a;display:flex;align-items:center;justify-content:center;min-height:220px}
+canvas{display:block;max-width:100%;width:640px;aspect-ratio:160/144;height:auto;image-rendering:auto;background:#948a04}
+.group{border:1px solid #384835;padding:16px;margin-top:15px;border-radius:8px}
+.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+select,button{font:inherit;background:#263827;border:1px solid #617957;border-radius:5px;color:#e3eadb;padding:11px 9px;min-height:40px}
+select{width:100%}button{cursor:pointer;font-weight:bold}button:active{background:#3b5534}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+label{display:block;font-size:10px;letter-spacing:.05em;color:#a8b99d;margin-bottom:5px}
+#status{color:#b6cdad;line-height:1.5;margin:10px 0;min-height:35px}
+button:disabled{opacity:.45;cursor:not-allowed}#log{font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:270px;overflow:auto;color:#ffc8ae;background:#180e0d;padding:12px}
+.stats{display:flex;gap:20px;flex-wrap:wrap}.stats span{font-variant-numeric:tabular-nums}
+code{font-size:11px}#probes{font-size:10px;color:#d1dab5;overflow-wrap:anywhere;line-height:1.7}
+a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
+@media(max-width:520px){header,main,footer{padding:14px}.panel{padding:10px}.screen{padding:5px;min-height:160px}.actions button{padding:9px 3px}.group{padding:12px}}
+</style>
+</head>
+<body>
+<header><div class="tag">NOMAD / INDEPENDENT LCD EXPERIMENT</div>
+<h1>NOMAD · LCD Verification Lab v2</h1>
+<p>An independent engineering demo using <strong>actual NOMAD v262 artwork</strong>. The original DMG-01 electrical passes supply row and column coupling. Fine-resolution material samples run the source STN director, exposure and ionic-response functions. The optical layer follows artwork silhouettes rather than square apertures.</p>
+</header>
+<main>
+<div class="panel"><div class="tag">ORIGINAL 160 × 144 ELECTRICAL MATRIX · 320 × 288 PHYSICAL MATERIAL · 640 × 576 ARTWORK</div>
+<div class="screen"><canvas id="panel" role="img" aria-label="NOMAD v262 menu and tile artwork with shape-driven physical LCD response"></canvas></div>
+<div id="status">Ready to initialize. No GPU work begins until you press LOAD MODEL.</div>
+<pre id="log" hidden aria-live="polite"></pre>
+<button id="copyError" type="button" hidden style="margin-bottom:12px">COPY DIAGNOSTIC</button>
+<div class="stats"><span>Frames: <strong id="count">0</strong></span><span>Completed step: <strong id="ms">—</strong></span></div>
+<p id="probes">Compare original cells, shape-driven physical response and original artwork. The menu button can blink and the original tiles can move.</p>
+</div>
+<div class="group"><h2>Material-response comparison</h2>
+<div class="controls">
+ <div><label for="scene">BUTTON INPUT</label><select id="scene">
+  <option value="blink">Blinking START GAME button</option>
+  <option value="steady">START GAME always on</option>
+  <option value="off">START GAME always off</option>
+  <option value="motion">Falling original NOMAD SVG tiles</option>
+ </select></div>
+ <div><label for="cadence">TIME PER STATE</label><select id="cadence">
+  <option value="18">18 frames · 0.30 s</option>
+  <option value="36" selected>36 frames · 0.60 s</option>
+  <option value="60">60 frames · 1.00 s</option>
+ </select></div>
+ <div><label for="view">RENDERING</label><select id="view">
+  <option value="cellless">Corrected shape-driven LCD · physical 1×</option>
+  <option value="uniform">Continuous substrate · no edge fringe</option>
+  <option value="flat">Previous mustard background · comparison</option>
+  <option value="contour">Shape aperture-colour edge · diagnostic</option>
+   <option value="drive">Instantaneous electrical drive / 3</option>
+   <option value="observed">Observed physical optical state</option>
+   <option value="residual">Temporal residual · signed 10× diagnostic</option>
+   <option value="ionic">Ionic state · actual feedback</option>
+   <option value="warm">Experimental warm rim · uncalibrated</option>
+   <option value="warmComposite">Warm rim composite · uncalibrated</option>
+  <option value="shadow">Reflector overlap · black/white diagnostic</option>
+  <option value="shadowDelta">Isolated reflector darkening · diagnostic</option>
+  <option value="reference">Original DMG-01 square cells</option>
+  <option value="raw">Original NOMAD v262 artwork</option>
+  <option value="mask">Active sprite/electrode silhouette</option>
+ </select></div>
+ <div><label for="presentation">PRESENTATION ONLY</label><select id="presentation">
+  <option value="fixed">Fixed 4× optical framebuffer</option>
+  <option value="direct">Direct device-pixel output</option>
+ </select></div>
+</div>
+<div class="actions"><button id="step" type="button" disabled>STEP 1 FRAME</button><button id="run" type="button" disabled>RUN</button><button id="reset" type="button" disabled>RESET HISTORY</button></div>
+<div style="margin-top:12px">
+ <label for="shadowInspection">REFLECTOR SHADOW VISIBILITY</label>
+ <select id="shadowInspection">
+   <option value="1" selected>1× · unchanged physical reference</option>
+   <option value="4">4× · optical diagnostic exaggeration</option>
+   <option value="12">12× · optical diagnostic exaggeration</option>
+   <option value="24">24× · optical diagnostic exaggeration</option>
+ </select>
+ <p style="margin:6px 0 0">Gain above 1× is for inspection only: it magnifies the original calculated shadow without modifying the electrical matrix, liquid-crystal response, or history.</p>
+</div>
+<div class="controls" style="margin-top:12px">
+ <div><label for="materialResolution">MATERIAL SIMULATION</label><select id="materialResolution">
+  <option value="2" selected>2× native (320 × 288) · mobile</option>
+  <option value="3">3× native (480 × 432) · experimental</option>
+ </select></div>
+ <div><label for="frameBudget">AUTO-PAUSE GPU STEP</label><select id="frameBudget">
+  <option value="80">80 ms</option><option value="120" selected>120 ms</option>
+  <option value="200">200 ms</option>
+ </select></div>
+</div>
+
+<div style="margin-top:12px"><button id="initialize" type="button" style="width:100%;border-color:#cde3a4;color:#f0f5df">LOAD PHYSICAL MODEL</button></div>
+<p><strong>Engineering method:</strong> native 160 × 144 row/column drive and feedback remain unchanged. Their physical drive corrections feed a separate high-resolution response pass using the <strong>original STN material functions</strong>. Per-screen-point director and ionic histories stay in RGBA32F. Silhouette-aware optics use the source palette, reflector displacement and shadow strength, without square cell apertures.</p>
+<div><label for="pixelInfo">ACTUAL OPTICAL FRAMEBUFFER</label><div id="pixelInfo" style="color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div>
+<p><strong>Scientific scope:</strong> this is a hypothetical nonrectangular-electrode STN model. Native matrix loading is sampled at 160 × 144 and interpolated across the finer state field. It preserves the model's material equations but cannot claim identical field physics for electrodes that never existed on a DMG-01. The original square-cell view is a numerical comparison reference.</p>
+</div>
+<div class="group"><h2>Live response measurement</h2>
+ <p>One actual material pixel inside the START GAME button is measured from the GPU, against an independently computed equilibrium state. There is no invented ghosting animation.</p>
+ <canvas id="traceChart" width="640" height="180" style="width:100%;height:auto;display:block;background:#101b13;border:1px solid #3d5340;border-radius:8px"></canvas>
+ <p id="traceValues" style="font-family:monospace;white-space:pre-wrap">No GPU measurements yet.</p>
+ <p>Green = observed optical response, yellow = equilibrium target, blue = effective drive / 3. Run the blinking button at 18 frames per state. A nonzero residual proves the simulation retained history, not necessarily that its response matches a real LCD.</p>
+ <p>To inspect shadow geometry, select Reflector overlap with 24× visibility, then Isolated reflector darkening. Warm-rim modes are explicitly experimental and uncalibrated.</p>
+</div><div class="group"><h2>Physical model and validation</h2>
+<p><strong>Original reference:</strong> each square electrode has 87.5% active width on each axis, giving about 76.6% active area; reflector strength 0.18, shadow displacement 0.11/0.13 native pixels, contrast 1, no aging. <strong>Corrected shape-driven:</strong> the whole STN substrate uses that original average active-area ratio. Only actual artwork contours introduce extra inactive-gap colouring, while reflector overlap follows the NOMAD silhouettes. The old mustard-background version remains selectable for comparison. Gains above 1× are deliberately exaggerated diagnostics, not calibrated physics.</p>
+<p><strong>Electrical:</strong> reconstructed STN drive with original generated director tables, row+column crosstalk 1.00, 20°C, ionic history, captured row latch, 59.7275 Hz frame reference. The feedback buffer is 32-bit float.</p>
+<p><strong>Physical material:</strong> director coordinates and ionic charge are integrated each simulated frame by the original reference shader, with continuous artwork drive and a shared RC correction. Uses measured-source lookup tables, 20°C material reference, 59.7275 Hz timing and RGBA32F feedback. <strong>Optics:</strong> original colour curve and reflective shadow parameters, generalized to overlapping artwork silhouettes. The 160 × 144 original output is retained as a control.</p>
+</div>
+<p style="max-width:676px;margin:20px auto;color:#b5c8ab">The demo begins paused, with no WebGL context until you request it. No game files, service workers, saved scores or NOMAD app settings are changed.</p>
+</main>
+<footer>
+Original DMG-01 physics and optical lookup data: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Unmodified source is hosted in the adjacent <code>../lcd-response-study/upstream/</code> folder. This laboratory has no dependency on the NOMAD app and never registers a service worker.
+</footer>
+<script type="module">
+import {makeFineMaterialResponse,makeEquilibriumDiagnostic,makeShapeOptics} from "./physics-shaders.js";
+import {loadNomadAssets,drawNomadReady,drawNomadCoverage} from "./nomad-stimulus.js";
+/*
+ * DMG-01 original-source WebGL2 adapter for the five-pass Retro Display Lab reference shader.
+ * The .slang source and generated includes are unchanged; this adapter translates
+ * uniform declarations and GLSL version, never their physical equations.
+ * Requires EXT_color_buffer_float (RGBA32F temporal feedback), no approximating fallback.
+ * Upstream: JohnnySun/retro-display-lab, Apache-2.0; see upstream/LICENSE.
+ */
+const NATIVE_W=160,NATIVE_H=144,SCALE=4;
+const PASS_FILES=[
+  'dmg01-row-load-v2.slang','dmg01-crosstalk-summary-v3.slang',
+  'dmg01-response-v1.slang','dmg01-matrix-v1.slang',
+  'dmg01-display-v1.slang'];
+const palettes=[[148,138,4],[117,152,51],[88,143,81],[59,117,96],[46,97,90]];
+const GL_VERTEX=`#version 300 es
+precision highp float;
+out vec2 vTexCoord;
+void main(){
+  vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));
+  vTexCoord=p;
+  gl_Position=vec4(p*2.0-1.0,0.0,1.0);
+}`;
+const GL_FINAL_VERTEX=`#version 300 es
+precision highp float;
+out vec2 vTexCoord;
+void main(){
+  vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));
+  vTexCoord=vec2(p.x,1.0-p.y);
+  gl_Position=vec4(p*2.0-1.0,0.0,1.0);
+}`;
+const GL_RAW=`#version 300 es
+precision highp float;
+in vec2 vTexCoord;
+out vec4 FragColor;
+uniform sampler2D Source;
+void main(){FragColor=texture(Source,vTexCoord);}`;
+const statusEl=document.querySelector('#status');
+const logEl=document.querySelector('#log');
+const canvas=document.querySelector('#panel');
+let gl=null; // WebGL context is acquired only after explicit LOAD.
+const output=(s)=>{statusEl.textContent=s;};
+const log=(s)=>{logEl.textContent=s+'\n'+logEl.textContent.slice(0,12000);logEl.hidden=false;};
+const copyError=document.querySelector('#copyError');
+copyError.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(logEl.textContent);copyError.textContent='COPIED';}catch(e){copyError.textContent='SELECT THE ERROR TEXT ABOVE TO COPY';}});
+function fail(error){
+ const message=error instanceof Error?error.message:String(error);
+ output('RENDERER STOPPED — '+message);
+ log((error?.stack||message)+'\nBrowser: '+navigator.userAgent+'\nWebGL2: '+Boolean(gl)+'\nFloat render targets: '+(gl?Boolean(gl.getExtension('EXT_color_buffer_float')):false));
+ copyError.hidden=false;
+}
+
+let runtime=null,autoplay=false,frames=0,scene='blink',blinkEvery=36,renderMs=0;
+let framePrev=null,frameNext=null,sourceCtx=null,sourceCanvas=null;
+let fineCanvas=null,fineCtx=null,fineTexture=null,coverageCanvas=null,coverageCtx=null,coverageTexture=null,materialCanvas=null,materialCtx=null,materialPrev=null,materialNext=null,materialTargets=[],materialCurrent=0,materialProgram=null,materialMatrix=null,celllessProgram=null,equilibriumProgram=null,equilibriumTarget=null;
+let MATERIAL_SCALE=2,MATERIAL_W=320,MATERIAL_H=288;
+let targets=[],programs=[],staticProgram=null,fbIndex=0,lastFrameTs=0,lastPaintedLit=null,traceHistory=[],probeFailed=false;
+const referenceParams={
+  DriveContrast:1,PanelTemperatureCelsius:20,IonicMobility:.05,
+  StickingOpticalGain:.082,IonicChargeResponse:.000126777389,
+  IonicReleaseResponse:.000007115625,IonicTimeScale:1,BakedScanout:1,
+  CurrentDriveCoherence:0,LatchOffsetLines:1,RowCrosstalk:1,ColumnCrosstalk:1,
+  LineVariation:0,PanelMottle:0,PixelFill:.875,PixelEdge:1,
+  ShadowStrength:.18,ShadowOffsetX:.11,ShadowOffsetY:.13,
+  Contrast:1,ContrastBias:0,ScreenBrightness:1,ScreenChroma:1,
+  PolarizerAge:0,DebugView:0,DebugGain:12
+};
+const readonlyParameters=Object.freeze({...referenceParams});
+const OPTICAL_W=640,OPTICAL_H=576;
+
+async function originalSource(path){
+ const r=await fetch('../lcd-response-study/upstream/'+path,{cache:'no-cache'});
+ if(!r.ok)throw Error('Missing original shader '+path+': HTTP '+r.status);
+ return r.text();
+}
+async function importOriginalShaders(){
+ const paths=[...PASS_FILES,
+ 'dmg01-crosstalk-phase-local.inc','dmg01-crosstalk-lumped.inc','dmg01-stn-surrogate.inc'];
+ const sources=Object.fromEntries(await Promise.all(paths.map(async p=>[p,await originalSource(p)])));
+ const expand=(text,depth=0)=>{
+   if(depth>5)throw Error('Original shader include recursion >5');
+   return text.replace(/^\s*#include\s+"([^"]+)"\s*$/gm,(_,name)=>{
+     if(!(name in sources))throw Error('Missing upstream #include '+name);
+     return expand(sources[name],depth+1);
+   });
+ };
+ return PASS_FILES.map(path=>{
+   const raw=sources[path];
+   const splitIndex=raw.indexOf('#pragma stage fragment');
+   const vertexIndex=raw.indexOf('#pragma stage vertex');
+   if(splitIndex<0||vertexIndex<0)throw Error('Original shader stage markers missing: '+path);
+   const common=raw.slice(0,vertexIndex);
+   // The original Vulkan push constants and UBO are declared in the shared
+   // header, before #pragma stage vertex, not in its fragment section.
+   const declarations=[...common.matchAll(/layout\s*\((?:push_constant|std140[^)]*)\)\s*uniform\s+(Push|UBO)\s*\{([\s\S]*?)\}\s*(params|global)\s*;/g)]
+      .map(([,name,body,instance])=>`struct ${name} { ${body} }; uniform ${name} ${instance};`).join('\n');
+   if(!declarations.includes('uniform UBO global'))throw Error('Missing upstream uniform block in '+path);
+   const fragment=raw.slice(splitIndex+'#pragma stage fragment'.length);
+   const translated=expand(fragment)
+      .replace(/layout\s*\(set\s*=\s*\d+\s*,\s*binding\s*=\s*\d+\s*\)\s*/g,'')
+      // Vulkan allows explicit fragment input locations; GLSL ES 3.00 does not.
+      // Only remove that interface syntax; output locations and all physical
+      // equations, coefficients, and control values remain unchanged.
+      .replace(/layout\s*\(\s*location\s*=\s*\d+\s*\)\s*(?=in\s)/g,'')
+      .replace(/^\s*#pragma.*$/gm,'');
+   if(/layout\s*\(set\s*=|layout\s*\(push_constant|layout\s*\(\s*location\s*=\s*\d+\s*\)\s*in\b|#include|#pragma/.test(translated))
+     throw Error('Unconverted Vulkan directive in '+path);
+   return {path,fragment:'#version 300 es\nprecision highp float;\nprecision highp int;\n'+declarations+'\n'+translated};
+ });
+}
+function checkedShader(type,source,name){
+ const shader=gl.createShader(type);
+ gl.shaderSource(shader,source);gl.compileShader(shader);
+ if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS)){
+   const error=gl.getShaderInfoLog(shader)||'unknown';
+   gl.deleteShader(shader);
+   throw Error('GLSL compile failure ('+name+'):\n'+error);
+ }
+ return shader;
+}
+function linked(vertex,fragment,name){
+ const vs=checkedShader(gl.VERTEX_SHADER,vertex,name+' vertex');
+ const fs=checkedShader(gl.FRAGMENT_SHADER,fragment,name+' fragment');
+ const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
+ gl.deleteShader(vs);gl.deleteShader(fs);
+ if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error('Shader link failure '+name+': '+gl.getProgramInfoLog(p));
+ return {name,program:p,uniform:new Map()};
+}
+function u(p,name){
+ if(!p.uniform.has(name))p.uniform.set(name,gl.getUniformLocation(p.program,name));
+ return p.uniform.get(name);
+}
+function oneTexture(w,h,internal=gl.RGBA32F){
+ const texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+ gl.texImage2D(gl.TEXTURE_2D,0,internal,w,h,0,gl.RGBA,internal===gl.RGBA8?gl.UNSIGNED_BYTE:gl.FLOAT,null);
+ return texture;
+}
+function target(w,h,format=gl.RGBA32F){
+ const texture=oneTexture(w,h,format),fb=gl.createFramebuffer();
+ gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+ gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,texture,0);
+ const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+ if(ok!==gl.FRAMEBUFFER_COMPLETE)throw Error('Framebuffer incomplete: 0x'+ok.toString(16));
+ gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+ return {texture,fb,w,h};
+}
+function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH,originalW=NATIVE_W,originalH=NATIVE_H){
+ gl.bindFramebuffer(gl.FRAMEBUFFER,out?.fb||null);
+ gl.viewport(0,0,width,height);
+ gl.useProgram(prog.program);
+ gl.disable(gl.BLEND);gl.disable(gl.DEPTH_TEST);
+ for(let i=0;i<inputs.length;i++){
+   const [key,tex]=inputs[i];
+   const loc=u(prog,key);
+   if(loc===null)continue;
+   gl.activeTexture(gl.TEXTURE0+i);gl.bindTexture(gl.TEXTURE_2D,tex);
+   gl.uniform1i(loc,i);
+ }
+ const outputSize=u(prog,'global.OutputSize');
+ if(outputSize!==null)gl.uniform4f(outputSize,width,height,1/width,1/height);
+ const originalSize=u(prog,'global.OriginalSize');
+ if(originalSize!==null)gl.uniform4f(originalSize,originalW,originalH,1/originalW,1/originalH);
+ const sourceSize=u(prog,'global.SourceSize');
+ if(sourceSize!==null)gl.uniform4f(sourceSize,sourceW,sourceH,1/sourceW,1/sourceH);
+ const fc=u(prog,'global.FrameCount');
+ if(fc!==null)gl.uniform1ui(fc,frames);
+ const subframes=u(prog,'global.TotalSubFrames');
+ if(subframes!==null)gl.uniform1ui(subframes,1);
+ for(const [name,value] of Object.entries(readonlyParameters)){
+   const loc=u(prog,'params.'+name);
+   if(loc!==null)gl.uniform1f(loc,value);
+ }
+ const shapeDiag=u(prog,'ShapeOpticalDebug');
+ if(shapeDiag!==null){
+   const mode=document.querySelector('#view').value;
+   gl.uniform1f(shapeDiag,({shadow:1,flat:2,shadowDelta:3,uniform:4,contour:5,drive:6,observed:7,residual:8,ionic:9,warm:10,warmComposite:11})[mode]||0);
+ }
+ const shadowGain=u(prog,'ShadowInspectionGain');
+ if(shadowGain!==null)gl.uniform1f(shadowGain,Math.max(1,Number(document.querySelector('#shadowInspection').value)||1));
+ gl.drawArrays(gl.TRIANGLES,0,3);
+ const err=gl.getError();if(err!==gl.NO_ERROR)throw Error('WebGL error in '+prog.name+': 0x'+err.toString(16));
+}
+function imgContext(){
+ sourceCanvas=document.createElement('canvas');
+ sourceCanvas.width=NATIVE_W;sourceCanvas.height=NATIVE_H;
+ sourceCtx=sourceCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
+ sourceCtx.imageSmoothingEnabled=true;
+ sourceCtx.imageSmoothingQuality='high';
+ fineCanvas=document.createElement('canvas');
+ fineCanvas.width=OPTICAL_W;fineCanvas.height=OPTICAL_H;
+ fineCtx=fineCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
+ if(!fineCtx)throw Error('High-resolution artwork canvas unavailable');
+ fineCtx.imageSmoothingEnabled=true;
+ coverageCanvas=document.createElement('canvas');
+ coverageCanvas.width=OPTICAL_W;coverageCanvas.height=OPTICAL_H;
+ coverageCtx=coverageCanvas.getContext('2d',{alpha:false});
+ if(!coverageCtx)throw Error('Nomad silhouette mask unavailable');
+ coverageCtx.imageSmoothingEnabled=true;
+ materialCanvas=document.createElement('canvas');
+ materialCanvas.width=MATERIAL_W;materialCanvas.height=MATERIAL_H;
+ materialCtx=materialCanvas.getContext('2d',{alpha:false});
+ if(!materialCtx)throw Error('Fine-material input canvas unavailable');
+ materialCtx.imageSmoothingEnabled=true;
+ materialCtx.imageSmoothingQuality='high';
+}
+function textureFromCanvas(){
+ const texture=oneTexture(NATIVE_W,NATIVE_H,gl.RGBA8);
+ gl.bindTexture(gl.TEXTURE_2D,texture);
+ gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+ gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,sourceCanvas);
+ return texture;
+}
+function refreshInputTexture(texture,canvas=sourceCanvas){
+ gl.bindTexture(gl.TEXTURE_2D,texture);
+ gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+ gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+}
+function createFineTexture(){
+ const texture=oneTexture(OPTICAL_W,OPTICAL_H,gl.RGBA8);
+ refreshInputTexture(texture,fineCanvas);
+ return texture;
+}
+function createCoverageTexture(){
+ const texture=oneTexture(OPTICAL_W,OPTICAL_H,gl.RGBA8);
+ refreshInputTexture(texture,coverageCanvas);
+ gl.bindTexture(gl.TEXTURE_2D,texture);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ return texture;
+}
+function createMaterialTexture(){
+ const texture=oneTexture(MATERIAL_W,MATERIAL_H,gl.RGBA8);
+ refreshInputTexture(texture,materialCanvas);
+ return texture;
+}
+function rasterizeMaterialSource(){
+ materialCtx.clearRect(0,0,MATERIAL_W,MATERIAL_H);
+ materialCtx.drawImage(fineCanvas,0,0,MATERIAL_W,MATERIAL_H);
+}
+
+
+function renderPattern(frame){
+ const lit=scene==='steady'||scene==='motion'||(scene==='blink'&&Math.floor(frame/blinkEvery)%2===0);
+ if(lastPaintedLit===lit&&scene!=='motion')return false;
+ lastPaintedLit=lit;
+ // Actual NOMAD artwork and SVG sprites, rendered to 640x576 independent
+ // of the DMG's electrical sampling grid.
+ drawNomadReady(fineCtx,{lit,motion:scene==='motion',frameNumber:frame,scale:SCALE});
+ drawNomadCoverage(coverageCtx,{lit,motion:scene==='motion',frameNumber:frame,scale:SCALE});
+ // The ORIGINAL Game Boy reconstruction still receives quantized shades.
+ // This signal is NOT used for the high-resolution material input.
+ sourceCtx.drawImage(fineCanvas,0,0,NATIVE_W,NATIVE_H);
+ const pixels=sourceCtx.getImageData(0,0,NATIVE_W,NATIVE_H),data=pixels.data;
+ for(let i=0;i<data.length;i+=4){
+  const n=255-85*Math.max(0,Math.min(3,Math.round((255-data[i])/85)));
+  data[i]=n;data[i+1]=n;data[i+2]=n;data[i+3]=255;
+ }
+ sourceCtx.putImageData(pixels,0,0);
+ rasterizeMaterialSource();
+ return true;
+}
+function syncPresentationSize(){
+ const direct=document.querySelector('#presentation').value==='direct';
+ const rect=canvas.getBoundingClientRect();
+ const dpr=Math.min(2,Math.max(1,window.devicePixelRatio||1));
+ const width=direct?Math.max(1,Math.round(rect.width*dpr)):NATIVE_W*SCALE;
+ const height=direct?Math.max(1,Math.round(rect.height*dpr)):NATIVE_H*SCALE;
+ if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+ document.querySelector('#pixelInfo').textContent=
+   width+' × '+height+' optical framebuffer · '+MATERIAL_W+' × '+MATERIAL_H+' physical state · '+NATIVE_W+' × '+NATIVE_H+' electrical matrix';
+}
+function present(){
+ if(!runtime)return;
+ syncPresentationSize();
+ const t=targets;
+ const view=document.querySelector('#view').value;
+ if(view==='raw'||view==='mask'){
+  setSurfaceProgram(staticProgram,[['Source',view==='raw'?fineTexture:coverageTexture]],null,
+   canvas.width,canvas.height,OPTICAL_W,OPTICAL_H);
+ }else if(view==='reference'){
+  setSurfaceProgram(programs[4],[['Source',t[3].texture]],null,
+   canvas.width,canvas.height,NATIVE_W,NATIVE_H);
+ }else{
+  setSurfaceProgram(celllessProgram,[
+   ['Source',materialMatrix.texture],
+   ['ShapeCoverage',coverageTexture],
+    ['EquilibriumState',equilibriumTarget.texture]
+  ],null,canvas.width,canvas.height,MATERIAL_W,MATERIAL_H,NATIVE_W,NATIVE_H);
+ }
+}
+function step(){
+ if(!runtime)return;
+ const begin=performance.now();
+ const artworkChanged=renderPattern(frames);
+ refreshInputTexture(frameNext);
+ if(artworkChanged){
+  refreshInputTexture(fineTexture,fineCanvas);
+  refreshInputTexture(coverageTexture,coverageCanvas);
+ }
+ refreshInputTexture(materialNext,materialCanvas);
+ // Five original physics shader passes; unchanged values and equations.
+ // Source frame 0 of input tex maps to GL y=0, every intermediate pass keeps
+ // that ordering. The final vertex alone flips to top-left visual presentation.
+ setSurfaceProgram(programs[0],[['Source',frameNext],['OriginalHistory1',framePrev]],targets[0],1,144,160,144);
+ setSurfaceProgram(programs[1],[['Source',targets[0].texture],['Original',frameNext],['OriginalHistory1',framePrev]],targets[1],160,1,1,144);
+ const feedback=targets[fbIndex===0?5:2];
+ const next=targets[fbIndex===0?2:5];
+ setSurfaceProgram(programs[2],[['Source',targets[1].texture],['Original',frameNext],['OriginalHistory1',framePrev],['PassOutput0',targets[0].texture],['PassFeedback2',feedback.texture]],next,160,144,160,1);
+ setSurfaceProgram(programs[3],[['Source',next.texture]],targets[3],160,144,160,144);
+ // High-resolution material uses the ORIGINAL STN physical differential
+ // response, ionic state and scan-time exposure. The only replacement is
+ // the drive provider: fine optical drive + the original matrix's RC correction.
+ const materialWrite=materialTargets[1-materialCurrent];
+ setSurfaceProgram(materialProgram,[
+  ['Original',materialNext],
+  ['OriginalHistory1',materialPrev],
+  ['PassFeedback2',materialTargets[materialCurrent].texture],
+  ['NativeCurrentInput',frameNext],
+  ['NativePreviousInput',framePrev],
+  ['NativeCurrentFeedback',next.texture],
+  ['NativePreviousFeedback',feedback.texture],
+  ['Source',targets[1].texture]
+ ],materialWrite,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
+ // Reuse the actual upstream matrix optical-state pass (panel variation
+ // remains zero at source defaults) on the fine material output.
+ setSurfaceProgram(programs[3],[['Source',materialWrite.texture]],
+  materialMatrix,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H,MATERIAL_W,MATERIAL_H);
+ materialCurrent=1-materialCurrent;
+ [materialPrev,materialNext]=[materialNext,materialPrev];
+ fbIndex=1-fbIndex;
+ [framePrev,frameNext]=[frameNext,framePrev];
+ frames++;
+ present();
+ gl.finish(); // explicitly measured completion; never report CPU submission as GPU time
+ renderMs=performance.now()-begin;
+ document.querySelector('#count').textContent=frames.toLocaleString();
+ document.querySelector('#ms').textContent=renderMs.toFixed(1)+' ms';
+ document.querySelector('#probes').textContent=
+  scene==='blink'?
+   'START GAME is '+(Math.floor((frames-1)/blinkEvery)%2===0?'ON':'OFF')+
+   ' · '+blinkEvery+' electrical frames per blink state':
+  scene==='motion'?'Original NOMAD tile SVGs moving • physical persistence stays at former positions':
+  scene==='steady'?'START GAME continuously driven ON':'START GAME continuously driven OFF';
+ output('STN director + ionic response • '+MATERIAL_W+' × '+MATERIAL_H+' material, 160 × 144 RC • '+renderMs.toFixed(1)+' ms');
+}
+function reset(){
+ autoplay=false;document.querySelector('#run').textContent='RUN';
+ frames=0;fbIndex=0;materialCurrent=0;lastPaintedLit=null;
+ renderPattern(0);
+ refreshInputTexture(framePrev);
+ refreshInputTexture(frameNext);
+ refreshInputTexture(fineTexture,fineCanvas);
+ refreshInputTexture(coverageTexture,coverageCanvas);
+ refreshInputTexture(materialPrev,materialCanvas);
+ refreshInputTexture(materialNext,materialCanvas);
+ for(let i of [2,5]){
+   gl.bindFramebuffer(gl.FRAMEBUFFER,targets[i].fb);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+ }
+ for(const item of materialTargets){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,item.fb);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+ }
+ gl.bindFramebuffer(gl.FRAMEBUFFER,materialMatrix.fb);
+ gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
+ // First stimulus is held on consecutive source frames; history starts neutral.
+ step();
+}
+function animation(now){
+ if(!autoplay||!runtime)return;
+ const msPerFrame=1000/59.7275;
+ if(now-lastFrameTs<msPerFrame){
+  requestAnimationFrame(animation);
+  return;
+ }
+ lastFrameTs=now;
+ try{
+  step();
+  // Stop automatic playback rather than repeatedly stressing a device
+  // that is taking too long to complete GPU work. Manual step stays available.
+  if(renderMs>Number(document.querySelector('#frameBudget').value)){
+    autoplay=false;
+    document.querySelector('#run').textContent='RUN';
+    output('AUTO-PAUSED · slow GPU step ('+renderMs.toFixed(1)+' ms). Manual STEP is available.');
+  }
+ }catch(error){
+  autoplay=false;document.querySelector('#run').textContent='RUN';
+  output('ERROR • '+error.message);log(error.stack||error.message);
+ }
+ if(autoplay)requestAnimationFrame(animation);
+}
+async function boot(){
+ MATERIAL_SCALE=Number(document.querySelector('#materialResolution').value)||2;
+ MATERIAL_W=NATIVE_W*MATERIAL_SCALE;
+ MATERIAL_H=NATIVE_H*MATERIAL_SCALE;
+ output('Loading authentic NOMAD v262 vector art…');
+ await loadNomadAssets();
+ gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,preserveDrawingBuffer:true,powerPreference:'default'});
+ if(!gl)throw Error('WebGL2 unavailable; no alternate approximation will be used');
+ if(!gl.getExtension('EXT_color_buffer_float'))throw Error('EXT_color_buffer_float unavailable; original RGBA32F feedback cannot be reproduced. No low-precision fallback.');
+ const raw=await importOriginalShaders();
+ programs=raw.map((shader,i)=>{output('Compiling ORIGINAL reference pass '+(i+1)+' / 5: '+shader.path);return linked(i===4?GL_FINAL_VERTEX:GL_VERTEX,shader.fragment,shader.path);});
+ staticProgram=linked(GL_FINAL_VERTEX,GL_RAW,'unaltered NOMAD artwork');
+ output('Compiling original STN director + ionic physics for '+MATERIAL_W+' × '+MATERIAL_H+'…');
+ materialProgram=linked(GL_VERTEX,makeFineMaterialResponse(raw[2].fragment),
+  'source-STN fine material + native electrical coupling');
+ output('Compiling shape-aware optical reconstruction…');
+ celllessProgram=linked(GL_FINAL_VERTEX,makeShapeOptics(raw[4].fragment),
+  'source optical palette + shape reflector geometry');
+ // VAO is required in WebGL2 for gl_VertexID fullscreen triangles.
+ gl.bindVertexArray(gl.createVertexArray());
+ canvas.width=NATIVE_W*SCALE;canvas.height=NATIVE_H*SCALE;
+ imgContext();renderPattern(0);
+ framePrev=textureFromCanvas();frameNext=textureFromCanvas();
+ fineTexture=createFineTexture();
+ coverageTexture=createCoverageTexture();
+ gl.bindTexture(gl.TEXTURE_2D,fineTexture);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ materialPrev=createMaterialTexture();
+ materialNext=createMaterialTexture();
+ targets=[target(1,144),target(160,1),target(160,144),target(160,144),null,target(160,144)];
+ materialTargets=[target(MATERIAL_W,MATERIAL_H),target(MATERIAL_W,MATERIAL_H)];
+ materialMatrix=target(MATERIAL_W,MATERIAL_H);
+ runtime=true;reset();
+ for(const id of ['step','run','reset'])document.getElementById(id).disabled=false;
+ document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
+ document.querySelector('#cadence').addEventListener('change',event=>{blinkEvery=Math.max(1,Number(event.target.value)||36);reset();});
+ document.querySelector('#view').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
+ document.querySelector('#shadowInspection').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
+ document.querySelector('#presentation').addEventListener('change',()=>{try{present();}catch(e){fail(e);}});
+ window.addEventListener('resize',()=>{if(runtime)try{present();}catch(e){fail(e);}});
+ document.querySelector('#step').addEventListener('click',()=>{try{step();}catch(e){output(e.message);log(e.stack||e.message);}});
+ document.querySelector('#reset').addEventListener('click',reset);
+ document.querySelector('#run').addEventListener('click',()=>{
+    autoplay=!autoplay;lastFrameTs=0;
+    document.querySelector('#run').textContent=autoplay?'PAUSE':'RUN';
+    if(autoplay)requestAnimationFrame(animation);
+ });
+ // Do not autoplay. The first manual RUN click begins the frame simulation.
+ autoplay=false;document.querySelector('#run').textContent='RUN';
+ output('Original matrix + '+MATERIAL_W+' × '+MATERIAL_H+' physical material loaded, paused. Choose view, then RUN or STEP.');
+ document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){autoplay=false;document.querySelector('#run').textContent='RUN';}
+ });
+ canvas.addEventListener('webglcontextlost',event=>{
+  event.preventDefault();autoplay=false;
+  document.querySelector('#run').textContent='RUN';
+  output('WEBGL CONTEXT LOST · renderer stopped.');
+ });
+}
+document.getElementById('initialize').addEventListener('click',async()=>{
+ const button=document.getElementById('initialize');
+ button.disabled=true;button.textContent='LOADING PHYSICAL MODEL…';
+ try{
+  await boot();
+  button.textContent='PHYSICAL MODEL READY';
+  document.getElementById('materialResolution').disabled=true;
+ }catch(error){
+  fail(error);
+  button.textContent='MODEL COULD NOT LOAD';
+ }
+});
+
+</script>
+</body></html>
