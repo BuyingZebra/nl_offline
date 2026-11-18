@@ -4,7 +4,7 @@ import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.2.0';
+export const APP_VERSION='0.3.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -97,11 +97,14 @@ function drawContent(){
 }
 
 /* ---------- Loop ---------- */
-let running=false,paused=false,lastNow=null;
+let running=false,paused=false,lastNow=null,lastFrame=0;
 function tick(now){
  if(!running)return;
  const dt=lastNow===null?16:Math.min(100,now-lastNow);lastNow=now;
- if(!paused){autoplay(dt);drawContent();lcd.frame(now);}
+ // While paused, time stands still (dt = 0) but the panel is still drawn,
+ // so a resize or rotation never leaves it blank.
+ if(!paused){autoplay(dt);drawContent();lcd.frame(now);lastFrame=now;}
+ else{drawContent();lcd.frame(lastFrame);}
  requestAnimationFrame(tick);
 }
 const start=()=>{if(!running){running=true;lastNow=null;requestAnimationFrame(tick);}};

@@ -2,7 +2,7 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,lightSamples,reflectance,PHYSICAL_LCD_VERSION}
+import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,shadowKernel,entryVector,reflectanceFromEntry,reflectance,PHYSICAL_LCD_VERSION}
  from '../vector-lcd/physical-lcd.js';
 import {ENGINE_VERSION,DEFAULT_PARAMS as P,PARAM_RANGES,normalizeParams,electroOptic,switchingTimeMs,stepToward,
  stepPixel,visibleDarkness,reflectorShadowOffsetMm,shadowVectorMm,multiplexVoltages,srgbToLinear,driveColor}
@@ -164,8 +164,30 @@ describe('Reflective TN profile: physics and datasheet agreement',()=>{
   assert.ok(top.y<0&&Math.abs(top.x)<1e-12,'light from the top enters above the exit point');
   const g=TN.sources.geometry,s=Math.sin(Math.PI/6);
   near(-top.y,g.glass_mm*Math.tan(Math.asin(s/g.n_glass))+g.rear_polarizer_mm*Math.tan(Math.asin(s/g.n_polarizer)),1e-12);
-  assert.equal(lightSamples(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:0}).length,1);
-  assert.equal(lightSamples(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:10}).length,7);
+
+ });
+ test('soft shadows: the separable form reproduces the full optics table',()=>{
+  assert.equal(TN.factor.rank,4);
+  assert.ok(TN.factor.max_relative_error<.01,'factor error '+TN.factor.max_relative_error);
+  const tableMax=Math.max(...TN.lut.linear_srgb);
+  for(const [ai,ao] of [[0,0],[.5,.2],[.95,.95],[0,.95],[.95,0]]){
+   const full=reflectance(TN,ai,ao),fact=reflectanceFromEntry(TN,entryVector(TN,ai),ao);
+   for(let c=0;c<3;c++)near(fact[c],full[c],.01*tableMax,'a_in '+ai+' a_out '+ao);
+  }
+ });
+ test('soft shadows: a point light gives a sharp shadow; a larger light widens it',()=>{
+  const point=shadowKernel(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:0});
+  assert.equal(point.sigmaRadialMm,0);assert.equal(point.sigmaTangentialMm,0);
+  const small=shadowKernel(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:10});
+  const big=shadowKernel(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:40});
+  assert.ok(big.sigmaRadialMm>small.sigmaRadialMm&&small.sigmaRadialMm>0);
+  near(big.sigmaRadialMm/small.sigmaRadialMm,4,1e-6);
+  // Straight-on light: no mean offset, and the spread is the same in every direction.
+  const overhead=shadowKernel(TN,{angleDeg:0,azimuthDeg:0,sourceDeg:20});
+  near(overhead.mean.x,0,1e-12);near(overhead.mean.y,0,1e-12);
+  near(overhead.sigmaRadialMm,overhead.sigmaTangentialMm,1e-3);
+  // The shadow's mean moves with the light direction.
+  assert.deepEqual(Object.values(big.mean).map(v=>Math.sign(Math.round(v*1e9))),[0,-1]);
  });
 });
 

@@ -209,6 +209,19 @@ xyz_total = xyz + R_SURFACE * WHITE[None, None, :]
 rgb = np.einsum("ij,abj->abi", M_SRGB, xyz_total)
 Y_diag = np.array([xyz_total[k, k, 1] for k in range(GRID)])
 
+# 5b. Separable form for soft shadows. Light from an extended source adds up
+#     incoherently over entry points, so the renderer must average the light
+#     *entering* the glass, not the director state. A rank-4 factorization
+#     R_c(a_in, a_out) = sum_k entry_k(a_in) * exit_k,c(a_out) makes that average a
+#     plain blur of four entry fields. Per wavelength the double pass is close
+#     to a product (the rear polarizer sits between the passes), so few terms
+#     are needed; the error is reported.
+RANK = 4
+U, S, Vt = np.linalg.svd(rgb.reshape(GRID, GRID * 3), full_matrices=False)
+ENTRY = U[:, :RANK] * np.sqrt(S[:RANK])                 # (GRID, RANK)
+EXIT = (Vt[:RANK].T * np.sqrt(S[:RANK])).reshape(GRID, 3, RANK)  # (GRID, 3, RANK)
+FACTOR_ERR = float(np.max(np.abs(np.einsum("ik,jck->ijc", ENTRY, EXIT) - rgb)) / np.max(rgb))
+
 # 6. Dynamics: solve both time constants against the datasheet 10-90% times.
 def ten_ninety(curve_y):
     y0, y1 = curve_y[0], curve_y[-1]
@@ -255,6 +268,9 @@ out = {
  "drive": {"Vop": V_op, "voltages": [r6(v) for v in V_GRID], "a_equilibrium": [r6(v) for v in curve],
            "static_by_gray": static, "analog_by_gray": [r6(v) for v in analog]},
  "lut": {"size": GRID, "a_max": r6(A_MAX), "linear_srgb": [r6(v) for v in rgb.reshape(-1)]},
+ "factor": {"rank": RANK, "max_relative_error": r6(FACTOR_ERR),
+            "entry": [r6(v) for v in ENTRY.reshape(-1)],
+            "exit": [r6(v) for v in EXIT.reshape(-1)]},
  "dynamics": {"tau_on_at_Vop_ms": r6(TAU_ON_OP), "tau_off_ms": r6(TAU_OFF), "Vth": r6(VTH), "Vop": V_op}
 }
 json.dump(out, open(os.path.join(HERE, "..", "profiles", "reflective-tn.json"), "w"), separators=(",", ":"))
