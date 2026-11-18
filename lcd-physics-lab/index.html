@@ -58,6 +58,7 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
   <option value="cellless">Shape-driven physical material</option>
   <option value="reference">Original DMG-01 square cells</option>
   <option value="raw">Original NOMAD v262 artwork</option>
+  <option value="mask">Active sprite/electrode silhouette</option>
  </select></div>
  <div><label for="presentation">PRESENTATION ONLY</label><select id="presentation">
   <option value="fixed">Fixed 4× optical framebuffer</option>
@@ -365,8 +366,8 @@ function present(){
  syncPresentationSize();
  const t=targets;
  const view=document.querySelector('#view').value;
- if(view==='raw'){
-  setSurfaceProgram(staticProgram,[['Source',fineTexture]],null,
+ if(view==='raw'||view==='mask'){
+  setSurfaceProgram(staticProgram,[['Source',view==='raw'?fineTexture:coverageTexture]],null,
    canvas.width,canvas.height,OPTICAL_W,OPTICAL_H);
  }else if(view==='reference'){
   setSurfaceProgram(programs[4],[['Source',t[3].texture]],null,
@@ -431,7 +432,7 @@ function step(){
    ' · '+blinkEvery+' electrical frames per blink state':
   scene==='motion'?'Original NOMAD tile SVGs moving • physical persistence stays at former positions':
   scene==='steady'?'START GAME continuously driven ON':'START GAME continuously driven OFF';
- output('PHYSICAL STN RESPONSE • native electrical RC + independent fine-material history • '+renderMs.toFixed(1)+' ms');
+ output('STN director + ionic response • '+MATERIAL_W+' × '+MATERIAL_H+' material, 160 × 144 RC • '+renderMs.toFixed(1)+' ms');
 }
 function reset(){
  autoplay=false;document.querySelector('#run').textContent='RUN';
