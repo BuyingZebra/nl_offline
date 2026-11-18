@@ -92,6 +92,8 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 Original DMG-01 physics and optical lookup data: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Unmodified source is hosted in the adjacent <code>../lcd-response-study/upstream/</code> folder. This laboratory has no dependency on the NOMAD app and never registers a service worker.
 </footer>
 <script type="module">
+import {makeFineMaterialResponse,makeShapeOptics} from "./physics-shaders.js";
+import {loadNomadAssets,drawNomadReady} from "./nomad-stimulus.js";
 /*
  * DMG-01 original-source WebGL2 adapter for the five-pass Retro Display Lab reference shader.
  * The .slang source and generated includes are unchanged; this adapter translates
@@ -127,84 +129,6 @@ in vec2 vTexCoord;
 out vec4 FragColor;
 uniform sampler2D Source;
 void main(){FragColor=texture(Source,vTexCoord);}`;
-// Lightweight high-resolution detail history. This is a supplementary
-// spatial reconstruction, NOT a replacement for the original STN director,
-// row timing, RC loading or ionic charge solver at 160x144.
-const GL_DETAIL=`#version 300 es
-precision highp float;
-in vec2 vTexCoord;
-out vec4 FragColor;
-uniform sampler2D FineArtwork,NativeInput,PreviousDetail;
-uniform float ResetDetail;
-float luma(vec3 rgb){return dot(rgb,vec3(.2126,.7152,.0722));}
-float nativeDriveLinear(vec2 uv){
- // Sample the invisible electrical matrix without introducing square blocks:
- // manually interpolate four neighbours; no float-linear extension needed.
- vec2 dimensions=vec2(textureSize(NativeInput,0));
- vec2 at=uv*dimensions-.5;
- ivec2 p=ivec2(floor(at));
- vec2 w=fract(at);
- ivec2 high=ivec2(dimensions)-ivec2(1);
- float a=luma(texelFetch(NativeInput,clamp(p,ivec2(0),high),0).rgb);
- float b=luma(texelFetch(NativeInput,clamp(p+ivec2(1,0),ivec2(0),high),0).rgb);
- float c=luma(texelFetch(NativeInput,clamp(p+ivec2(0,1),ivec2(0),high),0).rgb);
- float d=luma(texelFetch(NativeInput,clamp(p+ivec2(1,1),ivec2(0),high),0).rgb);
- return mix(mix(a,b,w.x),mix(c,d,w.x),w.y);
-}
-void main(){
- float fine=luma(texture(FineArtwork,vTexCoord).rgb);
- float native=nativeDriveLinear(vTexCoord);
- // A virtual row/column has ONE original physical response. Fine strokes
- // contribute only the deviation from that row/column's requested drive.
- float desired=clamp(.75*(native-fine),-.75,.75);
- float old=(texture(PreviousDetail,vTexCoord).r-.5)*1.5;
- // Optical sub-electrode detail lags rather than snapping into existence.
- // These local rates are explicitly an interpolation approximation.
- float rate=desired>old?.16:.095;
- float next=ResetDetail>.5?desired:mix(old,desired,rate);
- FragColor=vec4(clamp(.5+next/1.5,0.,1.),0.,0.,1.);
-}`;
-// Keep the original five passes intact. Reuse the actual upstream measured
-// optical palette, polarization adjustment and contrast in a DIFFERENT final
-// presentation. No aperture gap/grid is drawn in this experimental mode.
-function celllessOpticalFragment(referenceFragment){
- const cut=referenceFragment.lastIndexOf('void main()');
- if(cut<0)throw Error('Original optical fragment has no main');
- return referenceFragment.slice(0,cut)+`
-uniform sampler2D FineDetailHistory;
-// Four native texelFetch samples provide bilinear field interpolation
-// without needing OES_texture_float_linear on mobile GPUs.
-float physicalField(vec2 uv){
- vec2 texSize=global.SourceSize.xy;
- vec2 cell=uv*texSize-.5;
- ivec2 low=ivec2(floor(cell));
- vec2 weight=fract(cell);
- ivec2 upper=ivec2(texSize)-ivec2(1);
- float a=texelFetch(Source,clamp(low,ivec2(0),upper),0).r;
- float b=texelFetch(Source,clamp(low+ivec2(1,0),ivec2(0),upper),0).r;
- float c=texelFetch(Source,clamp(low+ivec2(0,1),ivec2(0),upper),0).r;
- float d=texelFetch(Source,clamp(low+ivec2(1,1),ivec2(0),upper),0).r;
- return mix(mix(a,b,weight.x),mix(c,d,weight.x),weight.y);
-}
-void main(){
- float reference=physicalField(vTexCoord);
- float detail=(texture(FineDetailHistory,vTexCoord).r-.5)*1.5;
- float state=clamp((reference+detail-.25)*params.Contrast+.25
-  +params.ContrastBias,0.,1.);
- vec3 background=optical_color(0.0);
- vec3 color=optical_color(state);
- // The actual DMG reflector shadow belongs to gaps. As there are no
- // electrode gaps here, use a continuous displaced-backplane analogue.
- vec2 offset=vec2(params.ShadowOffsetX,params.ShadowOffsetY)
-  /max(global.SourceSize.xy,vec2(1.));
- float behind=physicalField(clamp(vTexCoord-offset,vec2(0.),vec2(1.)));
- float shadow=max(0.,behind-reference);
- color-=background*params.ShadowStrength*.35*shadow;
- float luminance=dot(color,vec3(.2126,.7152,.0722));
- color=mix(vec3(luminance),color,params.ScreenChroma)*params.ScreenBrightness;
- FragColor=vec4(clamp(to_srgb(color),0.,1.),1.);
-}`;
-}
 const statusEl=document.querySelector('#status');
 const logEl=document.querySelector('#log');
 const canvas=document.querySelector('#panel');
@@ -222,7 +146,8 @@ function fail(error){
 
 let runtime=null,autoplay=false,frames=0,scene='blink',blinkEvery=36,renderMs=0;
 let framePrev=null,frameNext=null,sourceCtx=null,sourceCanvas=null;
-let fineCanvas=null,fineCtx=null,fineTexture=null,detailTargets=[],detailCurrent=0,detailProgram=null,celllessProgram=null;
+let fineCanvas=null,fineCtx=null,fineTexture=null,materialCanvas=null,materialCtx=null,materialPrev=null,materialNext=null,materialTargets=[],materialCurrent=0,materialProgram=null,materialMatrix=null,celllessProgram=null;
+let MATERIAL_SCALE=2,MATERIAL_W=320,MATERIAL_H=288;
 let targets=[],programs=[],staticProgram=null,fbIndex=0,lastFrameTs=0,lastPaintedLit=null;
 const referenceParams={
   DriveContrast:1,PanelTemperatureCelsius:20,IonicMobility:.05,
@@ -357,6 +282,12 @@ function imgContext(){
  fineCtx=fineCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
  if(!fineCtx)throw Error('High-resolution artwork canvas unavailable');
  fineCtx.imageSmoothingEnabled=true;
+ materialCanvas=document.createElement('canvas');
+ materialCanvas.width=MATERIAL_W;materialCanvas.height=MATERIAL_H;
+ materialCtx=materialCanvas.getContext('2d',{alpha:false});
+ if(!materialCtx)throw Error('Fine-material input canvas unavailable');
+ materialCtx.imageSmoothingEnabled=true;
+ materialCtx.imageSmoothingQuality='high';
 }
 function textureFromCanvas(){
  const texture=oneTexture(NATIVE_W,NATIVE_H,gl.RGBA8);
@@ -375,45 +306,34 @@ function createFineTexture(){
  refreshInputTexture(texture,fineCanvas);
  return texture;
 }
+function createMaterialTexture(){
+ const texture=oneTexture(MATERIAL_W,MATERIAL_H,gl.RGBA8);
+ refreshInputTexture(texture,materialCanvas);
+ return texture;
+}
+function rasterizeMaterialSource(){
+ materialCtx.clearRect(0,0,MATERIAL_W,MATERIAL_H);
+ materialCtx.drawImage(fineCanvas,0,0,MATERIAL_W,MATERIAL_H);
+}
 
-const DRIVE=['#ffffff','#aaaaaa','#555555','#000000'];
+
 function renderPattern(frame){
- const lit=scene==='steady'||(scene==='blink'&&Math.floor(frame/blinkEvery)%2===0);
- if(lastPaintedLit===lit)return false;
+ const lit=scene==='steady'||scene==='motion'||(scene==='blink'&&Math.floor(frame/blinkEvery)%2===0);
+ if(lastPaintedLit===lit&&scene!=='motion')return false;
  lastPaintedLit=lit;
- // True 640x576 artwork: smooth edges never enter the DMG pixel aperture
- // function. The native 160x144 input is independently averaged from it,
- // so the ORIGINAL matrix still receives exactly four drive levels.
- const g=fineCtx,P=DRIVE;
- g.setTransform(SCALE,0,0,SCALE,0,0);
- g.fillStyle=P[0];g.fillRect(0,0,NATIVE_W,NATIVE_H);
- g.textAlign='center';g.textBaseline='middle';
- g.fillStyle=P[3];g.font='700 30px "Roboto Condensed", monospace';
- g.fillText('TETRIS',80,39);
- g.fillStyle=P[2];g.font='bold 9px monospace';
- g.fillText('NOMAD / LCD',80,63);
- if(lit){
-  g.fillStyle=P[3];g.fillRect(27,82,106,36);
-  g.fillStyle=P[0];g.fillRect(30,85,100,30);
-  g.fillStyle=P[3];
-  g.beginPath();g.moveTo(43,90);g.lineTo(43,109);g.lineTo(56,99.5);
-  g.closePath();g.fill();
-  g.font='700 17px "Roboto Condensed", monospace';g.fillText('PLAY',91,100);
- }
- g.fillStyle=P[2];g.font='bold 7px monospace';
- g.fillText('DMG-01 / RESPONSE STUDY',80,136);
- // Four native electrical levels only in the MATRIX path. The output
- // artwork above is never quantized or resized for optical reconstruction.
- sourceCtx.fillStyle=P[0];sourceCtx.fillRect(0,0,NATIVE_W,NATIVE_H);
+ // Actual NOMAD artwork and SVG sprites, rendered to 640x576 independent
+ // of the DMG's electrical sampling grid.
+ drawNomadReady(fineCtx,{lit,motion:scene==='motion',frameNumber:frame,scale:SCALE});
+ // The ORIGINAL Game Boy reconstruction still receives quantized shades.
+ // This signal is NOT used for the high-resolution material input.
  sourceCtx.drawImage(fineCanvas,0,0,NATIVE_W,NATIVE_H);
- const pixels=sourceCtx.getImageData(0,0,NATIVE_W,NATIVE_H);
- const data=pixels.data;
+ const pixels=sourceCtx.getImageData(0,0,NATIVE_W,NATIVE_H),data=pixels.data;
  for(let i=0;i<data.length;i+=4){
-  const code=Math.max(0,Math.min(3,Math.round((255-data[i])/85)));
-  const value=255-85*code;
-  data[i]=value;data[i+1]=value;data[i+2]=value;data[i+3]=255;
+  const n=255-85*Math.max(0,Math.min(3,Math.round((255-data[i])/85)));
+  data[i]=n;data[i+1]=n;data[i+2]=n;data[i+3]=255;
  }
  sourceCtx.putImageData(pixels,0,0);
+ rasterizeMaterialSource();
  return true;
 }
 function syncPresentationSize(){
