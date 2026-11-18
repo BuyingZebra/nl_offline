@@ -74,8 +74,20 @@ export function makeFineMaterialResponse(reference){
    'int previousDriveIndex = int(floor(gameboy_drive_index(',
    '      texelFetch(OriginalHistory1, sourceCoord, 0).rgb',
    '   )+0.5));'].join('\n'),'previous drive transition key');
-  // All remaining original material functions, lookups and physical history
-  // main() are kept unchanged.
+  // Preserve the ORIGINAL DMG scanout: 144 active rows in 154 line
+  // intervals, no matter how many independent material samples represent a
+  // row. Without this remapping a 2x material grid would mis-time its lower
+  // half and a 3x grid would exceed the whole DMG scan window.
+  source=uniqueReplace(source,
+    ['float latchFraction = (float(sourceCoord.y)',
+     '         + clamp(params.LatchOffsetLines, 0.0, 1.0)) / 154.0;'].join('\n'),
+    ['float nativeRow = max(0.0, (float(sourceCoord.y)+0.5)',
+     '         * (144.0 / global.OriginalSize.y) - 0.5);',
+     '      float latchFraction = (nativeRow',
+     '         + clamp(params.LatchOffsetLines, 0.0, 1.0)) / 154.0;'].join('\n'),
+    'native 154-line scanout across fine samples');
+  // Remaining target/drift/ionic/Simpson functions and physical history
+  // main() are unchanged from the reference.
   return source;
 }
 export function makeShapeOptics(reference){
