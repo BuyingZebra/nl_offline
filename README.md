@@ -6,8 +6,8 @@
 
 ## Vector LCD
 
-[Open Vector LCD](https://buyingzebra.github.io/nl_offline/vector-lcd/), a standalone, installable demo of a cell-free, physics-informed reflective LCD for vector art. It is separate from NOMAD Tetris.
+[Open Vector LCD](https://buyingzebra.github.io/nl_offline/vector-lcd/): NOMAD Tetris shown through a physically computed reflective TN LCD, built from datasheet, material and optics data. It is a standalone, installable app; it reads the game and tile art but does not change them.
 
-- [How the model works and how to reuse the engine](./vector-lcd/README.md)
+- [Sources, method and files](./vector-lcd/README.md)
 
 GitHub Pages serves this repository from the root of `main`. Keep the root `sw.js` available so older navigation installations release their former site-wide service worker.

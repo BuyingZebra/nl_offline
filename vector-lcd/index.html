@@ -3,23 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="vector-lcd-version" content="0.1.0">
+<meta name="vector-lcd-version" content="0.2.0">
 <meta name="theme-color" content="#141513">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Vector LCD">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="A cell-free, physics-informed reflective LCD for vector art.">
+<meta name="description" content="NOMAD Tetris on a physically computed reflective TN LCD.">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <title>Vector LCD</title>
 <style>
-:root{
- --bg:#141513;--surface:#1d1f1c;--line:#2e322c;--text:#dfe3d6;--muted:#9da394;--accent:#b8c49a;
- color-scheme:dark;
-}
+:root{--bg:#141513;--surface:#1d1f1c;--line:#2e322c;--text:#dfe3d6;--muted:#9da394;--accent:#b8c49a;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
  font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
@@ -29,67 +26,58 @@ header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:
 h1{font-size:16px;margin:0;letter-spacing:.04em}
 #version{color:var(--muted);font-size:13px}
 header button{margin-left:auto}
-button,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);
- border-radius:8px;padding:7px 12px;min-height:36px}
-button:active{background:var(--line)}
+button{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 12px;min-height:36px}
 button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 #stage{flex:1;min-height:0;display:grid;place-items:center;padding:12px}
-#bezel{padding:10px;border-radius:12px;background:linear-gradient(160deg,#2a2c28,#121311);
- box-shadow:inset 0 1px 0 #3a3d36,0 8px 24px #0008;line-height:0}
-#panel{display:block;border-radius:3px;box-shadow:inset 0 0 0 1px #0006;touch-action:manipulation}
-#error{position:absolute;inset:auto 16px 50% 16px;padding:12px;border-radius:8px;background:#3a1d1d;color:#ffd9d9;
- line-height:1.4}
-#controls{max-height:44%;overflow:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line);
- background:var(--surface);padding:4px 16px calc(14px + env(safe-area-inset-bottom))}
+#bezel{padding:10px;border-radius:12px;background:linear-gradient(160deg,#2a2c28,#121311);box-shadow:inset 0 1px 0 #3a3d36,0 8px 24px #0008;line-height:0}
+#panel{display:block;border-radius:2px}
+#error{position:absolute;inset:auto 16px 50% 16px;padding:12px;border-radius:8px;background:#3a1d1d;color:#ffd9d9;line-height:1.4}
+#controls{max-height:44%;overflow:auto;border-top:1px solid var(--line);background:var(--surface);padding:4px 16px calc(14px + env(safe-area-inset-bottom))}
 body.controls-closed #controls{display:none}
 h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 6px}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;
- background:var(--bg);font-size:14px;cursor:pointer}
-.chip input{margin:0;accent-color:var(--accent)}
-.row{display:grid;grid-template-columns:minmax(96px,34%) 1fr 78px;align-items:center;gap:10px;min-height:34px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.note{color:var(--muted);font-size:13px;margin:6px 0 0}
+.row{display:grid;grid-template-columns:minmax(96px,30%) 1fr 116px;align-items:center;gap:10px;min-height:34px}
 .row span{font-size:14px}
-.row output{font-size:13px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.row output{font-size:13px;color:var(--muted);text-align:right}
 input[type=range]{width:100%;accent-color:var(--accent);margin:0}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
-.file{position:relative;overflow:hidden}
-.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
-#artName,#status{color:var(--muted);font-size:13px}
-#status{margin-top:12px;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:minmax(120px,40%) 1fr;gap:4px 12px;margin:0;font-size:13px}
+dt{color:var(--muted)}dd{margin:0}
+#status{color:var(--muted);font-size:13px;margin-top:12px;overflow-wrap:anywhere}
+a{color:var(--accent)}
 @media (min-width:900px){
- body{flex-direction:row;flex-wrap:wrap}
- header{flex-basis:100%}
+ body{flex-direction:row;flex-wrap:wrap}header{flex-basis:100%}
  #stage{height:calc(100% - 58px)}
- #controls{max-height:none;height:calc(100% - 58px);width:380px;border-top:0;border-left:1px solid var(--line)}
+ #controls{max-height:none;height:calc(100% - 58px);width:400px;border-top:0;border-left:1px solid var(--line)}
 }
 </style>
 </head>
 <body>
 <header>
- <h1>VECTOR LCD</h1><span id="version"></span>
+ <h1>REFLECTIVE TN</h1><span id="version"></span>
  <button id="toggleControls" type="button" aria-expanded="true" aria-controls="controls">Controls</button>
 </header>
 <main id="stage">
- <div id="bezel"><canvas id="panel" role="img" aria-label="Simulated reflective LCD panel showing a clock, hopping segments and moving vector art"></canvas></div>
+ <div id="bezel"><canvas id="panel" role="img" aria-label="NOMAD Tetris on a simulated reflective twisted-nematic LCD"></canvas></div>
  <p id="error" role="alert" hidden></p>
 </main>
-<section id="controls" aria-label="Display controls">
- <h2>Actions</h2>
+<section id="controls" aria-label="Screen controls">
+ <h2>Drive</h2>
  <div class="actions">
-  <button id="hold" type="button" aria-pressed="false">Hold test</button>
+  <button type="button" data-mode="static" aria-pressed="true">Static (datasheet)</button>
+  <button type="button" data-mode="analog" aria-pressed="false">Analog grays</button>
   <button id="pause" type="button">Pause</button>
   <button id="reset" type="button">Reset panel</button>
-  <button id="defaults" type="button">Defaults</button>
  </div>
- <h2>Art</h2>
- <div class="actions">
-  <label class="file"><button type="button" tabindex="-1">Load SVG</button><input id="artFile" type="file" accept=".svg,image/svg+xml,image/png" aria-label="Load SVG art"></label>
-  <button id="defaultArt" type="button">Built-in art</button>
-  <span id="artName">Built-in spark</span>
- </div>
- <div id="controlsBody"></div>
+ <p class="note" id="modeNote"></p>
+ <h2>Room lighting</h2>
+ <div id="lighting"></div>
+ <p class="note">Lighting is the room, not the panel. Light at an angle enters the glass at one point and leaves at another, which is what casts the shadow.</p>
+ <h2>Where the numbers come from</h2>
+ <dl id="facts"></dl>
+ <p class="note">Full sources and method: <a href="./README.md">README</a>. The earlier hand-tuned model is kept at <a href="./concept.html">concept.html</a>.</p>
  <p id="status"></p>
 </section>
-<script type="module" src="./demo.js"></script>
+<script type="module" src="./tn-demo.js"></script>
 </body>
 </html>

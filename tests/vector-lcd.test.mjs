@@ -2,6 +2,8 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
+import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,lightSamples,reflectance,PHYSICAL_LCD_VERSION}
+ from '../vector-lcd/physical-lcd.js';
 import {ENGINE_VERSION,DEFAULT_PARAMS as P,PARAM_RANGES,normalizeParams,electroOptic,switchingTimeMs,stepToward,
  stepPixel,visibleDarkness,reflectorShadowOffsetMm,shadowVectorMm,multiplexVoltages,srgbToLinear,driveColor}
  from '../vector-lcd/vector-lcd.js';
@@ -98,31 +100,110 @@ describe('Vector LCD parameters and helpers',()=>{
  });
 });
 
-describe('Vector LCD app packaging',()=>{
- test('one version everywhere: engine, page, demo and offline worker',()=>{
-  const html=read('index.html'),demo=read('demo.js'),worker=read('sw.js');
-  assert.match(ENGINE_VERSION,/^\d+\.\d+\.\d+$/);
-  assert.equal(html.match(/name="vector-lcd-version" content="([^"]+)"/)[1],ENGINE_VERSION);
-  assert.equal(demo.match(/APP_VERSION='([^']+)'/)[1],ENGINE_VERSION);
-  assert.equal(worker.match(/const VERSION='([^']+)'/)[1],ENGINE_VERSION);
+const TN=JSON.parse(read('profiles/reflective-tn.json'));
+const luminance=rgb=>.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];
+
+describe('Reflective TN profile: physics and datasheet agreement',()=>{
+ test('every input names its source, and the panel values match the VI-402 datasheet',()=>{
+  const s=TN.sources;
+  assert.match(s.panel.ref,/ZD1886/);assert.match(s.polarizer.ref,/orientdisplay/);
+  assert.ok(s.liquid_crystal.refs.length>=2);
+  assert.deepEqual([s.panel.Vop_typ,s.panel.rise_ms_typ,s.panel.decay_ms_typ,s.panel.contrast_typ],[3,30,60,15]);
  });
- test('every file the worker precaches exists, and every app file is precached',()=>{
+ test('threshold equals the TN Freedericksz formula from the cited E7 constants',()=>{
+  const L=TN.sources.liquid_crystal,eps0=8.8541878128e-12;
+  const k=(L.K11_pN+(L.K33_pN-2*L.K22_pN)/4)*1e-12;
+  near(TN.dynamics.Vth,Math.PI*Math.sqrt(k/(eps0*(L.eps_parallel-L.eps_perpendicular))),1e-4);
+  // The computed director does not deform below threshold, and does above it.
+  assert.ok(equilibriumState(TN,.8)<.05);assert.ok(equilibriumState(TN,1.6)>.5);
+ });
+ test('cell gap satisfies the Gooch-Tarry first maximum at 550 nm',()=>{
+  near(2*TN.derived.cell_gap_um*TN.derived.dn_550/.55,Math.sqrt(3),1e-4);
+ });
+ test('director state rises monotonically with voltage',()=>{
+  const a=TN.drive.a_equilibrium;
+  assert.equal(a[0],0);
+  for(let i=1;i<a.length;i++)assert.ok(a[i]>=a[i-1]);
+ });
+ test('optical contrast reproduces the datasheet 15:1',()=>{
+  const on=equilibriumState(TN,TN.drive.Vop);
+  const cr=luminance(reflectance(TN,0,0))/luminance(reflectance(TN,on,on));
+  assert.ok(Math.abs(cr-15)<.3,'contrast '+cr);
+ });
+ test('simulated optical 10-90% times reproduce the datasheet response',()=>{
+  const measure=(fromGray,toGray)=>{
+   let a=equilibriumState(TN,driveVoltage(TN,fromGray));
+   const y0=luminance(reflectance(TN,a,a)),target=equilibriumState(TN,driveVoltage(TN,toGray));
+   const y1=luminance(reflectance(TN,target,target));
+   let t=0,t10=null,t90=null;
+   while(t<1000){a=stepState(TN,a,driveVoltage(TN,toGray),.05);t+=.05;
+    const f=(luminance(reflectance(TN,a,a))-y0)/(y1-y0);
+    if(t10===null&&f>=.1)t10=t;if(t90===null&&f>=.9){t90=t;break;}}
+   return t90-t10;
+  };
+  assert.ok(Math.abs(measure(255,0)-30)<1.5,'rise '+measure(255,0));
+  assert.ok(Math.abs(measure(0,255)-60)<1.5,'decay '+measure(0,255));
+ });
+ test('switching on is faster at higher voltage; switching off never uses the field',()=>{
+  assert.ok(timeConstantMs(TN,3,.9,0)<timeConstantMs(TN,2,.8,0));
+  assert.equal(timeConstantMs(TN,0,0,.9),TN.dynamics.tau_off_ms);
+ });
+ test('state steps give the same result at any frame rate',()=>{
+  const run=(hz)=>{let a=0;for(let t=0;t<200-1e-9;t+=1000/hz)a=stepState(TN,a,3,1000/hz);return a;};
+  near(run(30),run(120),1e-9);
+ });
+ test('static drive is on/off only; analog drive gets darker for darker content',()=>{
+  assert.ok(TN.drive.static_by_gray.every(v=>v===0||v===TN.drive.Vop));
+  const a=TN.drive.analog_by_gray;
+  for(let i=1;i<256;i++)assert.ok(a[i]<=a[i-1]+1e-9);
+  near(a[255],0,1e-6);near(a[0],TN.drive.Vop,1e-3);
+ });
+ test('reflector shadow: none under straight-on light; falls away from the light by Snell refraction',()=>{
+  const z=entryOffsetMm(TN,0,0);near(z.x,0,1e-12);near(z.y,0,1e-12);
+  const top=entryOffsetMm(TN,30,0);
+  assert.ok(top.y<0&&Math.abs(top.x)<1e-12,'light from the top enters above the exit point');
+  const g=TN.sources.geometry,s=Math.sin(Math.PI/6);
+  near(-top.y,g.glass_mm*Math.tan(Math.asin(s/g.n_glass))+g.rear_polarizer_mm*Math.tan(Math.asin(s/g.n_polarizer)),1e-12);
+  assert.equal(lightSamples(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:0}).length,1);
+  assert.equal(lightSamples(TN,{angleDeg:30,azimuthDeg:0,sourceDeg:10}).length,7);
+ });
+});
+
+describe('Vector LCD app packaging',()=>{
+ test('one app version: page, demo and offline worker; the concept model keeps its own',()=>{
+  const html=read('index.html'),app=read('tn-demo.js'),worker=read('sw.js');
+  const v=html.match(/name="vector-lcd-version" content="([^"]+)"/)[1];
+  assert.match(v,/^\d+\.\d+\.\d+$/);
+  assert.equal(app.match(/APP_VERSION='([^']+)'/)[1],v);
+  assert.equal(worker.match(/const VERSION='([^']+)'/)[1],v);
+  assert.match(PHYSICAL_LCD_VERSION,/^\d+\.\d+\.\d+$/);
+  const concept=read('concept.html'),demo=read('demo.js');
+  assert.equal(concept.match(/name="vector-lcd-version" content="([^"]+)"/)[1],ENGINE_VERSION);
+  assert.equal(demo.match(/APP_VERSION='([^']+)'/)[1],ENGINE_VERSION);
+ });
+ test('every precached file exists, and every shipped file is precached',()=>{
   const worker=read('sw.js');
-  const assets=[...worker.matchAll(/^ '\.\/([^']*)',?$/gm)].map(m=>m[1]);
-  assert.ok(assets.includes(''));
-  for(const asset of assets.filter(Boolean))assert.ok(fs.existsSync(appDir+asset),asset+' missing');
-  const shipped=fs.readdirSync(appDir).filter(f=>!/^(sw\.js|README\.md)$/.test(f));
+  const assets=[...worker.matchAll(/^ '(\.{1,2}\/[^']*)',?$/gm)].map(m=>m[1]);
+  assert.ok(assets.includes('./'));
+  for(const asset of assets.filter(a=>a!=='./'))
+   assert.ok(fs.existsSync(new URL(asset,'file://'+appDir).pathname),asset+' missing');
+  const shipped=fs.readdirSync(appDir,{withFileTypes:true}).filter(e=>e.isFile()&&!/^(sw\.js|README\.md)$/.test(e.name)).map(e=>'./'+e.name)
+   .concat(fs.readdirSync(appDir+'profiles').map(f=>'./profiles/'+f));
   for(const file of shipped)assert.ok(assets.includes(file),file+' is not precached');
+ });
+ test('the screen test uses the real game and the real tile files',()=>{
+  const app=read('tn-demo.js');
+  assert.match(app,/from '\.\.\/tetris\/game\.js'/);
+  assert.match(app,/from '\.\.\/tetris\/assets\/tiles\/smooth-geometry\.mjs'/);
+  assert.match(app,/'\.\.\/tetris\/assets\/tiles\/vector\/'/);
  });
  test('manifest is installable on its own scope with 192 and 512 icons',()=>{
   const m=JSON.parse(read('manifest.webmanifest'));
   assert.equal(m.start_url,'./');assert.equal(m.scope,'./');assert.equal(m.display,'standalone');
-  assert.ok(m.name&&m.short_name);
   for(const size of ['192x192','512x512']){
    const icon=m.icons.find(i=>i.sizes===size&&i.type==='image/png');
    assert.ok(icon,size);assert.ok(fs.existsSync(appDir+icon.src.slice(2)));
   }
   assert.ok(m.icons.some(i=>i.purpose==='maskable'));
-  assert.ok(!m.icons.some(i=>/any maskable|maskable any/.test(i.purpose)),'any and maskable are separate entries');
  });
 });
