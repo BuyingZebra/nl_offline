@@ -242,7 +242,7 @@ function target(w,h,format=gl.RGBA32F){
  gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  return {texture,fb,w,h};
 }
-function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH){
+function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH,originalW=NATIVE_W,originalH=NATIVE_H){
  gl.bindFramebuffer(gl.FRAMEBUFFER,out?.fb||null);
  gl.viewport(0,0,width,height);
  gl.useProgram(prog.program);
@@ -257,7 +257,7 @@ function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH){
  const outputSize=u(prog,'global.OutputSize');
  if(outputSize!==null)gl.uniform4f(outputSize,width,height,1/width,1/height);
  const originalSize=u(prog,'global.OriginalSize');
- if(originalSize!==null)gl.uniform4f(originalSize,NATIVE_W,NATIVE_H,1/NATIVE_W,1/NATIVE_H);
+ if(originalSize!==null)gl.uniform4f(originalSize,originalW,originalH,1/originalW,1/originalH);
  const sourceSize=u(prog,'global.SourceSize');
  if(sourceSize!==null)gl.uniform4f(sourceSize,sourceW,sourceH,1/sourceW,1/sourceH);
  const fc=u(prog,'global.FrameCount');
@@ -344,7 +344,7 @@ function syncPresentationSize(){
  const height=direct?Math.max(1,Math.round(rect.height*dpr)):NATIVE_H*SCALE;
  if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
  document.querySelector('#pixelInfo').textContent=
-   width+' × '+height+' actual framebuffer · '+(width/NATIVE_W).toFixed(3)+' × pixels/cell (X)';
+   width+' × '+height+' optical framebuffer · '+MATERIAL_W+' × '+MATERIAL_H+' physical state · '+NATIVE_W+' × '+NATIVE_H+' electrical matrix';
 }
 function present(){
  if(!runtime)return;
@@ -359,9 +359,9 @@ function present(){
    canvas.width,canvas.height,NATIVE_W,NATIVE_H);
  }else{
   setSurfaceProgram(celllessProgram,[
-   ['Source',t[3].texture],
-   ['FineDetailHistory',detailTargets[detailCurrent].texture]
-  ],null,canvas.width,canvas.height,NATIVE_W,NATIVE_H);
+   ['Source',materialMatrix.texture],
+   ['FineArtwork',fineTexture]
+  ],null,canvas.width,canvas.height,MATERIAL_W,MATERIAL_H,NATIVE_W,NATIVE_H);
  }
 }
 function step(){
