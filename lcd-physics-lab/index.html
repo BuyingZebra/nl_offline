@@ -93,7 +93,7 @@ Original DMG-01 physics and optical lookup data: <a href="https://github.com/Joh
 </footer>
 <script type="module">
 import {makeFineMaterialResponse,makeShapeOptics} from "./physics-shaders.js";
-import {loadNomadAssets,drawNomadReady} from "./nomad-stimulus.js";
+import {loadNomadAssets,drawNomadReady,drawNomadCoverage} from "./nomad-stimulus.js";
 /*
  * DMG-01 original-source WebGL2 adapter for the five-pass Retro Display Lab reference shader.
  * The .slang source and generated includes are unchanged; this adapter translates
@@ -146,7 +146,7 @@ function fail(error){
 
 let runtime=null,autoplay=false,frames=0,scene='blink',blinkEvery=36,renderMs=0;
 let framePrev=null,frameNext=null,sourceCtx=null,sourceCanvas=null;
-let fineCanvas=null,fineCtx=null,fineTexture=null,materialCanvas=null,materialCtx=null,materialPrev=null,materialNext=null,materialTargets=[],materialCurrent=0,materialProgram=null,materialMatrix=null,celllessProgram=null;
+let fineCanvas=null,fineCtx=null,fineTexture=null,coverageCanvas=null,coverageCtx=null,coverageTexture=null,materialCanvas=null,materialCtx=null,materialPrev=null,materialNext=null,materialTargets=[],materialCurrent=0,materialProgram=null,materialMatrix=null,celllessProgram=null;
 let MATERIAL_SCALE=2,MATERIAL_W=320,MATERIAL_H=288;
 let targets=[],programs=[],staticProgram=null,fbIndex=0,lastFrameTs=0,lastPaintedLit=null;
 const referenceParams={
@@ -282,6 +282,11 @@ function imgContext(){
  fineCtx=fineCanvas.getContext('2d',{alpha:false,willReadFrequently:false});
  if(!fineCtx)throw Error('High-resolution artwork canvas unavailable');
  fineCtx.imageSmoothingEnabled=true;
+ coverageCanvas=document.createElement('canvas');
+ coverageCanvas.width=OPTICAL_W;coverageCanvas.height=OPTICAL_H;
+ coverageCtx=coverageCanvas.getContext('2d',{alpha:false});
+ if(!coverageCtx)throw Error('Nomad silhouette mask unavailable');
+ coverageCtx.imageSmoothingEnabled=true;
  materialCanvas=document.createElement('canvas');
  materialCanvas.width=MATERIAL_W;materialCanvas.height=MATERIAL_H;
  materialCtx=materialCanvas.getContext('2d',{alpha:false});
@@ -306,6 +311,14 @@ function createFineTexture(){
  refreshInputTexture(texture,fineCanvas);
  return texture;
 }
+function createCoverageTexture(){
+ const texture=oneTexture(OPTICAL_W,OPTICAL_H,gl.RGBA8);
+ refreshInputTexture(texture,coverageCanvas);
+ gl.bindTexture(gl.TEXTURE_2D,texture);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ return texture;
+}
 function createMaterialTexture(){
  const texture=oneTexture(MATERIAL_W,MATERIAL_H,gl.RGBA8);
  refreshInputTexture(texture,materialCanvas);
@@ -324,6 +337,7 @@ function renderPattern(frame){
  // Actual NOMAD artwork and SVG sprites, rendered to 640x576 independent
  // of the DMG's electrical sampling grid.
  drawNomadReady(fineCtx,{lit,motion:scene==='motion',frameNumber:frame,scale:SCALE});
+ drawNomadCoverage(coverageCtx,{lit,motion:scene==='motion',frameNumber:frame,scale:SCALE});
  // The ORIGINAL Game Boy reconstruction still receives quantized shades.
  // This signal is NOT used for the high-resolution material input.
  sourceCtx.drawImage(fineCanvas,0,0,NATIVE_W,NATIVE_H);
@@ -360,7 +374,7 @@ function present(){
  }else{
   setSurfaceProgram(celllessProgram,[
    ['Source',materialMatrix.texture],
-   ['FineArtwork',fineTexture]
+   ['ShapeCoverage',coverageTexture]
   ],null,canvas.width,canvas.height,MATERIAL_W,MATERIAL_H,NATIVE_W,NATIVE_H);
  }
 }
@@ -369,7 +383,10 @@ function step(){
  const begin=performance.now();
  const artworkChanged=renderPattern(frames);
  refreshInputTexture(frameNext);
- if(artworkChanged)refreshInputTexture(fineTexture,fineCanvas);
+ if(artworkChanged){
+  refreshInputTexture(fineTexture,fineCanvas);
+  refreshInputTexture(coverageTexture,coverageCanvas);
+ }
  refreshInputTexture(materialNext,materialCanvas);
  // Five original physics shader passes; unchanged values and equations.
  // Source frame 0 of input tex maps to GL y=0, every intermediate pass keeps
@@ -423,6 +440,7 @@ function reset(){
  refreshInputTexture(framePrev);
  refreshInputTexture(frameNext);
  refreshInputTexture(fineTexture,fineCanvas);
+ refreshInputTexture(coverageTexture,coverageCanvas);
  refreshInputTexture(materialPrev,materialCanvas);
  refreshInputTexture(materialNext,materialCanvas);
  for(let i of [2,5]){
@@ -483,6 +501,7 @@ async function boot(){
  imgContext();renderPattern(0);
  framePrev=textureFromCanvas();frameNext=textureFromCanvas();
  fineTexture=createFineTexture();
+ coverageTexture=createCoverageTexture();
  gl.bindTexture(gl.TEXTURE_2D,fineTexture);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
