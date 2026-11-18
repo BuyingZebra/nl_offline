@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b100d"><meta name="color-scheme" content="dark">
-<title>NOMAD — Cell-less Vector LCD Laboratory</title>
+<title>NOMAD — Shape-Driven Physical LCD Study</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&display=swap">
 <style>
 :root{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#e3eadb;background:#0b100d}
@@ -29,24 +29,25 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 </head>
 <body>
 <header><div class="tag">NOMAD / INDEPENDENT LCD EXPERIMENT</div>
-<h1>TETRIS · Cell-less LCD Study</h1>
-<p>One high-resolution vector-style title and a blinking PLAY button. The <strong>original DMG-01 electrical matrix and STN response</strong> operate underneath a separate, gapless optical reconstruction. Compare it with the original cell-aperture output. No NOMAD application files are loaded or modified.</p>
+<h1>NOMAD · Shape-Driven Physical LCD</h1>
+<p>An independent engineering demo using <strong>actual NOMAD v262 artwork</strong>. The original DMG-01 electrical passes supply row and column coupling. Fine-resolution material samples run the source STN director, exposure and ionic-response functions. The optical layer follows artwork silhouettes rather than square apertures.</p>
 </header>
 <main>
-<div class="panel"><div class="tag">160 × 144 PHYSICAL DRIVE MATRIX · 640 × 576 FINE ARTWORK</div>
-<div class="screen"><canvas id="panel" role="img" aria-label="TETRIS and blinking PLAY button with vector-quality edges and independently simulated LCD material response"></canvas></div>
+<div class="panel"><div class="tag">ORIGINAL 160 × 144 ELECTRICAL MATRIX · 320 × 288 PHYSICAL MATERIAL · 640 × 576 ARTWORK</div>
+<div class="screen"><canvas id="panel" role="img" aria-label="NOMAD v262 menu and tile artwork with shape-driven physical LCD response"></canvas></div>
 <div id="status">Ready to initialize. No GPU work begins until you press LOAD MODEL.</div>
 <pre id="log" hidden aria-live="polite"></pre>
 <button id="copyError" type="button" hidden style="margin-bottom:12px">COPY DIAGNOSTIC</button>
 <div class="stats"><span>Frames: <strong id="count">0</strong></span><span>Completed step: <strong id="ms">—</strong></span></div>
-<p id="probes">Watch whether fine lettering remains smooth while the original matrix contributes crosstalk, delayed response and ionic retention.</p>
+<p id="probes">Compare original cells, shape-driven physical response and original artwork. The menu button can blink and the original tiles can move.</p>
 </div>
-<div class="group"><h2>Cell-less reconstruction test</h2>
+<div class="group"><h2>Material-response comparison</h2>
 <div class="controls">
  <div><label for="scene">BUTTON INPUT</label><select id="scene">
-  <option value="blink">Blinking PLAY button</option>
-  <option value="steady">PLAY always on</option>
-  <option value="off">PLAY always off</option>
+  <option value="blink">Blinking START GAME button</option>
+  <option value="steady">START GAME always on</option>
+  <option value="off">START GAME always off</option>
+  <option value="motion">Falling original NOMAD SVG tiles</option>
  </select></div>
  <div><label for="cadence">TIME PER STATE</label><select id="cadence">
   <option value="18">18 frames · 0.30 s</option>
@@ -54,9 +55,9 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
   <option value="60">60 frames · 1.00 s</option>
  </select></div>
  <div><label for="view">RENDERING</label><select id="view">
-  <option value="cellless">Cell-less vector / original matrix</option>
-  <option value="reference">Original LCD with physical cells</option>
-  <option value="raw">Untouched 640 × 576 artwork</option>
+  <option value="cellless">Shape-driven physical material</option>
+  <option value="reference">Original DMG-01 square cells</option>
+  <option value="raw">Original NOMAD v262 artwork</option>
  </select></div>
  <div><label for="presentation">PRESENTATION ONLY</label><select id="presentation">
   <option value="fixed">Fixed 4× optical framebuffer</option>
@@ -64,16 +65,28 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
  </select></div>
 </div>
 <div class="actions"><button id="step" type="button" disabled>STEP 1 FRAME</button><button id="run" type="button" disabled>RUN</button><button id="reset" type="button" disabled>RESET HISTORY</button></div>
-<div style="margin-top:12px"><button id="initialize" type="button" style="width:100%;border-color:#cde3a4;color:#f0f5df">LOAD ORIGINAL FIVE-PASS MODEL</button></div>
-<p><strong>Original matrix:</strong> five upstream shader stages remain intact, including 160 × 144 row/column loading, distributed-RC crosstalk, director response, ionic memory and row-latch timing. <strong>Cell-less reconstruction:</strong> a lightweight high-resolution detail-history layer retains edges inside those virtual electrical rows. It uses the source optical palette but does not draw electrode apertures or cell gaps.</p>
-<div><label for="pixelInfo">ACTUAL OPTICAL FRAMEBUFFER</label><div id="pixelInfo" style="color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div>
-<p><strong>Why two layers?</strong> The original Game Boy hardware model cannot exactly reproduce independent behaviour within an electrode. Its electric field and original five passes are preserved here, while fine detail response is a separate approximation. Compare the three views to distinguish the physically calculated behaviour from the reconstruction. RUN must be started manually.</p>
+<div class="controls" style="margin-top:12px">
+ <div><label for="materialResolution">MATERIAL SIMULATION</label><select id="materialResolution">
+  <option value="2" selected>2× native (320 × 288) · mobile</option>
+  <option value="3">3× native (480 × 432) · experimental</option>
+ </select></div>
+ <div><label for="frameBudget">AUTO-PAUSE GPU STEP</label><select id="frameBudget">
+  <option value="80">80 ms</option><option value="120" selected>120 ms</option>
+  <option value="200">200 ms</option>
+ </select></div>
 </div>
-<div class="group"><h2>Exact upstream model conditions</h2>
+
+<div style="margin-top:12px"><button id="initialize" type="button" style="width:100%;border-color:#cde3a4;color:#f0f5df">LOAD PHYSICAL MODEL</button></div>
+<p><strong>Engineering method:</strong> native 160 × 144 row/column drive and feedback remain unchanged. Their physical drive corrections feed a separate high-resolution response pass using the <strong>original STN material functions</strong>. Per-screen-point director and ionic histories stay in RGBA32F. Silhouette-aware optics use the source palette, reflector displacement and shadow strength, without square cell apertures.</p>
+<div><label for="pixelInfo">ACTUAL OPTICAL FRAMEBUFFER</label><div id="pixelInfo" style="color:#b6cdad;font-variant-numeric:tabular-nums">Pending</div></div>
+<p><strong>Scientific scope:</strong> this is a hypothetical nonrectangular-electrode STN model. Native matrix loading is sampled at 160 × 144 and interpolated across the finer state field. It preserves the model's material equations but cannot claim identical field physics for electrodes that never existed on a DMG-01. The original square-cell view is a numerical comparison reference.</p>
+</div>
+<div class="group"><h2>Physical model and validation</h2>
 <p><strong>Original reference mode:</strong> 0.875 pixel aperture fill, 1.00 host-footprint filtering, 0.18 reflector shadow, 0.11/0.13-cell shadow offset, contrast 1.00 and zero simulated aging. <strong>Cell-less mode:</strong> the aperture/gaps are omitted; a continuous displaced-shading analogue replaces the gap-dependent reflector shadow. Original optical colour and contrast parameters are retained.</p>
 <p><strong>Electrical:</strong> reconstructed STN drive with original generated director tables, row+column crosstalk 1.00, 20°C, ionic history, captured row latch, 59.7275 Hz frame reference. The feedback buffer is 32-bit float.</p>
-<p><strong>Output:</strong> 640 × 576 high-resolution artwork and optical buffer. Original electrical state is native 160 × 144 RGBA32F. The new fine-detail response uses two bounded 640 × 576 RGBA8 history buffers; it does not run the expensive physical matrix shader over every output pixel. The comparison is an experiment, not a claim of identical high-resolution Game Boy hardware physics.</p>
+<p><strong>Physical material:</strong> director coordinates and ionic charge are integrated each simulated frame by the original reference shader, with continuous artwork drive and a shared RC correction. Uses measured-source lookup tables, 20°C material reference, 59.7275 Hz timing and RGBA32F feedback. <strong>Optics:</strong> original colour curve and reflective shadow parameters, generalized to overlapping artwork silhouettes. The 160 × 144 original output is retained as a control.</p>
 </div>
+<p style="max-width:676px;margin:20px auto;color:#b5c8ab">The demo begins paused, with no WebGL context until you request it. No game files, service workers, saved scores or NOMAD app settings are changed.</p>
 </main>
 <footer>
 Original DMG-01 physics and optical lookup data: <a href="https://github.com/JohnnySun/retro-display-lab">Retro Display Lab by JohnnySun</a>, Apache-2.0. Unmodified source is hosted in the adjacent <code>../lcd-response-study/upstream/</code> folder. This laboratory has no dependency on the NOMAD app and never registers a service worker.
