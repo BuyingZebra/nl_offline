@@ -459,6 +459,7 @@ function step(){
  [framePrev,frameNext]=[frameNext,framePrev];
  frames++;
  present();
+ captureProbe();
  gl.finish(); // explicitly measured completion; never report CPU submission as GPU time
  renderMs=performance.now()-begin;
  document.querySelector('#count').textContent=frames.toLocaleString();
@@ -471,7 +472,61 @@ function step(){
   scene==='steady'?'START GAME continuously driven ON':'START GAME continuously driven OFF';
  output('STN director + ionic response • '+MATERIAL_W+' × '+MATERIAL_H+' material, 160 × 144 RC • '+renderMs.toFixed(1)+' ms');
 }
+
+function readSample(target){
+ const x=Math.min(MATERIAL_W-1,Math.floor(35/160*MATERIAL_W));
+ const y=Math.min(MATERIAL_H-1,Math.floor((144-79)/144*MATERIAL_H));
+ const a=new Float32Array(4);
+ gl.bindFramebuffer(gl.FRAMEBUFFER,target.fb);
+ gl.readPixels(x,y,1,1,gl.RGBA,gl.FLOAT,a);
+ const e=gl.getError();
+ if(e!==gl.NO_ERROR)throw Error('float readPixels: 0x'+e.toString(16));
+ return a;
+}
+function drawTrace(){
+ const c=document.querySelector('#traceChart').getContext('2d');
+ const w=c.canvas.width,h=c.canvas.height;
+ c.fillStyle='#101b13';c.fillRect(0,0,w,h);
+ c.strokeStyle='#34473a';c.lineWidth=1;
+ for(let i=0;i<=4;i++){let y=8+i*(h-16)/4;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();}
+ const lines=[['observed','#88e8a7'],['target','#ebd681'],['drive','#9bd4f0']];
+ const a=traceHistory.slice(-120);
+ for(const [key,color] of lines){
+  c.strokeStyle=color;c.lineWidth=2;c.beginPath();
+  a.forEach((p,i)=>{
+   const x=8+i*(w-16)/119,y=h-8-Math.max(0,Math.min(1,p[key]))*(h-16);
+   if(i===0)c.moveTo(x,y);else c.lineTo(x,y);
+  });
+  if(a.length)c.stroke();
+ }
+ c.font='12px monospace';c.textBaseline='top';
+ lines.forEach(([key,color],i)=>{c.fillStyle=color;c.fillText(key,10+145*i,8);});
+}
+function captureProbe(){
+ if(probeFailed)return;
+ try{
+  const obs=readSample(materialMatrix),eq=readSample(equilibriumTarget);
+  const p={frame:frames,observed:obs[0],target:eq[0],drive:eq[1],ionic:obs[3]};
+  if(![p.observed,p.target,p.drive,p.ionic].every(Number.isFinite))
+   throw Error('nonfinite physical state');
+  traceHistory.push(p);
+  if(traceHistory.length>240)traceHistory.shift();
+  document.querySelector('#traceValues').textContent=
+   'Frame '+frames+' | observed '+p.observed.toFixed(5)+
+   ' | equilibrium '+p.target.toFixed(5)+
+   ' | residual '+(p.observed-p.target).toFixed(5)+
+   ' | drive/3 '+p.drive.toFixed(5)+
+   ' | ionic '+p.ionic.toFixed(7);
+  drawTrace();
+ }catch(e){
+  probeFailed=true;
+  document.querySelector('#traceValues').textContent='GPU float readback unavailable: '+e.message+
+   '. Visual diagnostics remain enabled; numerical validation is unavailable.';
+ }
+}
 function reset(){
+ traceHistory=[];probeFailed=false;drawTrace();
+ document.querySelector('#traceValues').textContent='History reset — collecting fresh GPU measurements.';
  autoplay=false;document.querySelector('#run').textContent='RUN';
  frames=0;fbIndex=0;materialCurrent=0;lastPaintedLit=null;
  renderPattern(0);
