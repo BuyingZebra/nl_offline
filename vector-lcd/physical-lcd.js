@@ -25,7 +25,7 @@
  *
  * Pure model functions are exported for testing; the shaders mirror them.
  */
-export const PHYSICAL_LCD_VERSION='0.6.0';
+export const PHYSICAL_LCD_VERSION='0.6.1';
 
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const interp=(x,xs,ys)=>{
@@ -289,8 +289,9 @@ void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  int gray=int(floor(texelFetch(uContent,p,0).r*255.0+0.5));
  float v=texelFetch(uDrive,ivec2(gray,uMode),0).r;
- // No electrode, no field.
- if(uHasElectrodes)v*=texelFetch(uElectrodes,p,0).r;
+ // No electrode, no field. Electrode edges are sharp at this scale (the
+ // field fringes over microns), so the map is a hard in/out test.
+ if(uHasElectrodes)v*=step(0.5,texelFetch(uElectrodes,p,0).r);
  float ve=v*uVscale;
  float target=eq(ve),a=texelFetch(uState,p,0).r;
  float tau=uTauOff;

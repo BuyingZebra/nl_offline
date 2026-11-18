@@ -4,7 +4,7 @@ import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.6.0';
+export const APP_VERSION='0.6.1';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
