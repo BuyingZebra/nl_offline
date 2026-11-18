@@ -33,6 +33,20 @@ This is a **standalone experiment**. It does not import, register, cache, or mod
 4. Compare **Shape-driven physical material**, **Original DMG-01 square cells**, **Original NOMAD v262 artwork** and **Active sprite/electrode silhouette**.
 5. Press **STEP 1 FRAME** or **RUN**. Try blinking START GAME and moving the actual source SVG tiles. **RESET HISTORY** clears both material and original DMG reference buffers.
 
+## Optical fringes and reflector inspection
+
+The original source palette has yellow-olive inactive glass and blue-green active shades; there is **no independent red chromatic-fringing pass**. The perceived warm edge is a mix of different source-palette colours plus the physical aperture coverage. Do not mistake that for calibrated red spectral dispersion.
+
+The original shadow offset is 0.11 × 0.13 DMG-cell widths, translating to 0.44 × 0.52 pixels at the 4× optical output. At reference strength 0.18 it can be effectively invisible on a downscaled phone display, especially without the original thousands of square aperture boundaries.
+
+- **Shape-driven with aperture fringes:** physical reference value by default
+- **Previous cell-less (no aperture fringes):** comparison mode; no longer erroneously routes to the shadow-only diagnostic
+- **Reflector overlap:** geometry-only mask (white means shifted sprite coverage not occluded by the original shape)
+- **Isolated reflector darkening:** the source linear-light shadow contribution, shown separately
+- **Reflector shadow visibility:** 1× = original parameters, 4×/12×/24× = deliberately exaggerated *diagnostic only*. Nothing about the actual electrical matrix, director state, or ionic history changes at these gains.
+
+The shape aperture is a physical-model generalization, not an exact reproduction of a nonexistent DMG panel with letter-shaped electrodes.
+
 ## Static verification (Nov 17, 2026)
 
 - Original four NOMAD SVG assets SHA-identical to their live v262 counterparts.
