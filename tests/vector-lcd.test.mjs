@@ -286,13 +286,17 @@ describe('Reflective TN, multiplexed 1/4 duty',()=>{
   near(on/off,Math.sqrt(3),1e-4);
   assert.ok(MUX.drive.static_by_gray.every(v=>Math.abs(v-on)<1e-5||Math.abs(v-off)<1e-5));
  });
- test('the supply sits where contrast peaks, and unlit segments are faintly visible',()=>{
+ test('the supply is the datasheet 3.0 V, and unlit segments are faintly visible',()=>{
+  // The Lumex LCD-S401M16KR drawing: 3.0 V AC, 1/4 duty, 1/3 bias, 1.10 mm glass plates.
+  assert.equal(MUX.drive.vlcd,3);
+  assert.deepEqual(MUX.sources.panel_multiplexed.glass_mm,[1.1,1.1]);
+  assert.equal(TN.sources.geometry.glass_mm,1.1);
   const Yd=a=>luminance(reflectance(MUX,a,a)),cr=v=>Yd(equilibriumState(MUX,v*0.3333))/Yd(equilibriumState(MUX,v*0.5774));
-  const best=MUX.drive.vlcd;
-  assert.ok(cr(best)>=cr(best-.3)&&cr(best)>=cr(best+.3),'contrast peaks at the chosen supply');
+  const opt=MUX.derived.vlcd_optimum_V;
+  assert.ok(cr(opt)>=cr(opt-.3)&&cr(opt)>=cr(opt+.3),'reported optimum is a contrast peak');
   assert.ok(MUX.derived.contrast_final<TN.derived.contrast_final,'multiplexing costs contrast');
   const ghost=MUX.derived.luminance_off_segment/MUX.derived.luminance_off;
-  assert.ok(ghost<.98&&ghost>.8,'unlit segment slightly darker than the background: '+ghost);
+  assert.ok(ghost<.99&&ghost>.9,'unlit segment faintly darker than the background: '+ghost);
  });
 });
 

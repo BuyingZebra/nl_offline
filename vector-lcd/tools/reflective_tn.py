@@ -478,26 +478,37 @@ a_of = lambda V: float(np.interp(V, V_GRID, curve))
 Y_of_a = lambda a: float(np.interp(a, A_O, Ydiag_O))
 v_try = np.arange(2.0, 4.0 / k_on + 1e-9, 0.01)
 crs = [Y_of_a(a_of(k_off * v)) / Y_of_a(a_of(k_on * v)) for v in v_try]
-VLCD = float(v_try[int(np.argmax(crs))]); V_ON, V_OFF = k_on * VLCD, k_off * VLCD
+VLCD_OPT = float(v_try[int(np.argmax(crs))])
+# The Lumex LCD-S401M16KR drawing specifies 3.0 V AC at 1/4 duty, 1/3 bias.
+VLCD = 3.0
+V_ON, V_OFF = k_on * VLCD, k_off * VLCD
 mux = copy.deepcopy(out)
 mux["profile"] = "reflective-tn-mux4"
-mux["name"] = "Reflective TN (VI-402 cell, multiplexed 1/4 duty, 1/3 bias)"
+mux["name"] = "Reflective TN, multiplexed 1/4 duty (Lumex LCD-S401M16KR drive on the VI-402 cell)"
+mux["sources"]["panel_multiplexed"] = {
+ "part": "Lumex LCD-S401M16KR (4-digit 7-segment, TN, gray, reflective, 6:00)",
+ "drive": "1/4 duty, 1/3 bias, operating voltage 3.0 V AC", "temperature_C": [0, 50],
+ "glass_mm": [1.10, 1.10], "depth_mm": 2.80,
+ "segment_geometry_mm": {"digit_height": 4.42, "segment_width": 0.50, "digit_pitch": 3.50},
+ "not_given": "response times and contrast; these come from the VI-402 cell",
+ "ref": "Lumex LCD-S401M16KR drawing, dated 06.13.11 (supplied by the user)"}
+mux["sources"]["geometry"]["glass_note"] = "1.10 mm per plate, confirmed by the Lumex LCD-S401M16KR drawing (two 1.10 mm plates, 2.80 mm max depth)"
 mux["sources"]["drive"] = {
  "scheme": "1/4 duty, 1/3 bias multiplexed segment drive",
  "refs": ["ROHM BU9795AFV segment driver datasheet (1/3 bias, 1/4 duty; frame 53-80 Hz)",
           "ON Semiconductor LC75814V 1/4-duty driver datasheet (1/2 or 1/3 bias)"],
  "rms_formula": "on^2 = VLCD^2 (1/N + (N-1)/(N b^2)); off^2 = VLCD^2 (((b-2)/b)^2/N + (N-1)/(N b^2))",
- "supply_rule": "VLCD chosen for maximum contrast with this cell",
+ "supply_rule": "VLCD = 3.0 V from the Lumex LCD-S401M16KR drawing (the contrast optimum for the stand-in E7 cell would be reported as vlcd_optimum_V)",
  "note": "same glass, crystal and polarizers as the VI-402 profile; only the drive differs. The liquid crystal responds to rms voltage because its response (tens of ms) is slower than the frame (12-19 ms)."}
 mux["drive"]["static_by_gray"] = [V_ON if v > 0 else V_OFF for v in static]
 mux["drive"]["off_voltage"] = r6(V_OFF); mux["drive"]["on_voltage"] = r6(V_ON); mux["drive"]["vlcd"] = r6(VLCD)
 mux["drive"]["uses_electrode_map"] = True
 mux["drive"]["analog_by_gray"] = [V_OFF + (V_ON - V_OFF) * (v / V_op) for v in analog]
-cr_mux = max(crs)
-mux["derived"] = {**mux["derived"], "contrast_final": r6(cr_mux), "vlcd_V": r6(VLCD), "on_rms_V": r6(V_ON), "off_rms_V": r6(V_OFF),
+cr_mux = Y_of_a(a_of(V_OFF)) / Y_of_a(a_of(V_ON))
+mux["derived"] = {**mux["derived"], "contrast_final": r6(cr_mux), "vlcd_V": r6(VLCD), "vlcd_optimum_V": r6(VLCD_OPT), "contrast_at_optimum": r6(max(crs)), "on_rms_V": r6(V_ON), "off_rms_V": r6(V_OFF),
  "off_state_a": r6(a_of(V_OFF)), "luminance_on": r6(Y_of_a(a_of(V_ON))), "luminance_off_segment": r6(Y_of_a(a_of(V_OFF)))}
 json.dump(mux, open(os.path.join(HERE, "..", "profiles", "reflective-tn-mux4.json"), "w"), separators=(",", ":"))
-print("MUX: VLCD %.2f V, on %.3f V rms, off %.3f V rms, contrast %.2f, off-segment state %.3f, luminance off-seg %.4f vs unlit %.4f" %
+print("MUX (optimum would be %.2f V, contrast %.2f): " % (VLCD_OPT, max(crs)) + "VLCD %.2f V, on %.3f V rms, off %.3f V rms, contrast %.2f, off-segment state %.3f, luminance off-seg %.4f vs unlit %.4f" %
       (VLCD, V_ON, V_OFF, cr_mux, a_of(V_OFF), Y_of_a(a_of(V_OFF)), Y_of_a(0)))
 print(json.dumps(out["derived"], indent=1))
 # Single-pass check at 550 nm with ideal crossed polarizers: should be near 1 at 0 V.

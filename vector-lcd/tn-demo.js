@@ -4,7 +4,7 @@ import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.6.1';
+export const APP_VERSION='0.6.2';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -44,7 +44,7 @@ function iSourceIndex(rotation,x,y){
 /* Screen models: each is a profile computed by tools/reflective_tn.py. */
 export const SCREENS=Object.freeze([
  {id:'reflective-tn',file:'./profiles/reflective-tn.json',label:'Reflective TN · static drive (VI-402)'},
- {id:'reflective-tn-mux4',file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty'}
+ {id:'reflective-tn-mux4',file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty (Lumex)'}
 ]);
 const profiles=new Map();
 async function profileFor(id){
@@ -198,10 +198,10 @@ $('toggleControls').addEventListener('click',e=>{
 function factsFor(P){
  const src=P.sources,der=P.derived,mux=Boolean(P.drive.uses_electrode_map);
  const facts=[
-  ['Panel',src.panel.part],
+  ['Panel',mux?src.panel_multiplexed.part+'; cell and response from the '+src.panel.part.split(' (')[0]:src.panel.part],
   ['Response (datasheet)',src.panel.rise_ms_typ+' ms on, '+src.panel.decay_ms_typ+' ms off'+(mux?' (static drive)':'')],
   ['Contrast',mux?der.contrast_final.toFixed(1)+':1 (computed for this drive)':src.panel.contrast_typ+':1 (datasheet)'],
-  ['Drive',mux?'1/4 duty, 1/3 bias: '+der.vlcd_V.toFixed(2)+' V supply, '+der.on_rms_V.toFixed(2)+' V rms on, '+der.off_rms_V.toFixed(2)+' V rms off (derived)'
+  ['Drive',mux?'1/4 duty, 1/3 bias, '+der.vlcd_V.toFixed(1)+' V AC (Lumex datasheet): '+der.on_rms_V.toFixed(2)+' V rms on, '+der.off_rms_V.toFixed(2)+' V rms off (computed)'
    :src.panel.Vop_typ+' V, static: one ink colour, each point on or off (datasheet)'],
   ['Liquid crystal',src.liquid_crystal.material],
   ['Cell gap (derived)',der.cell_gap_um+' µm, first transmission maximum'],
@@ -211,7 +211,7 @@ function factsFor(P){
    (mux?', '+(der.luminance_off_segment*100).toFixed(1)+'% unlit segment':'')],
   ['Unlit colour (computed)',der.color_off_hex],
   ['Front-surface reflection',(der.front_surface_reflectance*100).toFixed(1)+'%, solved to match the datasheet contrast'],
-  ['Rear glass',src.geometry.glass_mm+' mm, inferred from panel depth'],
+  ['Rear glass',src.geometry.glass_mm+' mm'+(mux?', confirmed by the Lumex drawing':', inferred from panel depth')],
   ['Pretilt (assumed)',src.geometry.pretilt_deg+'°, typical value'],
   ['Viewing cone (computed)',(()=>{const c=P.oblique.viewing_cone_CR2_deg;return 'contrast ≥ 2 to '+c.bottom+'° below, '+c.top+'° above, '+c.left+'° sides';})()],
   ['Viewing cone (datasheet)','70° below, 35° above, 70° sides'],
