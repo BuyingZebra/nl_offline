@@ -107,6 +107,8 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
  <p>One actual material pixel inside the START GAME button is measured from the GPU, against an independently computed equilibrium state. There is no invented ghosting animation.</p>
  <canvas id="traceChart" width="640" height="180" style="width:100%;height:auto;display:block;background:#101b13;border:1px solid #3d5340;border-radius:8px"></canvas>
  <p id="traceValues" style="font-family:monospace;white-space:pre-wrap">No GPU measurements yet.</p>
+ <button id="audit" type="button" disabled>RUN GPU VALIDATION AUDIT</button>
+ <pre id="auditResults" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px">Audit not run. First advance the blinking button through a state change.</pre>
  <p>Green = observed optical response, yellow = equilibrium target, blue = effective drive / 3. Run the blinking button at 18 frames per state. A nonzero residual proves the simulation retained history, not necessarily that its response matches a real LCD.</p>
  <p>To inspect shadow geometry, select Reflector overlap with 24× visibility, then Isolated reflector darkening. Warm-rim modes are explicitly experimental and uncalibrated.</p>
 </div><div class="group"><h2>Physical model and validation</h2>
@@ -524,6 +526,46 @@ function captureProbe(){
    '. Visual diagnostics remain enabled; numerical validation is unavailable.';
  }
 }
+
+function auditGPU(){
+ const report=document.querySelector('#auditResults'),view=document.querySelector('#view'),gain=document.querySelector('#shadowInspection');
+ const oldView=view.value,oldGain=gain.value;
+ let frame=null;const lines=[];
+ try{
+  const data=coverageCtx.getImageData(0,0,OPTICAL_W,OPTICAL_H).data;
+  let active=0;for(let i=0;i<data.length;i+=4)if(data[i]>20)active++;
+  lines.push((active>200&&active<OPTICAL_W*OPTICAL_H*.95?'PASS':'FAIL')+' shared geometry mask: '+active+' active samples');
+  frame=target(OPTICAL_W,OPTICAL_H);
+  gain.value='24';
+  for(const mode of ['shadow','shadowDelta','contour']){
+   view.value=mode;
+   setSurfaceProgram(celllessProgram,[['Source',materialMatrix.texture],['ShapeCoverage',coverageTexture],['EquilibriumState',equilibriumTarget.texture]],
+    frame,OPTICAL_W,OPTICAL_H,MATERIAL_W,MATERIAL_H,NATIVE_W,NATIVE_H);
+   const buffer=new Float32Array(OPTICAL_W*OPTICAL_H*4);
+   gl.bindFramebuffer(gl.FRAMEBUFFER,frame.fb);
+   gl.readPixels(0,0,OPTICAL_W,OPTICAL_H,gl.RGBA,gl.FLOAT,buffer);
+   const error=gl.getError();if(error!==gl.NO_ERROR)throw Error('float readback 0x'+error.toString(16));
+   let count=0,peak=0,mean=0;
+   for(let i=0;i<buffer.length;i+=4){
+    const v=Math.max(buffer[i],buffer[i+1],buffer[i+2]);
+    if(v>.001)count++;peak=Math.max(v,peak);mean+=v;
+   }
+   lines.push((count>0&&peak>.002?'PASS':'FAIL')+' '+mode+
+    ' independent GPU pass: peak='+peak.toFixed(6)+', mean='+(mean/(OPTICAL_W*OPTICAL_H)).toFixed(7)+', active='+count);
+  }
+  const switches=traceHistory.reduce((n,p,i,a)=>n+(i>0&&Math.abs(p.drive-a[i-1].drive)>.05?1:0),0);
+  const residual=traceHistory.reduce((m,p)=>Math.max(m,Math.abs(p.observed-p.target)),0);
+  lines.push((switches>0&&residual>.001?'PASS':'PENDING')+' history response: '+switches+
+   ' drive transitions; peak residual='+residual.toFixed(6));
+  lines.push('PASS means the GPU signal exists. It does not establish calibration against physical hardware.');
+ }catch(e){lines.push('NOT VERIFIED: '+e.message+'; never assume a passing effect.');}
+ finally{
+  view.value=oldView;gain.value=oldGain;
+  if(frame){gl.deleteFramebuffer(frame.fb);gl.deleteTexture(frame.texture);}
+  try{present();}catch(e){lines.push('Unable to restore presentation: '+e.message);}
+  report.textContent=lines.join('\n');
+ }
+}
 function reset(){
  traceHistory=[];probeFailed=false;drawTrace();
  document.querySelector('#traceValues').textContent='History reset — collecting fresh GPU measurements.';
@@ -612,7 +654,7 @@ async function boot(){
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
  runtime=true;reset();
- for(const id of ['step','run','reset'])document.getElementById(id).disabled=false;
+ for(const id of ['step','run','reset','audit'])document.getElementById(id).disabled=false;
  document.querySelector('#scene').addEventListener('change',event=>{scene=event.target.value;reset();});
  document.querySelector('#cadence').addEventListener('change',event=>{blinkEvery=Math.max(1,Number(event.target.value)||36);reset();});
  document.querySelector('#view').addEventListener('change',()=>{try{present();}catch(e){log(e.message);}});
@@ -621,6 +663,7 @@ async function boot(){
  window.addEventListener('resize',()=>{if(runtime)try{present();}catch(e){fail(e);}});
  document.querySelector('#step').addEventListener('click',()=>{try{step();}catch(e){output(e.message);log(e.stack||e.message);}});
  document.querySelector('#reset').addEventListener('click',reset);
+ document.querySelector('#audit').addEventListener('click',auditGPU);
  document.querySelector('#run').addEventListener('click',()=>{
     autoplay=!autoplay;lastFrameTs=0;
     document.querySelector('#run').textContent=autoplay?'PAUSE':'RUN';
