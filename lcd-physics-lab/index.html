@@ -55,7 +55,9 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
   <option value="60">60 frames · 1.00 s</option>
  </select></div>
  <div><label for="view">RENDERING</label><select id="view">
-  <option value="cellless">Shape-driven physical material</option>
+  <option value="cellless">Shape-driven with aperture fringes</option>
+  <option value="flat">Previous cell-less (no aperture fringes)</option>
+  <option value="shadow">Reflector overlap geometry · diagnostic</option>
   <option value="reference">Original DMG-01 square cells</option>
   <option value="raw">Original NOMAD v262 artwork</option>
   <option value="mask">Active sprite/electrode silhouette</option>
@@ -268,6 +270,11 @@ function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH,original
  for(const [name,value] of Object.entries(readonlyParameters)){
    const loc=u(prog,'params.'+name);
    if(loc!==null)gl.uniform1f(loc,value);
+ }
+ const shapeDiag=u(prog,'ShapeOpticalDebug');
+ if(shapeDiag!==null){
+   const mode=document.querySelector('#view').value;
+   gl.uniform1f(shapeDiag,mode==='shadow'?1:mode==='flat'?2:0);
  }
  gl.drawArrays(gl.TRIANGLES,0,3);
  const err=gl.getError();if(err!==gl.NO_ERROR)throw Error('WebGL error in '+prog.name+': 0x'+err.toString(16));
