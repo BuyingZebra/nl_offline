@@ -70,6 +70,15 @@ Light measured from the viewing direction, as for a reflective panel, gives cont
 - **Reflector texture.** No measurements were found for the grain of the reflector film.
 - **Per-point eye direction in the crystal optics.** At 300 mm the angle changes by about ±9° across the panel; only the glare uses it.
 
+## Screen models
+
+The app's **Screen** menu switches between computed profiles:
+
+1. **Reflective TN, static drive (VI-402):** everything above.
+2. **Reflective TN, multiplexed 1/4 duty (derived):** the same cell, glass, crystal and polarizers, driven the way multiplexed segment displays are, at 1/4 duty and 1/3 bias. The drive is documented in segment-driver datasheets (ROHM BU9795, ON LC75814). The rms voltages follow from the drive formula: on = 0.577 × V_LCD and off = 0.333 × V_LCD. V_LCD is set where contrast peaks, the usual design rule, which comes out at **3.29 V**, close to the 3.0 V specified for real 1/4-duty TN panels. Results: **12.1:1** contrast, and unlit segments about 9% darker than the background, so every electrode stays faintly visible. Switching on is slower because "on" is now 1.9 V rms. No multiplexed TN datasheet with response times could be read (the Lumex LCD-S401M16KR PDF was unreachable), which is why this profile is built from the VI-402 cell rather than from another panel.
+
+Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
+
 ## Drive and controls
 
 The panel shows one ink colour: every point is either 0 V or 3.0 V, exactly as on the VI-402, and content darker than 50% luminance switches on. Design art in two tones.

@@ -132,7 +132,7 @@ def tilt_amount(x):
 #    deformation so the solver leaves the unstable undeformed state above Vth.
 z = np.linspace(H, 1 - H, N)
 x = np.concatenate([np.full(N, PRETILT), TWIST * z])
-V_GRID = np.round(np.arange(0, PANEL["Vop_max"] + 1e-9, 0.02), 4)
+V_GRID = np.round(np.arange(0, 4.0 + 1e-9, 0.02), 4)
 profiles, curve = [], []
 for V in V_GRID:
     seed = x.copy(); seed[:N] += 0.02 * np.sin(np.pi * z)
@@ -140,7 +140,8 @@ for V in V_GRID:
     profiles.append(x.copy()); curve.append(tilt_amount(x))
 curve = np.maximum.accumulate(np.array(curve))
 A_OP = float(np.interp(PANEL["Vop_typ"], V_GRID, curve))
-A_MAX = float(curve[-1])
+A_MAX = float(np.interp(PANEL["Vop_max"], V_GRID, curve))
+A_MAX_ALL = float(curve[-1])
 
 # 2. Jones matrices per profile and wavelength.
 def jones(x):
@@ -458,6 +459,46 @@ out = {
  "temperature": temperature
 }
 json.dump(out, open(os.path.join(HERE, "..", "profiles", "reflective-tn.json"), "w"), separators=(",", ":"))
+
+# ---------------------------------------------------------------------------
+# 9. The same cell, multiplexed: 1/4 duty, 1/3 bias (standard segment drive,
+#    e.g. ROHM BU9795 / ON LC75814). Every point is selected 1/4 of the frame;
+#    rms voltages for supply VLCD with bias 1/b and duty 1/N:
+#      on^2  = VLCD^2 (1/N + (N-1)/(N b^2))
+#      off^2 = VLCD^2 (((b-2)/b)^2/N + (N-1)/(N b^2))
+#    VLCD is set where contrast is highest (the usual design rule). Points
+#    outside every electrode receive 0 V; off points inside electrodes receive
+#    the off voltage, which is what makes unlit segments faintly visible.
+# ---------------------------------------------------------------------------
+import copy
+N_DUTY, B_BIAS = 4, 3
+k_on = math.sqrt(1 / N_DUTY + (N_DUTY - 1) / (N_DUTY * B_BIAS**2))
+k_off = math.sqrt(((B_BIAS - 2) / B_BIAS)**2 / N_DUTY + (N_DUTY - 1) / (N_DUTY * B_BIAS**2))
+a_of = lambda V: float(np.interp(V, V_GRID, curve))
+Y_of_a = lambda a: float(np.interp(a, A_O, Ydiag_O))
+v_try = np.arange(2.0, 4.0 / k_on + 1e-9, 0.01)
+crs = [Y_of_a(a_of(k_off * v)) / Y_of_a(a_of(k_on * v)) for v in v_try]
+VLCD = float(v_try[int(np.argmax(crs))]); V_ON, V_OFF = k_on * VLCD, k_off * VLCD
+mux = copy.deepcopy(out)
+mux["profile"] = "reflective-tn-mux4"
+mux["name"] = "Reflective TN (VI-402 cell, multiplexed 1/4 duty, 1/3 bias)"
+mux["sources"]["drive"] = {
+ "scheme": "1/4 duty, 1/3 bias multiplexed segment drive",
+ "refs": ["ROHM BU9795AFV segment driver datasheet (1/3 bias, 1/4 duty; frame 53-80 Hz)",
+          "ON Semiconductor LC75814V 1/4-duty driver datasheet (1/2 or 1/3 bias)"],
+ "rms_formula": "on^2 = VLCD^2 (1/N + (N-1)/(N b^2)); off^2 = VLCD^2 (((b-2)/b)^2/N + (N-1)/(N b^2))",
+ "supply_rule": "VLCD chosen for maximum contrast with this cell",
+ "note": "same glass, crystal and polarizers as the VI-402 profile; only the drive differs. The liquid crystal responds to rms voltage because its response (tens of ms) is slower than the frame (12-19 ms)."}
+mux["drive"]["static_by_gray"] = [V_ON if v > 0 else V_OFF for v in static]
+mux["drive"]["off_voltage"] = r6(V_OFF); mux["drive"]["on_voltage"] = r6(V_ON); mux["drive"]["vlcd"] = r6(VLCD)
+mux["drive"]["uses_electrode_map"] = True
+mux["drive"]["analog_by_gray"] = [V_OFF + (V_ON - V_OFF) * (v / V_op) for v in analog]
+cr_mux = max(crs)
+mux["derived"] = {**mux["derived"], "contrast_final": r6(cr_mux), "vlcd_V": r6(VLCD), "on_rms_V": r6(V_ON), "off_rms_V": r6(V_OFF),
+ "off_state_a": r6(a_of(V_OFF)), "luminance_on": r6(Y_of_a(a_of(V_ON))), "luminance_off_segment": r6(Y_of_a(a_of(V_OFF)))}
+json.dump(mux, open(os.path.join(HERE, "..", "profiles", "reflective-tn-mux4.json"), "w"), separators=(",", ":"))
+print("MUX: VLCD %.2f V, on %.3f V rms, off %.3f V rms, contrast %.2f, off-segment state %.3f, luminance off-seg %.4f vs unlit %.4f" %
+      (VLCD, V_ON, V_OFF, cr_mux, a_of(V_OFF), Y_of_a(a_of(V_OFF)), Y_of_a(0)))
 print(json.dumps(out["derived"], indent=1))
 # Single-pass check at 550 nm with ideal crossed polarizers: should be near 1 at 0 V.
 J0 = jones(profiles[0]); i550 = int(np.argmin(abs(WL - 550)))

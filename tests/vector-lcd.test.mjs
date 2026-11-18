@@ -272,6 +272,30 @@ describe('Reflective TN: bezel shadow',()=>{
  });
 });
 
+describe('Reflective TN, multiplexed 1/4 duty',()=>{
+ const MUX=JSON.parse(read('profiles/reflective-tn-mux4.json'));
+ test('same cell and optics as the static panel; only the drive differs',()=>{
+  assert.equal(MUX.oblique.table_float32_base64,TN.oblique.table_float32_base64);
+  assert.deepEqual(MUX.drive.a_equilibrium,TN.drive.a_equilibrium);
+  assert.deepEqual(MUX.dynamics,TN.dynamics);
+  assert.ok(MUX.drive.uses_electrode_map&&!TN.drive.uses_electrode_map);
+ });
+ test('rms voltages follow the 1/4 duty, 1/3 bias drive formula',()=>{
+  const {vlcd,on_voltage:on,off_voltage:off}=MUX.drive;
+  near(on,vlcd*Math.sqrt(1/4+3/(4*9)),1e-4);near(off,vlcd*Math.sqrt((1/3)**2/4+3/(4*9)),1e-4);
+  near(on/off,Math.sqrt(3),1e-4);
+  assert.ok(MUX.drive.static_by_gray.every(v=>Math.abs(v-on)<1e-5||Math.abs(v-off)<1e-5));
+ });
+ test('the supply sits where contrast peaks, and unlit segments are faintly visible',()=>{
+  const Yd=a=>luminance(reflectance(MUX,a,a)),cr=v=>Yd(equilibriumState(MUX,v*0.3333))/Yd(equilibriumState(MUX,v*0.5774));
+  const best=MUX.drive.vlcd;
+  assert.ok(cr(best)>=cr(best-.3)&&cr(best)>=cr(best+.3),'contrast peaks at the chosen supply');
+  assert.ok(MUX.derived.contrast_final<TN.derived.contrast_final,'multiplexing costs contrast');
+  const ghost=MUX.derived.luminance_off_segment/MUX.derived.luminance_off;
+  assert.ok(ghost<.98&&ghost>.8,'unlit segment slightly darker than the background: '+ghost);
+ });
+});
+
 describe('Vector LCD app packaging',()=>{
  test('one app version: page, demo and offline worker; the concept model keeps its own',()=>{
   const html=read('index.html'),app=read('tn-demo.js'),worker=read('sw.js');

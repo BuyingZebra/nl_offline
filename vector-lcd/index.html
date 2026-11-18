@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="vector-lcd-version" content="0.5.0">
+<meta name="vector-lcd-version" content="0.6.0">
 <meta name="theme-color" content="#141513">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
@@ -26,7 +26,8 @@ header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:
 h1{font-size:16px;margin:0;letter-spacing:.04em}
 #version{color:var(--muted);font-size:13px}
 header button{margin-left:auto}
-button{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 12px;min-height:36px}
+button,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 12px;min-height:36px}
+select{color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 12px;min-height:36px;width:100%}
 button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 #stage{flex:1;min-height:0;display:grid;place-items:center;padding:12px}
 #bezel{padding:10px;border-radius:12px;background:linear-gradient(160deg,#2a2c28,#121311);box-shadow:inset 0 1px 0 #3a3d36,0 8px 24px #0008;line-height:0}
@@ -62,12 +63,14 @@ a{color:var(--accent)}
  <p id="error" role="alert" hidden></p>
 </main>
 <section id="controls" aria-label="Screen controls">
+ <h2>Screen</h2>
+ <select id="screen" aria-label="Screen model"></select>
  <h2>Panel</h2>
  <div class="actions">
   <button id="pause" type="button">Pause</button>
   <button id="reset" type="button">Reset panel</button>
  </div>
- <p class="note">One ink colour, as on the datasheet panel: every point is fully on (3.0 V) or off. Art darker than 50% switches on.</p>
+ <p class="note" id="driveNote"></p>
  <h2>Room light</h2>
  <div id="lighting"></div>
  <p class="note">Light at an angle enters the glass at one point and leaves at another, casting a shadow under each shape. The bezel frame above the glass also shades the edges that face the light.</p>

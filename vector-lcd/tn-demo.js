@@ -4,7 +4,7 @@ import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.5.0';
+export const APP_VERSION='0.6.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -41,12 +41,60 @@ function iSourceIndex(rotation,x,y){
  return null;
 }
 
+/* Screen models: each is a profile computed by tools/reflective_tn.py. */
+export const SCREENS=Object.freeze([
+ {id:'reflective-tn',file:'./profiles/reflective-tn.json',label:'Reflective TN · static drive (VI-402)'},
+ {id:'reflective-tn-mux4',file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty'}
+]);
+const profiles=new Map();
+async function profileFor(id){
+ const screen=SCREENS.find(s=>s.id===id)||SCREENS[0];
+ if(!profiles.has(screen.id))profiles.set(screen.id,await loadProfile(screen.file));
+ return profiles.get(screen.id);
+}
+let savedScreen=null;
+try{savedScreen=localStorage.getItem('vector-lcd-screen');}catch(error){}
+
 let lcd,tiles,game;
 try{
- const [profile,loaded]=await Promise.all([loadProfile('./profiles/reflective-tn.json'),loadTiles()]);
+ const [profile,loaded]=await Promise.all([profileFor(savedScreen||SCREENS[0].id),loadTiles()]);
  tiles=loaded;
  lcd=createPhysicalLCD(canvas,{profile,widthMm:PANEL.w,heightMm:PANEL.h});
 }catch(error){showError(error.message);throw error;}
+
+/* ---------- Electrodes: where the glass can switch ----------
+ * A point is an electrode if any tile design can switch it on there (darker
+ * than 50%, the static drive threshold), or it belongs to the frame or to any
+ * digit the counters can show. Multiplexed screens drive every electrode, lit
+ * or not, which is what makes unlit segments faintly visible. */
+function cellElectrode(size=144){
+ const out=document.createElement('canvas');out.width=out.height=size;
+ const octx=out.getContext('2d'),mask=octx.createImageData(size,size);
+ const temp=document.createElement('canvas');temp.width=temp.height=size;
+ const t=temp.getContext('2d',{willReadFrequently:true});
+ const designs=[...['J','L','O','S','T','Z'].map(k=>tiles[k]),...tiles.I.flat()];
+ for(const image of designs){
+  t.fillStyle='#fff';t.fillRect(0,0,size,size);t.drawImage(image,0,0,size,size);
+  const d=t.getImageData(0,0,size,size).data;
+  for(let i=0;i<d.length;i+=4)if(d[i]<188){mask.data[i]=mask.data[i+1]=mask.data[i+2]=255;mask.data[i+3]=255;}
+ }
+ octx.putImageData(mask,0,0);
+ return out;
+}
+const CELL_ELECTRODE=cellElectrode();
+const COUNTER_FONT='700 3.2px ui-monospace,Menlo,Consolas,monospace';
+lcd.setElectrodes(ctx=>{
+ ctx.lineWidth=.35;
+ ctx.strokeRect(BOARD.x-.6,BOARD.y-.6,BOARD.cols*CELL+1.2,BOARD.rows*CELL+1.2);
+ for(let r=0;r<BOARD.rows;r++)for(let c=0;c<BOARD.cols;c++)
+  ctx.drawImage(CELL_ELECTRODE,BOARD.x+c*CELL,BOARD.y+r*CELL,CELL,CELL);
+ ctx.font=COUNTER_FONT;ctx.textBaseline='alphabetic';
+ for(let d=0;d<10;d++){
+  ctx.fillText('LINES '+String(d).repeat(3),BOARD.x,PANEL.h-2.2);
+  const score=String(d).repeat(6);
+  ctx.fillText(score,BOARD.x+BOARD.cols*CELL-ctx.measureText(score).width,PANEL.h-2.2);
+ }
+});
 
 /* ---------- Game: real rules, simple autoplay ---------- */
 let seed=20261118;
@@ -90,7 +138,7 @@ function drawContent(){
   if(!kind||r<0||r>=BOARD.rows||c<0||c>=BOARD.cols)continue;
   drawCell(ctx,c,r,kind,kind==='I'?{sourceIndex:iSourceIndex(p.rotation,ix,iy),rotation:p.rotation}:null);
  }
- ctx.fillStyle='#000';ctx.font='700 3.2px ui-monospace,Menlo,Consolas,monospace';ctx.textBaseline='alphabetic';
+ ctx.fillStyle='#000';ctx.font=COUNTER_FONT;ctx.textBaseline='alphabetic';
  ctx.fillText('LINES '+String(game.lines).padStart(3,'0'),BOARD.x,PANEL.h-2.2);
  const score=String(game.score).padStart(6,'0');
  ctx.fillText(score,BOARD.x+BOARD.cols*CELL-ctx.measureText(score).width,PANEL.h-2.2);
@@ -147,31 +195,53 @@ $('toggleControls').addEventListener('click',e=>{
  const open=document.body.classList.toggle('controls-closed')===false;e.currentTarget.setAttribute('aria-expanded',String(open));});
 
 /* ---------- Where every number comes from ---------- */
-const P=lcd.profile,src=P.sources,der=P.derived;
-const facts=[
- ['Panel',src.panel.part],
- ['Response (datasheet)',src.panel.rise_ms_typ+' ms on, '+src.panel.decay_ms_typ+' ms off'],
- ['Contrast (datasheet)',src.panel.contrast_typ+':1'],
- ['Drive (datasheet)',src.panel.Vop_typ+' V, static: one ink colour, each point on or off'],
- ['Liquid crystal',src.liquid_crystal.material],
- ['Cell gap (derived)',der.cell_gap_um+' µm, first transmission maximum'],
- ['Threshold (derived)',der.Vth_theory_V.toFixed(2)+' V'],
- ['Polarizer',src.polarizer.part],
- ['Reflectance (computed)',Math.round(der.luminance_off*100)+'% unlit, '+(der.luminance_on*100).toFixed(1)+'% driven'],
- ['Unlit colour (computed)',der.color_off_hex],
- ['Front-surface reflection',(der.front_surface_reflectance*100).toFixed(1)+'%, solved to match the datasheet contrast'],
- ['Rear glass',src.geometry.glass_mm+' mm, inferred from panel depth'],
- ['Pretilt (assumed)',src.geometry.pretilt_deg+'°, typical value'],
- ['Viewing cone (computed)',(()=>{const c=P.oblique.viewing_cone_CR2_deg;return 'contrast ≥ 2 to '+c.bottom+'° below, '+c.top+'° above, '+c.left+'° sides';})()],
- ['Viewing cone (datasheet)','70° below, 35° above, 70° sides'],
- ['Glare','glossy front surface, Fresnel n = '+P.oblique.front_index+' (assumed untreated polarizer)'],
- ['Temperature','15–40 °C from measured E7 viscosity (Merck) and refractive indices (Li, Wu et al.)'],
- ['Room light (fixed)','15° wide, as a typical lamp; normal room brightness'],
- ['Viewing (fixed)','straight on, eye 300 mm away'],
- ['Bezel (assumed)',lcd.bezelLipMm+' mm above the front polarizer; front glass '+src.geometry.glass_mm+' mm']
-];
-const dl=$('facts');
-for(const [k,v] of facts){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd);}
+function factsFor(P){
+ const src=P.sources,der=P.derived,mux=Boolean(P.drive.uses_electrode_map);
+ const facts=[
+  ['Panel',src.panel.part],
+  ['Response (datasheet)',src.panel.rise_ms_typ+' ms on, '+src.panel.decay_ms_typ+' ms off'+(mux?' (static drive)':'')],
+  ['Contrast',mux?der.contrast_final.toFixed(1)+':1 (computed for this drive)':src.panel.contrast_typ+':1 (datasheet)'],
+  ['Drive',mux?'1/4 duty, 1/3 bias: '+der.vlcd_V.toFixed(2)+' V supply, '+der.on_rms_V.toFixed(2)+' V rms on, '+der.off_rms_V.toFixed(2)+' V rms off (derived)'
+   :src.panel.Vop_typ+' V, static: one ink colour, each point on or off (datasheet)'],
+  ['Liquid crystal',src.liquid_crystal.material],
+  ['Cell gap (derived)',der.cell_gap_um+' µm, first transmission maximum'],
+  ['Threshold (derived)',der.Vth_theory_V.toFixed(2)+' V'],
+  ['Polarizer',src.polarizer.part],
+  ['Reflectance (computed)',Math.round(der.luminance_off*100)+'% unlit, '+(der.luminance_on*100).toFixed(1)+'% driven'+
+   (mux?', '+(der.luminance_off_segment*100).toFixed(1)+'% unlit segment':'')],
+  ['Unlit colour (computed)',der.color_off_hex],
+  ['Front-surface reflection',(der.front_surface_reflectance*100).toFixed(1)+'%, solved to match the datasheet contrast'],
+  ['Rear glass',src.geometry.glass_mm+' mm, inferred from panel depth'],
+  ['Pretilt (assumed)',src.geometry.pretilt_deg+'°, typical value'],
+  ['Viewing cone (computed)',(()=>{const c=P.oblique.viewing_cone_CR2_deg;return 'contrast ≥ 2 to '+c.bottom+'° below, '+c.top+'° above, '+c.left+'° sides';})()],
+  ['Viewing cone (datasheet)','70° below, 35° above, 70° sides'],
+  ['Glare','glossy front surface, Fresnel n = '+P.oblique.front_index+' (assumed untreated polarizer)'],
+  ['Temperature','15–40 °C from measured E7 viscosity (Merck) and refractive indices (Li, Wu et al.)'],
+  ['Room light (fixed)','15° wide, as a typical lamp; normal room brightness'],
+  ['Viewing (fixed)','straight on, eye 300 mm away'],
+  ['Bezel (assumed)',lcd.bezelLipMm+' mm above the front polarizer; front glass '+src.geometry.glass_mm+' mm']
+ ];
+ if(mux)facts.splice(4,0,['Drive sources',src.drive.refs.join('; ')]);
+ $('driveNote').textContent=mux?
+  'One ink colour, multiplexed: every electrode point gets '+der.on_rms_V.toFixed(2)+' V rms when on and '+der.off_rms_V.toFixed(2)+
+  ' V rms when off, so unlit segments stay faintly visible. Areas with no electrode get no voltage.':
+  'One ink colour, as on the datasheet panel: every point is fully on (3.0 V) or off. Art darker than 50% switches on.';
+ const dl=$('facts');dl.replaceChildren();
+ for(const [k,v] of facts){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd);}
+}
+factsFor(lcd.profile);
+
+/* ---------- Screen model choice ---------- */
+const screenSelect=$('screen');
+for(const sc of SCREENS){const o=document.createElement('option');o.value=sc.id;o.textContent=sc.label;screenSelect.append(o);}
+screenSelect.value=lcd.profile.profile;
+screenSelect.addEventListener('change',async()=>{
+ try{
+  const p=await profileFor(screenSelect.value);
+  lcd.setProfile(p);factsFor(p);
+  try{localStorage.setItem('vector-lcd-screen',p.profile);}catch(error){}
+ }catch(error){showError(error.message);}
+});
 $('version').textContent='v'+APP_VERSION;
 setInterval(()=>{const i=lcd.info();$('status').textContent=i.fps+' fps · '+i.width+'×'+i.height+' px · '+i.pxPerMm.toFixed(1)+' px/mm · '+i.stateFormat+' state · renderer '+PHYSICAL_LCD_VERSION;},1000);
 

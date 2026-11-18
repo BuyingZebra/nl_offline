@@ -17,12 +17,15 @@
  * Temperature scales the crystal's speed and threshold from measured data.
  * A bezel frame above the glass blocks light near the edges facing the room
  * light, casting a soft shadow band onto the screen.
+ * Multiplexed profiles drive every electrode point, lit or not; points outside
+ * all electrodes get no voltage. An electrode map (white = electrode) tells the
+ * renderer where the glass has electrodes, which is where unlit segments show.
  * Content is digital and free: the glass is treated as a grid finer than the
  * device pixel, so any art can be shown. That is the one stated compromise.
  *
  * Pure model functions are exported for testing; the shaders mirror them.
  */
-export const PHYSICAL_LCD_VERSION='0.5.0';
+export const PHYSICAL_LCD_VERSION='0.6.0';
 
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const interp=(x,xs,ys)=>{
@@ -273,8 +276,8 @@ void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Posit
 
 const UPDATE_FS=`#version 300 es
 precision highp float;
-uniform sampler2D uContent,uState,uDrive,uEq;
-uniform int uMode,uEqN;
+uniform sampler2D uContent,uState,uDrive,uEq,uElectrodes;
+uniform int uMode,uEqN;uniform bool uHasElectrodes;
 uniform float uVmax,uDt,uTauOnOp,uTauOff,uVth,uVop,uVscale,uTauScale;
 out vec4 o;
 float eq(float v){
@@ -286,6 +289,8 @@ void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  int gray=int(floor(texelFetch(uContent,p,0).r*255.0+0.5));
  float v=texelFetch(uDrive,ivec2(gray,uMode),0).r;
+ // No electrode, no field.
+ if(uHasElectrodes)v*=texelFetch(uElectrodes,p,0).r;
  float ve=v*uVscale;
  float target=eq(ve),a=texelFetch(uState,p,0).r;
  float tau=uTauOff;
@@ -364,13 +369,17 @@ export async function loadProfile(url){
  return response.json();
 }
 
-export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio=2,bezelLipMm=1}={}){
- if(!profile?.oblique||!profile?.drive)throw new TypeError('A screen profile with oblique optics is required');
+export function createPhysicalLCD(canvas,{profile:initialProfile,widthMm,heightMm,maxPixelRatio=2,bezelLipMm=1}={}){
+ const checkProfile=p=>{if(!p?.oblique||!p?.drive)throw new TypeError('A screen profile with oblique optics is required');return p;};
+ let profile=checkProfile(initialProfile);
+ let drawElectrodes=null;
  if(!(widthMm>0)||!(heightMm>0))throw new TypeError('Panel size must be positive millimetres');
  const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,premultipliedAlpha:false});
  if(!gl)throw new Error('This browser does not provide WebGL2, which the LCD renderer needs.');
  const content=document.createElement('canvas');
  const ctx=content.getContext('2d');
+ const electrodes=document.createElement('canvas');
+ const ectx=electrodes.getContext('2d');
  let W=0,H=0,pxPerMm=1,last=null,current=0,lost=false,gpu=null,settle=false;
  let mode='static',lighting={angleDeg:30,azimuthDeg:0,sourceDeg:10,exposure:1};
  let viewing={polarDeg:0,azimuthDeg:0,distanceMm:300},celsius=25,optics=null,opticsKey='';
@@ -411,13 +420,9 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   const fmt=stateFormat();
   gpu={fmt,fieldFmt:fieldFormat(),vao:gl.createVertexArray(),update:program(UPDATE_FS),entry:program(ENTRY_FS),
    blur:program(BLUR_FS),display:program(DISPLAY_FS),
-   content:texture(),drive:texture(),eq:texture(),entryLut:texture(gl.LINEAR),exitLut:texture(gl.LINEAR),
+   content:texture(),electrodes:texture(),drive:texture(),eq:texture(),entryLut:texture(gl.LINEAR),exitLut:texture(gl.LINEAR),
    states:[],fields:[]};
-  const d=profile.drive,n=d.voltages.length;
-  gl.bindTexture(gl.TEXTURE_2D,gpu.drive);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,256,2,0,gl.RED,gl.FLOAT,new Float32Array([...d.static_by_gray,...d.analog_by_gray]));
-  gl.bindTexture(gl.TEXTURE_2D,gpu.eq);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,n,1,0,gl.RED,gl.FLOAT,new Float32Array(d.a_equilibrium));
+  uploadProfileTables();
   opticsKey='';
   if(W&&H)allocate();
  }
@@ -429,6 +434,7 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);}
   gl.bindTexture(gl.TEXTURE_2D,gpu.content);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,W,H,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  uploadElectrodes();
   reset();
   // New textures have no history: let the crystal settle to the current image.
   settle=true;
@@ -438,6 +444,25 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   gl.clearColor(0,0,0,0);
   for(const s of gpu.states){gl.bindFramebuffer(gl.FRAMEBUFFER,s.fb);gl.clear(gl.COLOR_BUFFER_BIT);}
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);last=null;settle=false;   // an explicit reset starts blank
+ }
+ function uploadProfileTables(){
+  const d=profile.drive,n=d.voltages.length;
+  gl.bindTexture(gl.TEXTURE_2D,gpu.drive);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,256,2,0,gl.RED,gl.FLOAT,new Float32Array([...d.static_by_gray,...d.analog_by_gray]));
+  gl.bindTexture(gl.TEXTURE_2D,gpu.eq);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,n,1,0,gl.RED,gl.FLOAT,new Float32Array(d.a_equilibrium));
+  opticsKey='';optics=null;
+ }
+ function uploadElectrodes(){
+  if(!gpu||lost||!W||!drawElectrodes)return;
+  ectx.setTransform(1,0,0,1,0,0);ectx.globalCompositeOperation='source-over';ectx.globalAlpha=1;
+  ectx.fillStyle='#000';ectx.fillRect(0,0,W,H);
+  ectx.setTransform(pxPerMm,0,0,pxPerMm,0,0);ectx.fillStyle='#fff';ectx.strokeStyle='#fff';
+  drawElectrodes(ectx);
+  gl.bindTexture(gl.TEXTURE_2D,gpu.electrodes);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,electrodes);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
  }
  // Rebuild the separable optics when the light or the eye moves.
  function updateOptics(){
@@ -480,6 +505,8 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   const from=gpu.states[current],to=gpu.states[1-current];
   run(gpu.update,to.fb,p=>{
    bind(p,0,'uContent',gpu.content);bind(p,1,'uState',from.tex);bind(p,2,'uDrive',gpu.drive);bind(p,3,'uEq',gpu.eq);
+   bind(p,4,'uElectrodes',gpu.electrodes);
+   gl.uniform1i(p.u('uHasElectrodes'),drawElectrodes&&profile.drive.uses_electrode_map?1:0);
    gl.uniform1i(p.u('uMode'),mode==='analog'?1:0);gl.uniform1i(p.u('uEqN'),d.voltages.length);
    gl.uniform1f(p.u('uVmax'),d.voltages[d.voltages.length-1]);gl.uniform1f(p.u('uDt'),dt);
    gl.uniform1f(p.u('uTauOnOp'),dyn.tau_on_at_Vop_ms);gl.uniform1f(p.u('uTauOff'),dyn.tau_off_ms);
@@ -536,7 +563,8 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
   const ratio=Math.max(1,Math.min(maxPixelRatio,dpr||1,max/outW,max/outH));
   const pw=Math.round(outW*ratio),ph=Math.round(outH*ratio);
   canvas.style.width=outW+'px';canvas.style.height=outH+'px';
-  if(pw!==W||ph!==H){W=pw;H=ph;canvas.width=W;canvas.height=H;content.width=W;content.height=H;pxPerMm=W/widthMm;if(gpu&&!lost)allocate();}
+  if(pw!==W||ph!==H){W=pw;H=ph;canvas.width=W;canvas.height=H;content.width=W;content.height=H;
+   electrodes.width=W;electrodes.height=H;pxPerMm=W/widthMm;if(gpu&&!lost)allocate();}
   return {width:outW,height:outH,pxPerMm};
  }
 
@@ -558,7 +586,11 @@ export function createPhysicalLCD(canvas,{profile,widthMm,heightMm,maxPixelRatio
  init();
 
  return Object.freeze({
-  profile,beginContent,frame,resize,reset,sample,
+  get profile(){return profile;},beginContent,frame,resize,reset,sample,
+  /** Switch screen model; the crystal settles into the new panel's state. */
+  setProfile(next){profile=checkProfile(next);if(gpu&&!lost){uploadProfileTables();settle=true;}},
+  /** draw(ctx) paints electrodes white on black, in millimetres. */
+  setElectrodes(draw){drawElectrodes=draw;uploadElectrodes();},
   get mode(){return mode;},
   setMode(next){if(next!=='static'&&next!=='analog')throw new RangeError('Drive mode must be static or analog');mode=next;},
   get lighting(){return {...lighting};},
