@@ -55,8 +55,10 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
   <option value="60">60 frames · 1.00 s</option>
  </select></div>
  <div><label for="view">RENDERING</label><select id="view">
-  <option value="cellless">Shape-driven with aperture fringes</option>
-  <option value="flat">Previous cell-less (no aperture fringes)</option>
+  <option value="cellless">Corrected shape-driven LCD · physical 1×</option>
+  <option value="uniform">Continuous substrate · no edge fringe</option>
+  <option value="flat">Previous mustard background · comparison</option>
+  <option value="contour">Shape aperture-colour edge · diagnostic</option>
   <option value="shadow">Reflector overlap · black/white diagnostic</option>
   <option value="shadowDelta">Isolated reflector darkening · diagnostic</option>
   <option value="reference">Original DMG-01 square cells</option>
@@ -96,7 +98,7 @@ a{color:#b5d69c}footer{color:#91a58a;line-height:1.6;padding-bottom:40px}
 <p><strong>Scientific scope:</strong> this is a hypothetical nonrectangular-electrode STN model. Native matrix loading is sampled at 160 × 144 and interpolated across the finer state field. It preserves the model's material equations but cannot claim identical field physics for electrodes that never existed on a DMG-01. The original square-cell view is a numerical comparison reference.</p>
 </div>
 <div class="group"><h2>Physical model and validation</h2>
-<p><strong>Original reference:</strong> 0.875 square-cell fill, 0.18 reflector shadow, 0.11/0.13-cell offset, contrast 1 and zero aging. <strong>Shape-driven:</strong> uses the original inactive-to-active optical colour blend and the same reflector strength/offset, with geometry supplied by the NOMAD silhouette instead of square-cell apertures. At 640 × 576 the genuine offset is just 0.44 × 0.52 pixels. The shadow inspector reveals this very thin effect; any setting above 1× is deliberately not a calibrated physical rendering.</p>
+<p><strong>Original reference:</strong> 87.5% aperture fill, 0.18 reflector strength, 0.11/0.13 native-pixel reflector displacement, contrast 1, no aging. <strong>Corrected shape-driven:</strong> the entire STN substrate has an area-averaged 87.5% optical fill; only actual source-artwork boundaries introduce the corresponding inactive-gap colour. This retains the original mean screen colour without drawing cell grids. Shadow overlap follows NOMAD silhouettes at the original offset and strength. Shadow visibility above 1× deliberately exaggerates that calculation for inspection only.</p>
 <p><strong>Electrical:</strong> reconstructed STN drive with original generated director tables, row+column crosstalk 1.00, 20°C, ionic history, captured row latch, 59.7275 Hz frame reference. The feedback buffer is 32-bit float.</p>
 <p><strong>Physical material:</strong> director coordinates and ionic charge are integrated each simulated frame by the original reference shader, with continuous artwork drive and a shared RC correction. Uses measured-source lookup tables, 20°C material reference, 59.7275 Hz timing and RGBA32F feedback. <strong>Optics:</strong> original colour curve and reflective shadow parameters, generalized to overlapping artwork silhouettes. The 160 × 144 original output is retained as a control.</p>
 </div>
@@ -285,7 +287,7 @@ function setSurfaceProgram(prog,inputs,out,width,height,sourceW,sourceH,original
  const shapeDiag=u(prog,'ShapeOpticalDebug');
  if(shapeDiag!==null){
    const mode=document.querySelector('#view').value;
-   gl.uniform1f(shapeDiag,mode==='shadow'?1:mode==='flat'?2:mode==='shadowDelta'?3:0);
+   gl.uniform1f(shapeDiag,mode==='shadow'?1:mode==='flat'?2:mode==='shadowDelta'?3:mode==='uniform'?4:mode==='contour'?5:0);
  }
  const shadowGain=u(prog,'ShadowInspectionGain');
  if(shadowGain!==null)gl.uniform1f(shadowGain,Math.max(1,Number(document.querySelector('#shadowInspection').value)||1));
