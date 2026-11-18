@@ -1,5 +1,5 @@
 import {describe,test} from 'node:test';
-import {BUILD_META_NAME,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks,needsContinuousFrame,idleFrameDelayMs} from '../tetris/platform.js';
+import {BUILD_META_NAME,APP_VERSION_META_NAME,getAppVersion,getBuildVersion,parsePublishedBuild,shouldReloadBuild,createPlatformManager,measureDisplayViewport,createAppLifecycle,runCleanupTasks,needsContinuousFrame,idleFrameDelayMs} from '../tetris/platform.js';
 import {createGraphicsCleanup,createGraphicsHealth} from '../tetris/render.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -26,12 +26,26 @@ describe('Build markers and reload safety',()=>{
   assert.ok(!/const THREE_BUILD_VERSION=['"][0-9]{3}['"]/.test(main));
  });
  test('terminal, browser title, accessible title and debug use same runtime value',()=>{
-  assert.match(main,/terminalLog\.enqueue\('BUILD: VERSION V'\+THREE_BUILD_VERSION,\s*'VER: V'\+THREE_BUILD_VERSION\)/);
-  assert.ok(main.includes("document.title='NOMAD — Tetris System | version: '+THREE_BUILD_VERSION"));
-  assert.ok(main.includes("'Tetris System — Three.js version: '+THREE_BUILD_VERSION"));
-  assert.ok(main.includes('version:THREE_BUILD_VERSION,createdAt:'));
+  assert.match(main,/terminalLog\.enqueue\('BUILD: VERSION V'\+APP_VERSION\+' #'\+THREE_BUILD_VERSION,\s*'VER: V'\+APP_VERSION\)/);
+  assert.ok(main.includes("document.title='NOMAD — Tetris System | version: '+APP_VERSION"));
+  assert.ok(main.includes("'Tetris System — Three.js version: '+APP_VERSION"));
+  assert.ok(main.includes('version:THREE_BUILD_VERSION,appVersion:APP_VERSION,createdAt:'));
   assert.ok(!/<title>[^<]*V[0-9]{3}<\/title>/.test(html));
   assert.ok(!/aria-label="Tetris System — Three.js V[0-9]{3}"/.test(html));
+ });
+ test('app version is a semantic version in its own meta tag, separate from the build counter',()=>{
+  const markers=html.match(/<meta name="tetris-version" content="[^"]*">/g)||[];
+  assert.equal(markers.length,1);
+  const version=markers[0].match(/content="([^"]*)"/)[1];
+  const doc=v=>({querySelector:s=>s==='meta[name="tetris-version"]'&&v!==null?
+   {getAttribute:attr=>attr==='content'?v:null}:null});
+  assert.equal(getAppVersion(doc(version)),version);
+  assert.equal(APP_VERSION_META_NAME,'tetris-version');
+  assert.equal(getAppVersion(doc('1.0.0')),'1.0.0');
+  assert.equal(getAppVersion(doc('12.34.56')),'12.34.56');
+  for(const bad of [null,'','1.0','1.0.0.0','v1.0.0','01.0.0','1.0.0-beta','262'])
+   assert.throws(()=>getAppVersion(doc(bad)),/app version/,String(bad));
+  assert.notEqual(version,getBuildVersion(documentWithVersion(html.match(/name="tetris-build" content="([0-9]{3})"/)[1])));
  });
  test('HTML parser is tolerant of a valid XML-style meta tag and safe on malformed input',()=>{
   assert.equal(parsePublishedBuild('<meta name="tetris-build" content="072" />'),'072');

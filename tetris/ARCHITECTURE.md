@@ -30,6 +30,16 @@ The three main engines remain the primary source-code structure. Think of `game.
 
 The platform still coordinates individual drawing operations; the remaining rendering orchestration can be untangled later. This pass changes only resource ownership and its inventory, **not** the compositor implementation, shader logic, SVG source, sprites, or gameplay.
 
+## Versioning
+
+The player-facing version is a semantic version (`MAJOR.MINOR.PATCH`), stored in `<meta name="tetris-version">` in `three-v027.html`. It starts at **1.0.0** and is what the title, accessible label, boot terminal and Copy Debug report show.
+
+- **PATCH**: fixes and small visual or tuning changes.
+- **MINOR**: new features or settings that keep saved scores and settings working.
+- **MAJOR**: changes that break saved data or substantially change how the game plays.
+
+The three-digit build counter (`tetris-build`, currently 263) is separate and internal. It names the offline cache generation and drives update checks, so it must increase with every release, even when the app version does not change. Run `node tools/build-tetris-release.mjs <build>` for every release; edit `tetris-version` by hand when the app version changes.
+
 ## Offline releases
 
 Run `node tools/build-tetris-release.mjs <build>` to regenerate the HTML build marker and worker allowlist. `--check` verifies the generated worker. The public shell stays at `tetris/three-v027.html`.

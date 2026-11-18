@@ -318,10 +318,11 @@ function captureLaunchDiagnostics({performance,scope,network,standalone}){
 }
 
 // The report is exported only by explicit user action.
-function formatDebugReport({version,createdAt,platform,viewport,game,display,buttonRenderer,idlePacing,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,launch,samples=[],current}={}){
+function formatDebugReport({version,appVersion,createdAt,platform,viewport,game,display,buttonRenderer,idlePacing,gpu,shadowStats,canvasMemory,graphics,lifecycle,offline,launch,samples=[],current}={}){
  const value=(v,unit='')=>v===null||v===undefined||v===''?'n/a':String(v)+unit;
  const rows=[
   'TETRIS SYSTEM / DEBUG REPORT',
+  'App version: '+value(appVersion),
   'Build: V'+value(version),
   'Captured: '+value(createdAt),
   'Browser: '+value(platform),

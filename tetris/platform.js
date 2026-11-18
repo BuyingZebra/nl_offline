@@ -1,7 +1,7 @@
-import {createInputController} from './input.js?v262';
-import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v262';
+import {createInputController} from './input.js?v263';
+import Layout, {createCompositor,createButtonFeedback,buttonFeedbackChanged,buttonFeedbackLayers,createGpuButtonLighting,croppedBounds,sidebarBounds,controlsBounds,drawCroppedCanvas,captureGameVisualState,gameVisualStateChanged,flashPhase,createRenderInvalidation,createVectorTileRenderer,collectPieceShadowGroups,createPieceShadowRenderer,createBoardInsetShadowRenderer,collectIFragments,createCanvasUI,drawPropertyDeck,createModalUI,createHudDrawing,registerControlHitboxes,boardOverlaySlots,drawMenuScoreBox,headerThemeBounds,previewPieceShape,fitPreviewCells,createTerminalLog,drawTerminalLog,terminalLineBounds,createPerfMonitor,createTextureUploadProfiler,captureLaunchDiagnostics,formatDebugReport,findRegionAt,sliderValueAt,createGraphicsCleanup,createGraphicsHealth,createVisualScene,estimateCanvasSourceBytes} from './render.js?v263';
 import {createBrickFrame} from './assets/frames/brick-pattern.mjs?v137';
-import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v262';
+import {DISPLAY_EFFECTS,LIGHT_PROPERTY_CONTROLS,scanlineChoices,createSettingsManager,createScreenManager,createActionController} from './game.js?v263';
 
 
 // Private device adapters: share the same viewport subscription mechanism.
@@ -53,6 +53,16 @@ export const BUILD_META_NAME='tetris-build';
 export function getBuildVersion(document){
  const version=document.querySelector('meta[name="tetris-build"]')?.getAttribute('content');
  if(!/^[0-9]{3}$/.test(version||''))throw Error('Missing or invalid Tetris build metadata');
+ return version;
+}
+// The player-facing release number (semantic version). The three-digit build
+// counter above stays internal: it drives offline cache generations and update
+// checks, so it keeps increasing even when the app version does not change.
+export const APP_VERSION_META_NAME='tetris-version';
+export function getAppVersion(document){
+ const version=document.querySelector('meta[name="tetris-version"]')?.getAttribute('content');
+ if(!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version||''))
+  throw Error('Missing or invalid Tetris app version metadata');
  return version;
 }
 export function parsePublishedBuild(html){
@@ -295,7 +305,7 @@ export function idleFrameDelayMs({
  */
 let nomadStarted=false;
 // Device pointer/keyboard input controller, separate from visual hitbox geometry.
-export {createInputController} from './input.js?v262';
+export {createInputController} from './input.js?v263';
 // Browser clipboard and Safari fallback.
 export function createDebugClipboard({navigator,document}={}){
  function fallback(text){
@@ -362,9 +372,10 @@ const FONT='"Roboto Condensed",'+ICON_FONT;
 const TERMINAL_FONT='"Share Tech Mono",'+ICON_FONT;
 // User preferences are owned by the Settings Manager, independent of rendering.
 const THREE_BUILD_VERSION=getBuildVersion(document);
+const APP_VERSION=getAppVersion(document);
 // The HTML build meta is authoritative; title, accessibility and debug labels derive from it.
-document.title='NOMAD — Tetris System | version: '+THREE_BUILD_VERSION;
-display.setAttribute('aria-label','Tetris System — Three.js version: '+THREE_BUILD_VERSION);
+document.title='NOMAD — Tetris System | version: '+APP_VERSION;
+display.setAttribute('aria-label','Tetris System — Three.js version: '+APP_VERSION);
 // Viewport measurements and render DPR cap now belong to Platform Manager.
 // Use one spacing unit for adjacent containers and buttons inside panels.
 // Vertically centered header buttons and flexible sidebar space preserve V027.
@@ -398,8 +409,8 @@ const terminalLog=createTerminalLog();
 // The HTML build marker is authoritative, including when the app is offline.
 // Let the boot terminal finish with the exact running build, so the version
 // remains on its bright active row until the next gameplay event.
-terminalLog.enqueue('BUILD: VERSION V'+THREE_BUILD_VERSION,
- 'VER: V'+THREE_BUILD_VERSION);
+terminalLog.enqueue('BUILD: VERSION V'+APP_VERSION+' #'+THREE_BUILD_VERSION,
+ 'VER: V'+APP_VERSION);
 let terminalTimer=null,lastTerminalCursorVisible=true;
 function queueTerminalMessage(full,short=full,priority=false){
  terminalLog.enqueue(full,short,priority);
@@ -1075,7 +1086,7 @@ function createDebugReport(){
  const gpu={...compositor.passStats(),textures:memory?.textures,
   geometries:memory?.geometries,programs:renderer.info.programs?.length};
  return formatDebugReport({
-  version:THREE_BUILD_VERSION,createdAt:new Date().toISOString(),
+  version:THREE_BUILD_VERSION,appVersion:APP_VERSION,createdAt:new Date().toISOString(),
   idlePacing:legacyIdleRAF?'legacy continuous RAF':'paced idle timer',
   buttonRenderer:visualScene.controlsGpuEnabled?'GPU uniforms':'Canvas2D fallback',
   platform:navigator.userAgent,
