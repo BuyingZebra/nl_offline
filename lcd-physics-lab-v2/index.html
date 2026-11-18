@@ -476,8 +476,9 @@ function step(){
 }
 
 function readSample(target){
- const x=Math.min(MATERIAL_W-1,Math.floor(35/160*MATERIAL_W));
- const y=Math.min(MATERIAL_H-1,Math.floor((144-79)/144*MATERIAL_H));
+ // Intermediate FBO y=0 maps to Canvas source y=0; only final presentation flips.
+ const x=Math.min(MATERIAL_W-1,Math.floor(30/160*MATERIAL_W));
+ const y=Math.min(MATERIAL_H-1,Math.floor(78/144*MATERIAL_H));
  const a=new Float32Array(4);
  gl.bindFramebuffer(gl.FRAMEBUFFER,target.fb);
  gl.readPixels(x,y,1,1,gl.RGBA,gl.FLOAT,a);
