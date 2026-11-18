@@ -54,3 +54,18 @@ The shape aperture is a physical-model generalization, not an exact reproduction
 - CPU reproduction of packed current-drive feedback alpha across all four discrete drives and origins has a worst round-trip error of ~3.1e-6 using Float32.
 - No old arbitrary detail fade rates or 0.35 shadow substitute in this laboratory.
 - JavaScript syntax, page inputs, shader generator anchors, and separate NOMAD source-tree invariance checked. **A GPU compile/render test has not been confirmed on the target iPhone.**
+
+## Continuous-substrate optical correction
+
+The reference `PixelFill = 0.875` represents the one-axis active aperture width. Its **two-dimensional mean active fraction is `PixelFill² = 0.765625`**. Previously the shape-driven shader used the artwork silhouette itself as the entire active optical aperture; this erroneously made every region outside the artwork fully inactive yellow-olive glass.
+
+The corrected path now area-averages the original inactive/active optical colours over the **whole substrate**, and applies a further `1-PixelFill` contour-band transition **only where NOMAD geometry changes**. The contour is derived from the source SVG/text mask sampled at the source inactive-gap width; no square pixel lattice is drawn. The original displaced-reflector shadow term remains unchanged, including the reference source state, shift and strength. Only the optical geometry changes.
+
+The comparison menu provides:
+- **Corrected shape-driven** — continuous physical material + contour-based aperture colour + original source shadow
+- **Continuous substrate, no edge fringe** — isolates the effect of aperture-colour contours
+- **Previous mustard background** — preserves the old incorrect shape-as-entire-aperture model for comparison
+- **Shape aperture-colour edge diagnostic** — displays only the derived contour
+- **Reflector overlap and isolated shadow darkening** — dedicated geometry and physical-shadow diagnostics
+
+The contour treatment is a generalization for hypothetical nonrectangular electrodes, not a measured exact optical result for a manufactured Game Boy. Neither the base 160 × 144 RC calculation nor the fine-resolution director/ionic equations are modified.
