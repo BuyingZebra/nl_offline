@@ -118,7 +118,7 @@ export function makeShapeOptics(reference){
     ' float state=fineState(uv);',
     ' state=clamp((state-.25)*params.Contrast+.25+params.ContrastBias,0.,1.);',
     ' vec3 background=optical_color(0.);',
-    ' float pixelMask=activeCoverage(uv);',
+    ' float pixelMask=ShapeOpticalDebug>1.5?1.:activeCoverage(uv);',
     ' vec3 color=mix(background,optical_color(state),pixelMask);',
     ' // Generalize the reference aperture intersection to an arbitrary shape.',
     ' // The reflector projection retains the original displacement/strength.',
