@@ -100,7 +100,7 @@ export function makeEquilibriumDiagnostic(reference,surrogate){
  // no-history optical equilibrium using the source's original lookup curves.
  // The generated lookup data is injected verbatim from upstream .inc.
  function extract(name){
-  const anchor='float '+name+'(';
+  const anchor=(name==='contrast_conditions'?'void ':'float ')+name+'(';
   const i=reference.indexOf(anchor);
   if(i<0||reference.indexOf(anchor,i+1)>=0)throw Error('Missing/duplicate physical function '+name);
   const open=reference.indexOf('{',i);if(open<0)throw Error('Missing function body '+name);
