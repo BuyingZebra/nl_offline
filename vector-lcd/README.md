@@ -4,7 +4,7 @@ Physically computed LCD screens for digital content. The content is free: any ar
 
 Open it at **https://buyingzebra.github.io/nl_offline/vector-lcd/** and use **Add to Home Screen** to install it. After the first visit it works offline.
 
-The screen types are a **reflective twisted-nematic (TN) LCD**, the calculator and watch kind, and the **Nintendo DMG-01's reflective STN** with its four shades, built from Retro Display Lab's measurements but without the dot grid. The test content is the real NOMAD Tetris game (`tetris/game.js`) with its actual tile SVGs (`tetris/assets/tiles/vector/`, and I-piece fragments from the game's own `smooth-geometry.mjs`).
+The screen types are a **reflective twisted-nematic (TN) LCD**, the calculator and watch kind, the **Nintendo DMG-01's reflective STN** with its four shades, built from Retro Display Lab's measurements but without the dot grid, and an **IBM 5151 green phosphor CRT** (P39) with a real raster. The test content is the real NOMAD Tetris game (`tetris/game.js`) with its actual tile SVGs (`tetris/assets/tiles/vector/`, and I-piece fragments from the game's own `smooth-geometry.mjs`).
 
 ## How an image forms
 
@@ -80,6 +80,7 @@ The app's **Screen** menu switches between computed profiles:
    - **The cost.** Unlit segments get more voltage too, so they sit about 9% darker than the background instead of 2%. Faint ghost segments are typical of multiplexed calculators. A steeper multiplex-grade crystal would reduce both the blue cast and the ghosts, but no published data was found for one.
    - The Lumex drawing gives no response times or contrast, so the cell's response comes from the VI-402.
 3. **Reflective STN, Nintendo DMG-01 (Retro Display Lab):** see below.
+4. **Green phosphor CRT, IBM 5151 (P39):** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
@@ -107,6 +108,65 @@ Assumed and labelled:
 
 Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, not a measured specimen, and its analogue drive levels and fill material are bounded reconstructions.
 
+## IBM 5151 green phosphor CRT
+
+`crt.js` with `profiles/crt-5151-p39.json`, built by `tools/crt_p39.py` (NumPy and SciPy, about 3 minutes).
+
+**How the image forms**
+- **The beam.** It sweeps 370 lines per frame at the MDA's 18.432 kHz, 49.82 Hz, with 350 lines visible. This comes from the IBM BIOS 6845 parameters and the 16.257 MHz dot clock. The panel's height is the 350 lines.
+- **The signal.** Along each line the signal is continuous. There are no pixels: the content is free, so the TTL signal can switch anywhere.
+- **Four levels.** Video carries 2/3 of the luminance and intensity 1/3. Art is drawn with the 4-tone tiles; dark art drives the beam.
+- **The spot.** Each line lands with a Gaussian spot, integrated over each display pixel so no energy is lost between lines.
+- **The phosphor.** Each point answers the beam with P39's impulse response, five exponentials stepped exactly at the moment the beam passes that point.
+- **What the eye sees.** The light averaged over one refresh period. This removes the 50 Hz ripple instead of aliasing it against the phone's 60 or 120 Hz.
+- **Halation.** Light trapped in the faceplate glass lands back on the screen 18 mm and more away, as a faint halo.
+- **The room.** Room light reflects off the phosphor behind the tinted glass and off the etched surface, shaded by the bezel.
+
+**Sources**
+
+| Quantity | Value | Source |
+|---|---|---|
+| Monitor | 11.5 in, 90°, P39, 50 Hz, 350 lines, TTL video + intensity, etched face, brightness and contrast knobs | Wikipedia (IBM 5151); IBM RT PC manual |
+| Drive levels | video 2/3, intensity 1/3 | Wikipedia (IBM Monochrome Display Adapter) |
+| P39 | Zn₂SiO₄:Mn,As, 525 nm, x 0.205 y 0.715, persistence "long" (100 ms–1 s to 10%) | Philips T16 data book 1987; Jüstel, *CRT Phosphors* |
+| Mn²⁺ decay | exponential, 10% at 20 ms (P1, same centre and host) | Jankowiak, *CRT phosphors of interest to the experimenter* |
+| Trap release | bimolecular recombination in Zn₂SiO₄:Mn,As | Robbins et al. (IBM), J. Electrochem. Soc. 1985 |
+| Flicker | ripple ratio 0.370 at 30 Hz, commercial P39 | US 4,315,190, table 1 |
+| Spot | 1300 lines over 201 mm → σ = 77 µm | Philips M31-336/338/350 (31 cm, 90° monitor tubes) |
+| Faceplate | ~50% transmission, n = 1.52 | Philips T16 data book 1987 |
+
+**The afterglow (derived).**
+- **The model.** The light is the Mn²⁺ decay fed by bimolecular trap release, g(t) = 1/t₀ / (1 + t/t₀)².
+- **Solving it.** The only unknown, t₀, is solved from the measured 30 Hz ripple: t₀ = 26.9 ms.
+- **The check.** The result builds up for 12 ms, falls to 10% at 106 ms and to 1% at 372 ms. That 106 ms sits inside JEDEC's "long" class, which is an independent check.
+- **How the ripple is read.** The patent's ripple ratio is read as peak-to-peak over mean. Read as amplitude instead, it would give 61 ms, outside the class.
+- **No published curve.** No published P39 decay curve was found (the JEDEC TEP116 tables were not reachable). A measured curve would replace this model.
+
+**Assumed and labelled**
+- **The tube.** The 5151's tube behaves like the Philips 31 cm 90° monitor tube, with the raster filling its 201 mm useful height.
+- **Faceplate thickness:** 10 mm.
+- **Phosphor screen reflectance:** 0.5.
+- **Full-drive luminance:** 68.5 cd/m² (20 fL, the level the Philips and patent measurements use).
+- **Room light:** 300 lux.
+
+**Display limits**
+- **Colour.** P39 lies outside sRGB, so it is shown on the display's green primary at the correct luminance.
+- **Exposure.** It is set so the brightest line core at full drive just reaches the display's maximum green, as the eye adapts to a lit screen. One constant, so every brightness ratio is kept.
+- **Fine scanlines.** At about 3 display pixels per scanline, lines can look slightly uneven: the screen's pixels sample them.
+
+**Not modelled:** screen curvature and geometry, spot growth with beam current, retrace lines, burn-in.
+
+**Controls:** the 5151's **Brightness** knob (a uniform beam on every line, which makes the raster visible) and **Contrast** knob (video gain). The temperature control is hidden for this screen.
+
+## 4-tone tiles
+
+`four-tone.js` makes a 4-tone version of each tile for the DMG-01 and CRT screens. It keeps the same shapes and snaps each grey to white, light, dark or black:
+- the tile's body (its first fill) becomes dark;
+- tones lighter than the body become light;
+- darker tones become black.
+
+Pieces stand out from the background, and bevels and details keep their order. The TN screens and the NOMAD Tetris game keep the art as authored.
+
 ## Drive and controls
 
 On the TN screens the panel shows one ink colour: every point is either 0 V or 3.0 V, exactly as on the VI-402, and content darker than 50% luminance switches on. Design art in two tones. On the DMG-01 screen, design art in four tones.
@@ -116,6 +176,7 @@ The app's controls are deliberately few:
 - **Light angle and direction:** default 45° from the top-left corner.
 - **Panel temperature:** default 25 °C.
 - **Contrast wheel:** DMG-01 only, default ×1.00.
+- **Brightness and Contrast knobs:** CRT only.
 
 Fixed at realistic defaults:
 - **Light:** 15° wide, at normal room brightness.
@@ -129,6 +190,8 @@ The engine still supports analog grays (`setMode('analog')`, a digital compromis
 - `profiles/reflective-tn.json`: the computed profile: tables, sources and derived values.
 - `tools/reflective_tn.py`: regenerates the profile from first principles (NumPy and SciPy, about 2 minutes). Set `TN_DESIGN=second` to compute the second-maximum design. `tools/cie-1931-d65.json` holds the colour tables it uses.
 - `dmg-stn.js`, `profiles/dmg-01-stn.json`, `tools/dmg01_profile.mjs`, `third_party/retro-display-lab/`: the DMG-01 screen, its data, the copy script and the licence and notice.
+- `crt.js`, `profiles/crt-5151-p39.json`, `tools/crt_p39.py`: the green phosphor CRT, its profile and the script that builds it.
+- `four-tone.js`: the 4-tone tile mapping.
 - `tn-demo.js`, `index.html`: the Tetris screen test.
 - `concept.html`, `demo.js`, `vector-lcd.js`: the earlier hand-tuned concept model. Its values were chosen by hand rather than measured or derived.
 

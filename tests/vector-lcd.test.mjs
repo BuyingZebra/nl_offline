@@ -352,6 +352,54 @@ describe('DMG-01 STN (Retro Display Lab data, no dot grid)',async()=>{
  });
 });
 
+describe('Green phosphor CRT (IBM 5151, P39)',async()=>{
+ const C=JSON.parse(read('profiles/crt-5151-p39.json'));
+ const M=await import('../vector-lcd/crt.js');
+ const F=await import('../vector-lcd/four-tone.js');
+ test('MDA timing gives the 5151\'s 18.432 kHz and 50 Hz with 350 lines',()=>{
+  const T=C.timing;
+  near(T.horizontal_hz,18432,1);near(T.refresh_hz,49.82,.01);
+  assert.equal(T.lines_visible,350);assert.equal(T.lines_total,370);
+  near(T.frame_s,T.lines_total*T.line_s,1e-9);
+ });
+ test('four TTL levels from video 2/3 and intensity 1/3',()=>{
+  assert.deepEqual(C.drive.levels.map(v=>Math.round(v*3)),[0,1,2,3]);
+  assert.equal(M.levelFromRGB(1,1,1),0);assert.equal(M.levelFromRGB(0,0,0),3);
+ });
+ test('P39 colour and afterglow match the sources',()=>{
+  assert.deepEqual(C.phosphor.cie_xy,[.205,.715]);
+  const t10=M.decayTime(C,.1);
+  assert.ok(t10>=.1&&t10<=1,'JEDEC long class: 100 ms to 1 s, got '+t10);
+  // The fitted response reproduces the measured 30 Hz ripple ratio (peak-to-peak / mean).
+  const f=30,N=20000,dt=4/N;let re=0,im=0,mean=0;
+  for(let i=0;i<N;i++){const t=i*dt,h=M.impulse(C,t);re+=h*Math.cos(2*Math.PI*f*t)*dt;im+=h*Math.sin(2*Math.PI*f*t)*dt;mean+=h*dt;}
+  near(4*Math.hypot(re,im)/mean,C.phosphor.ripple_30hz,.01);
+  // Slow build-up (the reason P39 could not drive a light pen).
+  assert.ok(C.phosphor.derived.peak_after_s>.005);
+ });
+ test('a steady image shows its drive level at every point of the scan',()=>{
+  for(const phase of [0,.1,.5,.9])near(M.steadyWindow(C,.6667,phase*C.timing.frame_s),.6667,1e-3);
+ });
+ test('scanlines: the spot is narrower than the line pitch',()=>{
+  const ratio=C.spot.sigma_mm/C.raster.pitch_mm;
+  assert.ok(ratio>.1&&ratio<.2,'sigma/pitch '+ratio);
+  near(C.spot.sigma_mm,C.raster.height_mm/1300/2,1e-6);
+ });
+ test('halation and room light stay small and physical',()=>{
+  assert.ok(C.faceplate.halation.total>0&&C.faceplate.halation.total<.05);
+  near(C.faceplate.surface_reflectance,((1.52-1)/2.52)**2,1e-6);
+  assert.ok(M.adaptedExposure(C)>0&&M.adaptedExposure(C)<1);
+  assert.deepEqual(M.displayColor(0,0),[0,0,0]);
+  assert.equal(M.displayColor(.5,0)[0],0,'P39 drives only the display green');
+ });
+ test('4-tone tiles keep each tile\'s tone order',()=>{
+  const S=fs.readFileSync(new URL('../tetris/assets/tiles/vector/S.svg',import.meta.url),'utf8');
+  const out=[...F.fourToneSVG(S).matchAll(/rgb\((\d+)/g)].map(m=>Number(m[1]));
+  assert.deepEqual(out,[85,170,170,0,0,0]);
+  assert.ok(out.every(v=>[0,85,170,255].includes(v)));
+ });
+});
+
 describe('Vector LCD app packaging',()=>{
  test('one app version: page, demo and offline worker; the concept model keeps its own',()=>{
   const html=read('index.html'),app=read('tn-demo.js'),worker=read('sw.js');
