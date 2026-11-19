@@ -1,0 +1,23 @@
+Retro Display Lab
+https://github.com/JohnnySun/retro-display-lab
+Copyright 2026 JohnnySun
+Licensed under the Apache License, Version 2.0 (see LICENSE in this folder).
+
+Used in Vector LCD (profiles/dmg-01-stn.json, dmg-stn.js):
+ - the Nintendo DMG-01 five-state palette (from BGB's "The reality of DMG colors")
+ - the generated STN director-drift, target and optical tables
+   (shaders/dmg01-stn-surrogate.inc, from generated/ws2-stn-physics-v1.json)
+ - the contrast-wheel conditions, temperature activation, ionic retention
+   defaults and sticking-voltage fit (shaders/dmg01-response-v1.slang)
+ - the reflector-shadow strength and offset (shaders/dmg01-display-v1.slang)
+ - panel geometry and drive record (data/dmg-drive-v1.json)
+Source commit b75171026b1f0594a8288232ad532285470dbe08 (2026-08-25).
+
+Changes: the values were copied into one JSON profile by
+tools/dmg01_profile.mjs; no value was changed. The integration follows
+Retro Display Lab's dmg01-response-v1.slang (per-frame drift, contrast
+interpolation, canonical projection on a drive change, ionic charge and
+release, Simpson exposure), re-implemented in WebGL2. The pixel aperture,
+passive-matrix crosstalk and row-latch scan-out are not used, because this
+panel has no dot grid. The reflector shadow is applied wherever the shifted
+image is darker than the point, instead of only in the inter-pixel gaps.

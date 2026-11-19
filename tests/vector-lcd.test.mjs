@@ -286,9 +286,12 @@ describe('Reflective TN, multiplexed 1/4 duty',()=>{
   near(on/off,Math.sqrt(3),1e-4);
   assert.ok(MUX.drive.static_by_gray.every(v=>Math.abs(v-on)<1e-5||Math.abs(v-off)<1e-5));
  });
- test('the supply is the datasheet 3.0 V, and unlit segments are faintly visible',()=>{
+ test('the supply is this cell\'s contrast optimum, and unlit segments are faintly visible',()=>{
   // The Lumex LCD-S401M16KR drawing: 3.0 V AC, 1/4 duty, 1/3 bias, 1.10 mm glass plates.
-  assert.equal(MUX.drive.vlcd,3);
+  // 3.0 V suits Lumex's own crystal; the E7 stand-in is driven at its optimum.
+  assert.equal(MUX.derived.vlcd_datasheet_V,3);
+  assert.equal(MUX.drive.vlcd,MUX.derived.vlcd_optimum_V);
+  assert.ok(MUX.derived.contrast_final>MUX.derived.contrast_at_datasheet_V,'the optimum beats the datasheet voltage on this cell');
   assert.deepEqual(MUX.sources.panel_multiplexed.glass_mm,[1.1,1.1]);
   assert.equal(TN.sources.geometry.glass_mm,1.1);
   const Yd=a=>luminance(reflectance(MUX,a,a)),cr=v=>Yd(equilibriumState(MUX,v*0.3333))/Yd(equilibriumState(MUX,v*0.5774));
@@ -297,6 +300,55 @@ describe('Reflective TN, multiplexed 1/4 duty',()=>{
   assert.ok(MUX.derived.contrast_final<TN.derived.contrast_final,'multiplexing costs contrast');
   const ghost=MUX.derived.luminance_off_segment/MUX.derived.luminance_off;
   assert.ok(ghost<.99&&ghost>.9,'unlit segment faintly darker than the background: '+ghost);
+ });
+});
+
+describe('DMG-01 STN (Retro Display Lab data, no dot grid)',async()=>{
+ const D=JSON.parse(read('profiles/dmg-01-stn.json'));
+ const M=await import('../vector-lcd/dmg-stn.js');
+ test('carries the source, licence and notice',()=>{
+  assert.equal(D.attribution.license,'Apache-2.0');
+  assert.match(D.attribution.url,/github\.com\/JohnnySun\/retro-display-lab/);
+  assert.ok(fs.existsSync(appDir+'third_party/retro-display-lab/LICENSE'));
+  assert.match(read('third_party/retro-display-lab/NOTICE'),/Copyright 2026 JohnnySun/);
+ });
+ test('the measured BGB palette and table sizes',()=>{
+  assert.deepEqual(D.palette.srgb8.shades,[[117,152,51],[88,143,81],[59,117,96],[46,97,90]]);
+  assert.equal(D.stn.drift_per_frame.length,3*4*D.stn.director_bins);
+  assert.equal(D.stn.target_q.length,12);
+  assert.equal(D.panel.refresh_hz,59.7275);
+ });
+ test('art maps to four drive levels like the DMG source',()=>{
+  assert.equal(M.shadeFromRGB(1,1,1),0);assert.equal(M.shadeFromRGB(0,0,0),3);
+  assert.equal(M.shadeFromRGB(142/255,142/255,142/255),1);assert.equal(M.shadeFromRGB(.3,.3,.3),2);
+ });
+ test('at the nominal contrast each shade settles on its palette position',()=>{
+  [0,1,2,3].forEach(s=>near(M.opticalState(D,M.targetQ(D,s,1)),.25*(s+1),2e-3));
+  // The equilibrium is a fixed point of the drift.
+  [0,1,2,3].forEach(s=>assert.ok(Math.abs(M.driftPerFrame(D,s,M.targetQ(D,s,1),1))<1e-6));
+ });
+ test('palette colours are the measured ones at each shade',()=>{
+  const enc=v=>Math.round(255*(v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055));
+  D.palette.srgb8.shades.forEach((rgb,s)=>assert.deepEqual(M.opticalColor(D,.25*(s+1)).map(enc),rgb));
+ });
+ test('the crystal takes several frames to switch, slower when cold',()=>{
+  const run=(from,to,celsius)=>{let st={q:M.targetQ(D,from),ionic:0,shade:from},n=0;
+   while(Math.abs(M.opticalState(D,st.q)-.25*(to+1))>.1*.75&&n<600){st=M.stepFrame(D,st,to,{celsius});n++;}return n;};
+  const warm=run(0,3,20),cold=run(0,3,10);
+  assert.ok(warm>=2&&warm<=10,'darkening frames at 20 C: '+warm);
+  assert.ok(cold>warm,'cold is slower: '+cold+' vs '+warm);
+  assert.ok(run(3,0,20)>=2);
+ });
+ test('holding a dark image leaves a faint sticking ghost',()=>{
+  let st={q:M.targetQ(D,3),ionic:0,shade:3};
+  for(let i=0;i<180*60;i++)st=M.stepFrame(D,st,3);
+  for(let i=0;i<60;i++)st=M.stepFrame(D,st,0);
+  const ghost=st.exposure-.25;
+  assert.ok(ghost>0&&ghost<.25*.1,'ghost below a tenth of a shade: '+ghost);
+ });
+ test('reflector shadow: measured strength and offset in DMG dot units',()=>{
+  assert.equal(D.shadow.strength,.18);assert.deepEqual(D.shadow.offset_dots,[.11,.13]);
+  const o=M.shadowOffsetMm(D);near(o.x,.11*47/160,1e-12);near(o.y,.13*43/144,1e-12);
  });
 });
 
@@ -319,7 +371,7 @@ describe('Vector LCD app packaging',()=>{
   for(const asset of assets.filter(a=>a!=='./'))
    assert.ok(fs.existsSync(new URL(asset,'file://'+appDir).pathname),asset+' missing');
   const shipped=fs.readdirSync(appDir,{withFileTypes:true}).filter(e=>e.isFile()&&!/^(sw\.js|README\.md)$/.test(e.name)).map(e=>'./'+e.name)
-   .concat(fs.readdirSync(appDir+'profiles').map(f=>'./profiles/'+f));
+   .concat(fs.readdirSync(appDir+'profiles').map(f=>'./profiles/'+f),['./third_party/retro-display-lab/NOTICE']);
   for(const file of shipped)assert.ok(assets.includes(file),file+' is not precached');
  });
  test('the screen test uses the real game and the real tile files',()=>{

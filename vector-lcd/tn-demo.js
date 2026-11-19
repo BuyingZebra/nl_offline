@@ -1,16 +1,18 @@
-/* Reflective TN screen test: the real NOMAD Tetris game and its actual tile
- * SVGs, shown through the physically computed reflective TN profile. */
+/* Screen test: the real NOMAD Tetris game and its actual tile SVGs, shown
+ * through each screen model (physically computed reflective TN, or the
+ * Nintendo DMG-01 STN reconstruction from Retro Display Lab). */
 import {createPhysicalLCD,loadProfile,PHYSICAL_LCD_VERSION} from './physical-lcd.js';
+import {createDMGLCD,DMG_STN_VERSION} from './dmg-stn.js';
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.6.2';
+export const APP_VERSION='0.7.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
 
 const $=id=>document.getElementById(id);
-const canvas=$('panel'),stage=$('stage'),bezel=$('bezel'),errorBox=$('error');
+let canvas=$('panel');const stage=$('stage'),bezel=$('bezel'),errorBox=$('error');
 const showError=message=>{errorBox.hidden=false;errorBox.textContent=message;};
 
 function loadImage(src){
@@ -41,11 +43,14 @@ function iSourceIndex(rotation,x,y){
  return null;
 }
 
-/* Screen models: each is a profile computed by tools/reflective_tn.py. */
+/* Screen models. The TN profiles are computed by tools/reflective_tn.py; the
+ * DMG-01 profile is copied from Retro Display Lab by tools/dmg01_profile.mjs. */
 export const SCREENS=Object.freeze([
  {id:'reflective-tn',file:'./profiles/reflective-tn.json',label:'Reflective TN · static drive (VI-402)'},
- {id:'reflective-tn-mux4',file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty (Lumex)'}
+ {id:'reflective-tn-mux4',file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty (Lumex)'},
+ {id:'dmg-01-stn',file:'./profiles/dmg-01-stn.json',label:'Reflective STN · Nintendo DMG-01, 4 shades (Retro Display Lab)'}
 ]);
+const isDMG=P=>P.model==='dmg01-stn';
 const profiles=new Map();
 async function profileFor(id){
  const screen=SCREENS.find(s=>s.id===id)||SCREENS[0];
@@ -55,11 +60,16 @@ async function profileFor(id){
 let savedScreen=null;
 try{savedScreen=localStorage.getItem('vector-lcd-screen');}catch(error){}
 
+// Each kind of screen has its own renderer; switching kind gives it a fresh canvas.
+function createRenderer(profile){
+ const options={profile,widthMm:PANEL.w,heightMm:PANEL.h};
+ return isDMG(profile)?createDMGLCD(canvas,options):createPhysicalLCD(canvas,options);
+}
 let lcd,tiles,game;
 try{
  const [profile,loaded]=await Promise.all([profileFor(savedScreen||SCREENS[0].id),loadTiles()]);
  tiles=loaded;
- lcd=createPhysicalLCD(canvas,{profile,widthMm:PANEL.w,heightMm:PANEL.h});
+ lcd=createRenderer(profile);
 }catch(error){showError(error.message);throw error;}
 
 /* ---------- Electrodes: where the glass can switch ----------
@@ -83,7 +93,7 @@ function cellElectrode(size=144){
 }
 const CELL_ELECTRODE=cellElectrode();
 const COUNTER_FONT='700 3.2px ui-monospace,Menlo,Consolas,monospace';
-lcd.setElectrodes(ctx=>{
+function drawElectrodes(ctx){
  ctx.lineWidth=.35;
  ctx.strokeRect(BOARD.x-.6,BOARD.y-.6,BOARD.cols*CELL+1.2,BOARD.rows*CELL+1.2);
  for(let r=0;r<BOARD.rows;r++)for(let c=0;c<BOARD.cols;c++)
@@ -94,7 +104,8 @@ lcd.setElectrodes(ctx=>{
   const score=String(d).repeat(6);
   ctx.fillText(score,BOARD.x+BOARD.cols*CELL-ctx.measureText(score).width,PANEL.h-2.2);
  }
-});
+}
+lcd.setElectrodes(drawElectrodes);
 
 /* ---------- Game: real rules, simple autoplay ---------- */
 let seed=20261118;
@@ -165,10 +176,17 @@ function fit(){
 new ResizeObserver(fit).observe(stage);fit();
 
 /* ---------- Controls: drive mode and the room's lighting ---------- */
-// One ink colour: the datasheet panel switches each point fully on or off.
-lcd.setMode('static');
 // Default room light: 45 degrees from straight on, from the top-left corner.
-lcd.setLighting({angleDeg:45,azimuthDeg:315,sourceDeg:15,exposure:1});
+const settings={lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15,exposure:1},celsius:25,contrast:1};
+function configure(){
+ // One ink colour on TN: the datasheet panel switches each point fully on or off.
+ lcd.setMode?.('static');
+ lcd.setLighting(settings.lighting);
+ const [lo,hi]=lcd.profile.temperature?.range_C??[15,40];
+ lcd.setTemperature(Math.min(hi,Math.max(lo,settings.celsius)));
+ lcd.setContrast?.(settings.contrast);
+}
+configure();
 
 const DIRECTION=v=>['top','top right','right','bottom right','bottom','bottom left','left','top left'][Math.round(v/45)%8]+' ('+Math.round(v)+'°)';
 function sliderRows(box,rows,get,set){
@@ -184,10 +202,24 @@ function sliderRows(box,rows,get,set){
 sliderRows($('lighting'),[
  ['angleDeg','Light angle',0,75,1,v=>v+'° from straight on'],
  ['azimuthDeg','Light from',0,359,1,DIRECTION]
-],()=>lcd.lighting,next=>lcd.setLighting(next));
-sliderRows($('environment'),[
- ['celsius','Panel temperature',15,40,1,v=>v+' °C']
-],()=>({celsius:lcd.temperature}),next=>lcd.setTemperature(next.celsius));
+],()=>settings.lighting,next=>{settings.lighting={...settings.lighting,...next};lcd.setLighting(next);});
+// Ranges follow the screen: each model is only valid over its source's range.
+function screenControls(P){
+ const env=$('environment');env.replaceChildren();
+ const [lo,hi]=P.temperature?.range_C??[15,40];
+ sliderRows(env,[['celsius','Panel temperature',lo,hi,1,v=>v+' °C']],()=>({celsius:lcd.temperature}),
+  next=>{settings.celsius=next.celsius;lcd.setTemperature(next.celsius);});
+ const dial=$('contrastDial');dial.replaceChildren();
+ if(isDMG(P))sliderRows(dial,[['contrast','Contrast wheel',P.contrast.min,P.contrast.max,.01,v=>'×'+v.toFixed(2)+' drive']],
+  ()=>({contrast:lcd.contrast}),next=>{settings.contrast=next.contrast;lcd.setContrast(next.contrast);});
+ $('envNote').textContent=isDMG(P)?
+  'Cold crystal is slower and smears more; warm crystal is faster. Valid 10–30 °C, the range of the source model.':
+  'Cold liquid crystal is slower; warm crystal is faster and shifts the panel\'s colour.';
+ $('lightNote').textContent=isDMG(P)?
+  'The light moves the bezel shadow and the glare. The DMG\'s reflector shadow keeps its measured offset (light from the upper left).':
+  'Light at an angle enters the glass at one point and leaves at another, casting a shadow under each shape. The bezel frame above the glass also shades the edges that face the light.';
+ $('title').textContent=isDMG(P)?'REFLECTIVE STN':'REFLECTIVE TN';
+}
 
 $('pause').addEventListener('click',e=>{paused=!paused;e.currentTarget.textContent=paused?'Resume':'Pause';});
 $('reset').addEventListener('click',()=>lcd.reset());
@@ -195,13 +227,40 @@ $('toggleControls').addEventListener('click',e=>{
  const open=document.body.classList.toggle('controls-closed')===false;e.currentTarget.setAttribute('aria-expanded',String(open));});
 
 /* ---------- Where every number comes from ---------- */
+function dmgFacts(P){
+ const off=P.shadow.offset_dots,R=P.retention,A=P.attribution;
+ const facts=[
+  ['Model',P.name],
+  ['Data','Retro Display Lab ('+A.license+', '+A.copyright+'); used without changing any value'],
+  ['Shades','4 drive levels; art is quantized by brightness (white, light, dark, black)'],
+  ['Palette (measured)','BGB DMG reality samples: '+P.palette.srgb8.shades.map(c=>'#'+c.map(v=>v.toString(16).padStart(2,'0')).join('')).join(', ')],
+  ['Drive','1/'+P.panel.dots[1]+' duty passive matrix, '+P.panel.refresh_hz+' Hz frames; rms reconstruction ('+P.drive.nonselect_rms_V+' V nonselect, nominal)'],
+  ['Response','STN director drift per frame from a Frank–Oseen/Ericksen–Leslie reduction; about '+Math.round(P.stn.t90_s.darkening*1000)+' ms to 90% at 20 °C'],
+  ['Contrast wheel','×'+P.contrast.min+' to ×'+P.contrast.max+' drive; the source tabulates '+P.contrast.conditions.join(', ')],
+  ['Temperature',P.temperature.range_C.join('–')+' °C; viscosity activation '+P.temperature.activation_K+' K'],
+  ['Sticking','ions charge under dark drive (~'+Math.round(1/(R.charge_per_frame*P.panel.refresh_hz))+' s) and release slowly (~'+Math.round(1/(R.release_per_frame*P.panel.refresh_hz)/60)+' min), leaving a faint image'+(lcd.info().retention?'':' (off: needs 32-bit float targets)')],
+  ['Reflector shadow (measured)',Math.round(P.shadow.strength*100)+'% strength, offset '+off[0]+' × '+off[1]+' dot = '+(off[0]*P.panel.active_mm[0]/P.panel.dots[0]*1000).toFixed(0)+' × '+(off[1]*P.panel.active_mm[1]/P.panel.dots[1]*1000).toFixed(0)+' µm'],
+  ['Not used','the 160×144 dot grid, its row/column crosstalk and row-latch timing (they need the grid)'],
+  ['Glare','glossy front surface, Fresnel n = '+P.oblique.front_index+' (assumed)'],
+  ['Bezel (assumed)',lcd.bezelLipMm+' mm lip; front glass '+P.sources.geometry.glass_mm+' mm (DMG value not published)'],
+  ['Limits',P.limitations[0]]
+ ];
+ $('driveNote').textContent='Four shades on one STN panel. Moving pieces smear and fade as the crystal catches up, like the original screen. The contrast wheel changes the drive voltage.';
+ return facts;
+}
 function factsFor(P){
+ const facts=isDMG(P)?dmgFacts(P):tnFacts(P);
+ const dl=$('facts');dl.replaceChildren();
+ for(const [k,v] of facts){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd);}
+ screenControls(P);
+}
+function tnFacts(P){
  const src=P.sources,der=P.derived,mux=Boolean(P.drive.uses_electrode_map);
  const facts=[
   ['Panel',mux?src.panel_multiplexed.part+'; cell and response from the '+src.panel.part.split(' (')[0]:src.panel.part],
   ['Response (datasheet)',src.panel.rise_ms_typ+' ms on, '+src.panel.decay_ms_typ+' ms off'+(mux?' (static drive)':'')],
   ['Contrast',mux?der.contrast_final.toFixed(1)+':1 (computed for this drive)':src.panel.contrast_typ+':1 (datasheet)'],
-  ['Drive',mux?'1/4 duty, 1/3 bias, '+der.vlcd_V.toFixed(1)+' V AC (Lumex datasheet): '+der.on_rms_V.toFixed(2)+' V rms on, '+der.off_rms_V.toFixed(2)+' V rms off (computed)'
+  ['Drive',mux?'1/4 duty, 1/3 bias (Lumex datasheet), '+der.vlcd_V.toFixed(2)+' V AC: '+der.on_rms_V.toFixed(2)+' V rms on, '+der.off_rms_V.toFixed(2)+' V rms off (computed)'
    :src.panel.Vop_typ+' V, static: one ink colour, each point on or off (datasheet)'],
   ['Liquid crystal',src.liquid_crystal.material],
   ['Cell gap (derived)',der.cell_gap_um+' µm, first transmission maximum'],
@@ -221,13 +280,13 @@ function factsFor(P){
   ['Viewing (fixed)','straight on, eye 300 mm away'],
   ['Bezel (assumed)',lcd.bezelLipMm+' mm above the front polarizer; front glass '+src.geometry.glass_mm+' mm']
  ];
- if(mux)facts.splice(4,0,['Drive sources',src.drive.refs.join('; ')]);
+ if(mux)facts.splice(4,0,['Drive sources',src.drive.refs.join('; ')],
+  ['Supply (computed)',der.vlcd_V.toFixed(2)+' V, the contrast optimum for this cell. The Lumex part\'s '+der.vlcd_datasheet_V.toFixed(1)+' V suits its own crystal; on this one it under-drives the ink (bluish, contrast '+der.contrast_at_datasheet_V.toFixed(1)+':1)']);
  $('driveNote').textContent=mux?
   'One ink colour, multiplexed: every electrode point gets '+der.on_rms_V.toFixed(2)+' V rms when on and '+der.off_rms_V.toFixed(2)+
   ' V rms when off, so unlit segments stay faintly visible. Areas with no electrode get no voltage.':
   'One ink colour, as on the datasheet panel: every point is fully on (3.0 V) or off. Art darker than 50% switches on.';
- const dl=$('facts');dl.replaceChildren();
- for(const [k,v] of facts){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;dl.append(dt,dd);}
+ return facts;
 }
 factsFor(lcd.profile);
 
@@ -238,13 +297,19 @@ screenSelect.value=lcd.profile.profile;
 screenSelect.addEventListener('change',async()=>{
  try{
   const p=await profileFor(screenSelect.value);
-  lcd.setProfile(p);factsFor(p);
+  if(isDMG(p)===isDMG(lcd.profile))lcd.setProfile(p);
+  else{
+   lcd.dispose();
+   const next=canvas.cloneNode(false);canvas.replaceWith(next);canvas=next;
+   lcd=createRenderer(p);lcd.setElectrodes(drawElectrodes);configure();fit();
+  }
+  factsFor(p);
   try{localStorage.setItem('vector-lcd-screen',p.profile);}catch(error){}
  }catch(error){showError(error.message);}
 });
 $('version').textContent='v'+APP_VERSION;
-setInterval(()=>{const i=lcd.info();$('status').textContent=i.fps+' fps · '+i.width+'×'+i.height+' px · '+i.pxPerMm.toFixed(1)+' px/mm · '+i.stateFormat+' state · renderer '+PHYSICAL_LCD_VERSION;},1000);
+setInterval(()=>{const i=lcd.info();$('status').textContent=i.fps+' fps · '+i.width+'×'+i.height+' px · '+i.pxPerMm.toFixed(1)+' px/mm · '+i.stateFormat+' state · renderer '+(isDMG(lcd.profile)?'dmg-stn '+DMG_STN_VERSION:PHYSICAL_LCD_VERSION);},1000);
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
-window.__tnScreen=Object.freeze({lcd,game,PANEL,BOARD,CELL});
+window.__tnScreen=Object.freeze({get lcd(){return lcd;},get canvas(){return canvas;},game,PANEL,BOARD,CELL});
 start();

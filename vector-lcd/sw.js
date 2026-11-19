@@ -1,7 +1,7 @@
 /* Vector LCD offline worker. Owns only the /vector-lcd/ scope and its own
  * caches. Bump VERSION with every release (a test checks it matches the app). */
 'use strict';
-const VERSION='0.6.2';
+const VERSION='0.7.0';
 const CACHE_PREFIX='vector-lcd-';
 const CACHE_NAME=CACHE_PREFIX+VERSION;
 const ASSETS=Object.freeze([
@@ -9,8 +9,11 @@ const ASSETS=Object.freeze([
  './index.html',
  './tn-demo.js',
  './physical-lcd.js',
+ './dmg-stn.js',
  './profiles/reflective-tn.json',
  './profiles/reflective-tn-mux4.json',
+ './profiles/dmg-01-stn.json',
+ './third_party/retro-display-lab/NOTICE',
  './concept.html',
  './demo.js',
  './vector-lcd.js',

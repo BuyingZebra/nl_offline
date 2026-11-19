@@ -1,0 +1,118 @@
+#!/usr/bin/env node
+/* Builds profiles/dmg-01-stn.json from a Retro Display Lab checkout.
+ *
+ *   node tools/dmg01_profile.mjs /path/to/retro-display-lab
+ *
+ * Retro Display Lab (https://github.com/JohnnySun/retro-display-lab) is
+ * Apache-2.0, copyright 2026 JohnnySun. Its DMG-01 model supplies every number
+ * this profile carries: the measured five-state palette, the generated STN
+ * director-drift and optical tables, the contrast-wheel conditions, the ionic
+ * retention defaults, the reflector-shadow strength and offset, and the panel
+ * geometry. Nothing here is fitted or tuned; values are copied and labelled.
+ * See ../third_party/retro-display-lab/NOTICE. */
+import {readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {join,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const root=process.argv[2];
+if(!root){console.error('usage: node tools/dmg01_profile.mjs /path/to/retro-display-lab');process.exit(2);}
+const model=join(root,'models','nintendo-dmg-01');
+const read=p=>readFileSync(join(model,p),'utf8');
+const sha=p=>createHash('sha256').update(readFileSync(join(model,p))).digest('hex');
+
+// --- Generated STN surrogate (tools/build-dmg01-stn-physics.mjs output) ---
+const inc=read('shaders/dmg01-stn-surrogate.inc');
+const scalar=name=>{const m=inc.match(new RegExp('const (?:float|int) '+name+' = ([-0-9.e]+);'));if(!m)throw new Error('missing '+name);return Number(m[1]);};
+const array=(name,length)=>{
+ const m=inc.match(new RegExp('const float '+name+'\\[(\\d+)\\] = float\\[\\]\\(([^)]*)\\);'));
+ if(!m)throw new Error('missing '+name);
+ const values=m[2].split(',').map(Number);
+ if(values.length!==Number(m[1])||values.length!==length||values.some(v=>!Number.isFinite(v)))throw new Error('bad '+name);
+ return values;
+};
+const bins=scalar('DMG_PHYSICAL_DRIFT_BINS'),opticalBins=scalar('DMG_PHYSICAL_OPTICAL_BINS');
+
+// --- Display shader: palette and reflector shadow defaults ---
+const display=read('shaders/dmg01-display-v1.slang');
+const rgb=name=>{const m=display.match(new RegExp('const vec3 '+name+'\\s*= vec3\\(([^)]*)\\) / 255\\.0;'));if(!m)throw new Error('missing '+name);return m[1].split(',').map(v=>Math.round(Number(v)));};
+const param=(src,name)=>{const m=src.match(new RegExp('#pragma parameter '+name+' "[^"]*" ([-0-9.e]+) ([-0-9.e]+) ([-0-9.e]+)'));if(!m)throw new Error('missing parameter '+name);return {value:Number(m[1]),min:Number(m[2]),max:Number(m[3])};};
+
+// --- Response shader: contrast wheel, temperature, retention defaults ---
+const response=read('shaders/dmg01-response-v1.slang');
+const sticking=response.match(/max\(([0-9.]+) \* params\.IonicMobility - ([0-9.]+), 0\.0\)/);
+if(!sticking)throw new Error('missing sticking-voltage fit');
+const drive=JSON.parse(read('data/dmg-drive-v1.json'));
+const physics=JSON.parse(read('generated/ws2-stn-physics-v1.json'));
+const contrastConditions=physics.runtimeContrastConditions.map(c=>c.contrastScale);
+
+const profile={
+ profile:'dmg-01-stn',model:'dmg01-stn',
+ name:'Reflective STN, Nintendo DMG-01 (Retro Display Lab reconstruction)',
+ attribution:{
+  project:'Retro Display Lab',url:'https://github.com/JohnnySun/retro-display-lab',
+  license:'Apache-2.0',copyright:'Copyright 2026 JohnnySun',notice:'third_party/retro-display-lab/NOTICE',
+  files:Object.fromEntries(['shaders/dmg01-stn-surrogate.inc','shaders/dmg01-display-v1.slang','shaders/dmg01-response-v1.slang',
+   'data/dmg-drive-v1.json','generated/ws2-stn-physics-v1.json'].map(f=>['models/nintendo-dmg-01/'+f,sha(f)])),
+  changes:'Values copied into one JSON profile; no value changed. Used without the pixel aperture, the passive-matrix crosstalk and the row-latch scan-out, which belong to the 160x144 dot grid.'
+ },
+ panel:{
+  active_mm:[47,43],dots:[drive.panel.visibleColumns,drive.panel.visibleRows],
+  refresh_hz:scalar('DMG_PHYSICAL_REFRESH_HZ'),duty:'1/'+drive.panel.visibleRows,
+  ref:'Nintendo Game Boy technical data (DMG-DIMENSIONS-01); DMG drive record dmg-drive-v1.json'
+ },
+ palette:{
+  srgb8:{disabled:rgb('DMG_DISABLED'),shades:[rgb('DMG_SHADE_0'),rgb('DMG_SHADE_1'),rgb('DMG_SHADE_2'),rgb('DMG_SHADE_3')]},
+  optical_states:[0,.25,.5,.75,1],
+  interpolation:'linear light, piecewise between the five states',
+  ref:'BGB, The reality of DMG colors (DMG-COLOR-01): central-patch samples'
+ },
+ drive:{
+  levels:4,
+  mapping:'shade = floor(3 (1 - luma) + 0.5), luma = Rec.709 weights on the encoded sRGB value (Retro Display Lab gameboy_drive_index)',
+  selected_energy_fractions:drive.multiplexModel.fourShadeSelectedEnergyFractions,
+  nonselect_rms_V:drive.multiplexModel.nominalNonselectRmsVolts,
+  note:drive.multiplexModel.fourShadeEncodingStatus
+ },
+ contrast:{...param(response,'DriveContrast'),conditions:contrastConditions,
+  note:drive.boardTopology.contrastControl},
+ stn:{
+  director_bins:bins,optical_bins:opticalBins,
+  target_q:array('DMG_PHYSICAL_TARGET_Q',contrastConditions.length*4),
+  drift_per_frame:array('DMG_PHYSICAL_DRIFT',contrastConditions.length*4*bins),
+  optical:array('DMG_PHYSICAL_OPTICAL',opticalBins),
+  optical_anchor_q:array('DMG_PHYSICAL_OPTICAL_ANCHOR_Q',4),
+  optical_correction:array('DMG_PHYSICAL_OPTICAL_CORRECTION',4),
+  layout:'drift_per_frame[(condition*4 + shade)*bins + bin], bin over director coordinate q in [0, 1]',
+  method:physics.solver.directorDynamics+'; '+physics.solver.opticalReduction,
+  t90_s:{darkening:physics.validation.motionTopology.darkeningT90Seconds,clearing:physics.validation.motionTopology.clearingT90Seconds},
+  claim:physics.claimBoundary
+ },
+ temperature:{
+  activation_K:scalar('DMG_VISCOSITY_ACTIVATION_K'),reference_C:20,
+  range_C:[param(response,'PanelTemperatureCelsius').min,param(response,'PanelTemperatureCelsius').max],
+  law:'drift per frame scaled by exp(activation_K (1/293.15 - 1/T))'
+ },
+ retention:{
+  ionic_mobility:param(response,'IonicMobility').value,
+  sticking_optical_gain:param(response,'StickingOpticalGain').value,
+  charge_per_frame:param(response,'IonicChargeResponse').value,
+  release_per_frame:param(response,'IonicReleaseResponse').value,
+  sticking_volts_fit:[Number(sticking[1]),-Number(sticking[2])],
+  ref:'Nakazono et al. (Merck Japan, 1994) sticking-voltage regression; the optical gain is an explicit bridge (Retro Display Lab)'
+ },
+ shadow:{
+  strength:param(display,'ShadowStrength').value,
+  offset_dots:[param(display,'ShadowOffsetX').value,param(display,'ShadowOffsetY').value],
+  ref:'Retro Display Lab reflector shadow (DMG-APERTURE-01), reference-image matched'
+ },
+ // The bezel shadow needs the front stack. Nothing published gives the DMG's,
+ // so the TN panel's measured 1.1 mm glass is used and labelled as assumed.
+ sources:{geometry:{glass_mm:1.1,n_glass:1.5,rear_polarizer_mm:.18,n_polarizer:1.5,assumed:true,
+  note:'DMG glass thickness not published; same front stack as the TN profiles (assumed)'}},
+ oblique:{front_index:1.5},
+ limitations:JSON.parse(read('model.json')).limitations
+};
+const here=dirname(fileURLToPath(import.meta.url));
+writeFileSync(join(here,'..','profiles','dmg-01-stn.json'),JSON.stringify(profile));
+console.log('wrote profiles/dmg-01-stn.json',{contrastConditions,bins,temperature:profile.temperature.range_C,shadow:profile.shadow});

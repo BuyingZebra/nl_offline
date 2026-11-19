@@ -479,8 +479,12 @@ Y_of_a = lambda a: float(np.interp(a, A_O, Ydiag_O))
 v_try = np.arange(2.0, 4.0 / k_on + 1e-9, 0.01)
 crs = [Y_of_a(a_of(k_off * v)) / Y_of_a(a_of(k_on * v)) for v in v_try]
 VLCD_OPT = float(v_try[int(np.argmax(crs))])
-# The Lumex LCD-S401M16KR drawing specifies 3.0 V AC at 1/4 duty, 1/3 bias.
-VLCD = 3.0
+# The Lumex LCD-S401M16KR drawing specifies 3.0 V AC at 1/4 duty, 1/3 bias for
+# its own (unpublished) crystal. With the E7 stand-in, 3.0 V under-drives the
+# "on" points (bluish ink, contrast 10.6), so the supply is set by the design
+# rule instead: the voltage where this cell's contrast is highest.
+VLCD_DATASHEET = 3.0
+VLCD = VLCD_OPT
 V_ON, V_OFF = k_on * VLCD, k_off * VLCD
 mux = copy.deepcopy(out)
 mux["profile"] = "reflective-tn-mux4"
@@ -498,14 +502,14 @@ mux["sources"]["drive"] = {
  "refs": ["ROHM BU9795AFV segment driver datasheet (1/3 bias, 1/4 duty; frame 53-80 Hz)",
           "ON Semiconductor LC75814V 1/4-duty driver datasheet (1/2 or 1/3 bias)"],
  "rms_formula": "on^2 = VLCD^2 (1/N + (N-1)/(N b^2)); off^2 = VLCD^2 (((b-2)/b)^2/N + (N-1)/(N b^2))",
- "supply_rule": "VLCD = 3.0 V from the Lumex LCD-S401M16KR drawing (the contrast optimum for the stand-in E7 cell would be reported as vlcd_optimum_V)",
+ "supply_rule": "VLCD set to the contrast optimum of this cell (the usual design rule). The Lumex LCD-S401M16KR drawing gives 3.0 V for its own unpublished crystal; at 3.0 V the E7 stand-in is under-driven (bluish ink).",
  "note": "same glass, crystal and polarizers as the VI-402 profile; only the drive differs. The liquid crystal responds to rms voltage because its response (tens of ms) is slower than the frame (12-19 ms)."}
 mux["drive"]["static_by_gray"] = [V_ON if v > 0 else V_OFF for v in static]
 mux["drive"]["off_voltage"] = r6(V_OFF); mux["drive"]["on_voltage"] = r6(V_ON); mux["drive"]["vlcd"] = r6(VLCD)
 mux["drive"]["uses_electrode_map"] = True
 mux["drive"]["analog_by_gray"] = [V_OFF + (V_ON - V_OFF) * (v / V_op) for v in analog]
 cr_mux = Y_of_a(a_of(V_OFF)) / Y_of_a(a_of(V_ON))
-mux["derived"] = {**mux["derived"], "contrast_final": r6(cr_mux), "vlcd_V": r6(VLCD), "vlcd_optimum_V": r6(VLCD_OPT), "contrast_at_optimum": r6(max(crs)), "on_rms_V": r6(V_ON), "off_rms_V": r6(V_OFF),
+mux["derived"] = {**mux["derived"], "contrast_final": r6(cr_mux), "vlcd_V": r6(VLCD), "vlcd_datasheet_V": VLCD_DATASHEET, "contrast_at_datasheet_V": r6(Y_of_a(a_of(k_off * VLCD_DATASHEET)) / Y_of_a(a_of(k_on * VLCD_DATASHEET))), "vlcd_optimum_V": r6(VLCD_OPT), "contrast_at_optimum": r6(max(crs)), "on_rms_V": r6(V_ON), "off_rms_V": r6(V_OFF),
  "off_state_a": r6(a_of(V_OFF)), "luminance_on": r6(Y_of_a(a_of(V_ON))), "luminance_off_segment": r6(Y_of_a(a_of(V_OFF)))}
 json.dump(mux, open(os.path.join(HERE, "..", "profiles", "reflective-tn-mux4.json"), "w"), separators=(",", ":"))
 print("MUX (optimum would be %.2f V, contrast %.2f): " % (VLCD_OPT, max(crs)) + "VLCD %.2f V, on %.3f V rms, off %.3f V rms, contrast %.2f, off-segment state %.3f, luminance off-seg %.4f vs unlit %.4f" %

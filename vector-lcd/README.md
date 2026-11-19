@@ -4,7 +4,7 @@ Physically computed LCD screens for digital content. The content is free: any ar
 
 Open it at **https://buyingzebra.github.io/nl_offline/vector-lcd/** and use **Add to Home Screen** to install it. After the first visit it works offline.
 
-The first screen type is a **reflective twisted-nematic (TN) LCD**, the calculator and watch kind. The test content is the real NOMAD Tetris game (`tetris/game.js`) with its actual tile SVGs (`tetris/assets/tiles/vector/`, and I-piece fragments from the game's own `smooth-geometry.mjs`).
+The screen types are a **reflective twisted-nematic (TN) LCD**, the calculator and watch kind, and the **Nintendo DMG-01's reflective STN** with its four shades, built from Retro Display Lab's measurements but without the dot grid. The test content is the real NOMAD Tetris game (`tetris/game.js`) with its actual tile SVGs (`tetris/assets/tiles/vector/`, and I-piece fragments from the game's own `smooth-geometry.mjs`).
 
 ## How an image forms
 
@@ -75,18 +75,47 @@ Light measured from the viewing direction, as for a reflective panel, gives cont
 The app's **Screen** menu switches between computed profiles:
 
 1. **Reflective TN, static drive (VI-402):** everything above.
-2. **Reflective TN, multiplexed 1/4 duty (Lumex):** the drive of the Lumex LCD-S401M16KR (TN, gray, reflective, 6:00; 1/4 duty, 1/3 bias, **3.0 V AC**; two 1.10 mm glass plates, from its drawing) on the same cell, glass, crystal and polarizers. The rms voltages follow from the drive formula: on = 0.577 × 3.0 = 1.73 V and off = 0.333 × 3.0 = 1.00 V. Results: **10.2:1** contrast, and unlit segments about 2.3% darker than the background, faintly visible as on real multiplexed calculators. Switching on is slower because "on" is 1.73 V rms. The Lumex drawing gives no response times or contrast, so the cell's response comes from the VI-402. For reference, the contrast optimum for the stand-in E7 cell would be 3.29 V (12.1:1).
+2. **Reflective TN, multiplexed 1/4 duty (Lumex):** the drive of the Lumex LCD-S401M16KR (TN, gray, reflective, 6:00; 1/4 duty, 1/3 bias; two 1.10 mm glass plates, from its drawing) on the same cell, glass, crystal and polarizers. The rms voltages follow from the drive formula: on = 0.577 × VLCD and off = 0.333 × VLCD.
+   - **Supply voltage.** Lumex specifies 3.0 V AC for its own crystal, which is not published. On the E7 stand-in, 3.0 V under-drives the "on" points (1.73 V rms): the ink stays partly twisted and looks bluish, at 10.2:1 contrast. A multiplexed panel's supply is matched to its crystal, so the profile uses the usual design rule instead, the voltage where this cell's contrast is highest: **3.29 V** (1.90 V rms on, 1.10 V rms off), **12.1:1** contrast, with a more neutral ink.
+   - **The cost.** Unlit segments get more voltage too, so they sit about 9% darker than the background instead of 2%. Faint ghost segments are typical of multiplexed calculators. A steeper multiplex-grade crystal would reduce both the blue cast and the ghosts, but no published data was found for one.
+   - The Lumex drawing gives no response times or contrast, so the cell's response comes from the VI-402.
+3. **Reflective STN, Nintendo DMG-01 (Retro Display Lab):** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
+## Nintendo DMG-01 STN without the dot grid
+
+`dmg-stn.js` with `profiles/dmg-01-stn.json`. Every number comes from [Retro Display Lab](https://github.com/JohnnySun/retro-display-lab) (Apache-2.0, copyright 2026 JohnnySun; see `third_party/retro-display-lab/NOTICE`). `tools/dmg01_profile.mjs` copies the values from a checkout without changing them and records each source file's SHA-256.
+
+What carries over:
+- **Four shades.** Art is quantized to the DMG's four drive levels by brightness, using Retro Display Lab's rule: white, light, dark, black.
+- **Palette (measured).** BGB's DMG reality samples: #759833, #588f51, #3b7560, #2e615a. The palette is interpolated in linear light.
+- **Response.** Each point carries an STN director coordinate. Once per DMG frame (59.7275 Hz), it drifts by Retro Display Lab's generated table, which comes from a Frank–Oseen/Ericksen–Leslie reduction of a 1/144-duty passive matrix. About 67 ms to 90% at 20 °C. On a drive change the coordinate is projected onto the nominal optical branch, as in the source. The light the eye sees is the Simpson average across each frame, so moving pieces smear and fade.
+- **Frame-rate independence.** The panel advances in whole DMG frames and carries the remainder, so it behaves the same at 60 Hz and at 120 Hz.
+- **Contrast wheel** (×0.88 to ×1.08 drive), interpolated between the source's three tabulated conditions. At the extremes the panel washes out or blacks out, like turning the real wheel.
+- **Temperature.** 10–30 °C (the source's range), with an Arrhenius viscosity factor (3800 K).
+- **Sticking.** Under a dark drive, ions charge (time constant about 2 minutes) and release slowly (about 40 minutes), leaving a faint image after the stack clears: about 4% of one shade after 3 minutes. It needs 32-bit float render targets and is switched off without them.
+- **Reflector shadow (measured).** 18% strength, offset 0.11 × 0.13 dot: 32 × 39 µm on the DMG's 47 × 43 mm, 160 × 144 panel. This is small, as on the real screen.
+  - Retro Display Lab draws the shadow only in the gaps between pixels. A gridless panel has no gaps, so here it darkens a point wherever the shifted image is darker than the point itself. Flat areas keep the measured palette exactly.
+  - The offset stays as measured (light from the upper left); the light controls move only the bezel shadow and the glare.
+
+What does not carry over, because it needs the 160 × 144 grid: the pixel aperture, row and column crosstalk, and the row-latch scan-out timing.
+
+Assumed and labelled:
+- **Bezel front stack.** 1.1 mm glass, as on the TN panels; the DMG's glass thickness is not published.
+- **Glare.** Fresnel reflection with n = 1.5.
+
+Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, not a measured specimen, and its analogue drive levels and fill material are bounded reconstructions.
+
 ## Drive and controls
 
-The panel shows one ink colour: every point is either 0 V or 3.0 V, exactly as on the VI-402, and content darker than 50% luminance switches on. Design art in two tones.
+On the TN screens the panel shows one ink colour: every point is either 0 V or 3.0 V, exactly as on the VI-402, and content darker than 50% luminance switches on. Design art in two tones. On the DMG-01 screen, design art in four tones.
 
 The app's controls are deliberately few:
 - **Pause and Reset panel.**
 - **Light angle and direction:** default 45° from the top-left corner.
 - **Panel temperature:** default 25 °C.
+- **Contrast wheel:** DMG-01 only, default ×1.00.
 
 Fixed at realistic defaults:
 - **Light:** 15° wide, at normal room brightness.
@@ -99,6 +128,7 @@ The engine still supports analog grays (`setMode('analog')`, a digital compromis
 - `physical-lcd.js`: the renderer (WebGL2, no dependencies). It loads a profile and does drive, relaxation and double-pass optics. The pure model functions are exported, and the shaders mirror them.
 - `profiles/reflective-tn.json`: the computed profile: tables, sources and derived values.
 - `tools/reflective_tn.py`: regenerates the profile from first principles (NumPy and SciPy, about 2 minutes). Set `TN_DESIGN=second` to compute the second-maximum design. `tools/cie-1931-d65.json` holds the colour tables it uses.
+- `dmg-stn.js`, `profiles/dmg-01-stn.json`, `tools/dmg01_profile.mjs`, `third_party/retro-display-lab/`: the DMG-01 screen, its data, the copy script and the licence and notice.
 - `tn-demo.js`, `index.html`: the Tetris screen test.
 - `concept.html`, `demo.js`, `vector-lcd.js`: the earlier hand-tuned concept model. Its values were chosen by hand rather than measured or derived.
 
