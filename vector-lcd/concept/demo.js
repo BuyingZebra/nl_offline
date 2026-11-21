@@ -278,7 +278,7 @@ setInterval(()=>{
 },1000);
 
 if('serviceWorker' in navigator){
- navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ navigator.serviceWorker.register('../sw.js',{scope:'../'}).catch(()=>{});
 }
 
 // Small debugging hook for automated checks.

@@ -2,13 +2,14 @@ import {describe,test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,shadowKernel,entryVector,reflectanceFromEntry,reflectance,PHYSICAL_LCD_VERSION,
- passTransmission,reflectanceOblique,obliqueOptics,glare,fresnelReflectance,temperatureFactors,directionVector,
- bezelShiftMm,bezelPenumbraMm,bezelLight}
- from '../vector-lcd/physical-lcd.js';
+import {driveVoltage,equilibriumState,timeConstantMs,stepState,entryOffsetMm,shadowKernel,entryVector,reflectanceFromEntry,reflectance,VERSION as PHYSICAL_LCD_VERSION,
+ passTransmission,reflectanceOblique,obliqueOptics,temperatureFactors}
+ from '../vector-lcd/screens/tn/index.js';
+import {glare,fresnelReflectance,directionVector,bezelShiftMm,bezelPenumbraMm,bezelLight}
+ from '../vector-lcd/optics/room.js';
 import {ENGINE_VERSION,DEFAULT_PARAMS as P,PARAM_RANGES,normalizeParams,electroOptic,switchingTimeMs,stepToward,
  stepPixel,visibleDarkness,reflectorShadowOffsetMm,shadowVectorMm,multiplexVoltages,srgbToLinear,driveColor}
- from '../vector-lcd/vector-lcd.js';
+ from '../vector-lcd/concept/vector-lcd.js';
 
 const appDir=fileURLToPath(new URL('../vector-lcd/',import.meta.url));
 const read=name=>fs.readFileSync(appDir+name,'utf8');
@@ -305,7 +306,7 @@ describe('Reflective TN, multiplexed 1/4 duty',()=>{
 
 describe('DMG-01 STN (Retro Display Lab data, no dot grid)',async()=>{
  const D=JSON.parse(read('profiles/dmg-01-stn.json'));
- const M=await import('../vector-lcd/dmg-stn.js');
+ const M=await import('../vector-lcd/screens/dmg/index.js');
  test('carries the source, licence and notice',()=>{
   assert.equal(D.attribution.license,'Apache-2.0');
   assert.match(D.attribution.url,/github\.com\/JohnnySun\/retro-display-lab/);
@@ -354,8 +355,8 @@ describe('DMG-01 STN (Retro Display Lab data, no dot grid)',async()=>{
 
 describe('Green phosphor CRT (IBM 5151, P39)',async()=>{
  const C=JSON.parse(read('profiles/crt-5151-p39.json'));
- const M=await import('../vector-lcd/crt.js');
- const F=await import('../vector-lcd/four-tone.js');
+ const M=await import('../vector-lcd/screens/crt/index.js');
+ const F=await import('../vector-lcd/content/four-tone.js');
  test('MDA timing gives the 5151\'s 18.432 kHz and 50 Hz with 350 lines',()=>{
   const T=C.timing;
   near(T.horizontal_hz,18432,1);near(T.refresh_hz,49.82,.01);
@@ -402,13 +403,13 @@ describe('Green phosphor CRT (IBM 5151, P39)',async()=>{
 
 describe('Vector LCD app packaging',()=>{
  test('one app version: page, demo and offline worker; the concept model keeps its own',()=>{
-  const html=read('index.html'),app=read('tn-demo.js'),worker=read('sw.js');
+  const html=read('index.html'),app=read('app/main.js'),worker=read('sw.js');
   const v=html.match(/name="vector-lcd-version" content="([^"]+)"/)[1];
   assert.match(v,/^\d+\.\d+\.\d+$/);
-  assert.equal(app.match(/APP_VERSION='([^']+)'/)[1],v);
-  assert.equal(worker.match(/const VERSION='([^']+)'/)[1],v);
+  assert.equal(app.match(/APP_VERSION\s*=\s*'([^']+)'/)[1],v);
+  assert.equal(worker.match(/const VERSION\s*=\s*'([^']+)'/)[1],v);
   assert.match(PHYSICAL_LCD_VERSION,/^\d+\.\d+\.\d+$/);
-  const concept=read('concept.html'),demo=read('demo.js');
+  const concept=read('concept/concept.html'),demo=read('concept/demo.js');
   assert.equal(concept.match(/name="vector-lcd-version" content="([^"]+)"/)[1],ENGINE_VERSION);
   assert.equal(demo.match(/APP_VERSION='([^']+)'/)[1],ENGINE_VERSION);
  });
@@ -418,15 +419,17 @@ describe('Vector LCD app packaging',()=>{
   assert.ok(assets.includes('./'));
   for(const asset of assets.filter(a=>a!=='./'))
    assert.ok(fs.existsSync(new URL(asset,'file://'+appDir).pathname),asset+' missing');
+  const walk=dir=>fs.readdirSync(appDir+dir,{withFileTypes:true})
+   .flatMap(e=>e.isDirectory()?walk(dir+e.name+'/'):['./'+dir+e.name]);
   const shipped=fs.readdirSync(appDir,{withFileTypes:true}).filter(e=>e.isFile()&&!/^(sw\.js|README\.md)$/.test(e.name)).map(e=>'./'+e.name)
-   .concat(fs.readdirSync(appDir+'profiles').map(f=>'./profiles/'+f),['./third_party/retro-display-lab/NOTICE']);
+   .concat(...['app/','gpu/','optics/','screens/','content/','concept/','profiles/'].map(walk),['./third_party/retro-display-lab/NOTICE']);
   for(const file of shipped)assert.ok(assets.includes(file),file+' is not precached');
  });
  test('the screen test uses the real game and the real tile files',()=>{
-  const app=read('tn-demo.js');
-  assert.match(app,/from '\.\.\/tetris\/game\.js'/);
-  assert.match(app,/from '\.\.\/tetris\/assets\/tiles\/smooth-geometry\.mjs'/);
-  assert.match(app,/'\.\.\/tetris\/assets\/tiles\/vector\/'/);
+  const tetris=read('content/tetris.js'),tiles=read('content/tiles.js');
+  assert.match(tetris,/from '\.\.\/\.\.\/tetris\/game\.js'/);
+  assert.match(tiles,/from '\.\.\/\.\.\/tetris\/assets\/tiles\/smooth-geometry\.mjs'/);
+  assert.match(tiles,/'\.\.\/\.\.\/tetris\/assets\/tiles\/vector\/'/);
  });
  test('manifest is installable on its own scope with 192 and 512 icons',()=>{
   const m=JSON.parse(read('manifest.webmanifest'));
@@ -436,5 +439,73 @@ describe('Vector LCD app packaging',()=>{
    assert.ok(icon,size);assert.ok(fs.existsSync(appDir+icon.src.slice(2)));
   }
   assert.ok(m.icons.some(i=>i.purpose==='maskable'));
+ });
+});
+
+describe('Vector LCD structure: screen kinds, definitions and profiles',async()=>{
+ const {SCREENS,KINDS,FAMILIES}=await import('../vector-lcd/app/screens.js');
+ const profileOf=screen=>JSON.parse(read('profiles/'+screen.id+'.json'));
+ // What a definition may ask of a renderer when building the Info tab.
+ const fakeRenderer={bezelLipMm:1,info:()=>({retention:true})};
+
+ test('every kind has one public entry with a version, a renderer, a profile check and a definition',()=>{
+  for(const [name,kind] of Object.entries(KINDS)){
+   assert.match(kind.VERSION,/^\d+\.\d+\.\d+$/,name);
+   for(const fn of ['createRenderer','checkProfile'])assert.equal(typeof kind[fn],'function',name+'.'+fn);
+   for(const key of ['tiles','usesElectrodes','prepare','device','deviceNote','temperatureRange','temperatureNote','lightNote','driveNote','facts'])
+    assert.ok(key in kind.definition,name+' definition lacks '+key);
+  }
+ });
+ test('every screen names a known kind and family, and its profile passes that kind\'s check',()=>{
+  const ids=new Set();
+  for(const screen of SCREENS){
+   assert.ok(KINDS[screen.kind],screen.id+' kind');
+   assert.ok(FAMILIES[screen.family],screen.id+' family');
+   assert.ok(!ids.has(screen.id),'duplicate '+screen.id);ids.add(screen.id);
+   assert.equal(screen.sub.length,2,screen.id+' sub lines');
+   const P=KINDS[screen.kind].checkProfile(profileOf(screen));
+   assert.equal(P.profile,screen.id);
+  }
+ });
+ test('a profile missing a field is refused, naming the field',()=>{
+  const P=profileOf(SCREENS.find(s=>s.kind==='crt'));
+  delete P.timing.frame_s;
+  assert.throws(()=>KINDS.crt.checkProfile(P),/timing\.frame_s/);
+  assert.throws(()=>KINDS.tn.checkProfile({}),/drive\.voltages/);
+ });
+ test('device controls start inside their range and describe their value',()=>{
+  for(const screen of SCREENS){
+   const P=profileOf(screen);
+   for(const c of KINDS[screen.kind].definition.device(P)){
+    assert.ok(c.min<c.max&&c.step>0,screen.id+' '+c.key+' range');
+    assert.ok(c.initial>=c.min&&c.initial<=c.max,screen.id+' '+c.key+' initial '+c.initial);
+    for(const v of [c.min,c.initial,c.max])assert.equal(typeof c.format(v),'string');
+    assert.equal(typeof c.apply,'function');
+   }
+  }
+ });
+ test('only real device controls: none on the VI-402, the wheel on the DMG-01, two knobs on the 5151',()=>{
+  const keys=id=>{const s=SCREENS.find(x=>x.id===id);return KINDS[s.kind].definition.device(profileOf(s)).map(c=>c.key);};
+  assert.deepEqual(keys('reflective-tn'),[]);
+  assert.deepEqual(keys('reflective-tn-mux4'),['vlcd']);
+  assert.deepEqual(keys('dmg-01-stn'),['contrast']);
+  assert.deepEqual(keys('crt-5151-p39'),['brightness','contrast']);
+ });
+ test('the VLCD trim scales both segment voltages by their datasheet fractions',()=>{
+  const s=SCREENS.find(x=>x.id==='reflective-tn-mux4'),P=profileOf(s),[trim]=KINDS.tn.definition.device(P);
+  let gain=null;trim.apply({setDriveGain:g=>{gain=g;}},P.derived.vlcd_V);
+  near(gain,1,1e-12,'default trim is the profile drive');
+  near(P.derived.on_rms_V/P.derived.vlcd_V,Math.sqrt(1/4+3/(4*9)),1e-3,'1/4 duty, 1/3 bias on');
+  near(P.derived.off_rms_V/P.derived.vlcd_V,Math.sqrt(1/(4*9)+3/(4*9)),1e-3,'1/4 duty, 1/3 bias off');
+ });
+ test('every Info list is label/value text',()=>{
+  for(const screen of SCREENS){
+   const def=KINDS[screen.kind].definition,P=profileOf(screen);
+   for(const row of def.facts(P,fakeRenderer)){
+    assert.equal(row.length,2);
+    for(const cell of row)assert.ok(typeof cell==='string'&&cell.length&&!/undefined|NaN/.test(cell),screen.id+': '+row);
+   }
+   assert.ok(def.driveNote(P).length&&def.deviceNote(P).length);
+  }
  });
 });

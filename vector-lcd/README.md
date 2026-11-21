@@ -186,23 +186,51 @@ Fixed at realistic defaults:
 
 The engine still supports analog grays (`setMode('analog')`, a digital compromise, since the datasheet panel cannot do it), viewing angle and eye distance (`setViewing`), and light size and brightness (`setLighting`) for other uses.
 
-## Files
+## Code structure
 
-- `physical-lcd.js`: the renderer (WebGL2, no dependencies). It loads a profile and does drive, relaxation and double-pass optics. The pure model functions are exported, and the shaders mirror them.
-- `profiles/reflective-tn.json`: the computed profile: tables, sources and derived values.
-- `tools/reflective_tn.py`: regenerates the profile from first principles (NumPy and SciPy, about 2 minutes). Set `TN_DESIGN=second` to compute the second-maximum design. `tools/cie-1931-d65.json` holds the colour tables it uses.
-- `dmg-stn.js`, `profiles/dmg-01-stn.json`, `tools/dmg01_profile.mjs`, `third_party/retro-display-lab/`: the DMG-01 screen, its data, the copy script and the licence and notice.
-- `crt.js`, `profiles/crt-5151-p39.json`, `tools/crt_p39.py`: the green phosphor CRT, its profile and the script that builds it.
-- `four-tone.js`: the 4-tone tile mapping.
-- `tn-demo.js`, `index.html`: the Tetris screen test.
-- `concept.html`, `demo.js`, `vector-lcd.js`: the earlier hand-tuned concept model. Its values were chosen by hand rather than measured or derived.
+Four layers, each depending only on the ones below it:
+
+```
+app/        the page: which screen is shown, its controls, the Info tab
+content/    what is shown: NOMAD Tetris and its tile art
+screens/    how it is shown: one folder per kind of screen
+gpu/ optics/  shared plumbing: WebGL2, common GLSL, room-light geometry
+```
+
+Every screen kind has the same five files:
+
+| File | Holds |
+| --- | --- |
+| `model.js` | the physics, as pure functions; tested in node |
+| `shaders.js` | the same physics on the GPU (GLSL) |
+| `renderer.js` | runs the shaders each frame; meets the contract in `screens/contract.js` |
+| `definition.js` | what the app shows: the device's real controls, notes, the Info list; no logic |
+| `index.js` | the kind's public entry; the app and tests import only this |
+
+| Folder | Files |
+| --- | --- |
+| `app/` | `main.js` (start and frame loop), `screens.js` (the screen list), `stage.js` (canvas and renderer), `controls.js`, `info.js`, `view.js` |
+| `gpu/` | `webgl.js` (context, targets, drawing, resize, context loss), `glsl.js` (shared shader chunks) |
+| `optics/` | `room.js`: light direction, Fresnel glare, bezel shadow; the JS twins of the shared GLSL |
+| `screens/tn/` | reflective TN, static and multiplexed; `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
+| `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
+| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json`, built by `tools/crt_p39.py` |
+| `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
+| `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
+
+Profiles are checked when they load: each kind lists the fields it reads (`PROFILE_FIELDS`) and refuses a profile that lacks one, naming it.
+
+A resize carries the panel's state to the new size, so scrolling, rotating or resizing the window never resets the screen.
 
 ## Layout
 
 One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
-To add a phosphor: build its profile, add an entry with `family:'crt'` to `SCREENS` in `tn-demo.js` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own.
+To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 
 ## Releases and tests
 
-`index.html` (`vector-lcd-version`), `tn-demo.js` (`APP_VERSION`) and `sw.js` (`VERSION`) share one version; bump all three for every release. Run `node --test tests/vector-lcd.test.mjs`. The tests include independent checks that the profile reproduces the datasheet contrast and response times, the Fréedericksz threshold and the Gooch–Tarry cell design.
+`index.html` (`vector-lcd-version`), `app/main.js` (`APP_VERSION`) and `sw.js` (`VERSION`) share one version; bump all three for every release. Each renderer has its own `VERSION` in its `renderer.js`.
+
+- `node --test tests/vector-lcd.test.mjs`: the physics of every screen, the profiles against their datasheets (contrast and response times, the Fréedericksz threshold, the Gooch–Tarry cell design), the structure (every kind complete, every profile valid, only real device controls) and the offline package.
+- `python tests/test_vector_lcd_browser.py`: in a real browser, the GPU against each JavaScript model (director state, ions, shown light, steady phosphor light), every renderer against the contract, state kept across a resize, and every screen opened in the app.

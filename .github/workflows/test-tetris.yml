@@ -73,6 +73,12 @@ jobs:
           FIELD_ATLAS_BROWSER: ${{ matrix.browser }}
           FIELD_ATLAS_USE_CHROME: ${{ matrix.browser == 'chromium' && '1' || '0' }}
         run: python tests/test_tetris_browser.py
+      - name: Check Vector LCD GPU physics and screens
+        if: matrix.browser == 'chromium'
+        env:
+          FIELD_ATLAS_BROWSER: chromium
+          FIELD_ATLAS_USE_CHROME: '1'
+        run: python tests/test_vector_lcd_browser.py
       - name: Upload optional browser screenshots
         if: always()
         uses: actions/upload-artifact@v4
