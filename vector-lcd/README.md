@@ -195,6 +195,12 @@ The engine still supports analog grays (`setMode('analog')`, a digital compromis
 - `tn-demo.js`, `index.html`: the Tetris screen test.
 - `concept.html`, `demo.js`, `vector-lcd.js`: the earlier hand-tuned concept model. Its values were chosen by hand rather than measured or derived.
 
+## Layout
+
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+
+To add a phosphor: build its profile, add an entry with `family:'crt'` to `SCREENS` in `tn-demo.js` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own.
+
 ## Releases and tests
 
 `index.html` (`vector-lcd-version`), `tn-demo.js` (`APP_VERSION`) and `sw.js` (`VERSION`) share one version; bump all three for every release. Run `node --test tests/vector-lcd.test.mjs`. The tests include independent checks that the profile reproduces the datasheet contrast and response times, the Fréedericksz threshold and the Gooch–Tarry cell design.

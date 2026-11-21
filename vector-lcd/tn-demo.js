@@ -9,7 +9,7 @@ import {fourToneSVG} from './four-tone.js';
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.8.0';
+export const APP_VERSION='0.9.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -53,12 +53,20 @@ function iSourceIndex(rotation,x,y){
 /* Screen models. The TN profiles are computed by tools/reflective_tn.py; the
  * DMG-01 profile is copied from Retro Display Lab by tools/dmg01_profile.mjs;
  * the CRT profile is built by tools/crt_p39.py. */
+// family: which switch (LCD or CRT) the screen sits under. short: its button.
+// sub: the two lines beside the card title. To add a phosphor, add an entry
+// with family 'crt'; its button appears automatically.
 export const SCREENS=Object.freeze([
- {id:'reflective-tn',file:'./profiles/reflective-tn.json',label:'Reflective TN · static drive (VI-402)'},
- {id:'reflective-tn-mux4',file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty (Lumex)'},
- {id:'dmg-01-stn',file:'./profiles/dmg-01-stn.json',label:'Reflective STN · Nintendo DMG-01, 4 shades (Retro Display Lab)'},
- {id:'crt-5151-p39',file:'./profiles/crt-5151-p39.json',label:'Green phosphor CRT · IBM 5151, P39'}
+ {id:'reflective-tn',family:'lcd',short:'TN static',sub:['Reflective TN','Static drive · VI-402'],
+  file:'./profiles/reflective-tn.json',label:'Reflective TN · static drive (VI-402)'},
+ {id:'reflective-tn-mux4',family:'lcd',short:'TN 1/4 mux',sub:['Reflective TN','1/4 mux · Lumex'],
+  file:'./profiles/reflective-tn-mux4.json',label:'Reflective TN · multiplexed 1/4 duty (Lumex)'},
+ {id:'dmg-01-stn',family:'lcd',short:'DMG-01',sub:['Reflective STN','4 shades · DMG-01'],
+  file:'./profiles/dmg-01-stn.json',label:'Reflective STN · Nintendo DMG-01, 4 shades (Retro Display Lab)'},
+ {id:'crt-5151-p39',family:'crt',short:'P39 green',sub:['Green phosphor','P39 · IBM 5151'],
+  file:'./profiles/crt-5151-p39.json',label:'Green phosphor CRT · IBM 5151, P39'}
 ]);
+export const FAMILIES=Object.freeze({lcd:{title:'LCD',picker:'Panel'},crt:{title:'CRT',picker:'Phosphor'}});
 const isDMG=P=>P.model==='dmg01-stn',isCRT=P=>P.model==='crt-raster';
 const kind=P=>isDMG(P)?'dmg':isCRT(P)?'crt':'tn';
 // Four drive levels: draw the 4-tone tiles. TN screens switch on or off: the art as authored.
@@ -179,9 +187,11 @@ function tick(now){
  else{drawContent();lcd.frame(lastFrame);}
  requestAnimationFrame(tick);
 }
-const start=()=>{if(!running){running=true;lastNow=null;requestAnimationFrame(tick);}};
+let infoOpen=false;
+const start=()=>{if(!running&&!infoOpen){running=true;lastNow=null;requestAnimationFrame(tick);}};
 document.addEventListener('visibilitychange',()=>{if(document.hidden)running=false;else start();});
 function fit(){
+ if(!stage.clientWidth||!stage.clientHeight)return;   // hidden (Info view): keep the last size
  const s=getComputedStyle(bezel);
  const px=parseFloat(s.paddingLeft)+parseFloat(s.paddingRight),py=parseFloat(s.paddingTop)+parseFloat(s.paddingBottom);
  lcd.resize(Math.max(40,stage.clientWidth-24-px),Math.max(40,stage.clientHeight-24-py),window.devicePixelRatio||1);
@@ -211,8 +221,11 @@ function sliderRows(box,rows,get,set){
   const row=document.createElement('label');row.className='row';
   const name=document.createElement('span');name.textContent=label;
   const input=Object.assign(document.createElement('input'),{type:'range',min,max,step,value:get()[key]});
-  const out=document.createElement('output');out.textContent=format(Number(input.value));
-  input.addEventListener('input',()=>{set({[key]:Number(input.value)});out.textContent=format(Number(input.value));});
+  const out=document.createElement('output');
+  const show=()=>{out.textContent=format(Number(input.value));
+   input.style.setProperty('--fill',((input.value-min)/(max-min)*100)+'%');};
+  show();
+  input.addEventListener('input',()=>{set({[key]:Number(input.value)});show();});
   row.append(name,input,out);box.append(row);
  }
 }
@@ -246,13 +259,18 @@ function screenControls(P){
   dmg:'The light moves the bezel shadow and the glare. The DMG\'s reflector shadow keeps its measured offset (light from the upper left).',
   crt:'The screen makes its own light. The room light only greys the glass and the phosphor behind it, and the bezel shades the edges that face it.',
   tn:'Light at an angle enters the glass at one point and leaves at another, casting a shadow under each shape. The bezel frame above the glass also shades the edges that face the light.'}[K];
- $('title').textContent={dmg:'REFLECTIVE STN',crt:'GREEN PHOSPHOR CRT',tn:'REFLECTIVE TN'}[K];
 }
 
-$('pause').addEventListener('click',e=>{paused=!paused;e.currentTarget.textContent=paused?'Resume':'Pause';});
+$('pause').addEventListener('click',e=>{paused=!paused;const b=e.currentTarget;
+ b.setAttribute('aria-checked',String(!paused));b.lastElementChild.textContent=paused?'Paused':'Running';});
 $('reset').addEventListener('click',()=>lcd.reset());
-$('toggleControls').addEventListener('click',e=>{
- const open=document.body.classList.toggle('controls-closed')===false;e.currentTarget.setAttribute('aria-expanded',String(open));});
+// Demo / Info. The screen stops drawing while Info covers it.
+for(const [tab,open] of [[$('tabDemo'),false],[$('tabInfo'),true]])tab.addEventListener('click',()=>{
+ infoOpen=open;
+ $('tabDemo').setAttribute('aria-selected',String(!open));$('tabInfo').setAttribute('aria-selected',String(open));
+ $('demoView').hidden=open;$('infoView').hidden=!open;
+ if(open)running=false;else{fit();start();}
+});
 
 /* ---------- Where every number comes from ---------- */
 function dmgFacts(P){
@@ -338,26 +356,56 @@ function tnFacts(P){
 }
 factsFor(lcd.profile);
 
-/* ---------- Screen model choice ---------- */
-const screenSelect=$('screen');
-for(const sc of SCREENS){const o=document.createElement('option');o.value=sc.id;o.textContent=sc.label;screenSelect.append(o);}
-screenSelect.value=lcd.profile.profile;
-screenSelect.addEventListener('change',async()=>{
- try{
-  const p=await profileFor(screenSelect.value);
-  if(kind(p)===kind(lcd.profile))lcd.setProfile(p);
-  else{
-   lcd.dispose();
-   const next=canvas.cloneNode(false);canvas.replaceWith(next);canvas=next;
-   lcd=createRenderer(p);lcd.setElectrodes(drawElectrodes);configure();fit();
-  }
-  factsFor(p);
-  try{localStorage.setItem('vector-lcd-screen',p.profile);}catch(error){}
- }catch(error){showError(error.message);}
+/* ---------- Screen choice: LCD or CRT, then the panel or phosphor ---------- */
+const screenOf=id=>SCREENS.find(sc=>sc.id===id)||SCREENS[0];
+const lastOf={};
+try{for(const f in FAMILIES)lastOf[f]=localStorage.getItem('vector-lcd-last-'+f);}catch(error){}
+function showScreen(sc){
+ const F=FAMILIES[sc.family];
+ document.body.className=sc.family;
+ for(const b of document.querySelectorAll('[data-family]'))b.setAttribute('aria-pressed',String(b.dataset.family===sc.family));
+ $('title').textContent=F.title;
+ $('subtitle').replaceChildren(...sc.sub.flatMap((line,i)=>i?[document.createElement('br'),line]:[line]));
+ // SVG elements have no .hidden property: toggle the attribute.
+ $('iconLcd').toggleAttribute('hidden',sc.family!=='lcd');$('iconCrt').toggleAttribute('hidden',sc.family!=='crt');
+ $('profileLabel').textContent=F.picker;
+ $('infoTitle').textContent=sc.label;
+ const box=$('profiles');box.replaceChildren();
+ for(const other of SCREENS.filter(o=>o.family===sc.family)){
+  const b=Object.assign(document.createElement('button'),{type:'button',textContent:other.short,title:other.label});
+  b.setAttribute('aria-pressed',String(other.id===sc.id));
+  b.addEventListener('click',()=>selectScreen(other.id));
+  box.append(b);
+ }
+}
+let switching=Promise.resolve();
+function selectScreen(id){
+ switching=switching.then(async()=>{
+  const sc=screenOf(id);
+  if(sc.id===lcd.profile.profile){showScreen(sc);return;}
+  try{
+   const p=await profileFor(sc.id);
+   if(kind(p)===kind(lcd.profile))lcd.setProfile(p);
+   else{
+    lcd.dispose();
+    const next=canvas.cloneNode(false);canvas.replaceWith(next);canvas=next;
+    lcd=createRenderer(p);lcd.setElectrodes(drawElectrodes);configure();fit();
+   }
+   factsFor(p);showScreen(sc);
+   lastOf[sc.family]=sc.id;
+   try{localStorage.setItem('vector-lcd-screen',sc.id);localStorage.setItem('vector-lcd-last-'+sc.family,sc.id);}catch(error){}
+  }catch(error){showError(error.message);}
+ });
+ return switching;
+}
+for(const b of document.querySelectorAll('[data-family]'))b.addEventListener('click',()=>{
+ const f=b.dataset.family;
+ selectScreen(lastOf[f]&&screenOf(lastOf[f]).family===f?lastOf[f]:SCREENS.find(sc=>sc.family===f).id);
 });
+showScreen(screenOf(lcd.profile.profile));
 $('version').textContent='v'+APP_VERSION;
 setInterval(()=>{const i=lcd.info();$('status').textContent=i.fps+' fps · '+i.width+'×'+i.height+' px · '+i.pxPerMm.toFixed(1)+' px/mm · '+i.stateFormat+' state · renderer '+{dmg:'dmg-stn '+DMG_STN_VERSION,crt:'crt '+CRT_VERSION,tn:PHYSICAL_LCD_VERSION}[kind(lcd.profile)];},1000);
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
-window.__tnScreen=Object.freeze({get lcd(){return lcd;},get canvas(){return canvas;},game,PANEL,BOARD,CELL});
+window.__tnScreen=Object.freeze({get lcd(){return lcd;},get canvas(){return canvas;},game,PANEL,BOARD,CELL,selectScreen});
 start();
