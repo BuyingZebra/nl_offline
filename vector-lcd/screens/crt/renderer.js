@@ -5,13 +5,27 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, bezelShiftMm, bezelPenumbraMm} from '../../optics/room.js';
-import {checkProfile, adaptedExposure, halationRings} from './model.js';
+import {checkProfile, adaptedExposure, halationRings, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
+
+/** The profile's exponentials padded to the shaders' fixed count; unused ones
+ * carry no light. layer: 0 or 1 per component. */
+function components(profile) {
+ const {amplitudes, taus_s, layer} = profile.phosphor.impulse;
+ const pad = (list, fill) => Array.from({length: MAX_COMPONENTS}, (_, i) => list[i] ?? fill);
+ return {a: pad(amplitudes, 0), tau: pad(taus_s, 1), layer: pad(layer, 0)};
+}
+
+/** Linear-sRGB colour per unit luminance of each layer (a missing second layer is black). */
+function layerColours(profile) {
+ const layers = profile.phosphor.layers;
+ return [layers[0].display_rgb_per_Y, layers[1]?.display_rgb_per_Y ?? [0, 0, 0]];
+}
 
 
 /** @returns {import('../contract.js').ScreenRenderer} */
@@ -131,8 +145,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.uniform1f(p.u('uW'), W);
   gl.uniform1f(p.u('uH'), H);
   gl.uniform1i(p.u('uLines'), T.lines_visible);
-  gl.uniform1fv(p.u('uA'), profile.phosphor.impulse.amplitudes);
-  gl.uniform1fv(p.u('uTau'), profile.phosphor.impulse.taus_s);
+  const c = components(profile);
+  gl.uniform1fv(p.u('uA'), c.a);
+  gl.uniform1fv(p.u('uTau'), c.tau);
+  gl.uniform1fv(p.u('uLayer'), c.layer);       // EMIT only; ignored where the shader has no uLayer
  }
 
 
@@ -166,7 +182,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    current = 1 - current;
   }
 
-  // ---- 2. Light over the last refresh period
+  // ---- 2. Light over the last refresh period, per layer
   const s = res.states[current];
   gpu.draw(res.emit, res.halo.fb, size, p => {
    gpu.bind(p, 0, 'uS0', s.t0);
@@ -192,7 +208,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1fv(p.u('uHaloF'), Array.from({length: HALO_RINGS}, (_, i) => rings[i]?.[1] ?? 0));
   });
 
-  // ---- 4. Phosphor light plus the room
+  // ---- 4. Each layer's light in its colour, plus the room
   gpu.draw(res.display, null, size, p => {
    gpu.bind(p, 0, 'uEmitFull', res.halo.tex);
    gpu.bind(p, 1, 'uHaloField', res.haloField.tex);
@@ -202,6 +218,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uSurface'), F.surface_reflectance);
    gl.uniform1f(p.u('uExposure'), lighting.exposure * adaptedExposure(profile));
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
+   const [rgb0, rgb1] = layerColours(profile);
+   gl.uniform3fv(p.u('uRgb0'), rgb0);
+   gl.uniform3fv(p.u('uRgb1'), rgb1);
    const shift = bezelShiftMm(profile, lighting, bezelLipMm);
    gl.uniform2f(p.u('uPanelMm'), W / pxPerMm, H / pxPerMm);
    gl.uniform2f(p.u('uBezelShift'), shift.x / mpp, shift.y / mpp);
@@ -220,11 +239,18 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   return {width: fit.width, height: fit.height, pxPerMm: fit.pxPerMm};
  }
 
- /** Light at a point (panel mm), relative to full drive, averaged over the last frame. */
- function sample(xMm, yMm) {
+ /** Light at a point (panel mm) per layer, relative to full drive, averaged over the last frame. */
+ function sampleLayers(xMm, yMm) {
   if (!res || gpu.lost) return null;
   const [x, y] = surface.texelAt(xMm, yMm);
-  return gpu.readTexel(res.halo.fb, x, y)[0];
+  const t = gpu.readTexel(res.halo.fb, x, y);
+  return [t[0], t[1]];
+ }
+
+ /** Total light at a point (panel mm), relative to full drive. */
+ function sample(xMm, yMm) {
+  const layers = sampleLayers(xMm, yMm);
+  return layers && layers[0] + layers[1];
  }
 
 
@@ -237,7 +263,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
 
  return Object.freeze({
   get profile() { return profile; },
-  beginContent: surface.beginContent, frame, resize, reset, sample, bezelLipMm,
+  beginContent: surface.beginContent, frame, resize, reset, sample, sampleLayers, bezelLipMm,
 
   /** Switch to another CRT profile (another phosphor); the screen starts cold. */
   setProfile(next) {

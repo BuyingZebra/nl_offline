@@ -81,6 +81,7 @@ The app's **Screen** menu switches between computed profiles:
    - The Lumex drawing gives no response times or contrast, so the cell's response comes from the VI-402.
 3. **Reflective STN, Nintendo DMG-01 (Retro Display Lab):** see below.
 4. **Green phosphor CRT, IBM 5151 (P39):** see below.
+5. **P7 cascade CRT on the IBM 5151:** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
@@ -158,6 +159,33 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 
 **Controls:** the 5151's **Brightness** knob (a uniform beam on every line, which makes the raster visible) and **Contrast** knob (video gain). The temperature control is hidden for this screen.
 
+## P7 cascade screen (on the IBM 5151)
+
+`profiles/crt-5151-p7.json`, built by `tools/crt_p7.py` from the 5151 monitor in `crt-5151-p39.json` (timing, spot, faceplate, knobs and room unchanged) with a P7 screen in place of its P39.
+
+**How it works.** P7 is two layers: a purplish-blue ZnS:Ag layer that the beam excites, cascaded on a yellowish-green (Zn,Cd)S:Cu layer that the blue light excites. The blue lasts microseconds, the yellow-green for seconds. On screen: a piece that has just arrived flashes blue, a steady one glows a pale cyan-white, and a moving one leaves a yellow-green trail.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Layers | ZnS:Ag cascaded on (Zn,Cd)S:Cu | RCA TPM-1508A (1961), pp. 6, 18 |
+| Colours | blue x 0.151, y 0.032 (435 nm); yellow-green x 0.357, y 0.537 (555 nm) | RCA TPM-1508A, pp. 7, 13 |
+| Persistence | blue 25-75 µs; yellow-green 400 ms to 10 % | RCA TPM-1508A, p. 6 |
+| Decay curves | traced from RCA's persistence chart (tube 5ABP7, 3 kV) into `tools/rca-p7-persistence.json`, with the method recorded | RCA TPM-1508A, p. 13 |
+| Cross-check | single-flash decay, 10 to 100 ms | Dyall, MIT RLE Technical Report 56 (1948), Table 3 |
+
+**Derived.**
+- **Decay.** Each layer's decay after steady excitation is fitted with exponentials (one for the blue, six for the yellow-green); for a linear screen that is the step-off response, which gives the impulse response. The fit is within about 1 % of RCA's trace from 20 ms to the end of the chart.
+- **Colour balance.** RCA's per-layer brightness is measured on each powder alone, not through a finished screen. RCA calls the finished screen's light during excitation white, so the blue's share of the luminance (4.3 %) is the one whose mix lies closest to white (illuminant C, the reference white of the time, in the CIE 1960 UCS).
+- **Display.** Layers mix in linear light; the steady colour lies inside sRGB. Only a colour outside it (the bare blue flash) is moved toward grey of equal luminance.
+
+**Assumed.** Past the end of RCA's chart (about 370 ms), the yellow-green keeps the chart's final slope (0.67 decades per decade) to 60 s. RCA: the screen "persists for several minutes".
+
+**Known gap: P7 is not linear.** Fitted only to RCA, the model predicts MIT's single-flash decay from 10 to 100 ms (0.94 decades against 1.01). After 100 ms MIT's single flashes fade far more slowly (about one decade per decade to 10 s), and no linear screen fits both: RCA's curve would then show about 37 % at 400 ms, not 10 %. MIT also finds that repeated flashes build up more than they add. The renderer is linear, so it follows RCA, which matches a raster that hits each point steadily. The comparison is stored in the profile (`phosphor.derived.single_flash_vs_mit`).
+
+**Context.** P7 was a radar phosphor; here it is driven by the 5151's raster and spot.
+
+**The CRT engine** supports up to two phosphor layers and seven exponentials per point. A component much faster than a frame (under 2 % of it) contributes exactly its last hit's light to the frame average; the general formula would overflow.
+
 ## 4-tone tiles
 
 `four-tone.js` makes a 4-tone version of each tile for the DMG-01 and CRT screens. It keeps the same shapes and snaps each grey to white, light, dark or black:
@@ -214,7 +242,7 @@ Every screen kind has the same five files:
 | `optics/` | `room.js`: light direction, Fresnel glare, bezel shadow; the JS twins of the shared GLSL |
 | `screens/tn/` | reflective TN, static and multiplexed; `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
-| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json`, built by `tools/crt_p39.py` |
+| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`) and `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
@@ -224,7 +252,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green, P7 cascade). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 

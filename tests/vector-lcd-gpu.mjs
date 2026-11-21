@@ -141,41 +141,54 @@ function Phi(x) {
 }
 
 export async function crtParity() {
- const P = await profileOf('crt-5151-p39');
- const {renderer: r, done} = mount('crt', P);
- r.setContrast(1);
- r.setBrightness(0);
- const {width: W, height: H, pxPerMm} = r.info(), T = P.timing, dt = 100;
+ const out = [];
+ for (const id of ['crt-5151-p39', 'crt-5151-p7']) {
+  const P = await profileOf(id);
+  const {renderer: r, done} = mount('crt', P);
+  r.setContrast(1);
+  r.setBrightness(0);
+  const {width: W, height: H, pxPerMm} = r.info(), T = P.timing, dt = 100;
 
- // A whole black panel at full drive, long enough for the slowest decay to settle.
- let t = T0, clock = 0;
- paint(r, [0, 0, PANEL.w, PANEL.h]);
- r.frame(t);
- for (let k = 0; k < 200; k++) { paint(r, [0, 0, PANEL.w, PANEL.h]); r.frame(t += dt); clock = (clock + dt / 1000) % T.frame_s; }
-
- // Excitation at one pixel, from the spot of every line that reaches it.
- const pitch = H / T.lines_visible, sigma = P.spot.sigma_mm / (P.raster.height_mm / PANEL.h) * pxPerMm;
- let worst = 0;
- for (const [xMm, yMm] of [[24, 45], [12, 30], [36, 70]]) {
-  const x = Math.floor(xMm * pxPerMm), y = H - 1 - Math.floor(yMm * pxPerMm);
-  const yTop = H - (y + .5);
-  let wx = 0;
-  for (let dx = -2; dx <= 2; dx++) wx += Phi((dx + .5) / sigma) - Phi((dx - .5) / sigma);
-  const n0 = Math.max(0, Math.floor((yTop - .5 - 4 * sigma) / pitch)), n1 = Math.min(T.lines_visible - 1, Math.floor((yTop + .5 + 4 * sigma) / pitch));
-  let E = 0;
-  for (let n = n0; n <= n1 && n <= n0 + 8; n++) {
-   const yn = (n + .5) * pitch, w = Phi((yTop + .5 - yn) / sigma) - Phi((yTop - .5 - yn) / sigma);
-   if (w >= 1e-6) E += w * wx;
+  // A whole black panel at full drive, long enough for the slowest decay to settle.
+  let t = T0, clock = 0;
+  paint(r, [0, 0, PANEL.w, PANEL.h]);
+  r.frame(t);
+  const settleFrames = Math.ceil(8 * Math.max(...P.phosphor.impulse.taus_s) / (dt / 1000));
+  for (let k = 0; k < Math.min(settleFrames, 3000); k++) {
+   paint(r, [0, 0, PANEL.w, PANEL.h]);
+   r.frame(t += dt);
+   clock = (clock + dt / 1000) % T.frame_s;
   }
-  E *= pitch;
-  const line = Math.min(T.lines_visible - 1, Math.max(0, Math.floor(yTop / pitch)));
-  const hitPhase = line * T.line_s + (x + .5) / W * T.active_s;
-  const tSince = ((clock - hitPhase) % T.frame_s + T.frame_s) % T.frame_s;
-  const expected = crt.steadyWindow(P, E, tSince), got = r.sample(xMm, yMm);
-  worst = Math.max(worst, Math.abs(got - expected) / expected);
+
+  // Excitation at one pixel, from the spot of every line that reaches it.
+  const pitch = H / T.lines_visible, sigma = P.spot.sigma_mm / (P.raster.height_mm / PANEL.h) * pxPerMm;
+  let worst = 0;
+  for (const [xMm, yMm] of [[24, 45], [12, 30], [36, 70]]) {
+   const x = Math.floor(xMm * pxPerMm), y = H - 1 - Math.floor(yMm * pxPerMm);
+   const yTop = H - (y + .5);
+   let wx = 0;
+   for (let dx = -2; dx <= 2; dx++) wx += Phi((dx + .5) / sigma) - Phi((dx - .5) / sigma);
+   const n0 = Math.max(0, Math.floor((yTop - .5 - 4 * sigma) / pitch)), n1 = Math.min(T.lines_visible - 1, Math.floor((yTop + .5 + 4 * sigma) / pitch));
+   let E = 0;
+   for (let n = n0; n <= n1 && n <= n0 + 8; n++) {
+    const yn = (n + .5) * pitch, w = Phi((yTop + .5 - yn) / sigma) - Phi((yTop - .5 - yn) / sigma);
+    if (w >= 1e-6) E += w * wx;
+   }
+   E *= pitch;
+   const line = Math.min(T.lines_visible - 1, Math.max(0, Math.floor(yTop / pitch)));
+   const hitPhase = line * T.line_s + (x + .5) / W * T.active_s;
+   const tSince = ((clock - hitPhase) % T.frame_s + T.frame_s) % T.frame_s;
+   // Each layer against the model's light for that layer.
+   const got = r.sampleLayers(xMm, yMm);
+   P.phosphor.layers.forEach((_, layer) => {
+    const expected = crt.steadyWindow(P, E, tSince, layer);
+    worst = Math.max(worst, Math.abs(got[layer] - expected) / expected);
+   });
+  }
+  done();
+  out.push(result('CRT GPU = model per layer (steady light, relative), ' + id, worst, 3e-3));
  }
- done();
- return [result('CRT GPU = model (steady light, relative)', worst, 3e-3)];
+ return out;
 }
 
 

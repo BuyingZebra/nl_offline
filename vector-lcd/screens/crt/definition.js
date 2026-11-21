@@ -1,8 +1,8 @@
 /* IBM 5151 CRT, as the app presents it. No logic: the monitor's two front
  * knobs, the notes, and where every number on the Info tab comes from.
  *
- * A new phosphor is a new profile of this kind; this definition reads all of
- * its numbers from the profile. */
+ * A new phosphor is a new profile of this kind: its colours, decay and Info
+ * facts all come from the profile (phosphor.layers, .impulse, .facts). */
 
 /** @type {import('../../app/screens.js').ScreenDefinition} */
 export const definition = Object.freeze({
@@ -44,21 +44,20 @@ export const definition = Object.freeze({
  driveNote: P => 'The beam sweeps ' + P.timing.lines_visible + ' lines ' + Math.round(P.timing.refresh_hz) + ' times a second. '
   + 'The phosphor glows long after the beam passes, so moving pieces leave fading trails. Brightness lights the whole raster; contrast sets the signal.',
 
+ /** The monitor's facts, then the phosphor's own (from its profile). */
  facts(P) {
-  const T = P.timing, ph = P.phosphor, d = ph.derived, F = P.faceplate, R = P.raster;
+  const T = P.timing, F = P.faceplate, R = P.raster;
   return [
-   ['Monitor', 'IBM 5151: 11.5 in, 90° CRT, P39 phosphor, etched anti-glare face, brightness and contrast knobs'],
+   ['Monitor', 'IBM 5151: 11.5 in, 90° CRT, etched anti-glare face, brightness and contrast knobs'],
    ['Scan (MDA)', (T.horizontal_hz / 1000).toFixed(3) + ' kHz lines, ' + T.refresh_hz.toFixed(2) + ' Hz frames, ' + T.lines_visible + ' of ' + T.lines_total + ' lines shown; the panel height is the 350 lines'],
    ['Signal', 'TTL: video 2/3 + intensity 1/3 of the luminance, 4 levels; free to switch anywhere along a line (no pixels)'],
-   ['Phosphor colour', 'P39 (Zn₂SiO₄:Mn,As), 525 nm, x ' + ph.cie_xy[0] + ' y ' + ph.cie_xy[1] + ' (Philips). Outside sRGB: shown on the display\'s green primary'],
-   ['Afterglow (derived)', 'builds up for ' + Math.round(d.peak_after_s * 1000) + ' ms, 10% after ' + Math.round(d.t10_s * 1000) + ' ms, 1% after ' + Math.round(d.t1_s * 1000) + ' ms; JEDEC class long (100 ms–1 s)'],
-   ['Afterglow model', 'Mn²⁺ decay from P1 (20 ms to 10%) fed by bimolecular trap release (IBM, 1985), its time solved from P39\'s measured 30 Hz flicker ratio (US 4,315,190)'],
+   ...P.phosphor.facts,
    ['Spot (measured, similar tube)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm from 1300-line resolution of Philips 31 cm 90° tubes; scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart'],
    ['Picture (assumed)', R.height_mm + ' mm tall raster (Philips 31 cm useful height); the 5151\'s own size is not published'],
    ['Faceplate', '~50% transmission (Philips); n ' + F.n + '; ' + F.thickness_mm + ' mm thick (assumed); halation returns ' + (F.halation.total * 100).toFixed(1) + '% of the light 18 mm and more away'],
    ['Room light', 'screen reflectance ' + F.screen_reflectance + ' (assumed) through the glass twice, plus the etched surface: ' + Math.round(F.ambient_reflectance * 100) + '% of a white card'],
    ['Brightness (assumed)', P.luminance.full_drive_cd_m2 + ' cd/m² at full drive (20 fL, the level the Philips and P39 measurements use); room ' + P.luminance.room_lux + ' lux'],
-   ['Exposure', 'set so the brightest line core at full drive just reaches the display\'s maximum green, as your eye adapts to a lit screen; all brightness ratios are kept'],
+   ['Exposure', 'set so the brightest line core at full drive just reaches the display\'s maximum, as your eye adapts to a lit screen; all brightness ratios are kept'],
    ['Not modelled', 'screen curvature and geometry, focus and spot growth with beam current, retrace, burn-in']
   ];
  }

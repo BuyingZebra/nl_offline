@@ -10,11 +10,23 @@
  *  - what the eye sees is the light averaged over one refresh period, so the
  *    50 Hz ripple is not aliased against the phone's refresh rate;
  *  - light trapped in the faceplate returns as a halo (halation);
- *  - the room light reflects off the screen and the etched glass. */
+ *  - the room light reflects off the screen and the etched glass.
+ *
+ * A screen may have up to two phosphor layers, each with its own colour (P7:
+ * a blue flash cascaded on a yellow-green afterglow). The impulse response is
+ * a sum of at most seven exponentials; each belongs to one layer. */
 
 import {requireFields, ROOM_FIELDS} from '../contract.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+export const MAX_COMPONENTS = 7;   // exponentials per point (shaders.js state: 2 x RGBA)
+export const MAX_LAYERS = 2;       // phosphor layers with their own colour
+
+/** A component this much faster than a frame is over long before the frame
+ * window ends: its light in the window is exactly the light of the last hit
+ * (the general formula would overflow: exp(T / tau)). Mirrored in EMIT_FS. */
+export const FAST_FRACTION_OF_FRAME = .02;
 
 
 // ===========================================================================
@@ -24,7 +36,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 export const PROFILE_FIELDS = Object.freeze([
  ...ROOM_FIELDS,
  'timing.frame_s', 'timing.line_s', 'timing.active_s', 'timing.lines_visible',
- 'phosphor.impulse.amplitudes', 'phosphor.impulse.taus_s',
+ 'phosphor.impulse.amplitudes', 'phosphor.impulse.taus_s', 'phosphor.impulse.layer', 'phosphor.layers', 'phosphor.facts',
  'raster.pitch_mm', 'raster.height_mm', 'spot.sigma_mm', 'luminance.full_drive_relative',
  'faceplate.ambient_reflectance', 'faceplate.surface_reflectance',
  'faceplate.halation.r_mm', 'faceplate.halation.fraction',
@@ -34,7 +46,13 @@ export const PROFILE_FIELDS = Object.freeze([
 
 export function checkProfile(profile) {
  if (profile?.model !== 'crt-raster') throw new TypeError('A CRT raster profile is required');
- return requireFields(profile, PROFILE_FIELDS, 'CRT');
+ requireFields(profile, PROFILE_FIELDS, 'CRT');
+ const {amplitudes, taus_s, layer} = profile.phosphor.impulse, layers = profile.phosphor.layers;
+ if (amplitudes.length > MAX_COMPONENTS || taus_s.length !== amplitudes.length || layer.length !== amplitudes.length)
+  throw new TypeError('CRT profile "' + profile.profile + '": impulse needs matching amplitudes, taus_s and layer, at most ' + MAX_COMPONENTS);
+ if (!layers.length || layers.length > MAX_LAYERS || layer.some(l => !(l >= 0 && l < layers.length)))
+  throw new TypeError('CRT profile "' + profile.profile + '": 1 to ' + MAX_LAYERS + ' layers, and every component in one of them');
+ return profile;
 }
 
 
@@ -62,10 +80,12 @@ export function impulse(profile, t) {
  * hit once per frame with excitation E and observed tSince seconds after its
  * last hit, in the steady state (every frame the same). Each hit delivers one
  * frame's worth of light per unit excitation, so a steady point shows exactly E. */
-export function steadyWindow(profile, E, tSince) {
- const T = profile.timing.frame_s, {amplitudes: a, taus_s: tau} = profile.phosphor.impulse;
+export function steadyWindow(profile, E, tSince, layer = null) {
+ const T = profile.timing.frame_s, {amplitudes: a, taus_s: tau, layer: of} = profile.phosphor.impulse;
  let sum = 0;
  for (let i = 0; i < a.length; i++) {
+  if (layer !== null && of[i] !== layer) continue;
+  if (tau[i] < FAST_FRACTION_OF_FRAME * T) { sum += E * a[i] * tau[i]; continue; }
   const plus = E * a[i] / (1 - Math.exp(-T / tau[i])), minus = plus - E * a[i], d2 = tSince, d1 = T - d2;
   sum += minus * tau[i] * (Math.exp(d1 / tau[i]) - 1) + plus * tau[i] * (1 - Math.exp(-d2 / tau[i]));
  }
@@ -89,20 +109,48 @@ export function decayTime(profile, fraction = .1) {
 // What the display shows
 // ===========================================================================
 
-/** Exposure that brings the brightest line core at full drive (contrast 1) to
- * the display's maximum green, as the eye adapts to a lit screen. One
- * constant: every ratio (levels, afterglow, room reflection) is kept. */
-export function adaptedExposure(profile) {
- const peak = profile.raster.pitch_mm / (Math.sqrt(2 * Math.PI) * profile.spot.sigma_mm);
- return .7152 / (profile.luminance.full_drive_relative * peak);
+/** Each layer's share of the light under steady excitation (sums to 1). */
+export function layerShares(profile) {
+ const {amplitudes: a, taus_s: tau, layer} = profile.phosphor.impulse;
+ const shares = profile.phosphor.layers.map(() => 0);
+ a.forEach((ai, i) => { shares[layer[i]] += ai * tau[i]; });
+ const total = shares.reduce((s, v) => s + v, 0);
+ return shares.map(v => v / total);
 }
 
-/** Linear-sRGB colour for emitted luminance Y (relative to a white diffuser) on
- * top of a grey ambient reflection. P39 lies outside sRGB, so its light is
- * shown on the display's green primary; above full green it clips, keeping the
- * hue (P39 never looks white) at the cost of the brightest line cores. */
-export function displayColor(Y, ambient) {
- return [ambient, ambient + Y / .7152, ambient].map(v => clamp(v, 0, 1));
+/** Display colour (linear sRGB) of a steady image, per unit luminance. */
+export function steadyRGBPerY(profile) {
+ const shares = layerShares(profile);
+ return [0, 1, 2].map(c => profile.phosphor.layers.reduce((s, L, l) => s + shares[l] * L.display_rgb_per_Y[c], 0));
+}
+
+/** Exposure that brings the brightest line core at full drive (contrast 1) to
+ * the display's maximum in its brightest channel, as the eye adapts to a lit
+ * screen. One constant: every ratio (levels, afterglow, room reflection) is kept. */
+export function adaptedExposure(profile) {
+ const peak = profile.raster.pitch_mm / (Math.sqrt(2 * Math.PI) * profile.spot.sigma_mm);
+ return 1 / (profile.luminance.full_drive_relative * peak * Math.max(...intoGamut(steadyRGBPerY(profile))));
+}
+
+/** Bring a linear-sRGB colour into the display's gamut: if a channel is
+ * negative, move toward the grey of equal luminance just far enough; hue and
+ * luminance are kept. Colours already inside are returned unchanged. Mirrored
+ * in DISPLAY_FS. */
+export function intoGamut(rgb) {
+ const lo = Math.min(...rgb);
+ if (lo >= 0) return rgb;
+ const Y = .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2];
+ if (Y <= 0) return [0, 0, 0];
+ const t = Y / (Y - lo);
+ return rgb.map(v => Y + t * (v - Y));
+}
+
+/** Linear-sRGB colour for emitted luminance Y (relative to a white diffuser) of
+ * one layer, on top of a grey ambient reflection. Phosphors outside sRGB carry
+ * their display colour in the profile (P39: the display's green primary); above
+ * the display's maximum a channel clips, keeping the hue. */
+export function displayColor(Y, ambient, rgbPerY = [0, 1 / .7152, 0]) {
+ return intoGamut(rgbPerY.map(k => ambient + Y * k)).map(v => clamp(v, 0, 1));
 }
 
 /** The faceplate's 1 mm halation bins, grouped into at most 24 rings of
