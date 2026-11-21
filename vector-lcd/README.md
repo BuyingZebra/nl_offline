@@ -171,12 +171,14 @@ Pieces stand out from the background, and bevels and details keep their order. T
 
 On the TN screens the panel shows one ink colour: every point is either 0 V or 3.0 V, exactly as on the VI-402, and content darker than 50% luminance switches on. Design art in two tones. On the DMG-01 screen, design art in four tones.
 
-The app's controls are deliberately few:
-- **Pause and Reset panel.**
-- **Light angle and direction:** default 45° from the top-left corner.
-- **Panel temperature:** default 25 °C.
-- **Contrast wheel:** DMG-01 only, default ×1.00.
-- **Brightness and Contrast knobs:** CRT only.
+The controls come in three groups, and the first holds only controls the real device has:
+- **On the device:**
+  - VI-402: none. It is bare glass on a fixed 3.0 V static drive.
+  - Lumex multiplexed TN: **Contrast trim (VLCD)**, 2.6–4.2 V, default 3.29 V (this cell's contrast optimum). Multiplexed products set contrast with their supply; the on and off rms voltages are fixed fractions of VLCD (0.577 and 0.333), so the trim scales the whole drive (`setDriveGain`). The profile is unchanged.
+  - DMG-01: **Contrast wheel**, default ×1.00.
+  - IBM 5151: **Brightness and Contrast knobs.**
+- **Surroundings:** light angle and direction (default 45° from the top-left corner) and panel temperature (default 25 °C; not on the CRT).
+- **Simulation:** run/pause and Reset panel.
 
 Fixed at realistic defaults:
 - **Light:** 15° wide, at normal room brightness.

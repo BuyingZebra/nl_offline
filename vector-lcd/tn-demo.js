@@ -9,7 +9,7 @@ import {fourToneSVG} from './four-tone.js';
 import {Core} from '../tetris/game.js';
 import {renderIFragmentSVG} from '../tetris/assets/tiles/smooth-geometry.mjs';
 
-export const APP_VERSION='0.9.0';
+export const APP_VERSION='0.10.0';
 const CELL=4;                                   // mm per board cell
 const BOARD=Object.freeze({x:4,y:6,cols:Core.COLS,rows:Core.ROWS});
 const PANEL=Object.freeze({w:BOARD.x*2+BOARD.cols*CELL,h:BOARD.y+BOARD.rows*CELL+6});
@@ -200,18 +200,27 @@ new ResizeObserver(fit).observe(stage);fit();
 
 /* ---------- Controls: drive mode and the room's lighting ---------- */
 // Default room light: 45 degrees from straight on, from the top-left corner.
-// Knob positions are kept per kind of screen: their meanings differ.
-const settings={lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15,exposure:1},celsius:25,
- knobs:{dmg:{contrast:1},crt:{contrast:1,brightness:0},tn:{}}};
+// Device knobs are kept per screen: each is a different piece of hardware.
+// Only controls the real device has appear here (see deviceControls).
+const settings={lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15,exposure:1},celsius:25,knobs:{}};
+function knobsFor(P){
+ const id=P.profile;
+ if(!settings.knobs[id])settings.knobs[id]=
+  kind(P)==='dmg'?{contrast:1}:kind(P)==='crt'?{contrast:1,brightness:0}:
+  P.drive.uses_electrode_map?{vlcd:P.derived.vlcd_V}:{};
+ return settings.knobs[id];
+}
 function configure(){
  // One ink colour on TN: the datasheet panel switches each point fully on or off.
  lcd.setMode?.('static');
  lcd.setLighting(settings.lighting);
  const [lo,hi]=lcd.profile.temperature?.range_C??[15,40];
  lcd.setTemperature?.(Math.min(hi,Math.max(lo,settings.celsius)));
- const k=settings.knobs[kind(lcd.profile)];
+ const k=knobsFor(lcd.profile);
  if('contrast' in k)lcd.setContrast(k.contrast);
  if('brightness' in k)lcd.setBrightness(k.brightness);
+ // VLCD trim: every drive voltage scales with the supply. Other TN panels run at the profile's drive.
+ lcd.setDriveGain?.('vlcd' in k?k.vlcd/lcd.profile.derived.vlcd_V:1);
 }
 configure();
 
@@ -235,23 +244,37 @@ sliderRows($('lighting'),[
 ],()=>settings.lighting,next=>{settings.lighting={...settings.lighting,...next};lcd.setLighting(next);});
 // Ranges follow the screen: each model is only valid over its source's range.
 function screenControls(P){
- const K=kind(P),knobs=settings.knobs[K];
+ const K=kind(P),knobs=knobsFor(P),mux=K==='tn'&&Boolean(P.drive.uses_electrode_map);
  const env=$('environment');env.replaceChildren();
  // A CRT makes its own light; the phosphor's decay does not depend on room temperature here.
- $('environmentSection').hidden=K==='crt';
+ $('envNote').hidden=K==='crt';
  if(K!=='crt'){
   const [lo,hi]=P.temperature?.range_C??[15,40];
   sliderRows(env,[['celsius','Panel temperature',lo,hi,1,v=>v+' °C']],()=>({celsius:lcd.temperature}),
    next=>{settings.celsius=next.celsius;lcd.setTemperature(next.celsius);});
  }
- const dial=$('contrastDial');dial.replaceChildren();
- if(K==='dmg')sliderRows(dial,[['contrast','Contrast wheel',P.contrast.min,P.contrast.max,.01,v=>'×'+v.toFixed(2)+' drive']],
+ /* ---- On the device: only the controls the real hardware has ---- */
+ const dev=$('device');dev.replaceChildren();
+ if(K==='dmg')sliderRows(dev,[['contrast','Contrast wheel',P.contrast.min,P.contrast.max,.01,v=>'×'+v.toFixed(2)+' drive']],
   ()=>({contrast:lcd.contrast}),next=>{knobs.contrast=next.contrast;lcd.setContrast(next.contrast);});
- if(K==='crt'){const C=P.controls;sliderRows(dial,[
+ if(K==='crt'){const C=P.controls;sliderRows(dev,[
   ['brightness','Brightness knob',C.brightness.min,C.brightness.max,.005,v=>v===0?'raster off':Math.round(v*100)+'% beam'],
   ['contrast','Contrast knob',C.contrast.min,C.contrast.max,.01,v=>Math.round(v*100)+'% video']
  ],()=>({contrast:lcd.contrast,brightness:lcd.brightness}),next=>{Object.assign(knobs,next);
   if('contrast' in next)lcd.setContrast(next.contrast);if('brightness' in next)lcd.setBrightness(next.brightness);});}
+ if(mux){
+  // Both rms voltages are fixed fractions of VLCD (1/4 duty, 1/3 bias), so the
+  // trim scales the whole drive; the cell, crystal and optics stay as profiled.
+  const d=P.derived,kOn=d.on_rms_V/d.vlcd_V,kOff=d.off_rms_V/d.vlcd_V;
+  sliderRows(dev,[['vlcd','Contrast trim (VLCD)',2.6,4.2,.01,v=>v.toFixed(2)+' V · '+(v*kOn).toFixed(2)+' / '+(v*kOff).toFixed(2)+' V rms']],
+   ()=>({vlcd:knobs.vlcd}),next=>{knobs.vlcd=next.vlcd;lcd.setDriveGain(next.vlcd/d.vlcd_V);});
+ }
+ $('deviceNote').textContent=K==='dmg'?
+  'The DMG-01\'s only picture control: its contrast wheel sets the LCD drive voltage.':
+  K==='crt'?'The IBM 5151\'s two front knobs. Brightness lights the whole raster; contrast sets the video signal.':
+  mux?'Multiplexed panels run from one supply, VLCD, which products expose as a contrast trimmer. On and off voltages both scale with it ('+
+   (d=>(d.on_rms_V/d.vlcd_V).toFixed(3)+' and '+(d.off_rms_V/d.vlcd_V).toFixed(3))(P.derived)+' × VLCD). Default '+P.derived.vlcd_V.toFixed(2)+' V, this cell\'s contrast optimum.':
+  'The VI-402 is bare glass on a fixed 3.0 V static drive. It has no controls of its own.';
  $('envNote').textContent=K==='dmg'?
   'Cold crystal is slower and smears more; warm crystal is faster. Valid 10–30 °C, the range of the source model.':
   'Cold liquid crystal is slower; warm crystal is faster and shifts the panel\'s colour.';
@@ -385,7 +408,7 @@ function selectScreen(id){
   if(sc.id===lcd.profile.profile){showScreen(sc);return;}
   try{
    const p=await profileFor(sc.id);
-   if(kind(p)===kind(lcd.profile))lcd.setProfile(p);
+   if(kind(p)===kind(lcd.profile)){lcd.setProfile(p);configure();}
    else{
     lcd.dispose();
     const next=canvas.cloneNode(false);canvas.replaceWith(next);canvas=next;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="vector-lcd-version" content="0.9.0">
+<meta name="vector-lcd-version" content="0.10.0">
 <meta name="theme-color" content="#e8e3da">
 <meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
@@ -59,8 +59,8 @@ a{color:var(--red)}
 .card+.card{margin-top:12px}
 .card-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .card-head h2{margin:0;font-size:30px;line-height:1;font-weight:800;letter-spacing:.06em;position:relative;padding-bottom:8px}
-.card-head h2::after{content:"";position:absolute;left:0;bottom:0;width:38px;height:4px;border-radius:1px;
- background:linear-gradient(90deg,var(--red) 0 48%,transparent 48% 54%,var(--orange) 54%);transform:skewX(-22deg)}
+.card-head h2::after{content:"";position:absolute;left:2px;bottom:0;width:54px;height:4px;border-radius:1px;
+ background:linear-gradient(90deg,var(--red) 0 30%,transparent 30% 35%,var(--orange) 35% 65%,transparent 65% 70%,var(--stone) 70%);transform:skewX(-22deg)}
 .card-head .sub{border-left:1.5px solid var(--line);padding-left:12px;font-size:10.5px;letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase;line-height:1.6;min-width:0}
 .card-head .icon{margin-left:auto;width:34px;height:34px;flex:none;color:var(--ink)}
 .label{display:block;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);margin:0 0 7px}
@@ -69,7 +69,7 @@ a{color:var(--red)}
 #profiles button{flex:1 1 30%;font-size:11px;letter-spacing:.12em;padding:6px 8px}
 
 /* ---------- The screen ---------- */
-#stage{position:relative;height:min(64dvh,620px);min-height:320px;display:grid;place-items:center;
+#stage{position:relative;height:min(64vh,620px);height:min(64svh,620px);min-height:320px;display:grid;place-items:center;
  border-radius:14px;background:var(--well);box-shadow:inset 0 2px 6px #4a3c2a26,inset 0 0 0 1.5px var(--card-edge)}
 #bezel{padding:9px;border-radius:10px;line-height:0;background:linear-gradient(165deg,#cfc9be,#b9b2a6);
  box-shadow:inset 0 1px 0 #fff9,inset 0 -1px 0 #0002,0 2px 4px #0002}
@@ -89,8 +89,9 @@ body.crt #panel{border-radius:8px;box-shadow:0 0 0 2px #000a}
 .switch[aria-checked="true"] .track::after{transform:translateX(22px)}
 .btn{margin-left:auto;min-height:38px;padding:6px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--well);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
 .btn:active{background:var(--dark);color:var(--dark-ink)}
-#contrastDial:not(:empty){margin-top:8px}
 .group{border-top:1.5px solid var(--line);margin-top:14px;padding-top:12px}
+.group:first-child{border-top:0;margin-top:0;padding-top:0}
+.group-head{display:flex;align-items:baseline;gap:10px}.group-head .hint{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
 .row{display:grid;grid-template-columns:1fr auto;grid-template-areas:"name out" "input input";align-items:center;gap:2px 10px;padding:6px 0}
 .row span{grid-area:name;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
 .row output{grid-area:out;font-size:12px;letter-spacing:.06em;color:var(--ink);text-align:right}
@@ -117,7 +118,7 @@ dd{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fon
  #demoView[hidden]{display:none}
  .family{grid-column:1/-1;justify-self:center;width:420px;margin:0}
  #demoView .card+.card{margin-top:0}
- #stage{height:calc(100dvh - 400px);min-height:400px}
+ #stage{height:calc(100vh - 400px);height:calc(100svh - 400px);min-height:400px}
  #infoView{max-width:760px;margin:0 auto}
  dl{grid-template-columns:minmax(160px,34%) 1fr;gap:6px 16px}
  dt{margin-top:0;padding-top:2px}
@@ -164,21 +165,24 @@ dd{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fon
  </section>
 
  <section class="card" id="controls" aria-label="Screen controls">
-  <div class="controls-head">
-   <button class="switch" id="pause" type="button" role="switch" aria-checked="true"><span class="track"></span><span>Running</span></button>
-   <button class="btn" id="reset" type="button">Reset panel</button>
-  </div>
-  <div id="contrastDial"></div>
-  <p class="note" id="driveNote"></p>
   <div class="group">
-   <span class="label">Room light</span>
+   <div class="group-head"><span class="label">On the device</span><span class="hint">real controls only</span></div>
+   <div id="device"></div>
+   <p class="note" id="deviceNote"></p>
+  </div>
+  <div class="group">
+   <span class="label">Surroundings</span>
    <div id="lighting"></div>
    <p class="note" id="lightNote"></p>
-  </div>
-  <div class="group" id="environmentSection">
-   <span class="label">Environment</span>
    <div id="environment"></div>
    <p class="note" id="envNote"></p>
+  </div>
+  <div class="group">
+   <span class="label">Simulation</span>
+   <div class="controls-head">
+    <button class="switch" id="pause" type="button" role="switch" aria-checked="true"><span class="track"></span><span>Running</span></button>
+    <button class="btn" id="reset" type="button">Reset panel</button>
+   </div>
   </div>
  </section>
 </main>
@@ -186,7 +190,8 @@ dd{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fon
 <main id="infoView" role="tabpanel" aria-labelledby="tabInfo" hidden>
  <section class="card">
   <h2 id="infoTitle"></h2>
-  <p class="note">Where every number in this screen comes from.</p>
+  <p class="note" id="driveNote"></p>
+  <p class="note">Where every number in this screen comes from:</p>
   <dl id="facts"></dl>
  </section>
  <section class="card">

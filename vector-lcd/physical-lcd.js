@@ -25,7 +25,7 @@
  *
  * Pure model functions are exported for testing; the shaders mirror them.
  */
-export const PHYSICAL_LCD_VERSION='0.6.1';
+export const PHYSICAL_LCD_VERSION='0.7.0';
 
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const interp=(x,xs,ys)=>{
@@ -384,6 +384,8 @@ export function createPhysicalLCD(canvas,{profile:initialProfile,widthMm,heightM
  let W=0,H=0,pxPerMm=1,last=null,current=0,lost=false,gpu=null,settle=false;
  let mode='static',lighting={angleDeg:30,azimuthDeg:0,sourceDeg:10,exposure:1};
  let viewing={polarDeg:0,azimuthDeg:0,distanceMm:300},celsius=25,optics=null,opticsKey='';
+ // Supply gain: every drive voltage times this (a multiplexed panel's VLCD trim).
+ let driveGain=1;
  const fps={value:0,clock:0,frames:0};
 
  function compile(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
@@ -513,7 +515,7 @@ export function createPhysicalLCD(canvas,{profile:initialProfile,widthMm,heightM
    gl.uniform1f(p.u('uTauOnOp'),dyn.tau_on_at_Vop_ms);gl.uniform1f(p.u('uTauOff'),dyn.tau_off_ms);
    gl.uniform1f(p.u('uVth'),dyn.Vth);gl.uniform1f(p.u('uVop'),dyn.Vop);
    const tf=temperatureFactors(profile,celsius);
-   gl.uniform1f(p.u('uVscale'),tf.voltageScale);gl.uniform1f(p.u('uTauScale'),tf.tauScale);
+   gl.uniform1f(p.u('uVscale'),tf.voltageScale*driveGain);gl.uniform1f(p.u('uTauScale'),tf.tauScale);
   });
   current=1-current;
   updateOptics();
@@ -600,6 +602,10 @@ export function createPhysicalLCD(canvas,{profile:initialProfile,widthMm,heightM
   setViewing(next){viewing={...viewing,...next};},
   get temperature(){return celsius;},
   setTemperature(c){celsius=Number(c);},
+  /** Scale every drive voltage, as a supply trim does: a multiplexed panel's
+   * on and off rms voltages are both fixed fractions of VLCD. 1 = the profile's drive. */
+  get driveGain(){return driveGain;},
+  setDriveGain(g){driveGain=clamp(Number(g),0,2);},
   get opticsError(){return optics?.error??null;},
   bezelLipMm,
   info(){return {version:PHYSICAL_LCD_VERSION,stateFormat:gpu?.fmt.name??'none',fieldFormat:gpu?.fieldFmt.name??'none',width:W,height:H,pxPerMm,fps:fps.value,mode};},
