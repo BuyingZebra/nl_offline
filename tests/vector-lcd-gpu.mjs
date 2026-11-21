@@ -142,7 +142,7 @@ function Phi(x) {
 
 export async function crtParity() {
  const out = [];
- for (const id of ['crt-5151-p39', 'crt-5151-p7']) {
+ for (const id of ['crt-5151-p39', 'crt-5151-p3', 'crt-5151-p7']) {
   const P = await profileOf(id);
   const {renderer: r, done} = mount('crt', P);
   r.setContrast(1);

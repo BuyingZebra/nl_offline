@@ -55,6 +55,8 @@ export const SCREENS = Object.freeze([
   label: 'Reflective STN · Nintendo DMG-01, 4 shades (Retro Display Lab)'},
  {id: 'crt-5151-p39', kind: 'crt', family: 'crt', short: 'P39 green', sub: ['Green phosphor', 'P39 · IBM 5151'],
   label: 'Green phosphor CRT · IBM 5151, P39'},
+ {id: 'crt-5151-p3', kind: 'crt', family: 'crt', short: 'P3 amber', sub: ['Amber phosphor', 'P3 · on the IBM 5151'],
+  label: 'Amber phosphor CRT · P3 (on the IBM 5151 raster)'},
  {id: 'crt-5151-p7', kind: 'crt', family: 'crt', short: 'P7 cascade', sub: ['Blue flash, yellow trail', 'P7 · on the IBM 5151'],
   label: 'P7 cascade CRT · blue flash, yellow-green afterglow (on the IBM 5151 raster)'}
 ].map(Object.freeze));

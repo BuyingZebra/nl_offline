@@ -81,7 +81,8 @@ The app's **Screen** menu switches between computed profiles:
    - The Lumex drawing gives no response times or contrast, so the cell's response comes from the VI-402.
 3. **Reflective STN, Nintendo DMG-01 (Retro Display Lab):** see below.
 4. **Green phosphor CRT, IBM 5151 (P39):** see below.
-5. **P7 cascade CRT on the IBM 5151:** see below.
+5. **P3 amber CRT on the IBM 5151:** see below.
+6. **P7 cascade CRT on the IBM 5151:** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
@@ -158,6 +159,24 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 **Not modelled:** screen curvature and geometry, spot growth with beam current, retrace lines, burn-in.
 
 **Controls:** the 5151's **Brightness** knob (a uniform beam on every line, which makes the raster visible) and **Contrast** knob (video gain). The temperature control is hidden for this screen.
+
+## P3 amber (on the IBM 5151)
+
+`profiles/crt-5151-p3.json`, built by `tools/crt_p3.py` from the 5151 monitor in `crt-5151-p39.json` with a P3 phosphor in place of its P39.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Phosphor | Zn8BeSi5O19:Mn (zinc beryllium silicate), yellow | JEDEC/EIA, via Jankowiak, *Cathode Ray Tube Phosphors Of Interest To The Experimenter* |
+| Emission | peak 602 nm; 10 % of the peak at 504 and 700 nm | Jankowiak |
+| Decay | exponential, 13 ms to 10 % | Jankowiak (P3 among the exponential-decay screens); RCA TPM-1508A gives 12.5 ms for zinc beryllium silicate:Mn |
+
+**Derived.** No measured P3 chromaticity was found. The band is taken as a Gaussian in wavelength through the three published points (they are symmetric, so the fit is exact), giving x 0.528, y 0.458, dominant 584 nm. The same band as a Gaussian in photon energy (the usual Mn2+ shape) cannot reach the published 602 nm peak and gives x 0.487, y 0.500; that difference is stored as the colour's uncertainty. The colour lies just outside sRGB (slightly negative blue) and is shown in gamut at its true luminance.
+
+**Assumed.** The full-drive luminance of the P39 profile.
+
+**Context.** Amber monitors are commonly said to use P3; many 1980s amber monitors used P134 (Wyse specifications; a 1989 Samsung-built monitor), whose data is only in the paid EIA TEP-116. P3 is modelled and labelled as P3.
+
+**On screen.** The glow is gone 13 ms after each hit, so moving pieces leave almost no trail. A real tube would ripple visibly at 50 Hz; the app shows the average over each refresh.
 
 ## P7 cascade screen (on the IBM 5151)
 
@@ -242,7 +261,7 @@ Every screen kind has the same five files:
 | `optics/` | `room.js`: light direction, Fresnel glare, bezel shadow; the JS twins of the shared GLSL |
 | `screens/tn/` | reflective TN, static and multiplexed; `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
-| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`) and `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) |
+| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) and `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
@@ -252,7 +271,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green, P7 cascade). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green, P3 amber, P7 cascade). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 

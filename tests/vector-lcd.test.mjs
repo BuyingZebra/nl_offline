@@ -578,3 +578,37 @@ describe('P7 cascade CRT (RCA 1961, MIT 1948)',async()=>{
   }
  });
 });
+
+describe('P3 amber CRT',async()=>{
+ const P=JSON.parse(read('profiles/crt-5151-p3.json'));
+ const P39=JSON.parse(read('profiles/crt-5151-p39.json'));
+ const M=await import('../vector-lcd/screens/crt/index.js');
+ test('the same monitor as the P39 profile: only the phosphor differs',()=>{
+  for(const key of ['timing','drive','spot','raster','faceplate','luminance','controls','sources','oblique'])
+   assert.deepEqual(P[key],P39[key],key);
+  M.checkProfile(P);
+ });
+ test('one exponential, 13 ms to 10 %, as published (and close to RCA\'s 12.5 ms)',()=>{
+  assert.equal(P.phosphor.impulse.taus_s.length,1);
+  const t10=M.decayTime(P,.1);
+  assert.ok(Math.abs(t10-.013)<2e-4,'t10 '+t10);
+  near(P.phosphor.impulse.amplitudes[0]*P.phosphor.impulse.taus_s[0],1,1e-6);
+ });
+ test('colour: amber, computed from the published band (602 nm peak, 10 % at 504 and 700 nm)',()=>{
+  const [x,y]=P.phosphor.cie_xy,d=P.phosphor.derived;
+  assert.ok(x>.5&&x<.56&&y>.43&&y<.48,'amber region '+x+', '+y);
+  assert.ok(d.dominant_wavelength_nm>=580&&d.dominant_wavelength_nm<=595,'dominant '+d.dominant_wavelength_nm);
+  near(d.band_sigma_nm,98/Math.sqrt(2*Math.log(10)),1e-3);
+  assert.ok(d.colour_uncertainty_xy>0,'the alternative band shape is recorded');
+ });
+ test('just outside sRGB (blue slightly negative); shown in gamut at its true luminance',()=>{
+  const rgb=P.phosphor.layers[0].display_rgb_per_Y;
+  near(.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2],1,2e-3);
+  assert.ok(rgb[2]<0&&rgb[2]>-.2);
+  const shown=M.intoGamut(rgb);
+  assert.ok(Math.min(...shown)>=-1e-12);near(.2126*shown[0]+.7152*shown[1]+.0722*shown[2],1,2e-3);
+ });
+ test('a steady image shows its drive level at every phase of the scan',()=>{
+  for(const phase of [0,.1,.5,.9])near(M.steadyWindow(P,.6667,phase*P.timing.frame_s),.6667,1e-3);
+ });
+});
