@@ -49,8 +49,8 @@ export const definition = Object.freeze({
  roomNote: 'A dark room lets the afterglow show: the room\'s reflection off the glass no longer hides it. '
   + 'The phosphor\'s own light is the same in any room; your eye adapts to the screen.',
  temperatureNote: '',
- lightNote: 'The screen makes its own light. The room light only greys the glass and the phosphor behind it, '
-  + 'and the bezel shades the edges that face it.',
+ lightNote: 'The screen makes its own light. The room light greys the phosphor behind the glass, the bezel shades the edges that face it, '
+  + 'and the etched glass reflects the lamp as a soft glare that moves with it.',
 
 
  // ---- Info tab -----------------------------------------------------------------
@@ -79,7 +79,8 @@ export const definition = Object.freeze({
    ['Spot blooming (measured)', 'brighter = wider: line width grows as current^' + P.spot.bloom.power.toFixed(2) + ' (Philips Fig. 5, 50-200 µA, at ' + P.spot.bloom.vkr_V + ' V cut-off, assumed mid-range; ' + P.spot.bloom.power_range_30_60V.map(v => v.toFixed(2)).join('-') + ' over 30-60 V). This phosphor gives ' + Math.round(P.phosphor.efficiency_vs_P4 * 100) + '% of P4\'s light per current, so at full drive its spot is ' + Math.round((Math.pow(1 / P.phosphor.efficiency_vs_P4, P.spot.bloom.power) - 1) * 100) + '% wider than the test spot'],
    ['Picture (assumed)', R.height_mm + ' mm tall raster (Philips 31 cm useful height); the 5151\'s own size is not published'],
    ['Faceplate', '~50% transmission (Philips); n ' + F.n + '; ' + F.thickness_mm + ' mm thick (assumed); halation returns ' + (F.halation.total * 100).toFixed(1) + '% of the light 18 mm and more away'],
-   ['Room light', 'screen reflectance ' + F.screen_reflectance + ' (assumed) through the glass twice, plus the etched surface: ' + Math.round(F.ambient_reflectance * 100) + '% of a white card'],
+   ['Room light', 'screen reflectance ' + F.screen_reflectance + ' (assumed) through the glass twice: ' + Math.round((F.ambient_reflectance - F.surface_reflectance) * 100) + '% of a white card'],
+   ['Etched glass', 'reflects ' + (F.surface_reflectance * 100).toFixed(1) + '% straight on (Fresnel), blurred ' + F.etch.lobe_sigma_deg.toFixed(1) + '° by the etch: Philips etched display glass, gloss ' + F.etch.gloss + ' (Nuijs & Horikx 1994)'],
    ['Brightness (assumed)', P.luminance.full_drive_cd_m2 + ' cd/m² at full drive (20 fL, the level the Philips and P39 measurements use)'],
    ['Room light', 'set by Room brightness, 0 to 500 lx (default ' + P.luminance.room_lux + ' lx). Only the glass\'s reflection scales with it; the phosphor\'s light does not'],
    ['Exposure', 'set so the brightest line core at full drive just reaches the display\'s maximum, as your eye adapts to a lit screen; all brightness ratios are kept'],

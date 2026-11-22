@@ -4,11 +4,11 @@
  * the app's size, and every monitor distance is scaled by monitorPerPanel. */
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
-import {clamp, bezelShiftMm, bezelPenumbraMm} from '../../optics/room.js';
+import {clamp, rad, bezelShiftMm, bezelPenumbraMm, directionVector, glareSigma, glareNorm} from '../../optics/room.js';
 import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, isPPI, eyeWindow, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.7.0';
+export const VERSION = '0.8.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
@@ -37,6 +37,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  const meter = createMeter();
 
  /** Monitor millimetres per panel millimetre. */
+ const VIEW_DISTANCE_MM = 600;   // a desk monitor, viewed straight on (assumed)
  const monitorPerPanel = () => profile.raster.height_mm / heightMm;
 
 
@@ -232,7 +233,18 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uFull'), profile.luminance.full_drive_relative);
    const room = roomScale(profile, roomLux);
    gl.uniform1f(p.u('uAmbient'), (F.ambient_reflectance - F.surface_reflectance) * room);
-   gl.uniform1f(p.u('uSurface'), F.surface_reflectance * room);
+   gl.uniform1f(p.u('uRoom'), room);
+   // The etched front's reflection: eye straight in front of the monitor, in monitor mm.
+   gl.uniform1f(p.u('uMpp'), mpp);
+   gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
+   gl.uniform3f(p.u('uEye'), W / pxPerMm / 2 * mpp, H / pxPerMm / 2 * mpp, VIEW_DISTANCE_MM);
+   gl.uniform3fv(p.u('uLight'), directionVector(lighting.angleDeg, lighting.azimuthDeg));
+   const mirror = glareSigma(lighting.sourceDeg), lobe = Math.hypot(mirror, rad(F.etch.lobe_sigma_deg));
+   gl.uniform1f(p.u('uSpecular'), F.etch.specular_fraction);
+   gl.uniform1f(p.u('uSigMirror'), mirror);
+   gl.uniform1f(p.u('uNormMirror'), glareNorm(mirror, lighting.angleDeg));
+   gl.uniform1f(p.u('uSigLobe'), lobe);
+   gl.uniform1f(p.u('uNormLobe'), glareNorm(lobe, lighting.angleDeg));
    gl.uniform1f(p.u('uExposure'), lighting.exposure * adaptedExposure(profile));
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
    const [rgb0, rgb1] = layerColours(profile);

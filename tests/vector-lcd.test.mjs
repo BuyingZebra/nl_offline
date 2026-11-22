@@ -695,3 +695,24 @@ describe('P7 radar PPI (CAA TDR 211, 1953)',async()=>{
   assert.ok(y(4)<y(.5)&&y(32)>0,'the yellow-green fades but is still there after 8 scans (32 s)');
  });
 });
+
+describe('CRT etched front: the room light\'s reflection (Nuijs & Horikx 1994)',async()=>{
+ const C=await import('../vector-lcd/screens/crt/index.js'),R=await import('../vector-lcd/optics/room.js');
+ const P=JSON.parse(read('profiles/crt-5151-p39.json')),E=P.faceplate.etch;
+ test('Philips etched glass: gloss 69, specular 0.014; the lobe holds the rest of the gloss aperture\'s flux',()=>{
+  assert.equal(E.gloss,69);assert.equal(E.specular_fraction,.014);
+  const erf=x=>{const t=1/(1+.3275911*Math.abs(x)),y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x);return Math.sign(x)*y;};
+  const s=E.lobe_sigma_deg*Math.SQRT2,inside=erf(2.2/s)*erf(5.85/s);
+  near(E.specular_fraction+(1-E.specular_fraction)*inside,.69,2e-3);
+  assert.ok(E.lobe_sigma_deg>1.5&&E.lobe_sigma_deg<3,'a few degrees: '+E.lobe_sigma_deg);
+ });
+ test('the reflection follows the light: bright toward the mirror direction, gone far from it',()=>{
+  const light={angleDeg:20,azimuthDeg:315,sourceDeg:15};
+  const L=R.directionVector(20,315),mirrorEye=[-L[0],-L[1],L[2]];
+  const at=C.faceGlare(P,mirrorEye,light),straight=C.faceGlare(P,[0,0,1],light),far=C.faceGlare(P,[0,0,1],{...light,angleDeg:60});
+  assert.ok(at>straight&&straight>far*10,'mirror '+at+', straight '+straight+', 60 degrees away '+far);
+  // the etch only softens a 15-degree lamp: its peak is about 90 % of polished glass
+  const polished=R.glare(P,mirrorEye,light),ratio=at/polished;
+  assert.ok(ratio>.85&&ratio<.95,'etched/polished peak '+ratio);
+ });
+});

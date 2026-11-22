@@ -8,7 +8,7 @@
  * Phosphor state: two textures per target. t0 = c1..c4, t1 = (c5, c6, c7, last excitation).
  * Light targets carry one channel per layer: r = layer 0, g = layer 1. */
 
-import {BEZEL_STEP, TO_SRGB} from '../../gpu/glsl.js';
+import {BEZEL_STEP, FRESNEL, TO_SRGB} from '../../gpu/glsl.js';
 
 
 // ---------------------------------------------------------------------------
@@ -157,20 +157,27 @@ void main(){
 export const DISPLAY_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uEmitFull,uHaloField;uniform vec2 uSize,uPanelMm,uBezelShift;
-uniform float uFull,uAmbient,uSurface,uExposure,uPxPerMm,uBezelSigma;uniform vec3 uRgb0,uRgb1;
+uniform float uFull,uAmbient,uRoom,uExposure,uPxPerMm,uBezelSigma,uMpp,uFront;uniform vec3 uRgb0,uRgb1,uEye,uLight;
+uniform float uSpecular,uSigMirror,uNormMirror,uSigLobe,uNormLobe;   // etched front (model.js faceGlare)
 out vec4 o;
 ${BEZEL_STEP}
+${FRESNEL}
 ${TO_SRGB}
 void main(){
  vec2 p=gl_FragCoord.xy;
  vec2 e=texelFetch(uEmitFull,ivec2(p),0).rg;
  vec2 halo=texture(uHaloField,p/uSize).rg;   // light returned by the faceplate
  vec2 Y=(e+halo)*uFull;
- // Room light: through the glass to the screen and back, shaded by the bezel;
- // the etched front scatters its own reflection.
+ // Room light: through the glass to the screen and back, shaded by the bezel.
  vec2 b=vec2(p.x,uSize.y-p.y)/uPxPerMm+uBezelShift;
  float lit=step1(b.x)*step1(uPanelMm.x-b.x)*step1(b.y)*step1(uPanelMm.y-b.y);
- float amb=uAmbient*lit+uSurface;
+ // The etched front's reflection toward this point's eye ray (monitor mm).
+ vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0)*uMpp;
+ vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
+ float d=acos(clamp(dot(m,uLight),-1.0,1.0));
+ float g=fresnel(v.z)*(uSpecular*exp(-d*d/(2.0*uSigMirror*uSigMirror))*uNormMirror
+  +(1.0-uSpecular)*exp(-d*d/(2.0*uSigLobe*uSigLobe))*uNormLobe);
+ float amb=uAmbient*lit+g*uRoom;
  vec3 c=(vec3(amb)+Y.x*uRgb0+Y.y*uRgb1)*uExposure;   // layers mix in linear light
  // Outside the display (a negative channel): toward grey of equal luminance (model.js intoGamut).
  float lo=min(c.r,min(c.g,c.b));

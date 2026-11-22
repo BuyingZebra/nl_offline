@@ -13,7 +13,7 @@ import {createView} from './view.js';
 import {loadTiles} from '../content/tiles.js';
 import {createTetrisContent, PANEL, BOARD, CELL} from '../content/tetris.js';
 
-export const APP_VERSION = '0.17.2';
+export const APP_VERSION = '0.18.0';
 
 const $ = id => document.getElementById(id);
 const store = {

@@ -122,7 +122,7 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 - **The phosphor.** Each point answers the beam with P39's impulse response, five exponentials stepped exactly at the moment the beam passes that point.
 - **What the eye sees.** The light averaged over one refresh period. This removes the 50 Hz ripple instead of aliasing it against the phone's 60 or 120 Hz.
 - **Halation.** Light trapped in the faceplate glass lands back on the screen 18 mm and more away, as a faint halo.
-- **The room.** Room light reflects off the phosphor behind the tinted glass and off the etched surface, shaded by the bezel.
+- **The room.** Room light reflects off the phosphor behind the tinted glass, shaded by the bezel. The etched front reflects the lamp too: not as a sharp mirror image, and not as an even grey, but as a soft glare that follows the light, like the LCDs' (`faceGlare`).
 
 **Sources**
 
@@ -136,6 +136,9 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 | Flicker | ripple ratio 0.370 at 30 Hz, commercial P39 | US 4,315,190, table 1 |
 | Spot | 1300 lines over 201 mm → σ = 77 µm | Philips M31-336/338/350 (31 cm, 90° monitor tubes) |
 | Faceplate | ~50% transmission, n = 1.52 | Philips T16 data book 1987 |
+| Etched front | gloss 69, specular reflectivity 0.014 of polished glass, rms roughness 75 nm | Nuijs & Horikx (Philips Research), *Applied Optics* 33 (1994) 4058, Table 1 |
+
+**The etched glass (derived).** Gloss 69 means 69 % of polished glass's reflection lands inside a 60° gloss meter's aperture (4.4° × 11.7°; standard geometry assumed). 1.4 % stays a sharp mirror image; the rest is blurred by a Gaussian lobe of σ = 2.2° (FWHM 5.1°), solved so the aperture holds the measured 69 %. Against a 15° lamp the blur is small: the glare is about 90 % as bright at its peak as on polished glass, and slightly wider. Assumed: the 5151's etch is like Philips' etched display glass, and the lobe is Gaussian at every angle. The eye is 600 mm in front of the monitor (assumed).
 
 **The afterglow (derived).**
 - **The model.** The light is the Mn²⁺ decay fed by bimolecular trap release, g(t) = 1/t₀ / (1 + t/t₀)².

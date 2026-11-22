@@ -143,10 +143,23 @@ for th in ths:
     wgt = 2 * math.cos(th) * math.sin(th) * dth * fresnel_internal(th) * T_GLASS ** (2 / math.cos(th)) * R_SCREEN
     halo[int(r)] += wgt
 halo_total = float(halo.sum())
-# Ambient: room light through the glass to the screen and back, plus the etched
-# front surface scattering its own Fresnel reflection.
+# Ambient: room light through the glass to the screen and back (diffuse), plus
+# the front surface's Fresnel reflection (normal incidence).
 surface = ((N_GLASS - 1) / (N_GLASS + 1)) ** 2
 ambient = R_SCREEN * T_GLASS ** 2 + surface
+
+# Etched front: the Fresnel reflection is not spread evenly but blurred into a
+# narrow lobe around the mirror direction. Philips' etched display glass
+# (Nuijs & Horikx 1994, Table 1): gloss 69, specular reflectivity 0.014 of
+# polished glass, rms roughness 75 nm. Gloss 69 = 69 % of polished glass's flux
+# inside the 60 degree gloss meter's aperture (ASTM D523: 4.4 x 11.7 degrees);
+# a Gaussian lobe holding the rest of that flux has sigma:
+from scipy.special import erf as _erf
+from scipy.optimize import brentq as _brentq
+ETCH_GLOSS, ETCH_SPECULAR, ETCH_RMS_NM = 69, 0.014, 75
+ETCH_APERTURE_DEG = (4.4, 11.7)
+_lobe_in = (ETCH_GLOSS / 100 - ETCH_SPECULAR) / (1 - ETCH_SPECULAR)
+ETCH_SIGMA_DEG = _brentq(lambda s: _erf(ETCH_APERTURE_DEG[0] / 2 / (s * 2 ** .5)) * _erf(ETCH_APERTURE_DEG[1] / 2 / (s * 2 ** .5)) - _lobe_in, .05, 30)
 
 ROOM_LUX = 300.0
 L_DIFFUSER = ROOM_LUX / math.pi                     # cd/m2 of a white diffuser
@@ -198,6 +211,12 @@ profile = {
                "assumed": ["thickness_mm", "screen_reflectance"], "etched": True,
                "halation": {"r_mm": [r6(v) for v in R_BINS[:-1] + 0.5], "fraction": [r6(v) for v in halo], "total": r6(halo_total)},
                "ambient_reflectance": r6(ambient), "surface_reflectance": r6(surface),
+               "etch": {"gloss": ETCH_GLOSS, "specular_fraction": ETCH_SPECULAR, "rms_roughness_nm": ETCH_RMS_NM,
+                        "lobe_sigma_deg": r6(ETCH_SIGMA_DEG),
+                        "model": "front reflection = Fresnel x (specular_fraction x mirror image of the room light + the rest blurred by a Gaussian lobe of lobe_sigma_deg)",
+                        "derived": "gloss 69 = 69 % of polished glass's flux inside the 60 degree gloss aperture (4.4 x 11.7 degrees); the lobe holds that flux less the specular part",
+                        "assumed": ["the gloss is the standard 60 degree geometry (ASTM D523)", "the lobe is Gaussian and the same at every angle", "the 5151's etch is like Philips' etched display glass"],
+                        "ref": "Nuijs & Horikx, Diffraction and scattering at antiglare structures for display devices, Applied Optics 33 (1994) 4058, Table 1 (Philips Research; etched glass)"},
                "ref": "Philips T16 1987: light transmission about 50 % (normal tint), etched anti-glare option"},
  "luminance": {"full_drive_cd_m2": L_FULL, "room_lux": ROOM_LUX, "white_diffuser_cd_m2": r6(L_DIFFUSER),
                "full_drive_relative": r6(L_FULL / L_DIFFUSER), "assumed": True},

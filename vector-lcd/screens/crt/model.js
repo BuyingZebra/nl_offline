@@ -17,6 +17,7 @@
  * a sum of at most seven exponentials; each belongs to one layer. */
 
 import {requireFields, ROOM_FIELDS} from '../contract.js';
+import {glare, rad} from '../../optics/room.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -39,7 +40,7 @@ export const PROFILE_FIELDS = Object.freeze([
  'phosphor.impulse.amplitudes', 'phosphor.impulse.taus_s', 'phosphor.impulse.layer', 'phosphor.layers', 'phosphor.facts',
  'raster.pitch_mm', 'raster.height_mm', 'spot.sigma_mm', 'luminance.full_drive_relative',
  'spot.bloom.power', 'spot.bloom.min_drive_fraction', 'phosphor.efficiency_vs_P4',
- 'faceplate.ambient_reflectance', 'faceplate.surface_reflectance',
+ 'faceplate.ambient_reflectance', 'faceplate.surface_reflectance', 'faceplate.etch.specular_fraction', 'faceplate.etch.lobe_sigma_deg', 'oblique.front_index',
  'faceplate.halation.r_mm', 'faceplate.halation.fraction',
  'controls.contrast.min', 'controls.contrast.max', 'controls.contrast.value',
  'controls.brightness.min', 'controls.brightness.max', 'controls.brightness.value'
@@ -172,6 +173,15 @@ export function decayTime(profile, fraction = .1) {
 /** Room reflection relative to the profile's own room: the profile measures
  * every light against a white card under luminance.room_lux. The phosphor's
  * light does not change with the room; only the reflection off the glass does. */
+/** The room light reflected by the etched front toward the eye (unit vector),
+ * relative to a white diffuser: a faint mirror image plus the etch's blurred
+ * lobe, both carrying the Fresnel reflection. Mirrored in DISPLAY_FS. */
+export function faceGlare(profile, toEye, lighting) {
+ const E = profile.faceplate.etch;
+ return E.specular_fraction * glare(profile, toEye, lighting)
+  + (1 - E.specular_fraction) * glare(profile, toEye, lighting, rad(E.lobe_sigma_deg));
+}
+
 export function roomScale(profile, lux) {
  return Math.max(0, lux) / profile.luminance.room_lux;
 }

@@ -63,11 +63,12 @@ export function glareNorm(sigma, angleDeg) {
 }
 
 /** Glare seen along the unit vector toward the eye: the front surface mirrors a
- * room light with a Gaussian angular profile. Relative to a white diffuser. */
-export function glare(profile, toEye, {angleDeg, azimuthDeg, sourceDeg}) {
+ * room light with a Gaussian angular profile, blurred by a rough surface's lobe
+ * (blurRad, one standard deviation; 0 for polished glass). Relative to a white diffuser. */
+export function glare(profile, toEye, {angleDeg, azimuthDeg, sourceDeg}, blurRad = 0) {
  const L = directionVector(angleDeg, azimuthDeg), m = [-toEye[0], -toEye[1], toEye[2]];
  const dot = clamp(m[0] * L[0] + m[1] * L[1] + m[2] * L[2], -1, 1), delta = Math.acos(dot);
- const sigma = glareSigma(sourceDeg);
+ const sigma = Math.hypot(glareSigma(sourceDeg), blurRad);
  const n = profile.oblique?.front_index ?? 1.5;
  return fresnelReflectance(Math.acos(clamp(toEye[2], -1, 1)), n) * Math.exp(-delta * delta / (2 * sigma * sigma))
   / (2 * sigma * sigma * Math.max(.05, Math.cos(rad(angleDeg))));
