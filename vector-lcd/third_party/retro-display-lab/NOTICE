@@ -36,4 +36,4 @@ Source commit b75171026b1f0594a8288232ad532285470dbe08 (2026-08-25).
 Changes: values copied into one JSON profile by tools/cgb001_profile.mjs; no
 value changed. The integration follows the WS4/WS5 contracts in WebGL2, with
 8-point Gauss-Legendre exposure per frame. The stripes are drawn only where the
-display can resolve them (2 or more pixels per stripe, fading out toward 1).
+display can resolve them (fading in from 2 to 3 pixels per stripe).

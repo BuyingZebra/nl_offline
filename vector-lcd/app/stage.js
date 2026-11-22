@@ -16,7 +16,7 @@ const STAGE_MARGIN_PX = 24;
  * @param {import('../content/tiles.js').Tiles} tiles
  */
 export function createStage({stage, bezel, canvas}, content, tiles) {
- let renderer = null, screen = null;
+ let renderer = null, screen = null, fittedRatio = 0;
 
 
  // ---- Which screen is shown -------------------------------------------------
@@ -46,6 +46,7 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
  /** Fit the panel inside the stage. A hidden stage (Info tab) keeps its last size. */
  function fit() {
   if (!renderer || !stage.clientWidth || !stage.clientHeight) return;
+  fittedRatio = window.devicePixelRatio || 1;
   const s = getComputedStyle(bezel);
   const padX = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight);
   const padY = parseFloat(s.paddingTop) + parseFloat(s.paddingBottom);
@@ -61,6 +62,9 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
 
  /** Draw the content as it is now and let the panel advance to `now`. */
  function draw(now) {
+  // Browser zoom and moving to another monitor change the pixel density
+  // without changing the layout: re-fit then too, so the panel stays sharp.
+  if ((window.devicePixelRatio || 1) !== fittedRatio) fit();
   const ctx = renderer.beginContent();
   content.draw(ctx, tiles[kindOf(screen).definition.tiles]);
   renderer.frame(now);

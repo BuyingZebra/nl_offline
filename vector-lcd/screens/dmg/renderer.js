@@ -16,7 +16,7 @@ const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, 
 
 
 /** @returns {import('../contract.js').ScreenRenderer} */
-export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixelRatio = 2, bezelLipMm = 1} = {}) {
+export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixelRatio = 3, bezelLipMm = 1} = {}) {
  let profile = checkProfile(initialProfile);
  const surface = createSurface(canvas, {widthMm, heightMm, maxPixelRatio});
  const gpu = createGPU(canvas, 'LCD'), {gl} = gpu;

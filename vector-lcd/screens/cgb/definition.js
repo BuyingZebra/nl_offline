@@ -42,11 +42,12 @@ export const definition = Object.freeze({
    ['Colour (measured)', 'spectral reflectance of a real GBC (' + A.measurement + '), as a 32³ table for every RGB555 colour; D65 light at 45°, viewed straight on'],
    ['Range', 'black reflects ' + Y(P.colour.black_xyz) + '% and white ' + Y(P.colour.white_xyz) + '% of what a white card does: about ' + (P.colour.white_xyz[1] / P.colour.black_xyz[1]).toFixed(1) + ':1'],
    ['Pixels', P.panel.pixels.join(' × ') + ' over ' + P.panel.active_mm.join(' × ') + ' mm: ' + P.panel.pitch_mm.map(v => (v * 1000).toFixed(0)).join(' × ') + ' µm pitch, R G B stripes of equal width'],
+   ['Art', 'the vector art shrunk to the 160 × 144 grid: each pixel takes the art\'s average colour over its area'],
    ['Drive', 'RGB555: 32 codes per channel, the raw values a game writes; ' + (1 / P.panel.frame_s).toFixed(4) + ' Hz frames'],
    ['Response (bounded)', 'each channel settles at a first-order rate: ' + ms.onAndOffT10To90Milliseconds + ' ms (black↔white) to ' + ms.grayT10To90Milliseconds
     + ' ms (small steps), 10–90%. The midpoint of Sharp\'s HR-TFT family bounds (' + B.fast.onAndOffT10To90Milliseconds + '–' + B.slow.grayT10To90Milliseconds + ' ms), not a GBC measurement'],
    ['Reflector', 'inside the cell (Sharp HR-TFT): no reflector shadow'],
-   ['Stripes on screen', 'drawn when this display has 2 or more pixels per stripe (fewer would alias into rainbow bands), fading out toward 1; a stripe carries three times its channel, softened where that would pass the display\'s white. Each pixel keeps its colour either way'],
+   ['Stripes on screen', 'drawn where this display gives each stripe 2 or more pixels (fewer would alias into rainbow bands), fading in from 2 to 3; a stripe carries three times its channel, softened where that would pass the display\'s white. Each pixel keeps its colour either way'],
    ['Not modelled', 'pixel gaps, reflector grain, the plastic lens, image sticking and temperature (no measured values)'],
    ['Glare', 'glossy front surface, Fresnel n = ' + P.oblique.front_index + ' (assumed)'],
    ['Bezel (assumed)', '1 mm lip; front glass ' + P.sources.geometry.glass_mm + ' mm (not published)'],

@@ -656,7 +656,7 @@ describe('Game Boy Color CGB-001 (Retro Display Lab, HCS measurement)',async()=>
   }
   for(let k=0;k<3;k++){const c=G.apertureColour(()=>white,k/3,(k+1)/3,0,1);assert.ok(Math.max(...c)<=1+1e-9,String(c));}
   assert.equal(G.stripeContrast(black),1,'dark pixels show full stripes');
-  assert.equal(G.stripeResolve(6),1);assert.equal(G.stripeResolve(3),0);near(G.stripeResolve(4.5),.5,1e-12);
+  assert.equal(G.stripeResolve(9),1);assert.equal(G.stripeResolve(6),0);near(G.stripeResolve(7.5),.5,1e-12);
   const flat=G.apertureColour(()=>white,0,1/3,0,1,0);for(let k=0;k<3;k++)near(flat[k],white[k],1e-12,'unresolved: the average');
  });
 });

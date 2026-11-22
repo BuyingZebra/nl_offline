@@ -23,6 +23,7 @@ precision highp sampler3D;
 uniform sampler2D uContent,uA,uB,uRates;uniform sampler3D uLut;
 uniform int uSteps,uInit,uWhich;uniform float uFrameS,uSnap;uniform vec2 uPitchPx,uSize;
 out vec4 o;
+const int ART_SAMPLES=6;   // per side: the art is averaged over 6 x 6 points of each pixel
 const float QUAD[8]=float[8](${QUADRATURE.map(v => v.toFixed(9)).join(',')});
 vec3 lut(ivec3 i){return texelFetch(uLut,i,0).rgb;}
 vec3 xyzAt(vec3 s){
@@ -36,9 +37,16 @@ float pack(ivec3 c){return float(c.r+32*c.g+1024*c.b);}
 float rate(int start,int target){return texelFetch(uRates,ivec2(target,start),0).r;}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
- // The art at the logical pixel's centre (content rows run up).
- vec2 c=(vec2(p)+0.5)*uPitchPx;
- vec3 art=texelFetch(uContent,ivec2(clamp(floor(c.x),0.0,uSize.x-1.0),clamp(uSize.y-1.0-floor(c.y),0.0,uSize.y-1.0)),0).rgb;
+ // The art averaged over the logical pixel's area, in linear light: the
+ // art shrunk to the panel's pixels (content rows run up).
+ vec3 artSum=vec3(0.0);
+ for(int y=0;y<ART_SAMPLES;y++)for(int x=0;x<ART_SAMPLES;x++){
+  vec2 c=(vec2(p)+(vec2(x,y)+0.5)/float(ART_SAMPLES))*uPitchPx;
+  vec3 v=texelFetch(uContent,ivec2(clamp(floor(c.x),0.0,uSize.x-1.0),clamp(uSize.y-1.0-floor(c.y),0.0,uSize.y-1.0)),0).rgb;
+  artSum+=mix(v/12.92,pow((v+0.055)/1.055,vec3(2.4)),step(0.04045,v));
+ }
+ vec3 lin=artSum/float(ART_SAMPLES*ART_SAMPLES);
+ vec3 art=mix(lin*12.92,1.055*pow(lin,vec3(1.0/2.4))-0.055,step(0.0031308,lin));
  ivec3 code=ivec3(floor(clamp(art,0.0,1.0)*31.0+0.5));
  vec3 goal=vec3(code)/31.0;
  vec4 A=texelFetch(uA,p,0),B=texelFetch(uB,p,0);

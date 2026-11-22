@@ -4,7 +4,9 @@
  * copies from Retro Display Lab (Apache-2.0, copyright 2026 JohnnySun; see
  * third_party/retro-display-lab/NOTICE). The integration follows its CGB-001
  * reference (WS1 colour, WS4 response, WS5 exposure, WS6 aperture):
- *  - the art's sRGB channels are the raw RGB555 codes a game writes (0..31);
+ *  - the art is shrunk to the panel's pixels (averaged over each pixel's area
+ *    in linear light), and its sRGB channels are the raw RGB555 codes a game
+ *    writes (0..31);
  *  - each channel of each pixel carries a state s in [0, 1] that moves toward
  *    code/31 at a first-order rate, once per GBC frame (59.7275 Hz). The rate is
  *    frozen for a constant target, addressed by the code nearest s when the
@@ -137,10 +139,10 @@ export function stripeContrast(rgb) {
 }
 
 /** How far the display can show the stripes, from its pixels per logical
- * pixel: a stripe needs two display pixels to be drawn without aliasing
- * (Nyquist), so the stripes are full from 2 pixels per stripe and fade out
- * toward 1, leaving each pixel's average colour. Mirrored in the renderer. */
-export const stripeResolve = pxPerPixel => clamp(pxPerPixel / 3 - 1, 0, 1);
+ * pixel: a stripe needs at least two display pixels to be drawn without
+ * aliasing (Nyquist), so the stripes fade in from 2 to 3 pixels per stripe;
+ * below that each pixel shows its average colour. Mirrored in the renderer. */
+export const stripeResolve = pxPerPixel => clamp(pxPerPixel / 3 - 2, 0, 1);
 
 /** Linear colour a display pixel shows across [u0, u1] x [v0, v1] in logical
  * pixel units, given each logical pixel's linear colour (pixelAt(i, j)). */

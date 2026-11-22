@@ -126,7 +126,7 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 
 **Checked.** In the browser test, the GPU's channel states and frame-average colour match `stepFrame` to 1e-7.
 
-**On screen.** A stripe is a third of a 0.275 mm pixel. Drawn smaller than two display pixels it would alias into rainbow bands, so the stripes appear only where the display resolves them (fading out from 2 to 1 pixels per stripe); each pixel's colour is kept either way. Where a stripe would pass the display's white, the stripes are softened just enough.
+**On screen.** A stripe is a third of a 0.275 mm pixel. Drawn smaller than two display pixels it would alias into rainbow bands, so the stripes appear only where the display resolves them (fading in from 2 to 3 pixels per stripe); each pixel's colour is kept either way. Where a stripe would pass the display's white, the stripes are softened just enough.
 
 **Not modelled** (no measured values): pixel gaps, the reflector's grain, the plastic lens, image sticking, temperature, and the change of colour with the light's angle (the light moves only the glare and the bezel shadow).
 
