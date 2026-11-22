@@ -6,7 +6,6 @@
  * the measured palette exactly. */
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
-import {createEyeGlare} from '../../gpu/eye-glare.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm} from '../../optics/room.js';
 import {checkProfile, contrastConditions, temperatureScale, stickingVolts, linearPalette, shadowOffsetMm} from './model.js';
 import {UPDATE_FS, DISPLAY_FS} from './shaders.js';
@@ -37,8 +36,6 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
  let celsius = 25;
  let contrast = profile.contrast.value;
- let viewer = {glare: false};                         // eye distance: viewing.distanceMm
- let eye = null;                                       // the viewer's-eye pass; rebuilt with the context
 
 
  // ===========================================================================
@@ -65,7 +62,6 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    states: [], size: null
   };
   uploadTables();
-  eye = createEyeGlare(gpu);
   if (surface.W && surface.H) allocate();
  }
 
@@ -84,7 +80,6 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   res.states = [gpu.target(W, H, res.fmt), gpu.target(W, H, res.fmt)];
   gl.bindTexture(gl.TEXTURE_2D, res.content);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  eye.allocate(W, H);
   if (old.length && oldSize) gpu.copy(old[current].tex, oldSize, res.states[current].tex, [W, H]);
   else { last = null; init = 1; }
   gpu.release(...old);
@@ -150,8 +145,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   // ---- 2. Palette, reflector shadow, bezel and glare
   const palette = linearPalette(profile).flat();
   const off = shadowOffsetMm(profile);
-  gpu.draw(res.display, viewer.glare ? eye.viewFb : null, size, p => {
-   gl.uniform1i(p.u('uLinear'), viewer.glare ? 1 : 0);
+  gpu.draw(res.display, null, size, p => {
    gpu.bind(p, 0, 'uState', res.states[current].tex);
    gl.uniform3fv(p.u('uPalette'), palette);
    gl.uniform2f(p.u('uSize'), W, H);
@@ -172,9 +166,6 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uGlareNorm'), glareNorm(sigma, lighting.angleDeg));
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
   });
-
-  // ---- 3. The viewer's eye, when on
-  if (viewer.glare) eye.apply({distancePx: viewing.distanceMm * pxPerMm});
  }
 
 
@@ -207,10 +198,6 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  return Object.freeze({
   get profile() { return profile; },
   beginContent: surface.beginContent, frame, resize, reset, sample, bezelLipMm,
-  /** Veil the eye adds at a point (panel mm), linear RGB; for tests. */
-  sampleVeil(xMm, yMm) { const [x, y] = surface.texelAt(xMm, yMm); return eye?.ready ? eye.sampleVeil(x, y) : null; },
-  /** The linear view the eye looked at (tests). */
-  readEyeView() { return eye?.ready ? eye.readView() : null; },
 
   /** Switch to another DMG profile; the panel settles into it. */
   setProfile(next) {
@@ -223,9 +210,6 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setLighting(next) { lighting = {...lighting, ...next}; },
   get viewing() { return {...viewing}; },
   setViewing(next) { viewing = {...viewing, ...next}; },
-  /** Glare inside the viewer's eye: on or off. */
-  get viewer() { return {...viewer}; },
-  setViewer(next) { viewer = {...viewer, ...next}; },
   get temperature() { return celsius; },
   setTemperature(c) { celsius = Number(c); },
   /** The DMG's contrast wheel: a drive-voltage multiplier within the source's range. */

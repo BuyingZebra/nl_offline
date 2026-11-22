@@ -23,15 +23,13 @@ const defaults = () => ({
  celsius: 25,
  /** room illuminance (lux); null until a screen that uses it sets its default */
  roomLux: null,
- /** glare inside the viewer's eye */
- viewer: {glare: false},
  /** knob positions per screen id: {screenId: {key: value}} */
  knobs: {}
 });
 
 const settings = defaults();
 
-/** Every control back to its default: the room, the eye, and this device's knobs. */
+/** Every control back to its default: the room and this device's knobs. */
 export function resetSettings(screen) {
  const {knobs, ...room} = defaults();
  Object.assign(settings, room);
@@ -61,7 +59,6 @@ export function applySettings(screen, profile, renderer) {
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
  const room = def.roomLight(profile);
  if (room) room.apply(renderer, settings.roomLux ??= room.initial);
- renderer.setViewer(settings.viewer);
  const knobs = knobsFor(screen, profile);
  for (const control of def.device(profile)) control.apply(renderer, knobs[control.key]);
 }
@@ -89,17 +86,10 @@ function slider({label, min, max, step, value, format, onInput}) {
 }
 
 /**
- * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, room, roomNote, environment, envNote, eyeGlare
+ * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, room, roomNote, environment, envNote
  * @param {() => Object} currentRenderer   the stage's renderer at the time of the input
  */
 export function createControls(el, currentRenderer) {
-
- // ---- Viewer ----
- el.eyeGlare.addEventListener('click', () => {
-  settings.viewer.glare = !settings.viewer.glare;
-  currentRenderer().setViewer(settings.viewer);
-  el.eyeGlare.setAttribute('aria-checked', String(settings.viewer.glare));
- });
 
  /** Rebuild the panel for one screen, from the current settings. */
  function show(screen, profile) {
@@ -113,7 +103,6 @@ export function createControls(el, currentRenderer) {
    slider({label: 'Light from', min: 0, max: 359, step: 1, value: settings.lighting.azimuthDeg,
     format: describeDirection,
     onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); }}));
-  el.eyeGlare.setAttribute('aria-checked', String(settings.viewer.glare));
 
   // ---- On the device
   el.device.replaceChildren(...def.device(profile).map(control => slider({

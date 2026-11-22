@@ -24,13 +24,11 @@
  * @property {(next:Object) => void} setLighting
  * @property {number}   bezelLipMm                    bezel height above the glass
  * @property {() => Object} info                      version, formats, size and fps
- * @property {Object}   viewer                        glare inside the viewer's eye: on or off
- * @property {(next:Object) => void} setViewer
  * @property {() => void} dispose                     release the GPU
  */
 export const RENDERER_INTERFACE = Object.freeze([
  'profile', 'beginContent', 'frame', 'resize', 'reset', 'sample', 'setProfile',
- 'setElectrodes', 'lighting', 'setLighting', 'viewer', 'setViewer', 'bezelLipMm', 'info', 'dispose'
+ 'setElectrodes', 'lighting', 'setLighting', 'bezelLipMm', 'info', 'dispose'
 ]);
 
 /** Members of RENDERER_INTERFACE that a renderer is missing. */

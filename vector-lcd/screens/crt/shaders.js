@@ -158,7 +158,6 @@ export const DISPLAY_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uEmitFull,uHaloField;uniform vec2 uSize,uPanelMm,uBezelShift;
 uniform float uFull,uAmbient,uSurface,uExposure,uPxPerMm,uBezelSigma;uniform vec3 uRgb0,uRgb1;
-uniform bool uLinear;   // true: linear light for the viewer's eye (gpu/eye-glare.js)
 out vec4 o;
 ${BEZEL_STEP}
 ${TO_SRGB}
@@ -176,5 +175,5 @@ void main(){
  // Outside the display (a negative channel): toward grey of equal luminance (model.js intoGamut).
  float lo=min(c.r,min(c.g,c.b));
  if(lo<0.0){float L=dot(c,vec3(0.2126,0.7152,0.0722));c=L>0.0?vec3(L)+L/(L-lo)*(c-vec3(L)):vec3(0.0);}
- o=vec4(uLinear?c:toSRGB(c),1.0);
+ o=vec4(toSRGB(c),1.0);
 }`;

@@ -13,7 +13,7 @@ import {createView} from './view.js';
 import {loadTiles} from '../content/tiles.js';
 import {createTetrisContent, PANEL, BOARD, CELL} from '../content/tetris.js';
 
-export const APP_VERSION = '0.17.1';
+export const APP_VERSION = '0.17.2';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -36,7 +36,7 @@ try {
  stage = createStage({stage: $('stage'), bezel: $('bezel'), canvas: $('panel')}, content, tiles);
  controls = createControls({
   device: $('device'), deviceNote: $('deviceNote'), lighting: $('lighting'), lightNote: $('lightNote'),
-  room: $('room'), roomNote: $('roomNote'), eyeGlare: $('eyeGlare'),
+  room: $('room'), roomNote: $('roomNote'),
   environment: $('environment'), envNote: $('envNote')
  }, () => stage.renderer);
  info = createInfo({title: $('infoTitle'), driveNote: $('driveNote'), facts: $('facts'), status: $('status')});

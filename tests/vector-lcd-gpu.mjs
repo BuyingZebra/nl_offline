@@ -322,43 +322,6 @@ export async function spotBloom() {
 }
 
 
-// ===========================================================================
-// Viewer's eye: the GPU veil = the straylight integral over what was shown
-// ===========================================================================
-
-export async function eyeGlare() {
- const {straylight} = await import('../vector-lcd/optics/eye.js');
- const P = await profileOf('crt-5151-p39');
- const {renderer: r, done} = mount('crt', P);
- const eye = {glare: true, age: 35, pigment: .5, distanceMm: 600};
- r.setViewer(eye);
- r.setRoomLux(0);                                   // dark surround: the veil is the only light near the patch
- let t = T0;
- for (let k = 0; k < 30; k++) { paint(r, [18, 38, 12, 14]); r.frame(t += 50); }
- const view = r.readEyeView(), {width: W, height: H, data} = view;
- const {pxPerMm} = r.info(), D = eye.distanceMm / (P.raster.height_mm / PANEL.h) * pxPerMm;   // eye distance in px
- let worst = 0, detail = [];
- for (const [xMm, yMm] of [[24, 30], [24, 60], [10, 45], [40, 45]]) {
-  const got = r.sampleVeil(xMm, yMm)[1];            // green channel: P39
-  // Exact sum over the pixels of the view, past 0.1 degrees, at the quarter-res texel's centre
-  const qx = Math.floor(Math.floor(xMm * pxPerMm) / 4), qy = Math.floor((H - 1 - Math.floor(yMm * pxPerMm)) / 4);
-  const cx = (qx + .5) * 4, cy = (qy + .5) * 4;
-  let expected = 0;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-   const L = data[(y * W + x) * 4 + 1];
-   if (L <= 0) continue;
-   const rr = Math.hypot(x + .5 - cx, y + .5 - cy), theta = Math.atan(rr / D) * 180 / Math.PI;
-   if (theta < .1) continue;
-   expected += L * straylight(theta, eye.age, eye.pigment) * Math.cos(theta * Math.PI / 180) ** 3 / (D * D);
-  }
-  worst = Math.max(worst, Math.abs(got / expected - 1));
-  detail.push(got.toExponential(2) + '/' + expected.toExponential(2));
- }
- done();
- return [result('Eye glare: GPU veil = straylight integral over the view', worst, .05, ' (' + detail.join(', ') + ')')];
-}
-
-
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await crtParity(), ...await ppiParity(), ...await spotBloom(), ...await eyeGlare(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await crtParity(), ...await ppiParity(), ...await spotBloom(), ...await resizeCarry()];
 }

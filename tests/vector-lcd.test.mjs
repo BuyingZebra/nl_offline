@@ -661,26 +661,6 @@ describe('Spot blooming (Philips T16, Fig. 5)',async()=>{
  });
 });
 
-describe('Viewer\'s eye: straylight (van den Berg et al. 2010; CIE 146:2002)',async()=>{
- const E=await import('../vector-lcd/optics/eye.js');
- test('the function as published, and its age and pigment terms',()=>{
-  near(E.straylight(1,0,0),15,1e-12);                                  // 10 + 5 at 1 degree, no age, dark iris
-  near(E.straylight(10,62.5,1),10/1000+(5/100+.1/10)*2+2.5e-3,1e-12);
-  assert.ok(E.straylight(5,70,.5)>E.straylight(5,25,.5),'older eyes scatter more');
-  assert.ok(E.straylight(60,35,1)>E.straylight(60,35,0),'lighter irises scatter more at wide angles');
- });
- test('a young eye scatters about a quarter of the light past 0.1 degrees, mostly within 1 degree',()=>{
-  const all=E.scatteredFraction(25,.5),inner=E.scatteredFraction(25,.5,.1,1);
-  assert.ok(all>.2&&all<.35,'total '+all);assert.ok(inner/all>.6,'inner share '+inner/all);
-  assert.ok(E.scatteredFraction(75,1)>all);
- });
- test('the rings carry exactly the straylight between 0.1 degrees and their outer edge',()=>{
-  const r=E.glareRings(20,35,.5,24);
-  near(r.weight.reduce((a,b)=>a+b,0),E.scatteredFraction(35,.5,.1,20),1e-3);
-  assert.ok(r.thetaDeg.every((t,i)=>i===0||t>r.thetaDeg[i-1]));
- });
-});
-
 describe('P7 radar PPI (CAA TDR 211, 1953)',async()=>{
  const C=await import('../vector-lcd/screens/crt/index.js');
  const P=JSON.parse(read('profiles/crt-ppi-p7.json')),P7=JSON.parse(read('profiles/crt-5151-p7.json'));
