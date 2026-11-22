@@ -7,11 +7,12 @@
  * device pixel, so any art can be shown. That is the one stated compromise. */
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
+import {createEyeGlare} from '../../gpu/eye-glare.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm} from '../../optics/room.js';
 import {checkProfile, temperatureFactors, shadowKernel, entryOffsetMm, obliqueOptics} from './model.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.8.0';
+export const VERSION = '0.9.0';
 
 
 /** @returns {import('../contract.js').ScreenRenderer} */
@@ -36,6 +37,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let celsius = 25;
  let driveGain = 1;                // supply trim: every drive voltage times this
  let optics = null, opticsKey = '';
+ let viewer = {glare: false, age: 35, pigment: .5};   // eye distance: viewing.distanceMm
+ let eye = null;                                       // the viewer's-eye pass; rebuilt with the context
 
  const electrodes = document.createElement('canvas');
  const ectx = electrodes.getContext('2d');
@@ -74,6 +77,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    states: [], fields: [], size: null
   };
   uploadProfileTables();
+  eye = createEyeGlare(gpu);
   if (surface.W && surface.H) allocate();
  }
 
@@ -92,6 +96,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.bindTexture(gl.TEXTURE_2D, res.content);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   uploadElectrodes();
+  eye.allocate(W, H);
   if (old.length && oldSize) {
    gpu.copy(old[current].tex, oldSize, res.states[current].tex, [W, H]);
    gpu.release(...old);
@@ -236,7 +241,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   blur(res.fields[1], res.fields[0], across, k.sigmaTangentialMm);
 
   // ---- 4. Colour leaving the glass, plus glare
-  gpu.draw(res.display, null, size, p => {
+  gpu.draw(res.display, viewer.glare ? eye.viewFb : null, size, p => {
+   gl.uniform1i(p.u('uLinear'), viewer.glare ? 1 : 0);
    gpu.bind(p, 0, 'uState', to.tex);
    gpu.bind(p, 1, 'uField', res.fields[0].tex);
    gpu.bind(p, 2, 'uExitLut', res.exitLut);
@@ -257,6 +263,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index ?? 1.5);
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
   });
+
+  // ---- 5. The viewer's eye, when on
+  if (viewer.glare) eye.apply({distancePx: viewing.distanceMm * pxPerMm, age: viewer.age, pigment: viewer.pigment});
  }
 
 
@@ -292,6 +301,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  return Object.freeze({
   get profile() { return profile; },
   beginContent: surface.beginContent, frame, resize, reset, sample, bezelLipMm,
+  /** Veil the eye adds at a point (panel mm), linear RGB; for tests. */
+  sampleVeil(xMm, yMm) { const [x, y] = surface.texelAt(xMm, yMm); return eye?.ready ? eye.sampleVeil(x, y) : null; },
+  /** The linear view the eye looked at (tests). */
+  readEyeView() { return eye?.ready ? eye.readView() : null; },
 
   /** Switch to another TN profile; the crystal settles into the new panel's state. */
   setProfile(next) {
@@ -310,6 +323,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setLighting(next) { lighting = {...lighting, ...next}; },
   get viewing() { return {...viewing}; },
   setViewing(next) { viewing = {...viewing, ...next}; },
+  /** The viewer's eye: glare on or off, age (years), iris pigmentation (0 dark, 0.5 brown, 1 blue-green). */
+  get viewer() { return {...viewer}; },
+  setViewer(next) { viewer = {...viewer, ...next}; },
   get temperature() { return celsius; },
   setTemperature(c) { celsius = Number(c); },
   /** Scale every drive voltage, as a supply trim does: a multiplexed panel's on

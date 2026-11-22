@@ -7,6 +7,7 @@
  * the room is shared by every screen; each device keeps its own knob positions. */
 
 import {kindOf} from './screens.js';
+import {PIGMENT} from '../optics/eye.js';
 
 const DIRECTIONS = ['top', 'top right', 'right', 'bottom right', 'bottom', 'bottom left', 'left', 'top left'];
 const describeDirection = v => DIRECTIONS[Math.round(v / 45) % 8] + ' (' + Math.round(v) + '°)';
@@ -23,6 +24,8 @@ const settings = {
  celsius: 25,
  /** room illuminance (lux); null until a screen that uses it sets its default */
  roomLux: null,
+ /** the viewer's eye: the same person whatever the screen */
+ viewer: {glare: false, age: 35, pigment: PIGMENT.brown},
  /** knob positions per screen id: {screenId: {key: value}} */
  knobs: {}
 };
@@ -50,6 +53,7 @@ export function applySettings(screen, profile, renderer) {
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
  const room = def.roomLight(profile);
  if (room) room.apply(renderer, settings.roomLux ??= room.initial);
+ renderer.setViewer(settings.viewer);
  const knobs = knobsFor(screen, profile);
  for (const control of def.device(profile)) control.apply(renderer, knobs[control.key]);
 }
@@ -77,7 +81,7 @@ function slider({label, min, max, step, value, format, onInput}) {
 }
 
 /**
- * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, room, roomNote, environment, envNote
+ * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, room, roomNote, environment, envNote, eyeGlare, viewer
  * @param {() => Object} currentRenderer   the stage's renderer at the time of the input
  */
 export function createControls(el, currentRenderer) {
@@ -90,6 +94,34 @@ export function createControls(el, currentRenderer) {
   slider({label: 'Light from', min: 0, max: 359, step: 1, value: settings.lighting.azimuthDeg,
    format: describeDirection,
    onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); }}));
+
+ // ---- Viewer: the same for every screen; built once ----
+ const setViewer = next => { Object.assign(settings.viewer, next); currentRenderer().setViewer(settings.viewer); };
+ el.eyeGlare.addEventListener('click', () => {
+  setViewer({glare: !settings.viewer.glare});
+  el.eyeGlare.setAttribute('aria-checked', String(settings.viewer.glare));
+ });
+ const iris = document.createElement('div');
+ iris.className = 'seg';
+ iris.setAttribute('role', 'group');
+ iris.setAttribute('aria-label', 'Iris colour');
+ for (const [name, value] of Object.entries(PIGMENT)) {
+  const b = Object.assign(document.createElement('button'), {type: 'button', textContent: name});
+  b.setAttribute('aria-pressed', String(value === settings.viewer.pigment));
+  b.addEventListener('click', () => {
+   setViewer({pigment: value});
+   for (const other of iris.children) other.setAttribute('aria-pressed', String(other === b));
+  });
+  iris.append(b);
+ }
+ const irisRow = document.createElement('div');
+ irisRow.className = 'row';
+ irisRow.append(Object.assign(document.createElement('span'), {textContent: 'Iris colour'}), iris);
+ iris.style.gridArea = 'input';
+ el.viewer.append(
+  slider({label: 'Age', min: 20, max: 80, step: 1, value: settings.viewer.age, format: v => v + ' years',
+   onInput: v => setViewer({age: v})}),
+  irisRow);
 
  /** Rebuild the parts that belong to one screen. */
  function show(screen, profile) {

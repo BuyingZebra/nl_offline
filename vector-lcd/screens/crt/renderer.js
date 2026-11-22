@@ -4,11 +4,12 @@
  * the app's size, and every monitor distance is scaled by monitorPerPanel. */
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
+import {createEyeGlare} from '../../gpu/eye-glare.js';
 import {clamp, bezelShiftMm, bezelPenumbraMm} from '../../optics/room.js';
 import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
@@ -52,6 +53,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let contrast = profile.controls.contrast.value;
  let brightness = profile.controls.brightness.value;
  let roomLux = profile.luminance.room_lux;    // the room's illuminance at the screen
+ // The viewer's eye; distanceMm on the monitor (assumed: a desk monitor at 600 mm).
+ let viewer = {glare: false, age: 35, pigment: .5, distanceMm: 600};
+ let eye = null;                                // the viewer's-eye pass; rebuilt with the context
 
 
  // ===========================================================================
@@ -64,6 +68,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    update: gpu.program(UPDATE_FS), emit: gpu.program(EMIT_FS), haloPass: gpu.program(HALO_FS), display: gpu.program(DISPLAY_FS),
    content: gpu.texture(), states: [], halo: null, haloField: null, small: null, size: null
   };
+  eye = createEyeGlare(gpu);
   if (surface.W && surface.H) allocate();
  }
 
@@ -112,6 +117,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, res.content);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  eye.allocate(W, H);
   if (old.length && oldSize) {
    gpu.copy(old[current].t0, oldSize, res.states[current].t0, size);
    gpu.copy(old[current].t1, oldSize, res.states[current].t1, size);
@@ -216,7 +222,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   });
 
   // ---- 4. Each layer's light in its colour, plus the room
-  gpu.draw(res.display, null, size, p => {
+  gpu.draw(res.display, viewer.glare ? eye.viewFb : null, size, p => {
+   gl.uniform1i(p.u('uLinear'), viewer.glare ? 1 : 0);
    gpu.bind(p, 0, 'uEmitFull', res.halo.tex);
    gpu.bind(p, 1, 'uHaloField', res.haloField.tex);
    gl.uniform2f(p.u('uSize'), W, H);
@@ -234,6 +241,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform2f(p.u('uBezelShift'), shift.x / mpp, shift.y / mpp);
    gl.uniform1f(p.u('uBezelSigma'), Math.max(1e-3, bezelPenumbraMm(profile, lighting, bezelLipMm) / mpp));
   });
+
+  // ---- 5. The viewer's eye, when on (its distance is on the monitor: scale to the panel)
+  if (viewer.glare) eye.apply({distancePx: viewer.distanceMm / mpp * pxPerMm, age: viewer.age, pigment: viewer.pigment});
  }
 
 
@@ -272,6 +282,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  return Object.freeze({
   get profile() { return profile; },
   beginContent: surface.beginContent, frame, resize, reset, sample, sampleLayers, bezelLipMm,
+  /** Veil the eye adds at a point (panel mm), linear RGB; for tests. */
+  sampleVeil(xMm, yMm) { const [x, y] = surface.texelAt(xMm, yMm); return eye?.ready ? eye.sampleVeil(x, y) : null; },
+  /** The linear view the eye looked at (tests). */
+  readEyeView() { return eye?.ready ? eye.readView() : null; },
 
   /** Switch to another CRT profile (another phosphor); the screen starts cold. */
   setProfile(next) {
@@ -287,6 +301,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   /** The 5151's front knobs. */
   get contrast() { return contrast; },
   setContrast(v) { const c = profile.controls.contrast; contrast = clamp(Number(v), c.min, c.max); },
+  /** The viewer's eye: glare on or off, age (years), iris pigmentation (0 dark, 0.5 brown, 1 blue-green). */
+  get viewer() { return {...viewer}; },
+  setViewer(next) { viewer = {...viewer, ...next}; },
   /** The room's illuminance at the screen (lux): only the glass's reflection changes. */
   get roomLux() { return roomLux; },
   setRoomLux(v) { roomLux = clamp(Number(v), 0, MAX_ROOM_LUX); },

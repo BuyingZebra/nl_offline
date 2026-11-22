@@ -90,6 +90,7 @@ precision highp float;
 uniform sampler2D uState,uField,uExitLut;
 uniform vec2 uSize,uMean;uniform float uAmax,uN,uExposure;uniform vec4 uLo,uSpan;
 uniform float uPxPerMm,uGlareSigma,uGlareNorm,uFront;uniform vec3 uEye,uLight;
+uniform bool uLinear;   // true: linear light for the viewer's eye (gpu/eye-glare.js)
 out vec4 o;
 ${FRESNEL}
 ${TO_SRGB}
@@ -105,5 +106,6 @@ void main(){
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));
  float g=fresnel(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
- o=vec4(toSRGB((r+vec3(g))*uExposure),1.0);
+ vec3 c=(r+vec3(g))*uExposure;
+ o=vec4(uLinear?c:toSRGB(c),1.0);
 }`;
