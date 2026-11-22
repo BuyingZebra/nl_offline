@@ -74,15 +74,15 @@ Light measured from the viewing direction, as for a reflective panel, gives cont
 
 The app's **Screen** menu switches between computed profiles:
 
-1. **Reflective TN, static drive (VI-402):** everything above.
+1. **Reflective TN, static drive (VI-402):** everything above. The engine's datasheet reference; not offered in the app since 0.19.0.
 2. **Reflective TN, multiplexed 1/4 duty (Lumex):** the drive of the Lumex LCD-S401M16KR (TN, gray, reflective, 6:00; 1/4 duty, 1/3 bias; two 1.10 mm glass plates, from its drawing) on the same cell, glass, crystal and polarizers. The rms voltages follow from the drive formula: on = 0.577 × VLCD and off = 0.333 × VLCD.
    - **Supply voltage.** Lumex specifies 3.0 V AC for its own crystal, which is not published. On the E7 stand-in, 3.0 V under-drives the "on" points (1.73 V rms): the ink stays partly twisted and looks bluish, at 10.2:1 contrast. A multiplexed panel's supply is matched to its crystal, so the profile uses the usual design rule instead, the voltage where this cell's contrast is highest: **3.29 V** (1.90 V rms on, 1.10 V rms off), **12.1:1** contrast, with a more neutral ink.
    - **The cost.** Unlit segments get more voltage too, so they sit about 9% darker than the background instead of 2%. Faint ghost segments are typical of multiplexed calculators. A steeper multiplex-grade crystal would reduce both the blue cast and the ghosts, but no published data was found for one.
    - The Lumex drawing gives no response times or contrast, so the cell's response comes from the VI-402.
 3. **Reflective STN, Nintendo DMG-01 (Retro Display Lab):** see below.
-4. **Green phosphor CRT, IBM 5151 (P39):** see below.
-5. **P3 amber CRT on the IBM 5151:** see below.
-6. **P7 cascade CRT on the IBM 5151:** see below.
+4. **Reflective HR-TFT, Nintendo Game Boy Color (Retro Display Lab):** see below.
+5. **Green phosphor CRT, IBM 5151 (P39):** see below.
+6. **P3 amber CRT on the IBM 5151:** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
@@ -193,9 +193,9 @@ A harder-driven beam makes a wider spot, so bright lines are thicker than dim on
 | --- | --- | --- |
 | Line width vs anode current | 50, 75, 100, 200 µA curves for M31-336..350 at 12 kV, against cathode cut-off voltage | Philips T16 (1987), Resolution characteristics, Fig. 5, traced into `tools/philips-m31-line-width.json` |
 | Typical cathode cut-off | 30 to 60 V | M31-336/338/350 datasheet, typical operating conditions |
-| Phosphor efficiency vs P4 | P39 0.75 (Philips survey); P3 and P7 45/70 (Tektronix relative luminance) | Philips T16; Jankowiak |
+| Phosphor efficiency vs P4 | P39 0.75 (Philips survey); P3 45/70 (Tektronix relative luminance) | Philips T16; Jankowiak |
 
-**Derived.** At fixed cut-off voltage the line width follows a power of the current: 0.288 at 45 V (assumed, the middle of 30-60 V; 0.26 to 0.33 over that range), within 2.5 % of all four curves. The measured spot (the 1300-line figure) is for phosphor W (P4) at the test's light output, so a phosphor that gives less light per current needs more current for the same light: its full-drive spot is wider by (1 / efficiency)^power, 9 % for P39 and 14 % for P3 and P7. Each point of a scanline gets the spot its own signal makes, so the charge each point deposits is kept exactly.
+**Derived.** At fixed cut-off voltage the line width follows a power of the current: 0.288 at 45 V (assumed, the middle of 30-60 V; 0.26 to 0.33 over that range), within 2.5 % of all four curves. The measured spot (the 1300-line figure) is for phosphor W (P4) at the test's light output, so a phosphor that gives less light per current needs more current for the same light: its full-drive spot is wider by (1 / efficiency)^power, 9 % for P39 and 14 % for P3. Each point of a scanline gets the spot its own signal makes, so the charge each point deposits is kept exactly.
 
 **Limits.** The curves span a factor of 4 in current, so the spot is held at its quarter-drive width below a quarter of full drive. Philips measures the 1300 lines on a 216 × 162 mm raster without saying which height the count refers to (0.125 mm over 162 mm); the useful height, 201 mm (0.155 mm), is kept.
 
@@ -219,53 +219,9 @@ A harder-driven beam makes a wider spot, so bright lines are thicker than dim on
 
 **On screen.** The glow is gone 13 ms after each hit, so moving pieces leave almost no trail. A real tube would ripple visibly at 50 Hz; the app shows the average over each refresh.
 
-## P7 cascade screen (on the IBM 5151)
+## Retired: P7 screens
 
-`profiles/crt-5151-p7.json`, built by `tools/crt_p7.py` from the 5151 monitor in `crt-5151-p39.json` (timing, spot, faceplate, knobs and room unchanged) with a P7 screen in place of its P39.
-
-**How it works.** P7 is two layers: a purplish-blue ZnS:Ag layer that the beam excites, cascaded on a yellowish-green (Zn,Cd)S:Cu layer that the blue light excites. The blue lasts microseconds, the yellow-green for seconds. On screen: a piece that has just arrived flashes blue, a steady one glows a pale cyan-white, and a moving one leaves a yellow-green trail.
-
-| Quantity | Value | Source |
-| --- | --- | --- |
-| Layers | ZnS:Ag cascaded on (Zn,Cd)S:Cu | RCA TPM-1508A (1961), pp. 6, 18 |
-| Colours | blue x 0.151, y 0.032 (435 nm); yellow-green x 0.357, y 0.537 (555 nm) | RCA TPM-1508A, pp. 7, 13 |
-| Persistence | blue 25-75 µs; yellow-green 400 ms to 10 % | RCA TPM-1508A, p. 6 |
-| Decay curves | traced from RCA's persistence chart (tube 5ABP7, 3 kV) into `tools/rca-p7-persistence.json`, with the method recorded | RCA TPM-1508A, p. 13 |
-| Cross-check | single-flash decay, 10 to 100 ms | Dyall, MIT RLE Technical Report 56 (1948), Table 3 |
-
-**Derived.**
-- **Decay.** Each layer's decay after steady excitation is fitted with exponentials (one for the blue, six for the yellow-green); for a linear screen that is the step-off response, which gives the impulse response. The fit is within about 1 % of RCA's trace from 20 ms to the end of the chart.
-- **Colour balance.** RCA's per-layer brightness is measured on each powder alone, not through a finished screen. RCA calls the finished screen's light during excitation white, so the blue's share of the luminance (4.3 %) is the one whose mix lies closest to white (illuminant C, the reference white of the time, in the CIE 1960 UCS).
-- **Display.** Layers mix in linear light; the steady colour lies inside sRGB. Only a colour outside it (the bare blue flash) is moved toward grey of equal luminance.
-
-**Assumed.** Past the end of RCA's chart (about 370 ms), the yellow-green keeps the chart's final slope (0.67 decades per decade) to 60 s. RCA: the screen "persists for several minutes".
-
-**Known gap: P7 is not linear.** Fitted only to RCA, the model predicts MIT's single-flash decay from 10 to 100 ms (0.94 decades against 1.01). After 100 ms MIT's single flashes fade far more slowly (about one decade per decade to 10 s), and no linear screen fits both: RCA's curve would then show about 37 % at 400 ms, not 10 %. MIT also finds that repeated flashes build up more than they add. The renderer is linear, so it follows RCA, which matches a raster that hits each point steadily. The comparison is stored in the profile (`phosphor.derived.single_flash_vs_mit`).
-
-**Context.** P7 was a radar phosphor; here it is driven by the 5151's raster and spot.
-
-**The CRT engine** supports up to two phosphor layers and seven exponentials per point. A component much faster than a frame (under 2 % of it) contributes exactly its last hit's light to the frame average; the general formula would overflow.
-
-## P7 radar PPI
-
-`profiles/crt-ppi-p7.json`, built by `tools/crt_ppi_p7.py` from `crt-5151-p7.json`: the same P7 screen, driven the way it was made to be driven, by a radar plan-position indicator.
-
-**How it works.** On every radar pulse the beam starts at the centre and runs out along one radius; the radius turns with the antenna. Each point is hit once per turn: it flashes blue as the sweep passes, then glows yellow-green until the next pass. The game is the radar picture: the video level sets the beam current.
-
-| Quantity | Value | Source |
-| --- | --- | --- |
-| Drive | 15 rpm (4 s a turn), 1400 pulses/s, 1 µs pulse, 60-mile sweep | CAA Technical Development Report 211 (Randall & McIntire, 1953), trail test |
-| Tube | 12DP7; trail visible for 8 scans (32 s) in a dark room | CAA TDR 211 |
-| Sweep time | 0.644 ms (60 statute miles out and back at the speed of light) | derived |
-| Sweeps per turn | 5600, 1.12 mrad apart | derived |
-
-**Derived.**
-- **Charge falls as 1/r.** Adjacent sweeps are 1.12 mrad apart, under 3 px even 2000 px from the centre, so one pass lays down overlapping sweeps everywhere, and the charge per area falls as 1/r. Inside one spot width of the centre it is capped.
-- **What the eye sees.** A raster hits each point every 1/50 s, so the frame average is what the eye sees. A PPI hits each point every 4 s, so the shader gives the exact light in the last 1/60 s instead, from the same exponentials: the blue flash shows only in the window it happens in.
-
-**Assumed.** The sweep is centred on the panel and reaches its corners; the 12DP7's optics are the 5151 tube's; full drive gives the rotation-average luminance of the raster screens at half the sweep radius.
-
-**Known gap.** Each point is hit once per turn: the single-flash regime where P7's tail is far slower than any linear model (see the P7 cascade screen). The renderer follows RCA, so its trails fade sooner than a real PPI's; CAA's 32-second trail is stored with the profile (`drive.ppi.trail_scans_12dp7`) for the comparison.
+The P7 cascade screen (on the 5151 raster) and the P7 radar PPI were removed in 0.20.0. A linear model cannot fit P7's measured decay after a single flash (RCA 1961 against MIT 1948), so its trails were not convincing, and a radar sweep does not suit the game engine. Their profiles, builders, the traced RCA curves and the PPI drive remain in the project history (up to 0.19.0). The CRT engine keeps its support for two phosphor layers.
 
 ## 4-tone tiles
 
@@ -286,7 +242,7 @@ The controls come in two groups, and the first holds only controls the real devi
   - Lumex multiplexed TN: **Contrast trim (VLCD)**, 2.6–4.2 V, default 3.29 V (this cell's contrast optimum). Multiplexed products set contrast with their supply; the on and off rms voltages are fixed fractions of VLCD (0.577 and 0.333), so the trim scales the whole drive (`setDriveGain`). The profile is unchanged.
   - DMG-01: **Contrast wheel**, default ×1.00.
   - IBM 5151: **Brightness and Contrast knobs.**
-- **Surroundings:** light angle and direction (default 45° from the top-left corner; the device's shadow on the page falls away from it), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns, as in the dim rooms radar displays were watched in. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
+- **Surroundings:** light angle and direction (default 45° from the top-left corner; the device's shadow on the page falls away from it), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
 - **Simulation:** run/pause (stops the game; the screen keeps showing the still picture) and **Reset settings** (every control back to its default: the room and this screen's knobs).
 
 Fixed at realistic defaults:
@@ -324,7 +280,7 @@ Every screen kind has the same five files:
 | `screens/tn/` | reflective TN, multiplexed (shown) and static (the engine's datasheet reference, kept for the tests); `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
 | `screens/cgb/` | the Game Boy Color; `profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
-| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) and the radar `profiles/crt-ppi-p7.json` (`tools/crt_ppi_p7.py`) |
+| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), and `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
@@ -334,7 +290,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the phosphor (P39 green, P3 amber, P7 cascade, P7 radar). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the phosphor (P39 green, P3 amber). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 
@@ -343,4 +299,4 @@ To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS`
 `index.html` (`vector-lcd-version`), `app/main.js` (`APP_VERSION`) and `sw.js` (`VERSION`) share one version; bump all three for every release. Each renderer has its own `VERSION` in its `renderer.js`.
 
 - `node --test tests/vector-lcd.test.mjs`: the physics of every screen, the profiles against their datasheets (contrast and response times, the Fréedericksz threshold, the Gooch–Tarry cell design), the structure (every kind complete, every profile valid, only real device controls) and the offline package.
-- `python tests/test_vector_lcd_browser.py`: in a real browser, the GPU against each JavaScript model (director state, ions, shown light, steady phosphor light, the radar's window light), every renderer against the contract, state kept across a resize, and every screen opened in the app.
+- `python tests/test_vector_lcd_browser.py`: in a real browser, the GPU against each JavaScript model (director state, ions, shown light, steady phosphor light, the Game Boy Color's channel states and colour), every renderer against the contract, state kept across a resize, and every screen opened in the app.

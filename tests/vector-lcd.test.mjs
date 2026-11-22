@@ -510,75 +510,6 @@ describe('Vector LCD structure: screen kinds, definitions and profiles',async()=
  });
 });
 
-describe('P7 cascade CRT (RCA 1961, MIT 1948)',async()=>{
- const P=JSON.parse(read('profiles/crt-5151-p7.json'));
- const P39=JSON.parse(read('profiles/crt-5151-p39.json'));
- const M=await import('../vector-lcd/screens/crt/index.js');
- const trace=JSON.parse(fs.readFileSync(new URL('../vector-lcd/tools/rca-p7-persistence.json',import.meta.url),'utf8'));
- const I=P.phosphor.impulse,[blue,yellow]=P.phosphor.layers;
- // Decay after steady excitation of one layer: S(t) = sum a tau exp(-t/tau) / sum a tau
- const stepOff=(layer,t)=>{let s=0,n=0;I.amplitudes.forEach((a,i)=>{if(I.layer[i]!==layer)return;s+=a*I.taus_s[i]*Math.exp(-t/I.taus_s[i]);n+=a*I.taus_s[i];});return s/n;};
- const timeTo=(layer,f)=>{let lo=0,hi=600;for(let k=0;k<200;k++){const m=(lo+hi)/2;if(stepOff(layer,m)>f)lo=m;else hi=m;}return lo;};
-
- test('the same monitor as the P39 profile: only the phosphor differs',()=>{
-  for(const key of ['timing','drive','spot','raster','faceplate','luminance','controls','sources','oblique'])
-   assert.deepEqual(P[key],P39[key],key);
-  M.checkProfile(P);
- });
- test('two layers with RCA\'s measured colours and peaks',()=>{
-  assert.deepEqual(blue.cie_xy,[.151,.032]);assert.equal(blue.peak_nm,435);
-  assert.deepEqual(yellow.cie_xy,[.357,.537]);assert.equal(yellow.peak_nm,555);
-  assert.equal(I.layer.filter(l=>l===0).length,1,'one fast blue component');
-  near(M.layerShares(P).reduce((a,b)=>a+b),1,1e-9);
- });
- test('decay matches RCA: blue 25-75 µs, yellow-green 400 ms to 10 %',()=>{
-  const tb=timeTo(0,.1);assert.ok(tb>=25e-6&&tb<=75e-6,'blue t10 '+tb);
-  const ty=timeTo(1,.1);assert.ok(Math.abs(ty-.4)<.04,'yellow-green t10 '+ty);
- });
- test('the yellow-green fit follows RCA\'s traced curve: within 3 % on average in every band, 8 % at any traced point',()=>{
-  const {t_ms,relative}=trace.yellow_green_B;
-  for(const [lo,hi] of [[20,50],[50,100],[100,200],[200,300],[300,400]]){
-   const errs=t_ms.map((t,i)=>[t,stepOff(1,t/1000)*100/relative[i]-1]).filter(([t])=>t>=lo&&t<hi).map(([,e])=>e);
-   const mean=errs.reduce((a,b)=>a+b,0)/errs.length;
-   assert.ok(errs.length>5&&Math.abs(mean)<.03,lo+'-'+hi+' ms mean '+mean);
-   assert.ok(errs.every(e=>Math.abs(e)<.08),lo+'-'+hi+' ms worst '+Math.max(...errs.map(Math.abs)));
-  }
- });
- test('colour balance: the steady light is the mix closest to white (illuminant C)',()=>{
-  const uv=([x,y])=>{const d=-2*x+12*y+3;return [4*x/d,6*y/d];};
-  const mix=f=>{const XYZ=[[blue,f],[yellow,1-f]].reduce((s,[L,w])=>{const[x,y]=L.cie_xy;return[s[0]+w*x/y,s[1]+w,s[2]+w*(1-x-y)/y];},[0,0,0]);
-   const n=XYZ[0]+XYZ[1]+XYZ[2];return [XYZ[0]/n,XYZ[1]/n];};
-  const dist=f=>{const a=uv(mix(f)),b=uv([.3101,.3162]);return Math.hypot(a[0]-b[0],a[1]-b[1]);};
-  const f=M.layerShares(P)[0];
-  assert.ok(dist(f)<=dist(f*1.05)&&dist(f)<=dist(f*.95),'not the closest mix');
-  near(P.phosphor.cie_xy[0],mix(f)[0],1e-4);near(P.phosphor.cie_xy[1],mix(f)[1],1e-4);
- });
- test('cross-check: a single 1/60 s flash fades as MIT measured from 10 to 100 ms (within 0.15 decades)',()=>{
-  const c=P.phosphor.derived.single_flash_vs_mit[0];
-  assert.equal(c.from_s,.01);assert.equal(c.to_s,.1);
-  assert.ok(Math.abs(c.model_decades-c.mit_decades)<.15,JSON.stringify(c));
- });
- test('each layer has its true colour at unit luminance; they mix inside the display, and only a bare blue flash needs mapping',()=>{
-  for(const L of P.phosphor.layers){const[r,g,b]=L.display_rgb_per_Y;near(.2126*r+.7152*g+.0722*b,1,2e-3);}
-  assert.ok(Math.min(...blue.display_rgb_per_Y)<0,'P7 blue lies outside sRGB');
-  assert.ok(Math.min(...yellow.display_rgb_per_Y)>=0,'P7 yellow-green lies inside');
-  const steady=M.steadyRGBPerY(P);
-  assert.ok(Math.min(...steady)>=0,'the steady mix lies inside sRGB');
-  assert.deepEqual(M.intoGamut(steady),steady);
-  const mapped=M.intoGamut(blue.display_rgb_per_Y);
-  assert.ok(Math.min(...mapped)>=-1e-12);near(.2126*mapped[0]+.7152*mapped[1]+.0722*mapped[2],1,2e-3);
- });
- test('a steady image shows its drive level in total, split by the layer shares, at every phase',()=>{
-  const shares=M.layerShares(P);
-  for(const phase of [0,.1,.5,.9]){
-   const t=phase*P.timing.frame_s;
-   near(M.steadyWindow(P,.6667,t),.6667,1e-3);
-   near(M.steadyWindow(P,1,t,0),shares[0],1e-6);
-   near(M.steadyWindow(P,1,t,1),shares[1],1e-3);
-  }
- });
-});
-
 describe('P3 amber CRT',async()=>{
  const P=JSON.parse(read('profiles/crt-5151-p3.json'));
  const P39=JSON.parse(read('profiles/crt-5151-p39.json'));
@@ -635,7 +566,7 @@ describe('Room brightness (CRT surroundings)',async()=>{
 describe('Spot blooming (Philips T16, Fig. 5)',async()=>{
  const C=await import('../vector-lcd/screens/crt/index.js');
  const trace=JSON.parse(fs.readFileSync(new URL('../vector-lcd/tools/philips-m31-line-width.json',import.meta.url),'utf8'));
- const profiles=['crt-5151-p39','crt-5151-p3','crt-5151-p7'].map(id=>JSON.parse(read('profiles/'+id+'.json')));
+ const profiles=['crt-5151-p39','crt-5151-p3'].map(id=>JSON.parse(read('profiles/'+id+'.json')));
  const P39=profiles[0],B=P39.spot.bloom;
  test('the power law reproduces the traced line widths at the assumed 45 V within 3 %',()=>{
   const at=I=>{const c=trace.curves[I];let i=0;while(c.vkr_V[i+1]<45)i++;const f=(45-c.vkr_V[i])/(c.vkr_V[i+1]-c.vkr_V[i]);return c.line_width_mm[i]+f*(c.line_width_mm[i+1]-c.line_width_mm[i]);};
@@ -658,41 +589,6 @@ describe('Spot blooming (Philips T16, Fig. 5)',async()=>{
    near(ratio,(1/P.phosphor.efficiency_vs_P4)**B.power,1e-9);
    assert.ok(ratio>1&&ratio<1.2,P.profile+' '+ratio);
   }
- });
-});
-
-describe('P7 radar PPI (CAA TDR 211, 1953)',async()=>{
- const C=await import('../vector-lcd/screens/crt/index.js');
- const P=JSON.parse(read('profiles/crt-ppi-p7.json')),P7=JSON.parse(read('profiles/crt-5151-p7.json'));
- const D=P.drive.ppi;
- test('the CAA trail-test drive: 15 rpm, 1400 pps, 1 µs pulse, 60-mile sweep, 12DP7',()=>{
-  assert.equal(D.rpm,15);assert.equal(D.prf_pps,1400);assert.equal(D.pulse_us,1);assert.equal(D.sweep_miles,60);
-  near(P.timing.frame_s,4,1e-12);near(D.sweep_spacing_rad,2*Math.PI/5600,1e-12);
-  near(D.sweep_s,2*60*1609.344/299792458,1e-9);
-  C.checkProfile(P);assert.ok(C.isPPI(P)&&!C.isPPI(P7));
- });
- test('the same P7 phosphor as the raster screen',()=>{assert.deepEqual(P.phosphor.impulse,P7.phosphor.impulse);assert.deepEqual(P.phosphor.layers,P7.phosphor.layers);});
- test('the sweeps of one pass overlap far below one spot, so the charge per pass falls as 1/r',()=>{
-  // at the panel's farthest point (about 2000 px on a large screen) adjacent sweeps are still within one spot
-  assert.ok(2000*D.sweep_spacing_rad<3,'spacing '+2000*D.sweep_spacing_rad+' px');
-  near(C.ppiExcitation(1,100,200,1)/C.ppiExcitation(1,200,200,1),2,1e-12);
-  near(C.ppiExcitation(1,.1,200,1),200,1e-12,'capped at the spot');
- });
- test('window light: for a raster it is the steady formula; for the PPI, full drive at r_ref averages to 1 over a rotation',()=>{
-  const R=JSON.parse(read('profiles/crt-5151-p39.json')),T=R.timing.frame_s;
-  const hits=Array.from({length:400},(_,k)=>({t:k*T,E:.6667}));
-  near(C.windowLight(R,hits,399*T+.3*T),C.steadyWindow(R,.6667,.3*T),2e-3);
-  // PPI: average of the window light over one rotation, long after the first pass
-  const rot=P.timing.frame_s,passes=Array.from({length:60},(_,k)=>({t:k*rot,E:1}));
-  let avg=0;const N=4000;for(let i=0;i<N;i++)avg+=C.windowLight(P,passes,50*rot+(i+.5)/N*rot)/N;
-  near(avg,1,.02);
- });
- test('a pass makes a blue flash, then a yellow-green glow that is still visible scans later',()=>{
-  const pass=[{t:0,E:1}];
-  const blueNow=C.windowLight(P,pass,1/120,0),blueLater=C.windowLight(P,pass,.1,0);
-  assert.ok(blueNow>0&&blueLater===0,'the blue is gone 0.1 s later');
-  const y=t=>C.windowLight(P,pass,t,1);
-  assert.ok(y(4)<y(.5)&&y(32)>0,'the yellow-green fades but is still there after 8 scans (32 s)');
  });
 });
 

@@ -12,19 +12,15 @@ import {BEZEL_STEP, FRESNEL, TO_SRGB} from '../../gpu/glsl.js';
 
 
 // ---------------------------------------------------------------------------
-// Beam geometry shared by UPDATE and EMIT: a raster, or a radar PPI sweep
-// (uPpi = 1: the sweep line turns once per uFrameS about uCenter)
+// Raster geometry shared by UPDATE and EMIT
 // ---------------------------------------------------------------------------
 
 const RASTER = `
 uniform float uPitch,uLineS,uActiveS,uFrameS,uW,uH;uniform int uLines;
-uniform int uPpi;uniform vec2 uCenter;
 float Phi(float x){float t=1.0/(1.0+0.3275911*abs(x)/1.41421356);
  float y=1.0-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*exp(-0.5*x*x);return 0.5*(1.0+sign(x)*y);}
-// Time within the frame at which the beam passes this pixel: its line on a
-// raster; its azimuth (clockwise from the top) on a PPI.
+// Time within the frame at which the beam passes this pixel (nearest line).
 float hitPhase(vec2 frag){
- if(uPpi==1){vec2 d=frag-uCenter;return fract(atan(d.x,d.y)/6.2831853)*uFrameS;}
  float yTop=uH-frag.y;int n=clamp(int(floor(yTop/uPitch)),0,uLines-1);
  return float(n)*uLineS+frag.x/uW*uActiveS;
 }`;
@@ -43,8 +39,6 @@ uniform float uPhase0,uDelta,uContrast,uBrightness;uniform float uA[7],uTau[7];
 // Spot: sigma (px) = uSigmaW * (max(drive, uMinDrive) / uEff)^uBloomP  (model.js spotSigmaMm);
 // uSigmaMax: the widest spot any signal can make, which bounds the search.
 uniform float uSigmaW,uEff,uBloomP,uMinDrive,uSigmaMax;
-// PPI: charge per pass falls as 1/r (model.js ppiExcitation)
-uniform float uRref,uRmin;
 ${RASTER}
 float level(ivec2 p){vec3 c=texelFetch(uContent,p,0).rgb;
  return floor(clamp(1.0-dot(c,vec3(0.2126,0.7152,0.0722)),0.0,1.0)*3.0+0.5)/3.0;}
@@ -57,11 +51,6 @@ void main(){
  // point's spot has the width its own signal gives it (brighter = wider),
  // integrated over this pixel, so the charge each point deposits is kept.
  float yTop=uH-gl_FragCoord.y,E=0.0;
- if(uPpi==1){
-  // The sweeps overlap everywhere: the charge of one pass at this point, from the video here.
-  float drive=uContrast*level(p)+uBrightness;
-  E=drive*uRref/max(length(gl_FragCoord.xy-uCenter),uRmin);
- }else{
  int n0=max(0,int(floor((yTop-0.5-4.0*uSigmaMax)/uPitch))),n1=min(uLines-1,int(floor((yTop+0.5+4.0*uSigmaMax)/uPitch)));
  for(int n=n0;n<=n1&&n<=n0+8;n++){
   float yn=(float(n)+0.5)*uPitch;
@@ -76,7 +65,6 @@ void main(){
   }
  }
  E*=uPitch;
- }
  // Hits in (T0, T0 + delta]: once per frame at this pixel's phase.
  float first=mod(hitPhase(gl_FragCoord.xy)-uPhase0,uFrameS);if(first<=0.0)first+=uFrameS;
  int hits=first<=uDelta?int(floor((uDelta-first)/uFrameS))+1:0;
@@ -96,28 +84,21 @@ void main(){
 export const EMIT_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uS0,uS1;uniform float uPhase1,uA[7],uTau[7],uLayer[7];
-// The light the eye sees: the last uWindow seconds (raster: one refresh, uFrameS),
-// scaled by uLightScale (raster: 1) so full drive keeps its meaning.
-uniform float uWindow,uLightScale;
 ${RASTER}
 out vec4 o;
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  vec4 s0=texelFetch(uS0,p,0),s1=texelFetch(uS1,p,0);
  float c[7]=float[7](s0.x,s0.y,s0.z,s0.w,s1.x,s1.y,s1.z);
- float d2=mod(uPhase1-hitPhase(gl_FragCoord.xy),uFrameS),d1=uWindow-d2;vec2 sum=vec2(0.0);
+ float d2=mod(uPhase1-hitPhase(gl_FragCoord.xy),uFrameS),d1=uFrameS-d2;vec2 sum=vec2(0.0);
  for(int i=0;i<7;i++){
-  float plus=c[i],minus=plus-s1.w*uA[i],light;
-  // Much faster than the window: it holds exactly the last hit's light, if the hit is in it
-  // (model.js FAST_FRACTION_OF_FRAME).
-  if(uTau[i]<0.02*uWindow)light=d2<uWindow?s1.w*uA[i]*uTau[i]:0.0;
-  // The last hit is inside the window: the light before it and after it.
-  else if(d2<uWindow)light=minus*uTau[i]*(exp(d1/uTau[i])-1.0)+plus*uTau[i]*(1.0-exp(-d2/uTau[i]));
-  // The last hit is before the window: only its decay.
-  else light=plus*uTau[i]*(exp(-(d2-uWindow)/uTau[i])-exp(-d2/uTau[i]));
+  float plus=c[i],minus=plus-s1.w*uA[i];
+  // Much faster than a frame: the window holds exactly the last hit's light (model.js FAST_FRACTION_OF_FRAME).
+  float light=uTau[i]<0.02*uFrameS?s1.w*uA[i]*uTau[i]
+   :minus*uTau[i]*(exp(d1/uTau[i])-1.0)+plus*uTau[i]*(1.0-exp(-d2/uTau[i]));
   if(uLayer[i]<0.5)sum.x+=light;else sum.y+=light;
  }
- o=vec4(max(sum*uLightScale,vec2(0.0)),0.0,1.0);   // light per unit excitation: steady raster = E
+ o=vec4(max(sum,vec2(0.0)),0.0,1.0);   // one frame's light per unit excitation: steady = E
 }`;
 
 

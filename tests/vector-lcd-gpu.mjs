@@ -175,7 +175,7 @@ function Phi(x) {
 
 export async function crtParity() {
  const out = [];
- for (const id of ['crt-5151-p39', 'crt-5151-p3', 'crt-5151-p7']) {
+ for (const id of ['crt-5151-p39', 'crt-5151-p3']) {
   const P = await profileOf(id);
   const {renderer: r, done} = mount('crt', P);
   r.setContrast(1);
@@ -223,49 +223,6 @@ export async function crtParity() {
   out.push(result('CRT GPU = model per layer (steady light, relative), ' + id, worst, 3e-3));
  }
  return out;
-}
-
-
-// ===========================================================================
-// P7 radar PPI: light in the eye's window on the GPU = windowLight in JavaScript
-// ===========================================================================
-
-export async function ppiParity() {
- const P = await profileOf('crt-ppi-p7');
- const {renderer: r, done} = mount('crt', P);
- r.setContrast(1);
- r.setBrightness(0);
- const {width: W, height: H, pxPerMm} = r.info(), rot = P.timing.frame_s, dt = 100;
-
- // Full drive everywhere, for many rotations; stop at a known point of the turn.
- let t = T0, clock = 0;
- const frames = Math.round(30 * rot / (dt / 1000)) + 7;
- paint(r, [0, 0, PANEL.w, PANEL.h]);
- r.frame(t);
- for (let k = 0; k < frames; k++) {
-  paint(r, [0, 0, PANEL.w, PANEL.h]);
-  r.frame(t += dt);
-  clock += dt / 1000;
- }
-
- const rRef = P.drive.ppi.r_ref_fraction_of_sweep * Math.hypot(W, H) / 2;
- const rMin = Math.max(crt.spotSigmaMm(P, 1) / (P.raster.height_mm / PANEL.h) * pxPerMm, 1);
- let worst = 0;
- for (const [xMm, yMm] of [[24, 45], [12, 30], [36, 70], [6, 85]]) {
-  const x = Math.floor(xMm * pxPerMm), y = H - 1 - Math.floor(yMm * pxPerMm);
-  const dx = x + .5 - W / 2, dy = y + .5 - H / 2;
-  const phase = ((Math.atan2(dx, dy) / (2 * Math.PI)) % 1 + 1) % 1 * rot;
-  const E = crt.ppiExcitation(1, Math.hypot(dx, dy), rRef, rMin);
-  const hits = [];
-  for (let k = 0; phase + k * rot <= clock; k++) hits.push({t: phase + k * rot, E});
-  const got = r.sampleLayers(xMm, yMm);
-  P.phosphor.layers.forEach((_, layer) => {
-   const expected = crt.windowLight(P, hits, clock, layer);
-   if (expected > 1e-6) worst = Math.max(worst, Math.abs(got[layer] - expected) / expected);
-  });
- }
- done();
- return [result('PPI GPU = model per layer (window light, relative)', worst, 3e-3)];
 }
 
 
@@ -356,5 +313,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await cgbParity(), ...await crtParity(), ...await ppiParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await cgbParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }
