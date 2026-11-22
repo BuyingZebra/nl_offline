@@ -550,7 +550,7 @@ describe('Room brightness (CRT surroundings)',async()=>{
  test('only screens that make their own light have it: every CRT, no reflective LCD',()=>{
   for(const s of SCREENS){
    const room=KINDS[s.kind].definition.roomLight(JSON.parse(read('profiles/'+s.id+'.json')));
-   assert.equal(Boolean(room),s.kind==='crt',s.id);
+   assert.equal(Boolean(room),['crt','vector'].includes(s.kind),s.id);   // screens that make their own light
   }
  });
  test('the room scales only the reflection, from dark to office light, and the profile\'s own room is unchanged',()=>{
@@ -682,5 +682,27 @@ describe('Commodore 1084S colour CRT (P22, Kuhn 2002; EBU Tech 3213)',async()=>{
   near(P.timing.frame_s,.019968,1e-6);assert.equal(P.timing.lines_visible,256);
   assert.equal(P.mask.triplet_pitch_mm,.42);
   assert.equal(C.stripeResolve(9),1);assert.equal(C.stripeResolve(6),0);
+ });
+});
+
+describe('Vectrex vector display (Malban; Vectrex service manual)',async()=>{
+ const V=await import('../vector-lcd/screens/vector/index.js');
+ const P=V.checkProfile(JSON.parse(read('profiles/vectrex.json')));
+ test('a 30 000-cycle round at 1.5 MHz is 1/50 s; a list over the 200-400 budget slows the refresh',()=>{
+  near(P.timing.frame_s,.02,1e-12);near(V.refreshHz(P,200),50,1e-9);near(V.refreshHz(P,300),50,1e-9);
+  near(V.refreshHz(P,600),25,1e-9);near(V.lightScale(P,1,600),.5,1e-12,'half the rounds per second: half the light');
+ });
+ test('a long line\'s core is 1, its cross-section is the spot, its end dot is dwell x speed over the line spread',()=>{
+  const s=1.7,line=[0,0,100,0];
+  near(V.lineLight(50,0,line,s,0),1,1e-9);near(V.lineLight(50,s,line,s,0),Math.exp(-.5),1e-9);
+  near(V.lineLight(0,0,line,s,0),.5,1e-7,'half the light at the start, where the spot is half on the line');
+  near(V.dotStrength(P),P.beam.dwell_s*P.beam.speed_mm_per_s/(Math.sqrt(2*Math.PI)*P.beam.sigma_mm),1e-12);
+  assert.ok(V.dotStrength(P)>1,'the end dot is brighter than the line');
+ });
+ test('the game as a display list: frame, cells and counters',async()=>{
+  const {tetrisVectors}=await import('../vector-lcd/content/vectors.js');
+  const empty={board:Array.from({length:20},()=>Array(10).fill(null)),current:null,lines:0,score:0};
+  const n0=tetrisVectors(empty).length;
+  empty.board[19][0]='I';assert.equal(tetrisVectors(empty).length,n0+4,'one square per cell');
  });
 });

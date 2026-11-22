@@ -8,6 +8,7 @@ import * as tn from '../screens/tn/index.js';
 import * as dmg from '../screens/dmg/index.js';
 import * as crt from '../screens/crt/index.js';
 import * as cgb from '../screens/cgb/index.js';
+import * as vector from '../screens/vector/index.js';
 
 
 /**
@@ -15,6 +16,7 @@ import * as cgb from '../screens/cgb/index.js';
  * @typedef {Object} ScreenDefinition
  * @property {string|((P:Object) => string)} tiles    which version of the tile art it shows: 'original', 'fourTone' or 'colour'
  * @property {(P:Object) => ({paper:string, ink:string}|null)} [paper]  what the game draws on, where not white paper and black ink
+ * @property {boolean} [vectors]                     content as a display list of lines (renderer.setVectors), not a picture
  * @property {boolean} usesElectrodes                   whether the glass has an electrode map
  * @property {(renderer:Object) => void} prepare        reset settings that only some profiles change
  * @property {(P:Object) => DeviceControl[]} device     the real device's controls, and only those
@@ -35,14 +37,14 @@ import * as cgb from '../screens/cgb/index.js';
  *
  * @typedef {Object} Screen
  * @property {string} id        the profile's id (profiles/<id>.json)
- * @property {'tn'|'dmg'|'cgb'|'crt'} kind
+ * @property {'tn'|'dmg'|'cgb'|'crt'|'vector'} kind
  * @property {'lcd'|'crt'} family
  * @property {string} short     its button
  * @property {string[]} sub     the two lines beside the card title
  * @property {string} label     its full name
  */
 
-export const KINDS = Object.freeze({tn, dmg, cgb, crt});
+export const KINDS = Object.freeze({tn, dmg, cgb, crt, vector});
 
 export const FAMILIES = Object.freeze({
  lcd: Object.freeze({title: 'LCD', picker: 'Panel'}),
@@ -62,7 +64,9 @@ export const SCREENS = Object.freeze([
  {id: 'crt-5151-p3', kind: 'crt', family: 'crt', short: 'P3 amber', sub: ['Amber phosphor', 'P3 · on the IBM 5151'],
   label: 'Amber phosphor CRT · P3 (on the IBM 5151 raster)'},
  {id: 'crt-1084s-p22', kind: 'crt', family: 'crt', short: 'Colour', sub: ['Colour slot mask', 'P22 · Commodore 1084S'],
-  label: 'Colour CRT · Commodore 1084S, P22 slot mask (PAL RGB)'}
+  label: 'Colour CRT · Commodore 1084S, P22 slot mask (PAL RGB)'},
+ {id: 'vectrex', kind: 'vector', family: 'crt', short: 'Vector', sub: ['Vector display', 'XY beam · Vectrex'],
+  label: 'Vector CRT · Vectrex, lines drawn directly by the beam'}
 
 ].map(Object.freeze));
 

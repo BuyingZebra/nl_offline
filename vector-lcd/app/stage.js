@@ -6,6 +6,7 @@
 
 import {kindOf} from './screens.js';
 import {PANEL} from '../content/tetris.js';
+import {tetrisVectors} from '../content/vectors.js';
 
 const STAGE_MARGIN_PX = 24;
 
@@ -66,6 +67,8 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
   // without changing the layout: re-fit then too, so the panel stays sharp.
   if ((window.devicePixelRatio || 1) !== fittedRatio) fit();
   const def = kindOf(screen).definition, profile = renderer.profile;
+  // A vector display draws lines, not a picture: hand it this round's display list.
+  if (def.vectors) { renderer.setVectors(tetrisVectors(content.game)); renderer.frame(now); return; }
   const set = typeof def.tiles === 'function' ? def.tiles(profile) : def.tiles;
   const paper = def.paper?.(profile);
   const ctx = renderer.beginContent();

@@ -84,6 +84,7 @@ The app's **Screen** menu switches between computed profiles:
 5. **Green phosphor CRT, IBM 5151 (P39):** see below.
 6. **P3 amber CRT on the IBM 5151:** see below.
 7. **Colour CRT, Commodore 1084S (P22):** see below.
+8. **Vector CRT, Vectrex:** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
@@ -243,6 +244,25 @@ A harder-driven beam makes a wider spot, so bright lines are thicker than dim on
 
 **The engine** now has three state textures per point (nine component charges and each gun's last excitation). The monochrome screens render pixel-identically to before.
 
+## Vectrex vector display
+
+`profiles/vectrex.json`, built by `tools/vectrex.py`; renderer `screens/vector/`. No raster: the beam draws each line of the frame's display list directly, and the game hands the screen lines instead of a picture (`content/vectors.js`: the board frame, a square per occupied cell, the counters in a stroke font).
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Tube | Samsung 240RB40, 9 in (240 mm diagonal), 90°, a black-and-white TV tube with no mask | Vectrex service manual (via the Vectrex wiki and crtgang) |
+| Round | 30 000 cycles of the 1.5 MHz 6809 = 1/50 s | Malban, *Vectrex tutorial II* |
+| Drawing | strength (speed) × time (scale) = length; slower is brighter; a bright dot at the end of lines | Malban; Vectrex32 manual |
+| Budget | about 200–400 vectors per frame before the refresh slows and the picture flickers | Roger Boesch (via crtgang) |
+
+**How it works.** Each line lays down charge in proportion to current / speed per millimetre, spread across the spot (a Gaussian), with spot-wide ends; where the beam stops at a line's end it leaves a dot of dwell × speed over the line's spread (about twice the line's core). Lines add up where they cross. The phosphor is far faster than a round, so each round shows the lines drawn in it. A list longer than the round's budget slows the refresh: the light per second falls with it, and the Info tab says the picture flickers.
+
+**Derived.** 66.7 µs per vector: the 1/50 s round over the middle of the 200–400 budget. The Tetris board draws about 190 vectors with a full stack, within the budget.
+
+**Assumed.** P4 white phosphor (the standard black-and-white TV phosphor); a 144 × 192 mm portrait picture; one beam speed for every line (1.13 mm/µs, half the picture height in 127 cycles); spot σ 0.3 mm; the end dot equal to 2 cycles of a stopped beam; the 5151's room-reflection model with a glossy face. Not modelled: colour overlays, halation, the integrator's drift and the beam's moves between objects.
+
+**Checked.** In the browser test, the GPU's added-up line light matches the model to 7e-4.
+
 ## Retired: P7 screens
 
 The P7 cascade screen (on the 5151 raster) and the P7 radar PPI were removed in 0.20.0. A linear model cannot fit P7's measured decay after a single flash (RCA 1961 against MIT 1948), so its trails were not convincing, and a radar sweep does not suit the game engine. Their profiles, builders, the traced RCA curves and the PPI drive remain in the project history (up to 0.19.0). The CRT engine keeps its support for two phosphor layers.
@@ -305,6 +325,7 @@ Every screen kind has the same five files:
 | `screens/cgb/` | the Game Boy Color; `profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
 | `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`),, `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) and the Commodore 1084S `profiles/crt-1084s-p22.json` (`tools/crt_1084s.py`) |
+| `screens/vector/` | the Vectrex; `profiles/vectrex.json` (`tools/vectrex.py`); the game as lines in `content/vectors.js` |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
@@ -314,7 +335,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the monitor (P39 green, P3 amber, Colour). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the monitor (P39 green, P3 amber, Colour, Vector). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 

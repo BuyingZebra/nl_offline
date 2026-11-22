@@ -163,6 +163,26 @@ export async function cgbParity() {
 
 
 // ===========================================================================
+// Vectrex: added-up lines on the GPU = lineLight in JavaScript
+// ===========================================================================
+
+export async function vectorParity() {
+ const P = await profileOf('vectrex');
+ const {renderer: r, done} = mount('vector', P);
+ r.setBrightness(1);
+ r.setVectors([[6, 10, 40, 10], [6, 10, 6, 80], [12, 30, 37, 64], [20, 50, 20.5, 50]]);
+ r.frame(T0);
+ let worst = 0;
+ for (const [x, y] of [[23, 10], [6, 45], [40, 10], [6, 80], [24.5, 47], [20.5, 50], [30, 40], [12, 30]]) {
+  const got = r.sample(x, y), want = r.modelSample(x, y);
+  worst = Math.max(worst, Math.abs(got - want) / Math.max(want, .05));
+ }
+ done();
+ return [result('Vectrex GPU = model (added-up line light, relative)', worst, 5e-3)];
+}
+
+
+// ===========================================================================
 // CRT: steady emitted light on the GPU = steadyWindow in JavaScript
 // ===========================================================================
 
@@ -315,5 +335,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await cgbParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }
