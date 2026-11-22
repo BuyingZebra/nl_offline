@@ -107,6 +107,8 @@ for i, colour in enumerate(("red", "green", "blue")):
 trail = {c: r6(energy(c, FRAME_S, 2 * FRAME_S) / energy(c, 0, FRAME_S)) for c in ("red", "green", "blue")}
 
 profile = {k: base[k] for k in ("faceplate", "sources", "oblique")}
+profile["faceplate"] = {**base["faceplate"], "curvature_radius_mm": None,
+                        "curvature_ref": "no M34EAQ figure: drawn flat (assumed)"}
 profile.update({
  "profile": "crt-1084s-p22", "model": "crt-raster",
  "name": "Commodore 1084S colour monitor, P22 slot-mask tube (PAL RGB)",

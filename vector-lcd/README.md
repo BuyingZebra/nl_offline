@@ -187,6 +187,12 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 
 **Controls:** the 5151's **Brightness** knob (a uniform beam on every line, which makes the raster visible) and **Contrast** knob (video gain). The temperature control is hidden for this screen.
 
+## Curved face (IBM 5151 tube)
+
+Philips' M31-336/338/350 data sheet (T16, 1987) gives a **510 mm radius of screen curvature**. The face is taken as a sphere of that radius (spherical: assumed): it bulges toward the eye and its normal tilts outward, up to 11° at the top and bottom of the raster. The glare is computed about that local normal (`sphereNormal` in `optics/room.js`), so the lamp's reflection is a compact highlight that slides across the bulge as the light moves, instead of a broad wash. The 1084S's tube radius is not published, so it is drawn flat.
+
+**Not modelled: softer corners.** Philips specifies dynamic focus for the corners (line parabola 200 V, field parabola 100 V for a 216 × 162 mm field) but gives no figure for how far the spot grows without it, so the corners stay as sharp as the centre. The picture's own small bulge (about 1 % at the edges seen from 600 mm) is not drawn either, because how the deflection yoke shapes the raster on the sphere is not published.
+
 ## Spot blooming (all CRT screens)
 
 A harder-driven beam makes a wider spot, so bright lines are thicker than dim ones. This is electron optics, the same for every phosphor on the tube.

@@ -147,11 +147,12 @@ export function decayTime(profile, fraction = .1) {
  * light does not change with the room; only the reflection off the glass does. */
 /** The room light reflected by the etched front toward the eye (unit vector),
  * relative to a white diffuser: a faint mirror image plus the etch's blurred
- * lobe, both carrying the Fresnel reflection. Mirrored in DISPLAY_FS. */
-export function faceGlare(profile, toEye, lighting) {
+ * lobe, both carrying the Fresnel reflection, about the face's local normal
+ * (a curved face: optics/room.js sphereNormal). Mirrored in DISPLAY_FS. */
+export function faceGlare(profile, toEye, lighting, normal = [0, 0, 1]) {
  const E = profile.faceplate.etch;
- return E.specular_fraction * glare(profile, toEye, lighting)
-  + (1 - E.specular_fraction) * glare(profile, toEye, lighting, rad(E.lobe_sigma_deg));
+ return E.specular_fraction * glare(profile, toEye, lighting, 0, normal)
+  + (1 - E.specular_fraction) * glare(profile, toEye, lighting, rad(E.lobe_sigma_deg), normal);
 }
 
 export function roomScale(profile, lux) {

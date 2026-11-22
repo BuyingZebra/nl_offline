@@ -64,14 +64,24 @@ export function glareNorm(sigma, angleDeg) {
 
 /** Glare seen along the unit vector toward the eye: the front surface mirrors a
  * room light with a Gaussian angular profile, blurred by a rough surface's lobe
- * (blurRad, one standard deviation; 0 for polished glass). Relative to a white diffuser. */
-export function glare(profile, toEye, {angleDeg, azimuthDeg, sourceDeg}, blurRad = 0) {
- const L = directionVector(angleDeg, azimuthDeg), m = [-toEye[0], -toEye[1], toEye[2]];
+ * (blurRad, one standard deviation; 0 for polished glass). The surface's local
+ * normal tilts the mirror (a curved face). Relative to a white diffuser. */
+export function glare(profile, toEye, {angleDeg, azimuthDeg, sourceDeg}, blurRad = 0, normal = [0, 0, 1]) {
+ const L = directionVector(angleDeg, azimuthDeg), c = toEye.reduce((s, v, i) => s + v * normal[i], 0);
+ const m = normal.map((n, i) => 2 * c * n - toEye[i]);                       // the eye ray, mirrored
  const dot = clamp(m[0] * L[0] + m[1] * L[1] + m[2] * L[2], -1, 1), delta = Math.acos(dot);
  const sigma = Math.hypot(glareSigma(sourceDeg), blurRad);
  const n = profile.oblique?.front_index ?? 1.5;
- return fresnelReflectance(Math.acos(clamp(toEye[2], -1, 1)), n) * Math.exp(-delta * delta / (2 * sigma * sigma))
+ return fresnelReflectance(Math.acos(clamp(c, -1, 1)), n) * Math.exp(-delta * delta / (2 * sigma * sigma))
   / (2 * sigma * sigma * Math.max(.05, Math.cos(rad(angleDeg))));
+}
+
+/** Outward normal of a spherical face of radius R (mm) at (x, y) mm from its
+ * centre; a flat face (no radius) has the axis. */
+export function sphereNormal(R, x, y) {
+ if (!(R > 0)) return [0, 0, 1];
+ const z = Math.sqrt(Math.max(0, R * R - x * x - y * y));
+ return [x / R, y / R, z / R];
 }
 
 

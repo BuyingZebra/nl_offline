@@ -8,7 +8,7 @@ import {clamp, rad, bezelShiftMm, bezelPenumbraMm, directionVector, glareSigma, 
 import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, stripeResolve, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.10.0';
+export const VERSION = '0.11.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
@@ -229,6 +229,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uMpp'), mpp);
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
    gl.uniform3f(p.u('uEye'), W / pxPerMm / 2 * mpp, H / pxPerMm / 2 * mpp, VIEW_DISTANCE_MM);
+   gl.uniform1f(p.u('uCurvR'), F.curvature_radius_mm ?? 0);
+   gl.uniform2f(p.u('uCentreMm'), W / pxPerMm / 2 * mpp, H / pxPerMm / 2 * mpp);
    gl.uniform3fv(p.u('uLight'), directionVector(lighting.angleDeg, lighting.azimuthDeg));
    const mirror = glareSigma(lighting.sourceDeg), lobe = Math.hypot(mirror, rad(F.etch.lobe_sigma_deg));
    gl.uniform1f(p.u('uSpecular'), F.etch.specular_fraction);

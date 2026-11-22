@@ -208,6 +208,7 @@ profile = {
  "raster": {"height_mm": HEIGHT_MM, "width_mm": WIDTH_MM, "pitch_mm": r6(HEIGHT_MM / LINES_VISIBLE), "assumed": True,
             "note": "raster assumed to fill the useful height of a Philips 31 cm 90 degree monitor tube; the 5151's own picture size is not published"},
  "faceplate": {"n": N_GLASS, "transmission": T_GLASS, "thickness_mm": GLASS_MM, "screen_reflectance": R_SCREEN,
+               "curvature_radius_mm": 510.0, "curvature_ref": "Philips T16 1987, M31-336/338/350 data sheet: 510 mm radius of screen curvature (spherical, assumed)",
                "assumed": ["thickness_mm", "screen_reflectance"], "etched": True,
                "halation": {"r_mm": [r6(v) for v in R_BINS[:-1] + 0.5], "fraction": [r6(v) for v in halo], "total": r6(halo_total)},
                "ambient_reflectance": r6(ambient), "surface_reflectance": r6(surface),

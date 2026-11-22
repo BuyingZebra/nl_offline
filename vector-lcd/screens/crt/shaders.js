@@ -152,6 +152,7 @@ uniform float uFull,uAmbient,uRoom,uExposure,uPxPerMm,uBezelSigma,uMpp,uFront;un
 // them in where the display can draw them (model.js stripeResolve); 0 = no mask.
 uniform float uTripletPx,uResolve;
 uniform float uSpecular,uSigMirror,uNormMirror,uSigLobe,uNormLobe;   // etched front (model.js faceGlare)
+uniform float uCurvR;uniform vec2 uCentreMm;   // spherical face radius (monitor mm; 0 = flat) and its centre
 out vec4 o;
 ${BEZEL_STEP}
 ${FRESNEL}
@@ -166,9 +167,12 @@ void main(){
  float lit=step1(b.x)*step1(uPanelMm.x-b.x)*step1(b.y)*step1(uPanelMm.y-b.y);
  // The etched front's reflection toward this point's eye ray (monitor mm).
  vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0)*uMpp;
- vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
+ // A curved face: the surface bulges toward the eye and its normal tilts outward (optics/room.js sphereNormal).
+ vec2 r=pos.xy-uCentreMm;vec3 nrm=vec3(0.0,0.0,1.0);
+ if(uCurvR>0.0){float z=sqrt(max(0.0,uCurvR*uCurvR-dot(r,r)));nrm=vec3(r,z)/uCurvR;pos.z=z-uCurvR;}
+ vec3 v=normalize(uEye-pos);float cv=dot(v,nrm);vec3 m=2.0*cv*nrm-v;
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));
- float g=fresnel(v.z)*(uSpecular*exp(-d*d/(2.0*uSigMirror*uSigMirror))*uNormMirror
+ float g=fresnel(cv)*(uSpecular*exp(-d*d/(2.0*uSigMirror*uSigMirror))*uNormMirror
   +(1.0-uSpecular)*exp(-d*d/(2.0*uSigLobe*uSigLobe))*uNormLobe);
  float amb=uAmbient*lit+g*uRoom;
  vec3 L0=Y.x*uRgb0*uExposure,L1=Y.y*uRgb1*uExposure,L2=Y.z*uRgb2*uExposure,a=vec3(amb)*uExposure;

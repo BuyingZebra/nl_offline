@@ -706,3 +706,23 @@ describe('Vectrex vector display (Malban; Vectrex service manual)',async()=>{
   empty.board[19][0]='I';assert.equal(tetrisVectors(empty).length,n0+4,'one square per cell');
  });
 });
+
+describe('Curved face of the 5151 tube (Philips M31-336: 510 mm radius)',async()=>{
+ const C=await import('../vector-lcd/screens/crt/index.js'),R=await import('../vector-lcd/optics/room.js');
+ const P=JSON.parse(read('profiles/crt-5151-p39.json'));
+ test('the data sheet radius; flat where no radius is published',()=>{
+  assert.equal(P.faceplate.curvature_radius_mm,510);
+  assert.equal(JSON.parse(read('profiles/crt-1084s-p22.json')).faceplate.curvature_radius_mm,null);
+  assert.deepEqual(R.sphereNormal(null,10,10),[0,0,1]);
+ });
+ test('the normal tilts outward by asin(r/R): 11 degrees at the top edge of the raster',()=>{
+  const n=R.sphereNormal(510,0,100);near(Math.asin(n[1])*180/Math.PI,11.3,.05);near(Math.hypot(...n),1,1e-12);
+ });
+ test('on a curved face the lamp\'s reflection moves: it peaks where the tilted mirror points at the light',()=>{
+  const light={angleDeg:20,azimuthDeg:0,sourceDeg:15},L=R.directionVector(20,0);
+  // straight-on eye: on the flat face the reflection needs the eye at the mirror of L; the curved face finds it where n bisects v and L
+  const v=[0,0,1],h=[L[0]+v[0],L[1]+v[1],L[2]+v[2]],k=Math.hypot(...h),n=h.map(x=>x/k);
+  const y=n[1]*510,flatAt=C.faceGlare(P,v,light),curvedAt=C.faceGlare(P,v,light,R.sphereNormal(510,0,y));
+  assert.ok(curvedAt>5*flatAt,'flat '+flatAt+', curved at '+y.toFixed(0)+' mm: '+curvedAt);
+ });
+});
