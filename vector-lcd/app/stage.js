@@ -65,8 +65,12 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
   // Browser zoom and moving to another monitor change the pixel density
   // without changing the layout: re-fit then too, so the panel stays sharp.
   if ((window.devicePixelRatio || 1) !== fittedRatio) fit();
+  const def = kindOf(screen).definition, profile = renderer.profile;
+  const set = typeof def.tiles === 'function' ? def.tiles(profile) : def.tiles;
+  const paper = def.paper?.(profile);
   const ctx = renderer.beginContent();
-  content.draw(ctx, tiles[kindOf(screen).definition.tiles]);
+  if (paper) { ctx.fillStyle = paper.paper; ctx.fillRect(0, 0, PANEL.w, PANEL.h); }
+  content.draw(ctx, tiles[set], paper?.ink);
   renderer.frame(now);
  }
 

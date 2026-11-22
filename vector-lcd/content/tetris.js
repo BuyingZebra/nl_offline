@@ -3,7 +3,7 @@
  *
  *   createTetrisContent(tiles)
  *     .update(dtMs)              advance the game
- *     .draw(ctx, tileSet)        paint the board and counters (unlit = white)
+ *     .draw(ctx, tileSet, ink)   paint the board and counters (unlit = white; ink defaults to black)
  *     .drawElectrodes(ctx)       where the glass can switch, for segment screens */
 
 import {Core} from '../../tetris/game.js';
@@ -91,8 +91,8 @@ export function createTetrisContent(tiles) {
  }
 
  /** @param {CanvasRenderingContext2D} ctx in millimetres @param {import('./tiles.js').TileSet} set */
- function draw(ctx, set) {
-  ctx.strokeStyle = '#000';
+ function draw(ctx, set, ink = '#000') {
+  ctx.strokeStyle = ink;
   ctx.lineWidth = .35;
   strokeFrame(ctx);
 
@@ -108,7 +108,7 @@ export function createTetrisContent(tiles) {
    drawCell(ctx, set, c, r, kind, kind === 'I' ? {sourceIndex: iSourceIndex(p.rotation, ix, iy), rotation: p.rotation} : null);
   }
 
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = ink;
   fillCounters(ctx, String(game.lines).padStart(3, '0'), String(game.score).padStart(6, '0'));
  }
 

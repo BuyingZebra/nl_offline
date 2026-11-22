@@ -87,12 +87,12 @@ export function createGPU(canvas, name) {
   return {tex, fb, ok};
  }
 
- /** Delete targets (or any {tex, fb, t0, t1} records). */
+ /** Delete targets: {fb, tex} records, where tex may be a list (multiple render targets). */
  function release(...targets) {
   for (const t of targets) {
    if (!t) continue;
    if (t.fb) gl.deleteFramebuffer(t.fb);
-   for (const tex of [t.tex, t.t0, t.t1]) if (tex) gl.deleteTexture(tex);
+   for (const tex of [t.tex].flat()) if (tex) gl.deleteTexture(tex);
   }
  }
 

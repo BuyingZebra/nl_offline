@@ -21,8 +21,8 @@ import {glare, rad} from '../../optics/room.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-export const MAX_COMPONENTS = 7;   // exponentials per point (shaders.js state: 2 x RGBA)
-export const MAX_LAYERS = 2;       // phosphor layers with their own colour
+export const MAX_COMPONENTS = 9;   // exponentials per point (shaders.js state: 3 x RGBA with the last hits)
+export const MAX_LAYERS = 3;       // phosphor layers with their own colour (one per gun on a colour tube)
 
 /** A component this much faster than a frame is over long before the frame
  * window ends: its light in the window is exactly the light of the last hit
@@ -66,6 +66,21 @@ export function checkProfile(profile) {
 export function levelFromRGB(r, g, b) {
  return Math.floor(clamp(1 - (.2126 * r + .7152 * g + .0722 * b), 0, 1) * 3 + .5);
 }
+
+/** Beam drive per layer for encoded sRGB art in [0, 1], at the knobs' settings:
+ * a colour tube's three guns follow the art's channels to the power gamma; a
+ * monochrome tube's one beam follows the TTL level. Mirrored in UPDATE_FS. */
+export function layerDrives(profile, rgb, contrast = 1, brightness = 0) {
+ if (profile.drive.mode === 'rgb') return rgb.map(v => contrast * clamp(v, 0, 1) ** profile.drive.gamma + brightness);
+ const d = contrast * levelFromRGB(...rgb) / 3 + brightness;
+ return profile.phosphor.layers.map(() => d);
+}
+
+/** How far the display can draw a colour mask's stripes, from its pixels per
+ * triplet: a stripe needs at least two display pixels to be drawn without
+ * aliasing (Nyquist), so the stripes fade in from 2 to 3 pixels per stripe.
+ * Mirrored in DISPLAY_FS (uResolve). */
+export const stripeResolve = pxPerTriplet => clamp(pxPerTriplet / 3 - 2, 0, 1);
 
 
 // ===========================================================================

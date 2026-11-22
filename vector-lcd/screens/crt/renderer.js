@@ -5,10 +5,10 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, rad, bezelShiftMm, bezelPenumbraMm, directionVector, glareSigma, glareNorm} from '../../optics/room.js';
-import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, MAX_COMPONENTS} from './model.js';
+import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, stripeResolve, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '0.10.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
@@ -22,10 +22,10 @@ function components(profile) {
  return {a: pad(amplitudes, 0), tau: pad(taus_s, 1), layer: pad(layer, 0)};
 }
 
-/** Linear-sRGB colour per unit luminance of each layer (a missing second layer is black). */
+/** Linear-sRGB colour per unit luminance of each layer (missing layers are black). */
 function layerColours(profile) {
  const layers = profile.phosphor.layers;
- return [layers[0].display_rgb_per_Y, layers[1]?.display_rgb_per_Y ?? [0, 0, 0]];
+ return [0, 1, 2].map(i => layers[i]?.display_rgb_per_Y ?? [0, 0, 0]);
 }
 
 
@@ -73,18 +73,19 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, gl.RGBA, type, null);
  }
 
- /** One phosphor state target: two 32-bit float textures drawn at once. */
+ /** One phosphor state target: three 32-bit float textures drawn at once
+  * (nine component charges, then each gun's last excitation). */
  function stateTarget(size) {
-  const t0 = gpu.texture(), t1 = gpu.texture();
-  storage(t0, gl.RGBA32F, gl.FLOAT, size);
-  storage(t1, gl.RGBA32F, gl.FLOAT, size);
+  const tex = [gpu.texture(), gpu.texture(), gpu.texture()];
   const fb = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t0, 0);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, t1, 0);
-  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+  tex.forEach((t, i) => {
+   storage(t, gl.RGBA32F, gl.FLOAT, size);
+   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0);
+  });
+  gl.drawBuffers(tex.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
   if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('CRT state targets are not supported here.');
-  return {t0, t1, fb};
+  return {tex, fb};
  }
 
  /** Half-float light target, optionally with mipmaps for the halation's wide samples. */
@@ -114,8 +115,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.bindTexture(gl.TEXTURE_2D, res.content);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   if (old.length && oldSize) {
-   gpu.copy(old[current].t0, oldSize, res.states[current].t0, size);
-   gpu.copy(old[current].t1, oldSize, res.states[current].t1, size);
+   old[current].tex.forEach((t, i) => gpu.copy(t, oldSize, res.states[current].tex[i], size));
    gpu.release(...old);
   } else {
    gpu.release(...old);
@@ -156,7 +156,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   const c = components(profile);
   gl.uniform1fv(p.u('uA'), c.a);
   gl.uniform1fv(p.u('uTau'), c.tau);
-  gl.uniform1fv(p.u('uLayer'), c.layer);       // EMIT only; ignored where the shader has no uLayer
+  gl.uniform1fv(p.u('uLayer'), c.layer);
  }
 
 
@@ -179,9 +179,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    const from = res.states[current], to = res.states[1 - current];
    gpu.draw(res.update, to.fb, size, p => {
     gpu.bind(p, 0, 'uContent', res.content);
-    gpu.bind(p, 1, 'uS0', from.t0);
-    gpu.bind(p, 2, 'uS1', from.t1);
+    from.tex.forEach((t, i) => gpu.bind(p, 1 + i, 'uS' + i, t));
     bindRaster(p);
+    gl.uniform1i(p.u('uRgb'), profile.drive.mode === 'rgb' ? 1 : 0);
+    gl.uniform1f(p.u('uGamma'), profile.drive.gamma ?? 1);
     gl.uniform1f(p.u('uPhase0'), phase0);
     gl.uniform1f(p.u('uDelta'), delta);
     gl.uniform1f(p.u('uContrast'), contrast);
@@ -193,8 +194,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   // ---- 2. Light over the last refresh period, per layer
   const s = res.states[current];
   gpu.draw(res.emit, res.halo.fb, size, p => {
-   gpu.bind(p, 0, 'uS0', s.t0);
-   gpu.bind(p, 1, 'uS1', s.t1);
+   s.tex.forEach((t, i) => gpu.bind(p, i, 'uS' + i, t));
    bindRaster(p);
    gl.uniform1f(p.u('uPhase1'), clock);
   });
@@ -238,9 +238,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uNormLobe'), glareNorm(lobe, lighting.angleDeg));
    gl.uniform1f(p.u('uExposure'), lighting.exposure * adaptedExposure(profile));
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
-   const [rgb0, rgb1] = layerColours(profile);
-   gl.uniform3fv(p.u('uRgb0'), rgb0);
-   gl.uniform3fv(p.u('uRgb1'), rgb1);
+   layerColours(profile).forEach((rgb, i) => gl.uniform3fv(p.u('uRgb' + i), rgb));
+   const tripletPx = profile.mask ? profile.mask.triplet_pitch_mm / mpp * pxPerMm : 0;
+   gl.uniform1f(p.u('uTripletPx'), tripletPx);
+   gl.uniform1f(p.u('uResolve'), profile.mask ? stripeResolve(tripletPx) : 0);
    const shift = bezelShiftMm(profile, lighting, bezelLipMm);
    gl.uniform2f(p.u('uPanelMm'), W / pxPerMm, H / pxPerMm);
    gl.uniform2f(p.u('uBezelShift'), shift.x / mpp, shift.y / mpp);
@@ -264,13 +265,13 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   if (!res || gpu.lost) return null;
   const [x, y] = surface.texelAt(xMm, yMm);
   const t = gpu.readTexel(res.halo.fb, x, y);
-  return [t[0], t[1]];
+  return profile.phosphor.layers.map((_, i) => t[i]);
  }
 
  /** Total light at a point (panel mm), relative to full drive. */
  function sample(xMm, yMm) {
   const layers = sampleLayers(xMm, yMm);
-  return layers && layers[0] + layers[1];
+  return layers && layers.reduce((a, b) => a + b, 0);
  }
 
 

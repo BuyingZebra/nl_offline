@@ -13,7 +13,8 @@ import * as cgb from '../screens/cgb/index.js';
 /**
  * What a screen kind tells the app (screens/<kind>/definition.js).
  * @typedef {Object} ScreenDefinition
- * @property {'original'|'fourTone'|'colour'} tiles   which version of the tile art it shows
+ * @property {string|((P:Object) => string)} tiles    which version of the tile art it shows: 'original', 'fourTone' or 'colour'
+ * @property {(P:Object) => ({paper:string, ink:string}|null)} [paper]  what the game draws on, where not white paper and black ink
  * @property {boolean} usesElectrodes                   whether the glass has an electrode map
  * @property {(renderer:Object) => void} prepare        reset settings that only some profiles change
  * @property {(P:Object) => DeviceControl[]} device     the real device's controls, and only those
@@ -59,7 +60,9 @@ export const SCREENS = Object.freeze([
  {id: 'crt-5151-p39', kind: 'crt', family: 'crt', short: 'P39 green', sub: ['Green phosphor', 'P39 · IBM 5151'],
   label: 'Green phosphor CRT · IBM 5151, P39'},
  {id: 'crt-5151-p3', kind: 'crt', family: 'crt', short: 'P3 amber', sub: ['Amber phosphor', 'P3 · on the IBM 5151'],
-  label: 'Amber phosphor CRT · P3 (on the IBM 5151 raster)'}
+  label: 'Amber phosphor CRT · P3 (on the IBM 5151 raster)'},
+ {id: 'crt-1084s-p22', kind: 'crt', family: 'crt', short: 'Colour', sub: ['Colour slot mask', 'P22 · Commodore 1084S'],
+  label: 'Colour CRT · Commodore 1084S, P22 slot mask (PAL RGB)'}
 
 ].map(Object.freeze));
 

@@ -175,20 +175,22 @@ function Phi(x) {
 
 export async function crtParity() {
  const out = [];
- for (const id of ['crt-5151-p39', 'crt-5151-p3']) {
+ for (const id of ['crt-5151-p39', 'crt-5151-p3', 'crt-1084s-p22']) {
   const P = await profileOf(id);
   const {renderer: r, done} = mount('crt', P);
   r.setContrast(1);
   r.setBrightness(0);
   const {width: W, height: H, pxPerMm} = r.info(), T = P.timing, dt = 100;
 
-  // A whole black panel at full drive, long enough for the slowest decay to settle.
+  // Full drive everywhere (black art on the TTL monitor, white art on the colour one),
+  // long enough for the slowest decay to settle.
+  const full = P.drive.mode === 'rgb' ? null : [0, 0, PANEL.w, PANEL.h];
   let t = T0, clock = 0;
-  paint(r, [0, 0, PANEL.w, PANEL.h]);
+  paint(r, full);
   r.frame(t);
   const settleFrames = Math.ceil(8 * Math.max(...P.phosphor.impulse.taus_s) / (dt / 1000));
   for (let k = 0; k < Math.min(settleFrames, 3000); k++) {
-   paint(r, [0, 0, PANEL.w, PANEL.h]);
+   paint(r, full);
    r.frame(t += dt);
    clock = (clock + dt / 1000) % T.frame_s;
   }

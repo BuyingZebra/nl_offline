@@ -660,3 +660,27 @@ describe('Game Boy Color CGB-001 (Retro Display Lab, HCS measurement)',async()=>
   const flat=G.apertureColour(()=>white,0,1/3,0,1,0);for(let k=0;k<3;k++)near(flat[k],white[k],1e-12,'unresolved: the average');
  });
 });
+
+describe('Commodore 1084S colour CRT (P22, Kuhn 2002; EBU Tech 3213)',async()=>{
+ const C=await import('../vector-lcd/screens/crt/index.js');
+ const P=C.checkProfile(JSON.parse(read('profiles/crt-1084s-p22.json')));
+ test('three layers balanced to D65: equal full drive gives white at full luminance',()=>{
+  const shares=C.layerShares(P);near(shares.reduce((a,b)=>a+b),1,1e-6);
+  [.222,.7067,.0713].forEach((v,i)=>near(shares[i],v,2e-3));
+  const rgb=C.steadyRGBPerY(P);for(const v of rgb)near(v,1,2e-3);   // D65 white in linear sRGB, per unit luminance
+ });
+ test('the guns follow the art to the power 2.4; the TTL monitor keeps its levels',()=>{
+  const d=C.layerDrives(P,[1,.5,0]);near(d[0],1,1e-12);near(d[1],.5**2.4,1e-12);near(d[2],0,1e-12);
+  const M=JSON.parse(read('profiles/crt-5151-p39.json'));assert.deepEqual(C.layerDrives(M,[0,0,0]),[1]);
+ });
+ test('red is gone within a frame; green and blue keep about 5 % for the next frame (Kuhn\'s power-law tail)',()=>{
+  const D=P.phosphor.derived.next_frame_light;
+  assert.ok(D.red<1e-6);near(D.green,.052,.002);near(D.blue,.046,.002);
+  assert.ok(P.phosphor.derived.tail_fit_max_log_misfit.green<.15);
+ });
+ test('PAL timing and the 0.42 mm slot mask',()=>{
+  near(P.timing.frame_s,.019968,1e-6);assert.equal(P.timing.lines_visible,256);
+  assert.equal(P.mask.triplet_pitch_mm,.42);
+  assert.equal(C.stripeResolve(9),1);assert.equal(C.stripeResolve(6),0);
+ });
+});

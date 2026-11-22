@@ -1,12 +1,19 @@
-/* IBM 5151 CRT, as the app presents it. No logic: the monitor's two front
- * knobs, the notes, and where every number on the Info tab comes from.
+/* CRT monitors, as the app presents them: the IBM 5151 (monochrome) and the
+ * Commodore 1084S (colour). No logic: the monitor's front knobs, the notes,
+ * and where every number on the Info tab comes from.
  *
- * A new phosphor is a new profile of this kind: its colours, decay and Info
- * facts all come from the profile (phosphor.layers, .impulse, .facts). */
+ * A new phosphor or monitor is a new profile of this kind: its colours, decay
+ * and Info facts all come from the profile (phosphor, monitor.facts). */
+
+const colour = P => P.drive.mode === 'rgb';
+const monitorName = P => colour(P) ? 'Commodore 1084S' : 'IBM 5151';
 
 /** @type {import('../../app/screens.js').ScreenDefinition} */
 export const definition = Object.freeze({
- tiles: 'fourTone',               // four TTL levels: the 4-tone tiles
+ tiles: P => colour(P) ? 'colour' : 'fourTone',     // analogue RGB, or four TTL levels
+ /** What the game draws on: a lit-on-dark picture. Black paper on a colour tube
+  * (the guns off); the monochrome tube's TTL mapping already lights dark art. */
+ paper: P => colour(P) ? {paper: '#000', ink: '#fff'} : null,
  usesElectrodes: false,           // a raster reaches every point
 
  prepare() {},
@@ -28,7 +35,7 @@ export const definition = Object.freeze({
    apply: (renderer, v) => renderer.setContrast(v)
   }
  ],
- deviceNote: () => 'The IBM 5151\'s two front knobs. Brightness lights the whole raster; contrast sets the video signal.',
+ deviceNote: P => 'The ' + monitorName(P) + '\'s brightness and contrast knobs. Brightness lights the whole raster; contrast sets the video signal.',
 
 
  // ---- Surroundings ---------------------------------------------------------
@@ -51,20 +58,24 @@ export const definition = Object.freeze({
 
  // ---- Info tab -----------------------------------------------------------------
 
- driveNote: P => 'The beam sweeps ' + P.timing.lines_visible + ' lines ' + Math.round(P.timing.refresh_hz) + ' times a second. '
-  + 'The phosphor glows long after the beam passes, so moving pieces leave fading trails. Brightness lights the whole raster; contrast sets the signal.',
+ driveNote: P => 'The beam sweeps ' + P.timing.lines_visible + ' lines ' + Math.round(P.timing.refresh_hz) + ' times a second. ' + (colour(P)
+  ? 'Three guns light red, green and blue phosphor stripes through a slot mask; the colours fade within a frame, but green and blue leave a faint trail in a dark room.'
+  : 'The phosphor glows long after the beam passes, so moving pieces leave fading trails.') + ' Brightness lights the whole raster; contrast sets the signal.',
 
  /** The monitor's facts, then the phosphor's own (from its profile). */
  facts(P) {
   const T = P.timing, F = P.faceplate, R = P.raster;
   return [
-   ['Monitor', 'IBM 5151: 11.5 in, 90° CRT, etched anti-glare face, brightness and contrast knobs'],
-   ['Scan (MDA)', (T.horizontal_hz / 1000).toFixed(3) + ' kHz lines, ' + T.refresh_hz.toFixed(2) + ' Hz frames, ' + T.lines_visible + ' of ' + T.lines_total + ' lines shown; the panel height is the 350 lines'],
-   ['Signal', 'TTL: video 2/3 + intensity 1/3 of the luminance, 4 levels; free to switch anywhere along a line (no pixels)'],
+   ...(P.monitor?.facts ?? [
+    ['Monitor', 'IBM 5151: 11.5 in, 90° CRT, etched anti-glare face, brightness and contrast knobs'],
+    ['Scan (MDA)', (T.horizontal_hz / 1000).toFixed(3) + ' kHz lines, ' + T.refresh_hz.toFixed(2) + ' Hz frames, ' + T.lines_visible + ' of ' + T.lines_total + ' lines shown; the panel height is the 350 lines'],
+    ['Signal', 'TTL: video 2/3 + intensity 1/3 of the luminance, 4 levels; free to switch anywhere along a line (no pixels)'],
+   ]),
    ...P.phosphor.facts,
-   ['Spot (measured, similar tube)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm from 1300-line resolution of Philips 31 cm 90° tubes (white P4 screen); scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart'],
+   colour(P) ? ['Spot (assumed)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm at full drive: ' + P.spot.note + '; scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart']
+   : ['Spot (measured, similar tube)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm from 1300-line resolution of Philips 31 cm 90° tubes (white P4 screen); scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart'],
    ['Spot blooming (measured)', 'brighter = wider: line width grows as current^' + P.spot.bloom.power.toFixed(2) + ' (Philips Fig. 5, 50-200 µA, at ' + P.spot.bloom.vkr_V + ' V cut-off, assumed mid-range; ' + P.spot.bloom.power_range_30_60V.map(v => v.toFixed(2)).join('-') + ' over 30-60 V). This phosphor gives ' + Math.round(P.phosphor.efficiency_vs_P4 * 100) + '% of P4\'s light per current, so at full drive its spot is ' + Math.round((Math.pow(1 / P.phosphor.efficiency_vs_P4, P.spot.bloom.power) - 1) * 100) + '% wider than the test spot'],
-   ['Picture (assumed)', R.height_mm + ' mm tall raster (Philips 31 cm useful height); the 5151\'s own size is not published'],
+   ['Picture (assumed)', (+R.height_mm).toFixed(0) + ' mm tall raster: ' + R.note],
    ['Faceplate', '~50% transmission (Philips); n ' + F.n + '; ' + F.thickness_mm + ' mm thick (assumed); halation returns ' + (F.halation.total * 100).toFixed(1) + '% of the light 18 mm and more away'],
    ['Room light', 'screen reflectance ' + F.screen_reflectance + ' (assumed) through the glass twice: ' + Math.round((F.ambient_reflectance - F.surface_reflectance) * 100) + '% of a white card'],
    ['Etched glass', 'reflects ' + (F.surface_reflectance * 100).toFixed(1) + '% straight on (Fresnel), blurred ' + F.etch.lobe_sigma_deg.toFixed(1) + '° by the etch: Philips etched display glass, gloss ' + F.etch.gloss + ' (Nuijs & Horikx 1994)'],

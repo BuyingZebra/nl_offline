@@ -83,6 +83,7 @@ The app's **Screen** menu switches between computed profiles:
 4. **Reflective HR-TFT, Nintendo Game Boy Color (Retro Display Lab):** see below.
 5. **Green phosphor CRT, IBM 5151 (P39):** see below.
 6. **P3 amber CRT on the IBM 5151:** see below.
+7. **Colour CRT, Commodore 1084S (P22):** see below.
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
@@ -219,6 +220,29 @@ A harder-driven beam makes a wider spot, so bright lines are thicker than dim on
 
 **On screen.** The glow is gone 13 ms after each hit, so moving pieces leave almost no trail. A real tube would ripple visibly at 50 Hz; the app shows the average over each refresh.
 
+## Commodore 1084S colour CRT (P22)
+
+`profiles/crt-1084s-p22.json`, built by `tools/crt_1084s.py`. The same CRT engine as the 5151, with three guns: each lights its own phosphor (red, green, blue) through the slot mask.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Monitor | 14 in (13 in viewable), 90°, slotted triplet pitch 0.42 mm, PAL 15.625 kHz / 50 Hz, 640 × 256, analogue RGB | Commodore 1084S manual |
+| Tube | Philips M34EAQ01X / 10X, 25 kV | Philips CM8833-II and CM11342 service manuals |
+| Decay | red: six exponentials, gone within 1–2 ms; green, blue: three exponentials plus a power-law tail | Kuhn, *Optical Time-Domain Eavesdropping Risks of CRT Displays* (IEEE S&P 2002), photomultiplier fits of a P22 monitor |
+| Colours | R 0.64, 0.33; G 0.29, 0.60; B 0.15, 0.06; D65 white | EBU Tech 3213 |
+| Signal | light ∝ signal^2.4 | ITU-R BT.1886 |
+
+**Derived.**
+- **Decay.** The engine holds at most nine exponentials per point. Red is one exponential carrying all of Kuhn's red light (its slowest time constant, 442 µs). Green and blue are one component for the light of the hit's own frame plus three exponentials fitted to Kuhn's tail at log-spaced frames from 1 to 250 (5 s), within 14 % everywhere. Kuhn's tail means the frame after a hit still shows 5.2 % (green) and 4.6 % (blue) of its light: faint green-blue trails in a dark room. Red shows none.
+- **Colour.** Each layer's steady light is set to its share of D65 white under the EBU primaries (22 %, 71 %, 7 %), so equal drive is white.
+- **Mask.** Each gun lights only its own stripe, three times as bright there, with the average colour kept. The stripes are drawn only where the display gives each one 2 or more pixels (they fade in from 2 to 3), as on the Game Boy Color.
+
+**Assumed.** No spot size is published for the M34EAQ: σ 0.25 mm at full drive. The faceplate, etch, room, knobs and bloom law are the 5151 profile's; full drive is 100 cd/m². The slots' bridges are not modelled. 288 lines fill the 198 mm picture height; the panel shows the 256-line picture.
+
+**Content.** On a colour tube the game draws on black (guns off) with white text, using the colour tiles.
+
+**The engine** now has three state textures per point (nine component charges and each gun's last excitation). The monochrome screens render pixel-identically to before.
+
 ## Retired: P7 screens
 
 The P7 cascade screen (on the 5151 raster) and the P7 radar PPI were removed in 0.20.0. A linear model cannot fit P7's measured decay after a single flash (RCA 1961 against MIT 1948), so its trails were not convincing, and a radar sweep does not suit the game engine. Their profiles, builders, the traced RCA curves and the PPI drive remain in the project history (up to 0.19.0). The CRT engine keeps its support for two phosphor layers.
@@ -280,7 +304,7 @@ Every screen kind has the same five files:
 | `screens/tn/` | reflective TN, multiplexed (shown) and static (the engine's datasheet reference, kept for the tests); `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
 | `screens/cgb/` | the Game Boy Color; `profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
-| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), and `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) |
+| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`),, `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) and the Commodore 1084S `profiles/crt-1084s-p22.json` (`tools/crt_1084s.py`) |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
@@ -290,7 +314,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the phosphor (P39 green, P3 amber). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the monitor (P39 green, P3 amber, Colour). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 
