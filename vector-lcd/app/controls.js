@@ -45,6 +45,15 @@ function knobsFor(screen, profile) {
 
 const clampTo = ([lo, hi], v) => Math.min(hi, Math.max(lo, v));
 
+/** The device's shadow on the page falls away from the room light: as long as
+ * the old fixed shadow at 45 degrees, none with the light straight on, at most twice. */
+function castShadow({angleDeg, azimuthDeg}) {
+ const length = Math.min(2, Math.tan(angleDeg * Math.PI / 180)), az = azimuthDeg * Math.PI / 180;
+ const root = document.documentElement.style;
+ root.setProperty('--shadow-x', (-Math.sin(az) * length).toFixed(3));
+ root.setProperty('--shadow-y', (Math.cos(az) * length).toFixed(3));
+}
+
 
 // ===========================================================================
 // Applying settings to a renderer
@@ -55,6 +64,7 @@ export function applySettings(screen, profile, renderer) {
  const def = kindOf(screen).definition;
  def.prepare(renderer);
  renderer.setLighting(settings.lighting);
+ castShadow(settings.lighting);
  const range = def.temperatureRange(profile);
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
  const room = def.roomLight(profile);
@@ -99,10 +109,10 @@ export function createControls(el, currentRenderer) {
   el.lighting.replaceChildren(
    slider({label: 'Light angle', min: 0, max: 75, step: 1, value: settings.lighting.angleDeg,
     format: v => v + '° from straight on',
-    onInput: v => { settings.lighting.angleDeg = v; currentRenderer().setLighting({angleDeg: v}); }}),
+    onInput: v => { settings.lighting.angleDeg = v; currentRenderer().setLighting({angleDeg: v}); castShadow(settings.lighting); }}),
    slider({label: 'Light from', min: 0, max: 359, step: 1, value: settings.lighting.azimuthDeg,
     format: describeDirection,
-    onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); }}));
+    onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); castShadow(settings.lighting); }}));
 
   // ---- On the device
   el.device.replaceChildren(...def.device(profile).map(control => slider({
