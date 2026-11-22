@@ -224,7 +224,7 @@ The controls come in three groups, and the first holds only controls the real de
   - Lumex multiplexed TN: **Contrast trim (VLCD)**, 2.6–4.2 V, default 3.29 V (this cell's contrast optimum). Multiplexed products set contrast with their supply; the on and off rms voltages are fixed fractions of VLCD (0.577 and 0.333), so the trim scales the whole drive (`setDriveGain`). The profile is unchanged.
   - DMG-01: **Contrast wheel**, default ×1.00.
   - IBM 5151: **Brightness and Contrast knobs.**
-- **Surroundings:** light angle and direction (default 45° from the top-left corner) and panel temperature (default 25 °C; not on the CRT).
+- **Surroundings:** light angle and direction (default 45° from the top-left corner), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns, as in the dim rooms radar displays were watched in. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
 - **Simulation:** run/pause and Reset panel.
 
 Fixed at realistic defaults:

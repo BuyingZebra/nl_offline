@@ -452,7 +452,7 @@ describe('Vector LCD structure: screen kinds, definitions and profiles',async()=
   for(const [name,kind] of Object.entries(KINDS)){
    assert.match(kind.VERSION,/^\d+\.\d+\.\d+$/,name);
    for(const fn of ['createRenderer','checkProfile'])assert.equal(typeof kind[fn],'function',name+'.'+fn);
-   for(const key of ['tiles','usesElectrodes','prepare','device','deviceNote','temperatureRange','temperatureNote','lightNote','driveNote','facts'])
+   for(const key of ['tiles','usesElectrodes','prepare','device','deviceNote','roomLight','roomNote','temperatureRange','temperatureNote','lightNote','driveNote','facts'])
     assert.ok(key in kind.definition,name+' definition lacks '+key);
   }
  });
@@ -610,5 +610,24 @@ describe('P3 amber CRT',async()=>{
  });
  test('a steady image shows its drive level at every phase of the scan',()=>{
   for(const phase of [0,.1,.5,.9])near(M.steadyWindow(P,.6667,phase*P.timing.frame_s),.6667,1e-3);
+ });
+});
+
+describe('Room brightness (CRT surroundings)',async()=>{
+ const {SCREENS,KINDS}=await import('../vector-lcd/app/screens.js');
+ const C=await import('../vector-lcd/screens/crt/index.js');
+ test('only screens that make their own light have it: every CRT, no reflective LCD',()=>{
+  for(const s of SCREENS){
+   const room=KINDS[s.kind].definition.roomLight(JSON.parse(read('profiles/'+s.id+'.json')));
+   assert.equal(Boolean(room),s.kind==='crt',s.id);
+  }
+ });
+ test('the room scales only the reflection, from dark to office light, and the profile\'s own room is unchanged',()=>{
+  const P=JSON.parse(read('profiles/crt-5151-p39.json'));
+  assert.equal(C.roomScale(P,P.luminance.room_lux),1);
+  assert.equal(C.roomScale(P,0),0);
+  near(C.roomScale(P,500),500/P.luminance.room_lux,1e-12);
+  const room=KINDS.crt.definition.roomLight(P);
+  assert.ok(room.min===0&&room.max>=500&&room.initial===P.luminance.room_lux);
  });
 });

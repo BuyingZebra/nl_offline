@@ -17,6 +17,8 @@ import * as crt from '../screens/crt/index.js';
  * @property {(renderer:Object) => void} prepare        reset settings that only some profiles change
  * @property {(P:Object) => DeviceControl[]} device     the real device's controls, and only those
  * @property {(P:Object) => string} deviceNote
+ * @property {(P:Object) => (DeviceControl|null)} roomLight  room brightness control, or null where it changes nothing
+ * @property {string} roomNote
  * @property {(P:Object) => (number[]|null)} temperatureRange  valid panel temperatures, or null
  * @property {string} temperatureNote
  * @property {string} lightNote

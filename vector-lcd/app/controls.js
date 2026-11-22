@@ -21,6 +21,8 @@ const settings = {
  // 15 degrees wide (a typical lamp), at normal room brightness.
  lighting: {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1},
  celsius: 25,
+ /** room illuminance (lux); null until a screen that uses it sets its default */
+ roomLux: null,
  /** knob positions per screen id: {screenId: {key: value}} */
  knobs: {}
 };
@@ -46,6 +48,8 @@ export function applySettings(screen, profile, renderer) {
  renderer.setLighting(settings.lighting);
  const range = def.temperatureRange(profile);
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
+ const room = def.roomLight(profile);
+ if (room) room.apply(renderer, settings.roomLux ??= room.initial);
  const knobs = knobsFor(screen, profile);
  for (const control of def.device(profile)) control.apply(renderer, knobs[control.key]);
 }
@@ -73,7 +77,7 @@ function slider({label, min, max, step, value, format, onInput}) {
 }
 
 /**
- * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, environment, envNote
+ * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, room, roomNote, environment, envNote
  * @param {() => Object} currentRenderer   the stage's renderer at the time of the input
  */
 export function createControls(el, currentRenderer) {
@@ -100,6 +104,14 @@ export function createControls(el, currentRenderer) {
 
   // ---- Surroundings
   el.lightNote.textContent = def.lightNote;
+  const room = def.roomLight(profile);
+  el.room.replaceChildren();
+  if (room) el.room.append(slider({
+   ...room, label: 'Room brightness', value: settings.roomLux ?? room.initial,
+   onInput: v => { settings.roomLux = v; room.apply(currentRenderer(), v); }
+  }));
+  el.roomNote.textContent = def.roomNote;
+  el.roomNote.hidden = !room;
   const range = def.temperatureRange(profile);
   el.environment.replaceChildren();
   if (range) el.environment.append(slider({

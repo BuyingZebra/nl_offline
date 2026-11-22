@@ -45,6 +45,11 @@ export const definition = Object.freeze({
 
  // ---- Surroundings ---------------------------------------------------------
 
+ /** A reflective panel shows only the room's own light: a brighter or dimmer
+  * room changes nothing your adapting eye sees, so there is no room control. */
+ roomLight: () => null,
+ roomNote: '',
+
  temperatureRange: P => P.temperature?.range_C ?? [15, 40],
  temperatureNote: 'Cold liquid crystal is slower; warm crystal is faster and shifts the panel\'s colour.',
  lightNote: 'Light at an angle enters the glass at one point and leaves at another, casting a shadow under each shape. '

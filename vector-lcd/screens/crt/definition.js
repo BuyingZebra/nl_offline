@@ -34,6 +34,16 @@ export const definition = Object.freeze({
  // ---- Surroundings ---------------------------------------------------------
 
  temperatureRange: () => null,    // the phosphor's decay does not depend on room temperature here
+
+ /** Room brightness: a CRT makes its own light, so the room only adds its
+  * reflection. A dark room shows the afterglow that a lit room drowns. */
+ roomLight: P => ({
+  min: 0, max: 500, step: 5, initial: P.luminance.room_lux,
+  format: lux => lux + ' lx · ' + (lux === 0 ? 'dark room' : lux < 50 ? 'dim, as radar rooms were' : lux < 200 ? 'dim room' : lux < 400 ? 'lit room' : 'office lighting'),
+  apply: (renderer, lux) => renderer.setRoomLux(lux)
+ }),
+ roomNote: 'A dark room lets the afterglow show: the room\'s reflection off the glass no longer hides it. '
+  + 'The phosphor\'s own light is the same in any room; your eye adapts to the screen.',
  temperatureNote: '',
  lightNote: 'The screen makes its own light. The room light only greys the glass and the phosphor behind it, '
   + 'and the bezel shades the edges that face it.',
@@ -56,7 +66,8 @@ export const definition = Object.freeze({
    ['Picture (assumed)', R.height_mm + ' mm tall raster (Philips 31 cm useful height); the 5151\'s own size is not published'],
    ['Faceplate', '~50% transmission (Philips); n ' + F.n + '; ' + F.thickness_mm + ' mm thick (assumed); halation returns ' + (F.halation.total * 100).toFixed(1) + '% of the light 18 mm and more away'],
    ['Room light', 'screen reflectance ' + F.screen_reflectance + ' (assumed) through the glass twice, plus the etched surface: ' + Math.round(F.ambient_reflectance * 100) + '% of a white card'],
-   ['Brightness (assumed)', P.luminance.full_drive_cd_m2 + ' cd/m² at full drive (20 fL, the level the Philips and P39 measurements use); room ' + P.luminance.room_lux + ' lux'],
+   ['Brightness (assumed)', P.luminance.full_drive_cd_m2 + ' cd/m² at full drive (20 fL, the level the Philips and P39 measurements use)'],
+   ['Room light', 'set by Room brightness, 0 to 500 lx (default ' + P.luminance.room_lux + ' lx). Only the glass\'s reflection scales with it; the phosphor\'s light does not'],
    ['Exposure', 'set so the brightest line core at full drive just reaches the display\'s maximum, as your eye adapts to a lit screen; all brightness ratios are kept'],
    ['Not modelled', 'screen curvature and geometry, focus and spot growth with beam current, retrace, burn-in']
   ];

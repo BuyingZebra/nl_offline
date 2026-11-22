@@ -21,6 +21,11 @@ export const definition = Object.freeze({
 
  // ---- Surroundings ---------------------------------------------------------
 
+ /** A reflective panel shows only the room's own light: a brighter or dimmer
+  * room changes nothing your adapting eye sees, so there is no room control. */
+ roomLight: () => null,
+ roomNote: '',
+
  temperatureRange: P => P.temperature.range_C,
  temperatureNote: 'Cold crystal is slower and smears more; warm crystal is faster. Valid 10–30 °C, the range of the source model.',
  lightNote: 'The light moves the bezel shadow and the glare. The DMG\'s reflector shadow keeps its measured offset (light from the upper left).',

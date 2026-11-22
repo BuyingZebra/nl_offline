@@ -5,13 +5,14 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, bezelShiftMm, bezelPenumbraMm} from '../../optics/room.js';
-import {checkProfile, adaptedExposure, halationRings, MAX_COMPONENTS} from './model.js';
+import {checkProfile, adaptedExposure, halationRings, roomScale, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
+const MAX_ROOM_LUX = 1000;
 
 /** The profile's exponentials padded to the shaders' fixed count; unused ones
  * carry no light. layer: 0 or 1 per component. */
@@ -50,6 +51,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let lighting = {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1};
  let contrast = profile.controls.contrast.value;
  let brightness = profile.controls.brightness.value;
+ let roomLux = profile.luminance.room_lux;    // the room's illuminance at the screen
 
 
  // ===========================================================================
@@ -214,8 +216,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gpu.bind(p, 1, 'uHaloField', res.haloField.tex);
    gl.uniform2f(p.u('uSize'), W, H);
    gl.uniform1f(p.u('uFull'), profile.luminance.full_drive_relative);
-   gl.uniform1f(p.u('uAmbient'), F.ambient_reflectance - F.surface_reflectance);
-   gl.uniform1f(p.u('uSurface'), F.surface_reflectance);
+   const room = roomScale(profile, roomLux);
+   gl.uniform1f(p.u('uAmbient'), (F.ambient_reflectance - F.surface_reflectance) * room);
+   gl.uniform1f(p.u('uSurface'), F.surface_reflectance * room);
    gl.uniform1f(p.u('uExposure'), lighting.exposure * adaptedExposure(profile));
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
    const [rgb0, rgb1] = layerColours(profile);
@@ -279,6 +282,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   /** The 5151's front knobs. */
   get contrast() { return contrast; },
   setContrast(v) { const c = profile.controls.contrast; contrast = clamp(Number(v), c.min, c.max); },
+  /** The room's illuminance at the screen (lux): only the glass's reflection changes. */
+  get roomLux() { return roomLux; },
+  setRoomLux(v) { roomLux = clamp(Number(v), 0, MAX_ROOM_LUX); },
   get brightness() { return brightness; },
   setBrightness(v) { const b = profile.controls.brightness; brightness = clamp(Number(v), b.min, b.max); },
 

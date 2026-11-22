@@ -109,6 +109,13 @@ export function decayTime(profile, fraction = .1) {
 // What the display shows
 // ===========================================================================
 
+/** Room reflection relative to the profile's own room: the profile measures
+ * every light against a white card under luminance.room_lux. The phosphor's
+ * light does not change with the room; only the reflection off the glass does. */
+export function roomScale(profile, lux) {
+ return Math.max(0, lux) / profile.luminance.room_lux;
+}
+
 /** Each layer's share of the light under steady excitation (sums to 1). */
 export function layerShares(profile) {
  const {amplitudes: a, taus_s: tau, layer} = profile.phosphor.impulse;
