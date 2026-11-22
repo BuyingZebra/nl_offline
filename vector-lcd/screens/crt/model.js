@@ -12,9 +12,9 @@
  *  - light trapped in the faceplate returns as a halo (halation);
  *  - the room light reflects off the screen and the etched glass.
  *
- * A screen may have up to two phosphor layers, each with its own colour (P7:
- * a blue flash cascaded on a yellow-green afterglow). The impulse response is
- * a sum of at most seven exponentials; each belongs to one layer. */
+ * A screen may have up to three phosphor layers, each with its own colour (one
+ * per gun on a colour tube) and its own beam drive. The impulse response is a
+ * sum of at most nine exponentials; each belongs to one layer. */
 
 import {requireFields, ROOM_FIELDS} from '../contract.js';
 import {glare, rad} from '../../optics/room.js';
@@ -76,11 +76,7 @@ export function layerDrives(profile, rgb, contrast = 1, brightness = 0) {
  return profile.phosphor.layers.map(() => d);
 }
 
-/** How far the display can draw a colour mask's stripes, from its pixels per
- * triplet: a stripe needs at least two display pixels to be drawn without
- * aliasing (Nyquist), so the stripes fade in from 2 to 3 pixels per stripe.
- * Mirrored in DISPLAY_FS (uResolve). */
-export const stripeResolve = pxPerTriplet => clamp(pxPerTriplet / 3 - 2, 0, 1);
+export {stripeResolve} from '../../optics/aperture.js';
 
 
 // ===========================================================================

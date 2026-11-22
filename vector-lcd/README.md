@@ -291,8 +291,10 @@ The controls come in two groups, and the first holds only controls the real devi
   - VI-402: none. It is bare glass on a fixed 3.0 V static drive.
   - Lumex multiplexed TN: **Contrast trim (VLCD)**, 2.6–4.2 V, default 3.29 V (this cell's contrast optimum). Multiplexed products set contrast with their supply; the on and off rms voltages are fixed fractions of VLCD (0.577 and 0.333), so the trim scales the whole drive (`setDriveGain`). The profile is unchanged.
   - DMG-01: **Contrast wheel**, default ×1.00.
-  - IBM 5151: **Brightness and Contrast knobs.**
-- **Surroundings:** light angle and direction (default 45° from the top-left corner; the device's shadow on the page falls away from it), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
+  - Game Boy Color: none. The handheld has no picture control.
+  - IBM 5151 and Commodore 1084S: **Brightness and Contrast knobs.**
+  - Vectrex: **Brightness knob** (the beam current).
+- **Surroundings:** light angle and direction (default 45° from the top-left corner; the device's shadow on the page falls away from it), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs and the Vectrex only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
 - **Simulation:** run/pause (stops the game; the screen keeps showing the still picture) and **Reset settings** (every control back to its default: the room and this screen's knobs).
 
 Fixed at realistic defaults:
@@ -326,7 +328,8 @@ Every screen kind has the same five files:
 | --- | --- |
 | `app/` | `main.js` (start and frame loop), `screens.js` (the screen list), `stage.js` (canvas and renderer), `controls.js`, `info.js`, `view.js` |
 | `gpu/` | `webgl.js` (context, targets, drawing, resize, context loss), `glsl.js` (shared shader chunks) |
-| `optics/` | `room.js`: light direction, Fresnel glare, bezel shadow; the JS twins of the shared GLSL |
+| `optics/` | `room.js`: light direction, Fresnel glare (on flat or curved glass), bezel shadow; `aperture.js`: when colour stripes can be drawn; the JS twins of the shared GLSL |
+| `reference/` | `reflective-tn.json`: the static-drive TN profile (VI-402), the datasheet reference the tests check the TN engine against; not a screen in the app |
 | `screens/tn/` | reflective TN, multiplexed (shown) and static (the engine's datasheet reference, kept for the tests); `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
 | `screens/cgb/` | the Game Boy Color; `profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |

@@ -137,11 +137,7 @@ export function stripeContrast(rgb) {
  return rgb.reduce((m, v) => v > 1 / 3 ? Math.min(m, (1 - v) / (2 * v)) : m, 1);
 }
 
-/** How far the display can show the stripes, from its pixels per logical
- * pixel: a stripe needs at least two display pixels to be drawn without
- * aliasing (Nyquist), so the stripes fade in from 2 to 3 pixels per stripe;
- * below that each pixel shows its average colour. Mirrored in the renderer. */
-export const stripeResolve = pxPerPixel => clamp(pxPerPixel / 3 - 2, 0, 1);
+export {stripeResolve} from '../../optics/aperture.js';
 
 /** Linear colour a display pixel shows across [u0, u1] x [v0, v1] in logical
  * pixel units, given each logical pixel's linear colour (pixelAt(i, j)). */

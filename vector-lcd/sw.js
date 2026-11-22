@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.23.0';
+const VERSION = '0.23.1';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -27,6 +27,7 @@ const ASSETS = Object.freeze([
  './gpu/webgl.js',
  './gpu/glsl.js',
  './optics/room.js',
+ './optics/aperture.js',
  './screens/contract.js',
  './screens/tn/index.js',
  './screens/tn/model.js',
@@ -49,7 +50,6 @@ const ASSETS = Object.freeze([
  './screens/crt/renderer.js',
  './screens/crt/definition.js',
  // ---- Screen profiles
- './profiles/reflective-tn.json',
  './profiles/reflective-tn-mux4.json',
  './profiles/dmg-01-stn.json',
  './profiles/cgb-001-tft.json',

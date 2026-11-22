@@ -18,8 +18,9 @@ const tn = KINDS.tn, dmg = KINDS.dmg, crt = KINDS.crt, cgb = KINDS.cgb;
 // Helpers
 // ===========================================================================
 
+/** A screen's profile; the static TN is the engine's datasheet reference (reference/). */
 async function profileOf(id) {
- const response = await fetch('/vector-lcd/profiles/' + id + '.json');
+ const response = await fetch('/vector-lcd/' + (id === 'reflective-tn' ? 'reference/' : 'profiles/') + id + '.json');
  return response.json();
 }
 

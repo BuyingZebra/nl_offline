@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Reflective twisted-nematic (TN) LCD optics from first principles.
 
-Writes ../profiles/reflective-tn.json, which the renderer loads. Nothing in the
+Writes ../reference/reflective-tn.json (the static-drive datasheet reference the tests
+check the TN engine against; not a screen in the app) and ../profiles/reflective-tn-mux4.json. Nothing in the
 output is hand-tuned: every input below names its source, and the only two
 calibrations (response times and front-surface reflection) are solved so the
 simulated panel reproduces the datasheet's measured response times and
@@ -458,7 +459,7 @@ out = {
    "viewing_cone_note": "contrast >= 2 with light arriving from the viewing direction (reflective measurement); datasheet typ: bottom 70, top 35, left 70, right 70"},
  "temperature": temperature
 }
-json.dump(out, open(os.path.join(HERE, "..", "profiles", "reflective-tn.json"), "w"), separators=(",", ":"))
+json.dump(out, open(os.path.join(HERE, "..", "reference", "reflective-tn.json"), "w"), separators=(",", ":"))
 
 # ---------------------------------------------------------------------------
 # 9. The same cell, multiplexed: 1/4 duty, 1/3 bias (standard segment drive,

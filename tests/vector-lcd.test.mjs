@@ -103,7 +103,7 @@ describe('Vector LCD parameters and helpers',()=>{
  });
 });
 
-const TN=JSON.parse(read('profiles/reflective-tn.json'));
+const TN=JSON.parse(read('reference/reflective-tn.json'));   // the static-drive datasheet reference
 const luminance=rgb=>.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];
 
 describe('Reflective TN profile: physics and datasheet agreement',()=>{
