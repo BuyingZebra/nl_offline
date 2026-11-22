@@ -62,14 +62,15 @@ export const definition = Object.freeze({
    ['Scan (MDA)', (T.horizontal_hz / 1000).toFixed(3) + ' kHz lines, ' + T.refresh_hz.toFixed(2) + ' Hz frames, ' + T.lines_visible + ' of ' + T.lines_total + ' lines shown; the panel height is the 350 lines'],
    ['Signal', 'TTL: video 2/3 + intensity 1/3 of the luminance, 4 levels; free to switch anywhere along a line (no pixels)'],
    ...P.phosphor.facts,
-   ['Spot (measured, similar tube)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm from 1300-line resolution of Philips 31 cm 90° tubes; scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart'],
+   ['Spot (measured, similar tube)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm from 1300-line resolution of Philips 31 cm 90° tubes (white P4 screen); scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart'],
+   ['Spot blooming (measured)', 'brighter = wider: line width grows as current^' + P.spot.bloom.power.toFixed(2) + ' (Philips Fig. 5, 50-200 µA, at ' + P.spot.bloom.vkr_V + ' V cut-off, assumed mid-range; ' + P.spot.bloom.power_range_30_60V.map(v => v.toFixed(2)).join('-') + ' over 30-60 V). This phosphor gives ' + Math.round(P.phosphor.efficiency_vs_P4 * 100) + '% of P4\'s light per current, so at full drive its spot is ' + Math.round((Math.pow(1 / P.phosphor.efficiency_vs_P4, P.spot.bloom.power) - 1) * 100) + '% wider than the test spot'],
    ['Picture (assumed)', R.height_mm + ' mm tall raster (Philips 31 cm useful height); the 5151\'s own size is not published'],
    ['Faceplate', '~50% transmission (Philips); n ' + F.n + '; ' + F.thickness_mm + ' mm thick (assumed); halation returns ' + (F.halation.total * 100).toFixed(1) + '% of the light 18 mm and more away'],
    ['Room light', 'screen reflectance ' + F.screen_reflectance + ' (assumed) through the glass twice, plus the etched surface: ' + Math.round(F.ambient_reflectance * 100) + '% of a white card'],
    ['Brightness (assumed)', P.luminance.full_drive_cd_m2 + ' cd/m² at full drive (20 fL, the level the Philips and P39 measurements use)'],
    ['Room light', 'set by Room brightness, 0 to 500 lx (default ' + P.luminance.room_lux + ' lx). Only the glass\'s reflection scales with it; the phosphor\'s light does not'],
    ['Exposure', 'set so the brightest line core at full drive just reaches the display\'s maximum, as your eye adapts to a lit screen; all brightness ratios are kept'],
-   ['Not modelled', 'screen curvature and geometry, focus and spot growth with beam current, retrace, burn-in']
+   ['Not modelled', 'screen curvature and geometry, retrace, burn-in']
   ];
  }
 });

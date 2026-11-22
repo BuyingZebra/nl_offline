@@ -161,7 +161,8 @@ export async function crtParity() {
   }
 
   // Excitation at one pixel, from the spot of every line that reaches it.
-  const pitch = H / T.lines_visible, sigma = P.spot.sigma_mm / (P.raster.height_mm / PANEL.h) * pxPerMm;
+  // Full drive everywhere: every point's spot has the full-drive width (model.js spotSigmaMm).
+  const pitch = H / T.lines_visible, sigma = crt.spotSigmaMm(P, 1) / (P.raster.height_mm / PANEL.h) * pxPerMm;
   let worst = 0;
   for (const [xMm, yMm] of [[24, 45], [12, 30], [36, 70]]) {
    const x = Math.floor(xMm * pxPerMm), y = H - 1 - Math.floor(yMm * pxPerMm);
@@ -235,6 +236,49 @@ export async function resizeCarry() {
 }
 
 
+// ===========================================================================
+// CRT spot blooming: a brighter line is wider, by the measured power law
+// ===========================================================================
+
+/** Width (px, one standard deviation) of the scanline through the panel's
+ * centre, from the emitted light across it (pixel box removed). */
+function lineSigmaPx(r, P) {
+ const {height: H, pxPerMm} = r.info(), pitch = H / P.timing.lines_visible;
+ const n = Math.floor(P.timing.lines_visible / 2), centre = (n + .5) * pitch;  // from the top, px
+ let sum = 0, mean = 0, second = 0;
+ for (let y = Math.ceil(n * pitch); y < (n + 1) * pitch; y++) {
+  const e = r.sample(24, (y + .5) / pxPerMm), d = y + .5 - centre;
+  sum += e; mean += e * d; second += e * d * d;
+ }
+ mean /= sum;
+ return Math.sqrt(second / sum - mean * mean - 1 / 12);
+}
+
+export async function spotBloom() {
+ const P = await profileOf('crt-5151-p39');
+ const {renderer: r, done} = mount('crt', P, [1300, 2500]);      // big enough to resolve one scanline
+ const width = contrast => {
+  r.setContrast(contrast);
+  r.setBrightness(0);
+  r.reset();
+  let t = T0;
+  for (let k = 0; k < 40; k++) { paint(r, [0, 0, PANEL.w, PANEL.h]); r.frame(t += 100); }
+  return lineSigmaPx(r, P);
+ };
+ const full = width(1), third = width(1 / 3);
+ const {pxPerMm} = r.info(), toPx = pxPerMm / (P.raster.height_mm / PANEL.h);
+ done();
+ const law = 3 ** P.spot.bloom.power;
+ const expectedFull = crt.spotSigmaMm(P, 1) * toPx;
+ return [
+  result('CRT bloom: full / third-drive line width = (3)^power', Math.abs(full / third / law - 1), .05,
+   ' (measured ' + (full / third).toFixed(3) + ', law ' + law.toFixed(3) + ')'),
+  result('CRT bloom: full-drive line width = model spot', Math.abs(full / expectedFull - 1), .05,
+   ' (' + full.toFixed(3) + ' px vs ' + expectedFull.toFixed(3) + ' px)')
+ ];
+}
+
+
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await crtParity(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

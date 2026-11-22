@@ -5,10 +5,10 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, bezelShiftMm, bezelPenumbraMm} from '../../optics/room.js';
-import {checkProfile, adaptedExposure, halationRings, roomScale, MAX_COMPONENTS} from './model.js';
+import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
@@ -134,13 +134,18 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
  }
 
- /** Uniforms of the shared RASTER chunk: line pitch, spot and beam timing. */
+ /** Uniforms of the shared RASTER chunk (line pitch, beam timing) and the spot. */
  function bindRaster(p) {
   const T = profile.timing, {H, W, pxPerMm} = surface;
-  const pitch = H / T.lines_visible, sigma = profile.spot.sigma_mm / monitorPerPanel() * pxPerMm;
+  const pitch = H / T.lines_visible, toPx = pxPerMm / monitorPerPanel(), B = profile.spot.bloom;
   gl.uniform1f(p.u('uPitch'), pitch);
-  gl.uniform1f(p.u('uSigmaY'), Math.max(sigma, 1e-3));
-  gl.uniform1f(p.u('uSigmaX'), Math.max(sigma, 1e-3));
+  // Spot (UPDATE only): the measured W spot in px; the bloom law turns it into each point's width.
+  gl.uniform1f(p.u('uSigmaW'), profile.spot.sigma_mm * toPx);
+  gl.uniform1f(p.u('uEff'), profile.phosphor.efficiency_vs_P4);
+  gl.uniform1f(p.u('uBloomP'), B.power);
+  gl.uniform1f(p.u('uMinDrive'), B.min_drive_fraction);
+  const C = profile.controls;
+  gl.uniform1f(p.u('uSigmaMax'), Math.max(spotSigmaMm(profile, C.contrast.max + C.brightness.max) * toPx, 1e-3));
   gl.uniform1f(p.u('uLineS'), T.line_s);
   gl.uniform1f(p.u('uActiveS'), T.active_s);
   gl.uniform1f(p.u('uFrameS'), T.frame_s);

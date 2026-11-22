@@ -95,6 +95,7 @@ profile.update({
  "name": "IBM 5151 monochrome display with a P3 amber phosphor (MDA raster)",
  "phosphor": {
   "type": "P3: Zn8BeSi5O19:Mn (zinc beryllium silicate)",
+  "efficiency_vs_P4": r7(45 / 70), "efficiency_ref": "Tektronix relative luminance (via Jankowiak): P3 45, P4 70",
   "peak_nm": PEAK_NM, "range_10pct_nm": [LO_NM, HI_NM],
   "cie_xy": [r7(xy[0]), r7(xy[1])],
   "persistence_class": "medium: 13 ms to 10 %",

@@ -103,6 +103,22 @@ XYZ = np.array([X_ / Y_, 1.0, (1 - X_ - Y_) / Y_])
 M = np.array([[3.2404542, -1.5371385, -0.4985314], [-0.9692660, 1.8760108, 0.0415560], [0.0556434, -0.2040259, 1.0572252]])
 srgb_raw = M @ XYZ
 
+# --- Spot growth with beam current (Philips T16 1987, Fig. 5, traced) ---
+# Line width follows a power of the anode current at fixed cathode cut-off
+# voltage: fitted over the four measured currents (50-200 uA, a factor of 4)
+# at 45 V, the middle of the datasheet's typical 30-60 V (assumed); the range
+# of the power over 30-60 V is recorded.
+LW = json.load(open(os.path.join(HERE, "philips-m31-line-width.json")))
+def bloom_power(vkr):
+    I = np.array([50.0, 75.0, 100.0, 200.0])
+    w = np.array([np.interp(vkr, LW["curves"][str(int(i))]["vkr_V"], LW["curves"][str(int(i))]["line_width_mm"]) for i in I])
+    p, c = np.polyfit(np.log(I), np.log(w), 1)
+    return float(p), float(np.max(np.abs(np.log(w) - (p * np.log(I) + c))))
+VKR = 45.0
+BLOOM_P, BLOOM_MISFIT = bloom_power(VKR)
+BLOOM_RANGE = [bloom_power(v)[0] for v in (30.0, 60.0)]
+P39_VS_P4 = 0.75                                     # Philips T16 survey of screen phosphors: GR approx. 75 % of WW
+
 # --- Spot and faceplate ---
 HEIGHT_MM, WIDTH_MM = 201.0, 254.0                  # Philips 31 cm 90 deg useful screen
 LINE_WIDTH_MM = HEIGHT_MM / 1300                    # shrinking-raster resolution
@@ -147,6 +163,7 @@ profile = {
  "drive": {"levels": [0, 1 / 3, 2 / 3, 1], "mapping": "level = floor(3 (1 - luma) + 0.5) / 3: dark art drives the beam",
            "ref": "MDA video pin = 2/3, intensity pin = 1/3 of the luminance (Wikipedia, IBM Monochrome Display Adapter). Content is free, so the TTL signal may switch anywhere along a line."},
  "phosphor": {"type": "P39 (GR), Zn2SiO4:Mn,As", "peak_nm": 525, "cie_xy": [X_, Y_],
+              "efficiency_vs_P4": P39_VS_P4, "efficiency_ref": "Philips T16 1987 survey of screen phosphors: GR (P39) approx. 75 % of WW (P4) brightness",
               "layers": [{"name": "green", "cie_xy": [X_, Y_], "peak_nm": 525, "share": 1.0,
                           "display_rgb_per_Y": [0.0, 1 / 0.7152, 0.0], "gamut_desaturation": 0.0,
                           "display_note": "outside sRGB: shown on the display's green primary at its true luminance"}],
@@ -169,7 +186,12 @@ profile = {
  "colour": {"srgb_linear_unclipped": [r6(v) for v in srgb_raw],
             "note": "P39 lies outside sRGB (red and blue would be negative). Shown on the sRGB green primary at the correct luminance; above the display's maximum green it clips, keeping the hue: a P39 screen never looks white."},
  "spot": {"sigma_mm": r6(SIGMA_MM), "line_width_mm": r6(LINE_WIDTH_MM),
-          "ref": "Philips M31-336/338/350: about 1300 lines over 201 mm (shrinking raster, 68.5 cd/m2); flat-field pitch = 2 sigma"},
+          "ref": "Philips M31-336/338/350: about 1300 lines over 201 mm (shrinking raster, 68.5 cd/m2, phosphor W); flat-field pitch = 2 sigma",
+          "line_count_height_note": "Philips measures the 1300 lines on a 216 x 162 mm raster without saying which height the count refers to; over 162 mm the line width would be 0.125 mm. 201 mm (the useful height) is used.",
+          "bloom": {"power": r6(BLOOM_P), "power_range_30_60V": [r6(v) for v in BLOOM_RANGE], "fit_max_log_misfit": r6(BLOOM_MISFIT),
+                    "vkr_V": VKR, "vkr_assumed": True, "min_drive_fraction": 0.25,
+                    "model": "sigma(drive) = sigma_mm * (drive / efficiency_vs_P4) ** power; drive = beam signal relative to full drive, held at min_drive_fraction or above (the measured currents span a factor of 4)",
+                    "ref": "Philips T16 1987, Resolution characteristics, Fig. 5 (M31-336..350, 12 kV): line width at 50, 75, 100, 200 uA, traced into tools/philips-m31-line-width.json"}},
  "raster": {"height_mm": HEIGHT_MM, "width_mm": WIDTH_MM, "pitch_mm": r6(HEIGHT_MM / LINES_VISIBLE), "assumed": True,
             "note": "raster assumed to fill the useful height of a Philips 31 cm 90 degree monitor tube; the 5151's own picture size is not published"},
  "faceplate": {"n": N_GLASS, "transmission": T_GLASS, "thickness_mm": GLASS_MM, "screen_reflectance": R_SCREEN,

@@ -631,3 +631,32 @@ describe('Room brightness (CRT surroundings)',async()=>{
   assert.ok(room.min===0&&room.max>=500&&room.initial===P.luminance.room_lux);
  });
 });
+
+describe('Spot blooming (Philips T16, Fig. 5)',async()=>{
+ const C=await import('../vector-lcd/screens/crt/index.js');
+ const trace=JSON.parse(fs.readFileSync(new URL('../vector-lcd/tools/philips-m31-line-width.json',import.meta.url),'utf8'));
+ const profiles=['crt-5151-p39','crt-5151-p3','crt-5151-p7'].map(id=>JSON.parse(read('profiles/'+id+'.json')));
+ const P39=profiles[0],B=P39.spot.bloom;
+ test('the power law reproduces the traced line widths at the assumed 45 V within 3 %',()=>{
+  const at=I=>{const c=trace.curves[I];let i=0;while(c.vkr_V[i+1]<45)i++;const f=(45-c.vkr_V[i])/(c.vkr_V[i+1]-c.vkr_V[i]);return c.line_width_mm[i]+f*(c.line_width_mm[i+1]-c.line_width_mm[i]);};
+  const I=['50','75','100','200'],logs=I.map(i=>Math.log(at(i))-B.power*Math.log(Number(i)));
+  const c=logs.reduce((a,b)=>a+b,0)/logs.length;           // the fitted law's constant
+  for(const k of logs)assert.ok(Math.abs(k-c)<.03,'misfit '+(k-c));
+  assert.ok(B.power>=B.power_range_30_60V[0]&&B.power<=B.power_range_30_60V[1]);
+ });
+ test('the same tube for every phosphor; brighter signals make wider spots, by the measured power',()=>{
+  for(const P of profiles){
+   assert.deepEqual(P.spot,P39.spot);
+   near(C.spotSigmaMm(P,1)/C.spotSigmaMm(P,1/3),3**B.power,1e-9);
+   assert.ok(C.spotSigmaMm(P,.1)===C.spotSigmaMm(P,B.min_drive_fraction),'held below the measured range');
+  }
+ });
+ test('a less efficient phosphor needs more current, so its full-drive spot is wider than the W test spot',()=>{
+  near(P39.phosphor.efficiency_vs_P4,.75,1e-9);
+  for(const P of profiles){
+   const ratio=C.spotSigmaMm(P,1)/P.spot.sigma_mm;
+   near(ratio,(1/P.phosphor.efficiency_vs_P4)**B.power,1e-9);
+   assert.ok(ratio>1&&ratio<1.2,P.profile+' '+ratio);
+  }
+ });
+});

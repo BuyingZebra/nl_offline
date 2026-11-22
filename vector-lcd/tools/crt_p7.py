@@ -166,6 +166,7 @@ profile.update({
  "name": "IBM 5151 monochrome display with a P7 screen (MDA raster)",
  "phosphor": {
   "type": "P7: ZnS:Ag cascaded on (Zn,Cd)S:Cu",
+  "efficiency_vs_P4": r6(45 / 70), "efficiency_ref": "Tektronix relative luminance (via Jankowiak): P7 45, P4 70",
   "cie_xy": [r6(steady_xy[0]), r6(steady_xy[1])],
   "persistence_class": "blue: medium short (25-75 us); yellow-green: long (400 ms to 10 %)",
   "layers": [

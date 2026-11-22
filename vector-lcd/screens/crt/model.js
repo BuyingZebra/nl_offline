@@ -38,6 +38,7 @@ export const PROFILE_FIELDS = Object.freeze([
  'timing.frame_s', 'timing.line_s', 'timing.active_s', 'timing.lines_visible',
  'phosphor.impulse.amplitudes', 'phosphor.impulse.taus_s', 'phosphor.impulse.layer', 'phosphor.layers', 'phosphor.facts',
  'raster.pitch_mm', 'raster.height_mm', 'spot.sigma_mm', 'luminance.full_drive_relative',
+ 'spot.bloom.power', 'spot.bloom.min_drive_fraction', 'phosphor.efficiency_vs_P4',
  'faceplate.ambient_reflectance', 'faceplate.surface_reflectance',
  'faceplate.halation.r_mm', 'faceplate.halation.fraction',
  'controls.contrast.min', 'controls.contrast.max', 'controls.contrast.value',
@@ -63,6 +64,22 @@ export function checkProfile(profile) {
 /** TTL level 0..3 for encoded sRGB in [0, 1]: dark art drives the beam. */
 export function levelFromRGB(r, g, b) {
  return Math.floor(clamp(1 - (.2126 * r + .7152 * g + .0722 * b), 0, 1) * 3 + .5);
+}
+
+
+// ===========================================================================
+// Spot: wider at higher beam current
+// ===========================================================================
+
+/** Gaussian spot width (monitor mm, one standard deviation) for a beam signal
+ * `drive` (1 = full drive). The measured spot is for phosphor W (P4) at the
+ * resolution test's light output; a less efficient phosphor needs more current
+ * for the same light, and the line width grows as a power of the current
+ * (Philips T16, Fig. 5). Below min_drive_fraction it is held (outside the
+ * measured range). Mirrored in UPDATE_FS. */
+export function spotSigmaMm(profile, drive) {
+ const B = profile.spot.bloom, eff = profile.phosphor.efficiency_vs_P4;
+ return profile.spot.sigma_mm * Math.pow(Math.max(drive, B.min_drive_fraction) / eff, B.power);
 }
 
 
@@ -135,7 +152,7 @@ export function steadyRGBPerY(profile) {
  * the display's maximum in its brightest channel, as the eye adapts to a lit
  * screen. One constant: every ratio (levels, afterglow, room reflection) is kept. */
 export function adaptedExposure(profile) {
- const peak = profile.raster.pitch_mm / (Math.sqrt(2 * Math.PI) * profile.spot.sigma_mm);
+ const peak = profile.raster.pitch_mm / (Math.sqrt(2 * Math.PI) * spotSigmaMm(profile, 1));
  return 1 / (profile.luminance.full_drive_relative * peak * Math.max(...intoGamut(steadyRGBPerY(profile))));
 }
 

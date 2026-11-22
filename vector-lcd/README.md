@@ -156,9 +156,25 @@ Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, 
 - **Exposure.** It is set so the brightest line core at full drive just reaches the display's maximum green, as the eye adapts to a lit screen. One constant, so every brightness ratio is kept.
 - **Fine scanlines.** At about 3 display pixels per scanline, lines can look slightly uneven: the screen's pixels sample them.
 
-**Not modelled:** screen curvature and geometry, spot growth with beam current, retrace lines, burn-in.
+**Not modelled:** screen curvature and geometry, retrace lines, burn-in. (Spot growth with beam current: see Spot blooming.)
 
 **Controls:** the 5151's **Brightness** knob (a uniform beam on every line, which makes the raster visible) and **Contrast** knob (video gain). The temperature control is hidden for this screen.
+
+## Spot blooming (all CRT screens)
+
+A harder-driven beam makes a wider spot, so bright lines are thicker than dim ones. This is electron optics, the same for every phosphor on the tube.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Line width vs anode current | 50, 75, 100, 200 µA curves for M31-336..350 at 12 kV, against cathode cut-off voltage | Philips T16 (1987), Resolution characteristics, Fig. 5, traced into `tools/philips-m31-line-width.json` |
+| Typical cathode cut-off | 30 to 60 V | M31-336/338/350 datasheet, typical operating conditions |
+| Phosphor efficiency vs P4 | P39 0.75 (Philips survey); P3 and P7 45/70 (Tektronix relative luminance) | Philips T16; Jankowiak |
+
+**Derived.** At fixed cut-off voltage the line width follows a power of the current: 0.288 at 45 V (assumed, the middle of 30-60 V; 0.26 to 0.33 over that range), within 2.5 % of all four curves. The measured spot (the 1300-line figure) is for phosphor W (P4) at the test's light output, so a phosphor that gives less light per current needs more current for the same light: its full-drive spot is wider by (1 / efficiency)^power, 9 % for P39 and 14 % for P3 and P7. Each point of a scanline gets the spot its own signal makes, so the charge each point deposits is kept exactly.
+
+**Limits.** The curves span a factor of 4 in current, so the spot is held at its quarter-drive width below a quarter of full drive. Philips measures the 1300 lines on a 216 × 162 mm raster without saying which height the count refers to (0.125 mm over 162 mm); the useful height, 201 mm (0.155 mm), is kept.
+
+**Seen in the app.** On the 5151 the lines are 0.57 mm apart, so bright areas mostly fill the gaps between lines. On a phone one scanline is under a pixel, so the effect is subtle unless magnified.
 
 ## P3 amber (on the IBM 5151)
 

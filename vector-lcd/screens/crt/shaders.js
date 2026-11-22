@@ -16,7 +16,7 @@ import {BEZEL_STEP, TO_SRGB} from '../../gpu/glsl.js';
 // ---------------------------------------------------------------------------
 
 const RASTER = `
-uniform float uPitch,uSigmaY,uSigmaX,uLineS,uActiveS,uFrameS,uW,uH;uniform int uLines;
+uniform float uPitch,uLineS,uActiveS,uFrameS,uW,uH;uniform int uLines;
 float Phi(float x){float t=1.0/(1.0+0.3275911*abs(x)/1.41421356);
  float y=1.0-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*exp(-0.5*x*x);return 0.5*(1.0+sign(x)*y);}
 // Time within the frame at which the beam passes this pixel (nearest line).
@@ -36,28 +36,33 @@ precision highp float;
 layout(location=0) out vec4 o0;layout(location=1) out vec4 o1;
 uniform sampler2D uContent,uS0,uS1;
 uniform float uPhase0,uDelta,uContrast,uBrightness;uniform float uA[7],uTau[7];
+// Spot: sigma (px) = uSigmaW * (max(drive, uMinDrive) / uEff)^uBloomP  (model.js spotSigmaMm);
+// uSigmaMax: the widest spot any signal can make, which bounds the search.
+uniform float uSigmaW,uEff,uBloomP,uMinDrive,uSigmaMax;
 ${RASTER}
 float level(ivec2 p){vec3 c=texelFetch(uContent,p,0).rgb;
  return floor(clamp(1.0-dot(c,vec3(0.2126,0.7152,0.0722)),0.0,1.0)*3.0+0.5)/3.0;}
+float spotSigma(float drive){return max(uSigmaW*pow(max(drive,uMinDrive)/uEff,uBloomP),1e-3);}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  vec4 s0=texelFetch(uS0,p,0),s1=texelFetch(uS1,p,0);
  float c[7]=float[7](s0.x,s0.y,s0.z,s0.w,s1.x,s1.y,s1.z);float last=s1.w;
- // Charge landing on this pixel from the lines whose spot reaches it, each
- // spot integrated over the pixel's height; the signal along each line is
- // blurred by the spot's width.
+ // Charge landing on this pixel from every point whose spot reaches it. Each
+ // point's spot has the width its own signal gives it (brighter = wider),
+ // integrated over this pixel, so the charge each point deposits is kept.
  float yTop=uH-gl_FragCoord.y,E=0.0;
- int n0=max(0,int(floor((yTop-0.5-4.0*uSigmaY)/uPitch))),n1=min(uLines-1,int(floor((yTop+0.5+4.0*uSigmaY)/uPitch)));
+ int n0=max(0,int(floor((yTop-0.5-4.0*uSigmaMax)/uPitch))),n1=min(uLines-1,int(floor((yTop+0.5+4.0*uSigmaMax)/uPitch)));
  for(int n=n0;n<=n1&&n<=n0+8;n++){
   float yn=(float(n)+0.5)*uPitch;
-  float w=Phi((yTop+0.5-yn)/uSigmaY)-Phi((yTop-0.5-yn)/uSigmaY);
-  if(w<1e-6)continue;
-  int row=clamp(int(uH-yn),0,int(uH)-1);float v=0.0;
+  int row=clamp(int(uH-yn),0,int(uH)-1);
   for(int dx=-2;dx<=2;dx++){
-   float wx=Phi((float(dx)+0.5)/uSigmaX)-Phi((float(dx)-0.5)/uSigmaX);
-   v+=wx*level(ivec2(clamp(p.x+dx,0,int(uW)-1),row));
+   float drive=uContrast*level(ivec2(clamp(p.x+dx,0,int(uW)-1),row))+uBrightness;
+   if(drive<=0.0)continue;
+   float s=spotSigma(drive);
+   float w=Phi((yTop+0.5-yn)/s)-Phi((yTop-0.5-yn)/s);
+   float wx=Phi((float(dx)+0.5)/s)-Phi((float(dx)-0.5)/s);
+   E+=w*wx*drive;
   }
-  E+=w*(uContrast*v+uBrightness);
  }
  E*=uPitch;
  // Hits in (T0, T0 + delta]: once per frame at this pixel's phase.
