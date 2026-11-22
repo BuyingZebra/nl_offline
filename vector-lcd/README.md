@@ -237,6 +237,27 @@ Light scattered inside the eye spreads a veil around bright areas: the glow seen
 
 **The CRT engine** supports up to two phosphor layers and seven exponentials per point. A component much faster than a frame (under 2 % of it) contributes exactly its last hit's light to the frame average; the general formula would overflow.
 
+## P7 radar PPI
+
+`profiles/crt-ppi-p7.json`, built by `tools/crt_ppi_p7.py` from `crt-5151-p7.json`: the same P7 screen, driven the way it was made to be driven, by a radar plan-position indicator.
+
+**How it works.** On every radar pulse the beam starts at the centre and runs out along one radius; the radius turns with the antenna. Each point is hit once per turn: it flashes blue as the sweep passes, then glows yellow-green until the next pass. The game is the radar picture: the video level sets the beam current.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Drive | 15 rpm (4 s a turn), 1400 pulses/s, 1 µs pulse, 60-mile sweep | CAA Technical Development Report 211 (Randall & McIntire, 1953), trail test |
+| Tube | 12DP7; trail visible for 8 scans (32 s) in a dark room | CAA TDR 211 |
+| Sweep time | 0.644 ms (60 statute miles out and back at the speed of light) | derived |
+| Sweeps per turn | 5600, 1.12 mrad apart | derived |
+
+**Derived.**
+- **Charge falls as 1/r.** Adjacent sweeps are 1.12 mrad apart, under 3 px even 2000 px from the centre, so one pass lays down overlapping sweeps everywhere, and the charge per area falls as 1/r. Inside one spot width of the centre it is capped.
+- **What the eye sees.** A raster hits each point every 1/50 s, so the frame average is what the eye sees. A PPI hits each point every 4 s, so the shader gives the exact light in the last 1/60 s instead, from the same exponentials: the blue flash shows only in the window it happens in.
+
+**Assumed.** The sweep is centred on the panel and reaches its corners; the 12DP7's optics are the 5151 tube's; full drive gives the rotation-average luminance of the raster screens at half the sweep radius.
+
+**Known gap.** Each point is hit once per turn: the single-flash regime where P7's tail is far slower than any linear model (see the P7 cascade screen). The renderer follows RCA, so its trails fade sooner than a real PPI's; CAA's 32-second trail is stored with the profile (`drive.ppi.trail_scans_12dp7`) for the comparison.
+
 ## 4-tone tiles
 
 `four-tone.js` makes a 4-tone version of each tile for the DMG-01 and CRT screens. It keeps the same shapes and snaps each grey to white, light, dark or black:
@@ -294,7 +315,7 @@ Every screen kind has the same five files:
 | `optics/` | `room.js`: light direction, Fresnel glare, bezel shadow; the JS twins of the shared GLSL |
 | `screens/tn/` | reflective TN, static and multiplexed; `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
-| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) and `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) |
+| `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) and the radar `profiles/crt-ppi-p7.json` (`tools/crt_ppi_p7.py`) |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
@@ -304,7 +325,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green, P3 amber, P7 cascade). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green, P3 amber, P7 cascade, P7 radar). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 
@@ -313,4 +334,4 @@ To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS`
 `index.html` (`vector-lcd-version`), `app/main.js` (`APP_VERSION`) and `sw.js` (`VERSION`) share one version; bump all three for every release. Each renderer has its own `VERSION` in its `renderer.js`.
 
 - `node --test tests/vector-lcd.test.mjs`: the physics of every screen, the profiles against their datasheets (contrast and response times, the Fréedericksz threshold, the Gooch–Tarry cell design), the structure (every kind complete, every profile valid, only real device controls) and the offline package.
-- `python tests/test_vector_lcd_browser.py`: in a real browser, the GPU against each JavaScript model (director state, ions, shown light, steady phosphor light), every renderer against the contract, state kept across a resize, and every screen opened in the app.
+- `python tests/test_vector_lcd_browser.py`: in a real browser, the GPU against each JavaScript model (director state, ions, shown light, steady phosphor light, the radar's window light), every renderer against the contract, state kept across a resize, and every screen opened in the app.

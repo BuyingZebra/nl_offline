@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.16.0';
+const VERSION = '0.17.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -52,6 +52,7 @@ const ASSETS = Object.freeze([
  './profiles/crt-5151-p39.json',
  './profiles/crt-5151-p3.json',
  './profiles/crt-5151-p7.json',
+ './profiles/crt-ppi-p7.json',
  './third_party/retro-display-lab/NOTICE',
  // ---- Content
  './content/tetris.js',

@@ -680,3 +680,38 @@ describe('Viewer\'s eye: straylight (van den Berg et al. 2010; CIE 146:2002)',as
   assert.ok(r.thetaDeg.every((t,i)=>i===0||t>r.thetaDeg[i-1]));
  });
 });
+
+describe('P7 radar PPI (CAA TDR 211, 1953)',async()=>{
+ const C=await import('../vector-lcd/screens/crt/index.js');
+ const P=JSON.parse(read('profiles/crt-ppi-p7.json')),P7=JSON.parse(read('profiles/crt-5151-p7.json'));
+ const D=P.drive.ppi;
+ test('the CAA trail-test drive: 15 rpm, 1400 pps, 1 µs pulse, 60-mile sweep, 12DP7',()=>{
+  assert.equal(D.rpm,15);assert.equal(D.prf_pps,1400);assert.equal(D.pulse_us,1);assert.equal(D.sweep_miles,60);
+  near(P.timing.frame_s,4,1e-12);near(D.sweep_spacing_rad,2*Math.PI/5600,1e-12);
+  near(D.sweep_s,2*60*1609.344/299792458,1e-9);
+  C.checkProfile(P);assert.ok(C.isPPI(P)&&!C.isPPI(P7));
+ });
+ test('the same P7 phosphor as the raster screen',()=>{assert.deepEqual(P.phosphor.impulse,P7.phosphor.impulse);assert.deepEqual(P.phosphor.layers,P7.phosphor.layers);});
+ test('the sweeps of one pass overlap far below one spot, so the charge per pass falls as 1/r',()=>{
+  // at the panel's farthest point (about 2000 px on a large screen) adjacent sweeps are still within one spot
+  assert.ok(2000*D.sweep_spacing_rad<3,'spacing '+2000*D.sweep_spacing_rad+' px');
+  near(C.ppiExcitation(1,100,200,1)/C.ppiExcitation(1,200,200,1),2,1e-12);
+  near(C.ppiExcitation(1,.1,200,1),200,1e-12,'capped at the spot');
+ });
+ test('window light: for a raster it is the steady formula; for the PPI, full drive at r_ref averages to 1 over a rotation',()=>{
+  const R=JSON.parse(read('profiles/crt-5151-p39.json')),T=R.timing.frame_s;
+  const hits=Array.from({length:400},(_,k)=>({t:k*T,E:.6667}));
+  near(C.windowLight(R,hits,399*T+.3*T),C.steadyWindow(R,.6667,.3*T),2e-3);
+  // PPI: average of the window light over one rotation, long after the first pass
+  const rot=P.timing.frame_s,passes=Array.from({length:60},(_,k)=>({t:k*rot,E:1}));
+  let avg=0;const N=4000;for(let i=0;i<N;i++)avg+=C.windowLight(P,passes,50*rot+(i+.5)/N*rot)/N;
+  near(avg,1,.02);
+ });
+ test('a pass makes a blue flash, then a yellow-green glow that is still visible scans later',()=>{
+  const pass=[{t:0,E:1}];
+  const blueNow=C.windowLight(P,pass,1/120,0),blueLater=C.windowLight(P,pass,.1,0);
+  assert.ok(blueNow>0&&blueLater===0,'the blue is gone 0.1 s later');
+  const y=t=>C.windowLight(P,pass,t,1);
+  assert.ok(y(4)<y(.5)&&y(32)>0,'the yellow-green fades but is still there after 8 scans (32 s)');
+ });
+});

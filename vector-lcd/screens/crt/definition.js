@@ -4,6 +4,8 @@
  * A new phosphor is a new profile of this kind: its colours, decay and Info
  * facts all come from the profile (phosphor.layers, .impulse, .facts). */
 
+import {isPPI} from './model.js';
+
 /** @type {import('../../app/screens.js').ScreenDefinition} */
 export const definition = Object.freeze({
  tiles: 'fourTone',               // four TTL levels: the 4-tone tiles
@@ -16,19 +18,21 @@ export const definition = Object.freeze({
 
  device: P => [
   {
-   key: 'brightness', label: 'Brightness knob', min: P.controls.brightness.min, max: P.controls.brightness.max, step: .005,
+   key: 'brightness', label: isPPI(P) ? 'Brilliance knob' : 'Brightness knob', min: P.controls.brightness.min, max: P.controls.brightness.max, step: .005,
    initial: P.controls.brightness.value,
-   format: v => v === 0 ? 'raster off' : Math.round(v * 100) + '% beam',
+   format: v => v === 0 ? (isPPI(P) ? 'sweep off' : 'raster off') : Math.round(v * 100) + '% beam',
    apply: (renderer, v) => renderer.setBrightness(v)
   },
   {
-   key: 'contrast', label: 'Contrast knob', min: P.controls.contrast.min, max: P.controls.contrast.max, step: .01,
+   key: 'contrast', label: isPPI(P) ? 'Gain knob' : 'Contrast knob', min: P.controls.contrast.min, max: P.controls.contrast.max, step: .01,
    initial: P.controls.contrast.value,
    format: v => Math.round(v * 100) + '% video',
    apply: (renderer, v) => renderer.setContrast(v)
   }
  ],
- deviceNote: () => 'The IBM 5151\'s two front knobs. Brightness lights the whole raster; contrast sets the video signal.',
+ deviceNote: P => isPPI(P)
+  ? 'The indicator\'s two knobs. Brilliance lights the sweep with no echo; gain sets the video.'
+  : 'The IBM 5151\'s two front knobs. Brightness lights the whole raster; contrast sets the video signal.',
 
 
  // ---- Surroundings ---------------------------------------------------------
@@ -51,16 +55,25 @@ export const definition = Object.freeze({
 
  // ---- Info tab -----------------------------------------------------------------
 
- driveNote: P => 'The beam sweeps ' + P.timing.lines_visible + ' lines ' + Math.round(P.timing.refresh_hz) + ' times a second. '
-  + 'The phosphor glows long after the beam passes, so moving pieces leave fading trails. Brightness lights the whole raster; contrast sets the signal.',
+ driveNote: P => isPPI(P)
+  ? 'The sweep turns once every ' + P.drive.ppi.rotation_s + ' s: each point flashes blue as it passes, then glows yellow-green until the next pass. '
+   + 'Brighter near the centre, where the sweeps crowd together. Turn the room down to see the trails, as radar rooms did.'
+  : 'The beam sweeps ' + P.timing.lines_visible + ' lines ' + Math.round(P.timing.refresh_hz) + ' times a second. '
+   + 'The phosphor glows long after the beam passes, so moving pieces leave fading trails. Brightness lights the whole raster; contrast sets the signal.',
 
  /** The monitor's facts, then the phosphor's own (from its profile). */
  facts(P) {
-  const T = P.timing, F = P.faceplate, R = P.raster;
-  return [
+  const T = P.timing, F = P.faceplate, R = P.raster, ppi = isPPI(P);
+  const drive = ppi ? [
+   ['Indicator', 'radar PPI: the sweep starts at the centre on every pulse and turns with the antenna; the tube\'s optics are the 5151\'s (assumed)'],
+   ['Video', '4 levels, as on the raster screens: the game is the radar picture'],
+  ] : [
    ['Monitor', 'IBM 5151: 11.5 in, 90° CRT, etched anti-glare face, brightness and contrast knobs'],
    ['Scan (MDA)', (T.horizontal_hz / 1000).toFixed(3) + ' kHz lines, ' + T.refresh_hz.toFixed(2) + ' Hz frames, ' + T.lines_visible + ' of ' + T.lines_total + ' lines shown; the panel height is the 350 lines'],
    ['Signal', 'TTL: video 2/3 + intensity 1/3 of the luminance, 4 levels; free to switch anywhere along a line (no pixels)'],
+  ];
+  return [
+   ...drive,
    ...P.phosphor.facts,
    ['Spot (measured, similar tube)', 'σ ' + (P.spot.sigma_mm * 1000).toFixed(0) + ' µm from 1300-line resolution of Philips 31 cm 90° tubes (white P4 screen); scanlines ' + (R.pitch_mm * 1000).toFixed(0) + ' µm apart'],
    ['Spot blooming (measured)', 'brighter = wider: line width grows as current^' + P.spot.bloom.power.toFixed(2) + ' (Philips Fig. 5, 50-200 µA, at ' + P.spot.bloom.vkr_V + ' V cut-off, assumed mid-range; ' + P.spot.bloom.power_range_30_60V.map(v => v.toFixed(2)).join('-') + ' over 30-60 V). This phosphor gives ' + Math.round(P.phosphor.efficiency_vs_P4 * 100) + '% of P4\'s light per current, so at full drive its spot is ' + Math.round((Math.pow(1 / P.phosphor.efficiency_vs_P4, P.spot.bloom.power) - 1) * 100) + '% wider than the test spot'],

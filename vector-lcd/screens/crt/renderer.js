@@ -6,10 +6,10 @@
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {createEyeGlare} from '../../gpu/eye-glare.js';
 import {clamp, bezelShiftMm, bezelPenumbraMm} from '../../optics/room.js';
-import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, MAX_COMPONENTS} from './model.js';
+import {checkProfile, adaptedExposure, halationRings, roomScale, spotSigmaMm, isPPI, eyeWindow, MAX_COMPONENTS} from './model.js';
 import {UPDATE_FS, EMIT_FS, HALO_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.6.0';
+export const VERSION = '0.7.0';
 
 const HALO_RINGS = 24;             // must match HALO_FS
 const HALO_DOWNSCALE = 8;          // halation is millimetres wide: 1/8 resolution is plenty
@@ -158,6 +158,15 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.uniform1f(p.u('uW'), W);
   gl.uniform1f(p.u('uH'), H);
   gl.uniform1i(p.u('uLines'), T.lines_visible);
+  // Drive: raster, or a PPI centred on the panel with its sweep reaching the corners.
+  const ppi = isPPI(profile), sweepR = Math.hypot(W, H) / 2;
+  gl.uniform1i(p.u('uPpi'), ppi ? 1 : 0);
+  gl.uniform2f(p.u('uCenter'), W / 2, H / 2);
+  gl.uniform1f(p.u('uRref'), ppi ? profile.drive.ppi.r_ref_fraction_of_sweep * sweepR : 1);
+  gl.uniform1f(p.u('uRmin'), Math.max(spotSigmaMm(profile, 1) * toPx, 1));
+  const eye = eyeWindow(profile);
+  gl.uniform1f(p.u('uWindow'), eye.window);
+  gl.uniform1f(p.u('uLightScale'), eye.scale);
   const c = components(profile);
   gl.uniform1fv(p.u('uA'), c.a);
   gl.uniform1fv(p.u('uTau'), c.tau);

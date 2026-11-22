@@ -68,6 +68,49 @@ export function levelFromRGB(r, g, b) {
 
 
 // ===========================================================================
+// Drive: a raster (the 5151) or a radar PPI sweep
+// ===========================================================================
+
+export const isPPI = profile => profile.drive.mode === 'ppi';
+
+/** The window of light the eye sees, and the scale that keeps "full drive"
+ * meaning the same: a raster averages one refresh (scale 1); a PPI shows the
+ * last 1/60 s, scaled so that a point at r_ref at full drive, averaged over
+ * one rotation, is full drive. */
+export function eyeWindow(profile) {
+ const T = profile.timing.frame_s;
+ if (!isPPI(profile)) return {window: T, scale: 1};
+ const W = profile.drive.ppi.eye_window_s;
+ return {window: W, scale: T / W};
+}
+
+/** PPI: charge of one pass at radius r (px) for a video drive, with the
+ * sweep's reference radius rRef and cap rMin (px). The sweeps of one pass
+ * overlap everywhere, so the charge per area falls as 1/r. Mirrored in UPDATE_FS. */
+export function ppiExcitation(drive, r, rRef, rMin) {
+ return drive * rRef / Math.max(r, rMin);
+}
+
+/** Light (per layer, or all with layer = null) the eye sees in the window
+ * ending at `now`, from hits of excitation E at the given times: the exact
+ * sum of each hit's exponentials over the window, times the window scale. */
+export function windowLight(profile, hits, now, layer = null) {
+ const {amplitudes: a, taus_s: tau, layer: of} = profile.phosphor.impulse;
+ const {window: W, scale} = eyeWindow(profile);
+ let sum = 0;
+ for (const {t, E} of hits) {
+  if (t > now) continue;
+  const from = Math.max(t, now - W);
+  for (let i = 0; i < a.length; i++) {
+   if (layer !== null && of[i] !== layer) continue;
+   sum += E * a[i] * tau[i] * (Math.exp(-(from - t) / tau[i]) - Math.exp(-(now - t) / tau[i]));
+  }
+ }
+ return sum * scale;
+}
+
+
+// ===========================================================================
 // Spot: wider at higher beam current
 // ===========================================================================
 
@@ -152,7 +195,8 @@ export function steadyRGBPerY(profile) {
  * the display's maximum in its brightest channel, as the eye adapts to a lit
  * screen. One constant: every ratio (levels, afterglow, room reflection) is kept. */
 export function adaptedExposure(profile) {
- const peak = profile.raster.pitch_mm / (Math.sqrt(2 * Math.PI) * spotSigmaMm(profile, 1));
+ // A raster's brightest light is a line core; a PPI has no lines (its sweeps overlap).
+ const peak = isPPI(profile) ? 1 : profile.raster.pitch_mm / (Math.sqrt(2 * Math.PI) * spotSigmaMm(profile, 1));
  return 1 / (profile.luminance.full_drive_relative * peak * Math.max(...intoGamut(steadyRGBPerY(profile))));
 }
 
