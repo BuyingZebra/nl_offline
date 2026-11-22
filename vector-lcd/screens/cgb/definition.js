@@ -42,7 +42,7 @@ export const definition = Object.freeze({
    ['Colour (measured)', 'spectral reflectance of a real GBC (' + A.measurement + '), as a 32³ table for every RGB555 colour; D65 light at 45°, viewed straight on'],
    ['Range', 'black reflects ' + Y(P.colour.black_xyz) + '% and white ' + Y(P.colour.white_xyz) + '% of what a white card does: about ' + (P.colour.white_xyz[1] / P.colour.black_xyz[1]).toFixed(1) + ':1'],
    ['Pixels', P.panel.pixels.join(' × ') + ' over ' + P.panel.active_mm.join(' × ') + ' mm: ' + P.panel.pitch_mm.map(v => (v * 1000).toFixed(0)).join(' × ') + ' µm pitch, R G B stripes of equal width'],
-   ['Art', 'the vector art shrunk to the 160 × 144 grid: each pixel takes the art\'s average colour over its area'],
+   ['Art', 'the vector art on the 160 × 144 grid: each pixel takes the art\'s colour at its centre'],
    ['Drive', 'RGB555: 32 codes per channel, the raw values a game writes; ' + (1 / P.panel.frame_s).toFixed(4) + ' Hz frames'],
    ['Response (bounded)', 'each channel settles at a first-order rate: ' + ms.onAndOffT10To90Milliseconds + ' ms (black↔white) to ' + ms.grayT10To90Milliseconds
     + ' ms (small steps), 10–90%. The midpoint of Sharp\'s HR-TFT family bounds (' + B.fast.onAndOffT10To90Milliseconds + '–' + B.slow.grayT10To90Milliseconds + ' ms), not a GBC measurement'],

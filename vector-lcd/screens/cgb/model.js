@@ -4,9 +4,8 @@
  * copies from Retro Display Lab (Apache-2.0, copyright 2026 JohnnySun; see
  * third_party/retro-display-lab/NOTICE). The integration follows its CGB-001
  * reference (WS1 colour, WS4 response, WS5 exposure, WS6 aperture):
- *  - the art is shrunk to the panel's pixels (averaged over each pixel's area
- *    in linear light), and its sRGB channels are the raw RGB555 codes a game
- *    writes (0..31);
+ *  - each pixel takes the art at its centre, and the art's sRGB channels are
+ *    the raw RGB555 codes a game writes (0..31);
  *  - each channel of each pixel carries a state s in [0, 1] that moves toward
  *    code/31 at a first-order rate, once per GBC frame (59.7275 Hz). The rate is
  *    frozen for a constant target, addressed by the code nearest s when the

@@ -198,7 +198,7 @@ export function createGPU(canvas, name) {
 
 /** The panel is widthMm x heightMm; content is drawn in millimetres onto a 2D
  * canvas of the panel's device-pixel size, then uploaded each frame. */
-export function createSurface(canvas, {widthMm, heightMm, maxPixelRatio = 2}) {
+export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6}) {
  if (!(widthMm > 0) || !(heightMm > 0)) throw new TypeError('Panel size must be positive millimetres');
 
  const content = document.createElement('canvas');
@@ -221,7 +221,9 @@ export function createSurface(canvas, {widthMm, heightMm, maxPixelRatio = 2}) {
  function fit(cssWidth, cssHeight, dpr, maxTextureSize) {
   const scale = Math.max(1e-6, Math.min(cssWidth / widthMm, cssHeight / heightMm));
   const outW = Math.max(1, Math.floor(widthMm * scale)), outH = Math.max(1, Math.floor(heightMm * scale));
-  const ratio = Math.max(1, Math.min(maxPixelRatio, dpr || 1, maxTextureSize / outW, maxTextureSize / outH));
+  // The display's full pixel density (zooming in spends the same screen area on
+  // fewer page pixels), within a pixel budget and the texture limit.
+  const ratio = Math.max(1, Math.min(dpr || 1, Math.sqrt(maxPixels / (outW * outH)), maxTextureSize / outW, maxTextureSize / outH));
   const pw = Math.round(outW * ratio), ph = Math.round(outH * ratio);
   canvas.style.width = outW + 'px';
   canvas.style.height = outH + 'px';

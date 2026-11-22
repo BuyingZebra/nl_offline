@@ -30,9 +30,9 @@ function layerColours(profile) {
 
 
 /** @returns {import('../contract.js').ScreenRenderer} */
-export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixelRatio = 2, bezelLipMm = 1} = {}) {
+export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels, bezelLipMm = 1} = {}) {
  let profile = checkProfile(initialProfile);
- const surface = createSurface(canvas, {widthMm, heightMm, maxPixelRatio});
+ const surface = createSurface(canvas, {widthMm, heightMm, maxPixels});
  const gpu = createGPU(canvas, 'CRT'), {gl} = gpu;
  const meter = createMeter();
 
