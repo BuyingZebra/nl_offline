@@ -21,3 +21,19 @@ release, Simpson exposure), re-implemented in WebGL2. The pixel aperture,
 passive-matrix crosstalk and row-latch scan-out are not used, because this
 panel has no dot grid. The reflector shadow is applied wherever the shifted
 image is darker than the point, instead of only in the inter-pixel gaps.
+
+Used in Vector LCD (profiles/cgb-001-tft.json, screens/cgb/):
+ - the Game Boy Color colour table cgb001-d65-lut-v1 (absolute XYZ reflectance,
+   D65, 45/0), derived by Retro Display Lab from the Handheld Color Space
+   Project's measured GBC reflectance (Brankale / Pokefan531, WIP, commit
+   e688fc51141c0974728aa1bdcb89b94d74123f6b; that repository carries no
+   licence: the data is used with attribution, as Retro Display Lab does)
+ - the first-order response rates (cgb001-ws4-gtg-rates-v1, nominal member)
+ - the frame interval, the response and exposure contracts (ws4, ws5) and
+   the equal-third RGB aperture (aperture-v1)
+Source commit b75171026b1f0594a8288232ad532285470dbe08 (2026-08-25).
+
+Changes: values copied into one JSON profile by tools/cgb001_profile.mjs; no
+value changed. The integration follows the WS4/WS5 contracts in WebGL2, with
+8-point Gauss-Legendre exposure per frame. The stripes are drawn only where the
+display can resolve them (2 or more pixels per stripe, fading out toward 1).

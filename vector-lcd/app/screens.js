@@ -7,12 +7,13 @@
 import * as tn from '../screens/tn/index.js';
 import * as dmg from '../screens/dmg/index.js';
 import * as crt from '../screens/crt/index.js';
+import * as cgb from '../screens/cgb/index.js';
 
 
 /**
  * What a screen kind tells the app (screens/<kind>/definition.js).
  * @typedef {Object} ScreenDefinition
- * @property {'original'|'fourTone'} tiles            which version of the tile art it shows
+ * @property {'original'|'fourTone'|'colour'} tiles   which version of the tile art it shows
  * @property {boolean} usesElectrodes                   whether the glass has an electrode map
  * @property {(renderer:Object) => void} prepare        reset settings that only some profiles change
  * @property {(P:Object) => DeviceControl[]} device     the real device's controls, and only those
@@ -33,14 +34,14 @@ import * as crt from '../screens/crt/index.js';
  *
  * @typedef {Object} Screen
  * @property {string} id        the profile's id (profiles/<id>.json)
- * @property {'tn'|'dmg'|'crt'} kind
+ * @property {'tn'|'dmg'|'cgb'|'crt'} kind
  * @property {'lcd'|'crt'} family
  * @property {string} short     its button
  * @property {string[]} sub     the two lines beside the card title
  * @property {string} label     its full name
  */
 
-export const KINDS = Object.freeze({tn, dmg, crt});
+export const KINDS = Object.freeze({tn, dmg, cgb, crt});
 
 export const FAMILIES = Object.freeze({
  lcd: Object.freeze({title: 'LCD', picker: 'Panel'}),
@@ -49,12 +50,12 @@ export const FAMILIES = Object.freeze({
 
 /** @type {readonly Screen[]} */
 export const SCREENS = Object.freeze([
- {id: 'reflective-tn', kind: 'tn', family: 'lcd', short: 'TN static', sub: ['Reflective TN', 'Static drive · VI-402'],
-  label: 'Reflective TN · static drive (VI-402)'},
  {id: 'reflective-tn-mux4', kind: 'tn', family: 'lcd', short: 'TN 1/4 mux', sub: ['Reflective TN', '1/4 mux · Lumex'],
   label: 'Reflective TN · multiplexed 1/4 duty (Lumex)'},
  {id: 'dmg-01-stn', kind: 'dmg', family: 'lcd', short: 'DMG-01', sub: ['Reflective STN', '4 shades · DMG-01'],
   label: 'Reflective STN · Nintendo DMG-01, 4 shades (Retro Display Lab)'},
+ {id: 'cgb-001-tft', kind: 'cgb', family: 'lcd', short: 'GB Color', sub: ['Reflective colour TFT', 'RGB555 · CGB-001'],
+  label: 'Reflective HR-TFT · Nintendo Game Boy Color (Retro Display Lab)'},
  {id: 'crt-5151-p39', kind: 'crt', family: 'crt', short: 'P39 green', sub: ['Green phosphor', 'P39 · IBM 5151'],
   label: 'Green phosphor CRT · IBM 5151, P39'},
  {id: 'crt-5151-p3', kind: 'crt', family: 'crt', short: 'P3 amber', sub: ['Amber phosphor', 'P3 · on the IBM 5151'],

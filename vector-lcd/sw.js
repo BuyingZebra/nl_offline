@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.18.1';
+const VERSION = '0.19.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -38,6 +38,11 @@ const ASSETS = Object.freeze([
  './screens/dmg/shaders.js',
  './screens/dmg/renderer.js',
  './screens/dmg/definition.js',
+ './screens/cgb/index.js',
+ './screens/cgb/model.js',
+ './screens/cgb/shaders.js',
+ './screens/cgb/renderer.js',
+ './screens/cgb/definition.js',
  './screens/crt/index.js',
  './screens/crt/model.js',
  './screens/crt/shaders.js',
@@ -47,6 +52,7 @@ const ASSETS = Object.freeze([
  './profiles/reflective-tn.json',
  './profiles/reflective-tn-mux4.json',
  './profiles/dmg-01-stn.json',
+ './profiles/cgb-001-tft.json',
  './profiles/crt-5151-p39.json',
  './profiles/crt-5151-p3.json',
  './profiles/crt-5151-p7.json',
@@ -56,6 +62,7 @@ const ASSETS = Object.freeze([
  './content/tetris.js',
  './content/tiles.js',
  './content/four-tone.js',
+ './content/colour.js',
  // ---- The earlier hand-tuned concept model
  './concept/concept.html',
  './concept/demo.js',

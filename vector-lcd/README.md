@@ -110,6 +110,28 @@ Assumed and labelled:
 
 Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, not a measured specimen, and its analogue drive levels and fill material are bounded reconstructions.
 
+## Nintendo Game Boy Color (CGB-001)
+
+`profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab's CGB-001 model (Apache-2.0; see `third_party/retro-display-lab/NOTICE`). No value is changed.
+
+**How it works.** The Game Boy Color's screen is a Sharp HR-TFT: a reflective colour panel with its reflector inside the cell, so there is no reflector shadow. Each pixel's art is read as the raw RGB555 code a game writes (32 levels per channel). Each channel settles toward its code at a first-order rate, once per GBC frame (59.7275 Hz); the eye sees the frame average of the measured colour along that path. Each pixel is three equal stripes, red, green and blue.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Panel | 160 × 144, 44 × 40 mm, Sharp HR-TFT | Nintendo; *Game Boy Color Repair Procedures* (1999) |
+| Colour | spectral reflectance of a real GBC, as a 32³ XYZ table (D65, light at 45°, viewed straight on) | Handheld Color Space Project (Brankale / Pokefan531), reduced by Retro Display Lab |
+| Range | black 20 %, white 59 % of a white card (about 3:1) | same |
+| Response | first order, 65 ms black↔white and 115 ms for small steps (10–90 %) | midpoint of Sharp's HR-TFT family bounds (50/80 and 80/150 ms); not a GBC measurement |
+| Aperture | three equal stripes, R G B left to right | Retro Display Lab WS6 (minimal assumption) |
+
+**Checked.** In the browser test, the GPU's channel states and frame-average colour match `stepFrame` to 1e-7.
+
+**On screen.** A stripe is a third of a 0.275 mm pixel. Drawn smaller than two display pixels it would alias into rainbow bands, so the stripes appear only where the display resolves them (fading out from 2 to 1 pixels per stripe); each pixel's colour is kept either way. Where a stripe would pass the display's white, the stripes are softened just enough.
+
+**Not modelled** (no measured values): pixel gaps, the reflector's grain, the plastic lens, image sticking, temperature, and the change of colour with the light's angle (the light moves only the glare and the bezel shadow).
+
+**Content.** The pieces take the standard Tetris colours (cyan I, yellow O, purple T, green S, red Z, blue J, orange L), shaded from the same tile art (`content/colour.js`).
+
 ## IBM 5151 green phosphor CRT
 
 `crt.js` with `profiles/crt-5151-p39.json`, built by `tools/crt_p39.py` (NumPy and SciPy, about 3 minutes).
@@ -299,7 +321,8 @@ Every screen kind has the same five files:
 | `app/` | `main.js` (start and frame loop), `screens.js` (the screen list), `stage.js` (canvas and renderer), `controls.js`, `info.js`, `view.js` |
 | `gpu/` | `webgl.js` (context, targets, drawing, resize, context loss), `glsl.js` (shared shader chunks) |
 | `optics/` | `room.js`: light direction, Fresnel glare, bezel shadow; the JS twins of the shared GLSL |
-| `screens/tn/` | reflective TN, static and multiplexed; `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
+| `screens/tn/` | reflective TN, multiplexed (shown) and static (the engine's datasheet reference, kept for the tests); `profiles/reflective-tn*.json`, built by `tools/reflective_tn.py` (NumPy and SciPy, about 2 minutes; `TN_DESIGN=second` computes the second-maximum design) |
+| `screens/cgb/` | the Game Boy Color; `profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab |
 | `screens/dmg/` | the DMG-01; `profiles/dmg-01-stn.json`, copied by `tools/dmg01_profile.mjs`; licence in `third_party/retro-display-lab/` |
 | `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`), `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) `profiles/crt-5151-p7.json` (`tools/crt_p7.py`, from the traced RCA curves in `tools/rca-p7-persistence.json`) and the radar `profiles/crt-ppi-p7.json` (`tools/crt_ppi_p7.py`) |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
@@ -311,7 +334,7 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 ## Layout
 
-One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN static, TN 1/4 mux, DMG-01) or the phosphor (P39 green, P3 amber, P7 cascade, P7 radar). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
+One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the phosphor (P39 green, P3 amber, P7 cascade, P7 radar). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.
 

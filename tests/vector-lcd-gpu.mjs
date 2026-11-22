@@ -11,7 +11,7 @@ const PANEL = {w: 48, h: 92};
 const CSS = [130, 250];
 const T0 = 1000;
 
-const tn = KINDS.tn, dmg = KINDS.dmg, crt = KINDS.crt;
+const tn = KINDS.tn, dmg = KINDS.dmg, crt = KINDS.crt, cgb = KINDS.cgb;
 
 
 // ===========================================================================
@@ -126,6 +126,39 @@ export async function dmgParity() {
  }
  done();
  return [result('DMG-01 GPU = model (q, ions, shown light)', worst, 2e-4)];
+}
+
+
+// ===========================================================================
+// Game Boy Color: channel states and frame-average colour on the GPU = stepFrame
+// ===========================================================================
+
+export async function cgbParity() {
+ const P = await profileOf('cgb-001-tft');
+ const {renderer: r, done} = mount('cgb', P);
+ const fill = rgb => { const ctx = r.beginContent(); ctx.fillStyle = 'rgb(' + rgb.join(',') + ')'; ctx.fillRect(0, 0, PANEL.w, PANEL.h); };
+ const codes = rgb => cgb.codesFromRGB(rgb.map(v => v / 255));
+ const dt = P.panel.frame_s * 1000 * (1 + 1e-7);       // one GBC frame per display frame
+
+ // Settle on cyan, then switch to orange, then to white before orange has settled.
+ let t = T0, st = cgb.settled(codes([0, 240, 240])), worstS = 0, worstXYZ = 0;
+ fill([0, 240, 240]);
+ r.frame(t);
+ for (const [rgb, frames] of [[[240, 160, 0], 4], [[255, 255, 255], 6]]) {
+  for (let k = 0; k < frames; k++) {
+   fill(rgb);
+   r.frame(t += dt);
+   const step = cgb.stepFrame(P, st, codes(rgb));
+   st = step.state;
+   const g = r.sample(...CENTER);
+   worstS = Math.max(worstS, ...g.s.map((v, i) => Math.abs(v - st.s[i])));
+   worstXYZ = Math.max(worstXYZ, ...g.xyz.map((v, i) => Math.abs(v - step.xyz[i]) / step.xyz[i]));
+   if (g.start.some((v, i) => v !== st.start[i])) worstS = Infinity;
+  }
+ }
+ done();
+ return [result('Game Boy Color GPU = model (channel states)', worstS, 2e-5),
+  result('Game Boy Color GPU = model (frame-average colour, relative)', worstXYZ, 1e-4)];
 }
 
 
@@ -323,5 +356,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await crtParity(), ...await ppiParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await cgbParity(), ...await crtParity(), ...await ppiParity(), ...await spotBloom(), ...await resizeCarry()];
 }

@@ -484,9 +484,9 @@ describe('Vector LCD structure: screen kinds, definitions and profiles',async()=
    }
   }
  });
- test('only real device controls: none on the VI-402, the wheel on the DMG-01, two knobs on the 5151',()=>{
+ test('only real device controls: the trim on the Lumex, the wheel on the DMG-01, none on the Game Boy Color, two knobs on the 5151',()=>{
   const keys=id=>{const s=SCREENS.find(x=>x.id===id);return KINDS[s.kind].definition.device(profileOf(s)).map(c=>c.key);};
-  assert.deepEqual(keys('reflective-tn'),[]);
+  assert.deepEqual(keys('cgb-001-tft'),[]);
   assert.deepEqual(keys('reflective-tn-mux4'),['vlcd']);
   assert.deepEqual(keys('dmg-01-stn'),['contrast']);
   assert.deepEqual(keys('crt-5151-p39'),['brightness','contrast']);
@@ -714,5 +714,53 @@ describe('CRT etched front: the room light\'s reflection (Nuijs & Horikx 1994)',
   // the etch only softens a 15-degree lamp: its peak is about 90 % of polished glass
   const polished=R.glare(P,mirrorEye,light),ratio=at/polished;
   assert.ok(ratio>.85&&ratio<.95,'etched/polished peak '+ratio);
+ });
+});
+
+describe('Game Boy Color CGB-001 (Retro Display Lab, HCS measurement)',async()=>{
+ const G=await import('../vector-lcd/screens/cgb/index.js');
+ const P=G.checkProfile(JSON.parse(read('profiles/cgb-001-tft.json')));
+ const lin=codes=>G.linearRGB(G.colourXYZ(P,codes.map(c=>c/31)));
+ test('the measured table: a dim, low-contrast panel (black ~20 %, white ~59 % of a white card)',()=>{
+  near(G.colourXYZ(P,[0,0,0])[1],P.colour.black_xyz[1],1e-7);near(G.colourXYZ(P,[1,1,1])[1],P.colour.white_xyz[1],1e-7);
+  near(P.colour.black_xyz[1],.1998,1e-3);near(P.colour.white_xyz[1],.5928,1e-3);
+  const n=32,{xyz}=G.tables(P);assert.equal(xyz.length,n*n*n*3);
+  // between table entries the colour is trilinear
+  const a=G.colourXYZ(P,[3/31,7/31,9/31]),b=G.colourXYZ(P,[4/31,7/31,9/31]),m=G.colourXYZ(P,[3.5/31,7/31,9/31]);
+  for(let c=0;c<3;c++)near(m[c],(a[c]+b[c])/2,1e-7);
+ });
+ test('every standard piece colour stays inside the display, pale as on the real screen',()=>{
+  for(const code of [[0,29,29],[29,29,0],[19,0,29],[0,29,0],[29,0,0],[0,0,29],[29,19,0]]){
+   const c=lin(code);assert.ok(Math.min(...c)>0&&Math.max(...c)<.7,code+' -> '+c);
+  }
+ });
+ test('response: the source anchors, 65 ms black to white and 115 ms for a small step (10-90 %)',()=>{
+  near(Math.log(9)/G.rate(P,0,31)*1000,65,1e-3);near(Math.log(9)/G.rate(P,31,0)*1000,65,1e-3);
+  near(Math.log(9)/G.rate(P,15,16)*1000,115,1e-3);
+ });
+ test('one frame follows the first-order path exactly, and the rate is frozen until the target changes',()=>{
+  const T=P.panel.frame_s,k=G.rate(P,0,31);
+  let r=G.stepFrame(P,G.settled([0,0,0]),[31,0,0]);
+  near(r.state.s[0],1-Math.exp(-k*T),1e-12);assert.deepEqual(r.state.start,[0,0,0]);
+  r=G.stepFrame(P,r.state,[31,0,0]);near(r.state.s[0],1-Math.exp(-2*k*T),1e-12,'same rate the next frame');
+  const back=G.stepFrame(P,r.state,[0,0,0]);assert.equal(back.state.start[0],Math.round(r.state.s[0]*31),'new segment starts at the nearest code');
+ });
+ test('a settled pixel shows exactly its table colour; the frame average lies between start and end',()=>{
+  const st=G.settled([10,20,30]),r=G.stepFrame(P,st,[10,20,30]);
+  const want=G.colourXYZ(P,[10/31,20/31,30/31]);for(let c=0;c<3;c++)near(r.xyz[c],want[c],1e-7);
+  const up=G.stepFrame(P,G.settled([0,0,0]),[31,31,31]);
+  assert.ok(up.xyz[1]>P.colour.black_xyz[1]&&up.xyz[1]<G.colourXYZ(P,up.state.s)[1]);
+ });
+ test('stripes keep every pixel\'s colour, and never pass the display\'s white',()=>{
+  const white=lin([31,31,31]),black=lin([0,0,0]),at=i=>i%2?white:black;
+  for(const [u0,u1] of [[0,1],[0,3],[1,2],[2,5]]){   // whole pixels: the average is kept
+   const c=G.apertureColour(i=>at(i),u0,u1,0,1);
+   let want=[0,0,0];for(let i=Math.floor(u0);i<u1;i++){const w=Math.min(u1,i+1)-Math.max(u0,i);want=want.map((v,k)=>v+at(i)[k]*w/(u1-u0));}
+   for(let k=0;k<3;k++)near(c[k],want[k],1e-9,u0+'..'+u1);
+  }
+  for(let k=0;k<3;k++){const c=G.apertureColour(()=>white,k/3,(k+1)/3,0,1);assert.ok(Math.max(...c)<=1+1e-9,String(c));}
+  assert.equal(G.stripeContrast(black),1,'dark pixels show full stripes');
+  assert.equal(G.stripeResolve(6),1);assert.equal(G.stripeResolve(3),0);near(G.stripeResolve(4.5),.5,1e-12);
+  const flat=G.apertureColour(()=>white,0,1/3,0,1,0);for(let k=0;k<3;k++)near(flat[k],white[k],1e-12,'unresolved: the average');
  });
 });
