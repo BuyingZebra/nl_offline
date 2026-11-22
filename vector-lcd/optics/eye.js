@@ -18,7 +18,8 @@
 
 export const THETA_MIN_DEG = 0.1;
 export const THETA_MAX_DEG = 100;
-export const PIGMENT = Object.freeze({dark: 0, brown: .5, 'blue-green': 1});
+/** The eye the demo uses: an average adult (assumed). The viewer is not simulated. */
+export const STANDARD_EYE = Object.freeze({age: 35, pigment: .5});
 
 const rad = deg => deg * Math.PI / 180;
 

@@ -8,7 +8,7 @@
  * outside the screen (the room) is not included. */
 
 import {TO_SRGB} from './glsl.js';
-import {glareRings, scatteredFraction} from '../optics/eye.js';
+import {glareRings, scatteredFraction, STANDARD_EYE} from '../optics/eye.js';
 
 // 24 rings x 24 taps: within 3 % of the exact integral (tests/vector-lcd-gpu.mjs eyeGlare); 12 taps gave 15 %.
 const RINGS = 24, TAPS = 24, DOWNSCALE = 4;
@@ -80,9 +80,10 @@ export function createEyeGlare(gpu) {
 
  /**
   * Scatter the view through the eye and draw the result to the canvas.
-  * @param {{distancePx:number, age:number, pigment:number}} eye  distancePx: eye distance in screen pixels
+  * @param {{distancePx:number}} eye  eye distance in screen pixels
   */
- function apply({distancePx, age, pigment}) {
+ function apply({distancePx}) {
+  const {age, pigment} = STANDARD_EYE;
   const [W, H] = size;
   gl.bindTexture(gl.TEXTURE_2D, view.tex);
   gl.generateMipmap(gl.TEXTURE_2D);

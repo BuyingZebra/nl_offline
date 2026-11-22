@@ -37,7 +37,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let celsius = 25;
  let driveGain = 1;                // supply trim: every drive voltage times this
  let optics = null, opticsKey = '';
- let viewer = {glare: false, age: 35, pigment: .5};   // eye distance: viewing.distanceMm
+ let viewer = {glare: false};                         // eye distance: viewing.distanceMm
  let eye = null;                                       // the viewer's-eye pass; rebuilt with the context
 
  const electrodes = document.createElement('canvas');
@@ -265,7 +265,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   });
 
   // ---- 5. The viewer's eye, when on
-  if (viewer.glare) eye.apply({distancePx: viewing.distanceMm * pxPerMm, age: viewer.age, pigment: viewer.pigment});
+  if (viewer.glare) eye.apply({distancePx: viewing.distanceMm * pxPerMm});
  }
 
 
@@ -323,7 +323,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setLighting(next) { lighting = {...lighting, ...next}; },
   get viewing() { return {...viewing}; },
   setViewing(next) { viewing = {...viewing, ...next}; },
-  /** The viewer's eye: glare on or off, age (years), iris pigmentation (0 dark, 0.5 brown, 1 blue-green). */
+  /** Glare inside the viewer's eye: on or off. */
   get viewer() { return {...viewer}; },
   setViewer(next) { viewer = {...viewer, ...next}; },
   get temperature() { return celsius; },

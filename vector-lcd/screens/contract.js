@@ -24,7 +24,7 @@
  * @property {(next:Object) => void} setLighting
  * @property {number}   bezelLipMm                    bezel height above the glass
  * @property {() => Object} info                      version, formats, size and fps
- * @property {Object}   viewer                        the viewer's eye: glare, age, iris pigmentation
+ * @property {Object}   viewer                        glare inside the viewer's eye: on or off
  * @property {(next:Object) => void} setViewer
  * @property {() => void} dispose                     release the GPU
  */

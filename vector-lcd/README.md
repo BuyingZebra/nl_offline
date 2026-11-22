@@ -178,15 +178,15 @@ A harder-driven beam makes a wider spot, so bright lines are thicker than dim on
 
 ## Viewer's eye: glare (all screens)
 
-Light scattered inside the eye spreads a veil around bright areas: the glow seen around a lit screen. It belongs to the viewer, not the screen, so it is one pass that every screen ends with (`gpu/eye-glare.js`, model in `optics/eye.js`). Off by default; the **Viewer** group turns it on and sets the eye's age and iris colour.
+Light scattered inside the eye spreads a veil around bright areas: the glow seen around a lit screen. It belongs to the viewer, not the screen, so it is one pass that every screen ends with (`gpu/eye-glare.js`, model in `optics/eye.js`). Off by default; the **Viewer** switch turns it on. The viewer is not simulated: the eye is an average adult's (35 years, brown iris; assumed).
 
 | Quantity | Value | Source |
 | --- | --- | --- |
 | Straylight function | Ψ(θ) = 10/θ³ + (5/θ² + 0.1 p/θ)(1 + (A/62.5)⁴) + 2.5·10⁻³ p, sr⁻¹; θ in degrees, 0.1° to ~100° | van den Berg, Franssen & Coppens (2010), *Ocular Media Clarity and Straylight*; the simplified form of the CIE general disability glare equation (CIE 146:2002) |
-| Age A, pigmentation p | p = 0 dark, 0.5 brown, 1 blue-green iris | same |
+| Eye | A = 35 years, p = 0.5 (brown iris) | assumed: an average adult |
 | Viewing distance | LCDs 300 mm (as for their glare and viewing-angle optics); CRT 600 mm on the monitor | assumed |
 
-**How it is computed.** The screen draws its picture in linear light. The veil at each point is the integral of Ψ × luminance × solid angle over everything shown, from 0.1° out to the screen's far corner: 24 log-spaced rings, each carrying the exact straylight of its band, sampled with 24 taps from mip levels as wide as the tap spacing, at 1/4 resolution. All light scattered past 0.1° leaves the direct image, so a 35-year-old's eye keeps 72 % of it in place and spreads the rest (most within 1°). Light from outside the screen (the room) is not included.
+**How it is computed.** The screen draws its picture in linear light. The veil at each point is the integral of Ψ × luminance × solid angle over everything shown, from 0.1° out to the screen's far corner: 24 log-spaced rings, each carrying the exact straylight of its band, sampled with 24 taps from mip levels as wide as the tap spacing, at 1/4 resolution. All light scattered past 0.1° leaves the direct image, so the eye keeps 72 % of it in place and spreads the rest (most within 1°). Light from outside the screen (the room) is not included.
 
 **Checked.** In the browser test, the GPU veil at points beside a bright patch is within 3.2 % of a direct sum over every pixel of the shown image. (That test found a sub-pixel offset in the quarter-resolution mapping, now fixed; with 12 taps per ring instead of 24 the error was 15 %.)
 
@@ -279,7 +279,7 @@ The controls come in three groups, and the first holds only controls the real de
   - IBM 5151: **Brightness and Contrast knobs.**
 - **Surroundings:** light angle and direction (default 45° from the top-left corner), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns, as in the dim rooms radar displays were watched in. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
 - **Viewer:** eye glare on or off, the viewer's age (20 to 80) and iris colour: the person, the same for every screen.
-- **Simulation:** run/pause and Reset panel.
+- **Simulation:** run/pause (stops the game; the screen keeps showing the still picture) and **Reset settings** (every control back to its default: the room, the glare switch and this screen's knobs).
 
 Fixed at realistic defaults:
 - **Light:** 15° wide, at normal room brightness.

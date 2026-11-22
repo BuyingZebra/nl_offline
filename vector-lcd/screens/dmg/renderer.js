@@ -37,7 +37,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
  let celsius = 25;
  let contrast = profile.contrast.value;
- let viewer = {glare: false, age: 35, pigment: .5};   // eye distance: viewing.distanceMm
+ let viewer = {glare: false};                         // eye distance: viewing.distanceMm
  let eye = null;                                       // the viewer's-eye pass; rebuilt with the context
 
 
@@ -174,7 +174,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   });
 
   // ---- 3. The viewer's eye, when on
-  if (viewer.glare) eye.apply({distancePx: viewing.distanceMm * pxPerMm, age: viewer.age, pigment: viewer.pigment});
+  if (viewer.glare) eye.apply({distancePx: viewing.distanceMm * pxPerMm});
  }
 
 
@@ -223,7 +223,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setLighting(next) { lighting = {...lighting, ...next}; },
   get viewing() { return {...viewing}; },
   setViewing(next) { viewing = {...viewing, ...next}; },
-  /** The viewer's eye: glare on or off, age (years), iris pigmentation (0 dark, 0.5 brown, 1 blue-green). */
+  /** Glare inside the viewer's eye: on or off. */
   get viewer() { return {...viewer}; },
   setViewer(next) { viewer = {...viewer, ...next}; },
   get temperature() { return celsius; },

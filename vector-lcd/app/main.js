@@ -7,13 +7,13 @@
 
 import {FAMILIES, SCREENS, screenById, loadProfile} from './screens.js';
 import {createStage} from './stage.js';
-import {createControls, applySettings} from './controls.js';
+import {createControls, applySettings, resetSettings} from './controls.js';
 import {createInfo} from './info.js';
 import {createView} from './view.js';
 import {loadTiles} from '../content/tiles.js';
 import {createTetrisContent, PANEL, BOARD, CELL} from '../content/tetris.js';
 
-export const APP_VERSION = '0.17.0';
+export const APP_VERSION = '0.17.1';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -28,6 +28,7 @@ const showError = error => { $('error').hidden = false; $('error').textContent =
 // ===========================================================================
 
 let stage, controls, info, view, content;
+let shown = null;              // the screen on show and its profile
 try {
  const first = screenById(store.get('screen'));
  const [tiles, profile] = await Promise.all([loadTiles(), loadProfile(first)]);
@@ -35,7 +36,7 @@ try {
  stage = createStage({stage: $('stage'), bezel: $('bezel'), canvas: $('panel')}, content, tiles);
  controls = createControls({
   device: $('device'), deviceNote: $('deviceNote'), lighting: $('lighting'), lightNote: $('lightNote'),
-  room: $('room'), roomNote: $('roomNote'), eyeGlare: $('eyeGlare'), viewer: $('viewer'),
+  room: $('room'), roomNote: $('roomNote'), eyeGlare: $('eyeGlare'),
   environment: $('environment'), envNote: $('envNote')
  }, () => stage.renderer);
  info = createInfo({title: $('infoTitle'), driveNote: $('driveNote'), facts: $('facts'), status: $('status')});
@@ -58,6 +59,7 @@ try {
 
 /** Put a screen with its loaded profile on the stage and in every panel. */
 function present(screen, profile) {
+ shown = {screen, profile};
  stage.show(screen, profile);
  applySettings(screen, profile, stage.renderer);
  controls.show(screen, profile);
@@ -93,16 +95,15 @@ function selectFamily(family) {
 // ===========================================================================
 
 let running = false, paused = false, infoOpen = false;
-let lastNow = null, lastFrame = 0;
+let lastNow = null;
 
 function tick(now) {
  if (!running) return;
  const dt = lastNow === null ? 16 : Math.min(100, now - lastNow);
  lastNow = now;
- // Paused: time stands still, but the panel is still drawn, so a resize or
- // rotation never leaves it blank.
- if (!paused) { content.update(dt); lastFrame = now; }
- stage.draw(lastFrame);
+ // Paused stops the game, not the screen: the panel keeps showing the still picture.
+ if (!paused) content.update(dt);
+ stage.draw(now);
  requestAnimationFrame(tick);
 }
 
@@ -133,7 +134,11 @@ $('pause').addEventListener('click', event => {
  button.setAttribute('aria-checked', String(!paused));
  button.lastElementChild.textContent = paused ? 'Paused' : 'Running';
 });
-$('reset').addEventListener('click', () => stage.renderer.reset());
+$('reset').addEventListener('click', () => {
+ resetSettings(shown.screen);
+ applySettings(shown.screen, shown.profile, stage.renderer);
+ controls.show(shown.screen, shown.profile);
+});
 
 $('version').textContent = 'v' + APP_VERSION;
 setInterval(() => info.status(stage.screen, stage.renderer), 1000);

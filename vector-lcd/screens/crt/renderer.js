@@ -54,7 +54,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let brightness = profile.controls.brightness.value;
  let roomLux = profile.luminance.room_lux;    // the room's illuminance at the screen
  // The viewer's eye; distanceMm on the monitor (assumed: a desk monitor at 600 mm).
- let viewer = {glare: false, age: 35, pigment: .5, distanceMm: 600};
+ let viewer = {glare: false, distanceMm: 600};
  let eye = null;                                // the viewer's-eye pass; rebuilt with the context
 
 
@@ -252,7 +252,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   });
 
   // ---- 5. The viewer's eye, when on (its distance is on the monitor: scale to the panel)
-  if (viewer.glare) eye.apply({distancePx: viewer.distanceMm / mpp * pxPerMm, age: viewer.age, pigment: viewer.pigment});
+  if (viewer.glare) eye.apply({distancePx: viewer.distanceMm / mpp * pxPerMm});
  }
 
 
@@ -310,7 +310,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   /** The 5151's front knobs. */
   get contrast() { return contrast; },
   setContrast(v) { const c = profile.controls.contrast; contrast = clamp(Number(v), c.min, c.max); },
-  /** The viewer's eye: glare on or off, age (years), iris pigmentation (0 dark, 0.5 brown, 1 blue-green). */
+  /** Glare inside the viewer's eye: on or off. */
   get viewer() { return {...viewer}; },
   setViewer(next) { viewer = {...viewer, ...next}; },
   /** The room's illuminance at the screen (lux): only the glass's reflection changes. */
