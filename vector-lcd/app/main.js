@@ -5,15 +5,24 @@
  *   controls.js  the control panel             info.js    the Info tab
  *   view.js      tabs, switches, card heading  content/   the Tetris game and its tiles */
 
-import {FAMILIES, SCREENS, screenById, loadProfile} from './screens.js';
+import {FAMILIES, SCREENS, screenById, loadProfile, kindOf} from './screens.js';
 import {createStage} from './stage.js';
 import {createControls, applySettings, resetSettings} from './controls.js';
 import {createInfo} from './info.js';
 import {createView} from './view.js';
 import {loadTiles} from '../content/tiles.js';
 import {createTetrisContent, PANEL, BOARD, CELL, COUNTER_FONT} from '../content/tetris.js';
+import {readSVG} from '../vector/svg.js';
 
-export const APP_VERSION = '0.24.0';
+/** Vector test cards for the vector-input screens (tools/vector_test_cards.py). */
+const CARD_FILES = {card: 'test-card.svg', 'off-palette': 'test-card-off-palette.svg', star: 'test-star.svg'};
+async function loadCards() {
+ const entries = await Promise.all(Object.entries(CARD_FILES).map(async ([name, file]) =>
+  [name, readSVG(await (await fetch(new URL('../content/' + file, import.meta.url))).text())]));
+ return Object.fromEntries(entries);
+}
+
+export const APP_VERSION = '0.25.0';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -32,9 +41,9 @@ let shown = null;              // the screen on show and its profile
 try {
  const first = screenById(store.get('screen'));
  // The counters are drawn on the panel with the bundled font: load it before the first frame.
- const [tiles, profile] = await Promise.all([loadTiles(), loadProfile(first), document.fonts.load(COUNTER_FONT, '0123456789LINES')]);
+ const [tiles, profile, cards] = await Promise.all([loadTiles(), loadProfile(first), loadCards(), document.fonts.load(COUNTER_FONT, '0123456789LINES')]);
  content = createTetrisContent(tiles);
- stage = createStage({stage: $('stage'), bezel: $('bezel'), canvas: $('panel')}, content, tiles);
+ stage = createStage({stage: $('stage'), bezel: $('bezel'), canvas: $('panel'), error: $('error')}, content, tiles, cards);
  controls = createControls({
   device: $('device'), deviceNote: $('deviceNote'), lighting: $('lighting'), lightNote: $('lightNote'),
   room: $('room'), roomNote: $('roomNote'),
@@ -62,6 +71,8 @@ try {
 function present(screen, profile) {
  shown = {screen, profile};
  stage.show(screen, profile);
+ // The content switch is for screens that take shapes (vector input).
+ $('contentField').hidden = !kindOf(screen).definition.scene;
  applySettings(screen, profile, stage.renderer);
  controls.show(screen, profile);
  info.show(screen, profile, stage.renderer);
@@ -141,6 +152,11 @@ $('reset').addEventListener('click', () => {
  controls.show(shown.screen, shown.profile);
 });
 
+for (const button of document.querySelectorAll('[data-content]')) button.addEventListener('click', () => {
+ stage.showContent(button.dataset.content);
+ for (const other of document.querySelectorAll('[data-content]')) other.setAttribute('aria-pressed', String(other === button));
+});
+
 $('version').textContent = 'v' + APP_VERSION;
 setInterval(() => info.status(stage.screen, stage.renderer), 1000);
 
@@ -151,6 +167,7 @@ window.vectorLCD = Object.freeze({
  get renderer() { return stage.renderer; },
  get canvas() { return stage.canvas; },
  get screen() { return stage.screen; },
+ get content() { return stage.content; }, showContent: name => stage.showContent(name),
  game: content.game, PANEL, BOARD, CELL, FAMILIES, selectScreen
 });
 

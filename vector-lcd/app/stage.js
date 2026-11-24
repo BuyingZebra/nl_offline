@@ -7,17 +7,38 @@
 import {kindOf} from './screens.js';
 import {PANEL} from '../content/tetris.js';
 import {tetrisVectors} from '../content/vectors.js';
+import {tetrisScene, cardScene} from '../content/scenes.js';
 
 const STAGE_MARGIN_PX = 24;
 
 
 /**
- * @param {{stage:HTMLElement, bezel:HTMLElement, canvas:HTMLCanvasElement}} elements
+ * @param {{stage:HTMLElement, bezel:HTMLElement, canvas:HTMLCanvasElement, error:HTMLElement}} elements
  * @param {ReturnType<import('../content/tetris.js').createTetrisContent>} content
  * @param {import('../content/tiles.js').Tiles} tiles
+ * @param {Object<string, {width, height, shapes, problems}>} cards  vector test cards (vector/svg.js), by name; 'star' turns on the cards
  */
-export function createStage({stage, bezel, canvas}, content, tiles) {
+export function createStage({stage, bezel, canvas, error}, content, tiles, cards = {}) {
  let renderer = null, screen = null, fittedRatio = 0;
+ let shown = 'tetris';             // vector screens: 'tetris' or the name of a test card
+
+
+ // ---- What a vector screen shows ------------------------------------------------
+
+ /** The processor refuses art that breaks the four-level rule: it shows nothing and says why. */
+ function refusal(name) {
+  const problems = cards[name]?.problems ?? [];
+  if (!problems.length) return null;
+  return 'Refused ' + name + ': ' + problems.length + ' paint' + (problems.length > 1 ? 's' : '') + ' outside the four drive levels or not supported. '
+   + problems.slice(0, 4).join('; ') + (problems.length > 4 ? '; …' : '');
+ }
+
+ function showContent(name) {
+  shown = name === 'tetris' || cards[name] ? name : 'tetris';
+  const message = kindOf(screen ?? {kind: 'tn'}).definition.scene ? refusal(shown) : null;
+  error.hidden = !message;
+  error.textContent = message ?? '';
+ }
 
 
  // ---- Which screen is shown -------------------------------------------------
@@ -39,6 +60,7 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
   }
   renderer.setElectrodes(kind.definition.usesElectrodes ? content.drawElectrodes : null);
   screen = next;
+  showContent(shown);
  }
 
 
@@ -69,6 +91,12 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
   const def = kindOf(screen).definition, profile = renderer.profile;
   // A vector display draws lines, not a picture: hand it this round's display list.
   if (def.vectors) { renderer.setVectors(tetrisVectors(content.game)); renderer.frame(now); return; }
+  // Shapes in drive levels: the processor takes them as they are, or not at all.
+  if (def.scene) {
+   renderer.setScene(shown === 'tetris' ? tetrisScene(content.game) : refusal(shown) ? [] : cardScene(cards[shown], cards.star, now));
+   renderer.frame(now);
+   return;
+  }
   const set = typeof def.tiles === 'function' ? def.tiles(profile) : def.tiles;
   const paper = def.paper?.(profile);
   const ctx = renderer.beginContent();
@@ -78,7 +106,8 @@ export function createStage({stage, bezel, canvas}, content, tiles) {
  }
 
  return Object.freeze({
-  show, fit, draw,
+  show, fit, draw, showContent,
+  get content() { return shown; },
   get renderer() { return renderer; },
   get screen() { return screen; },
   get canvas() { return canvas; }

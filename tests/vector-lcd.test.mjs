@@ -442,7 +442,7 @@ describe('Vector LCD app packaging',()=>{
   const walk=dir=>fs.readdirSync(appDir+dir,{withFileTypes:true})
    .flatMap(e=>e.isDirectory()?walk(dir+e.name+'/'):['./'+dir+e.name]);
   const shipped=fs.readdirSync(appDir,{withFileTypes:true}).filter(e=>e.isFile()&&!/^(sw\.js|README\.md)$/.test(e.name)).map(e=>'./'+e.name)
-   .concat(...['app/','gpu/','optics/','screens/','content/','concept/','profiles/'].map(walk),['./third_party/retro-display-lab/NOTICE'],
+   .concat(...['app/','gpu/','optics/','screens/','content/','concept/','profiles/','vector/'].map(walk),['./third_party/retro-display-lab/NOTICE'],
     walk('fonts/').filter(f=>f.endsWith('.woff')));
   for(const file of shipped)assert.ok(assets.includes(file),file+' is not precached');
  });
@@ -474,7 +474,7 @@ describe('Vector LCD app packaging',()=>{
 
 describe('Vector LCD structure: screen kinds, definitions and profiles',async()=>{
  const {SCREENS,KINDS,FAMILIES}=await import('../vector-lcd/app/screens.js');
- const profileOf=screen=>JSON.parse(read('profiles/'+screen.id+'.json'));
+ const profileOf=screen=>JSON.parse(read('profiles/'+(screen.profile??screen.id)+'.json'));
  // What a definition may ask of a renderer when building the Info tab.
  const fakeRenderer={bezelLipMm:1,lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15},info:()=>({retention:true,dotsPerPixel:2,dotPitchUm:48})};
 
@@ -494,7 +494,7 @@ describe('Vector LCD structure: screen kinds, definitions and profiles',async()=
    assert.ok(!ids.has(screen.id),'duplicate '+screen.id);ids.add(screen.id);
    assert.equal(screen.sub.length,2,screen.id+' sub lines');
    const P=KINDS[screen.kind].checkProfile(profileOf(screen));
-   assert.equal(P.profile,screen.id);
+   assert.equal(P.profile,screen.profile??screen.id);
   }
  });
  test('a profile missing a field is refused, naming the field',()=>{
@@ -579,7 +579,7 @@ describe('Room brightness (CRT surroundings)',async()=>{
  const C=await import('../vector-lcd/screens/crt/index.js');
  test('only screens that make their own light have it: every CRT, no reflective LCD',()=>{
   for(const s of SCREENS){
-   const room=KINDS[s.kind].definition.roomLight(JSON.parse(read('profiles/'+s.id+'.json')));
+   const room=KINDS[s.kind].definition.roomLight(JSON.parse(read('profiles/'+(s.profile??s.id)+'.json')));
    assert.equal(Boolean(room),['crt','vector'].includes(s.kind),s.id);   // screens that make their own light
   }
  });
@@ -754,5 +754,54 @@ describe('Curved face of the 5151 tube (Philips M31-336: 510 mm radius)',async()
   const v=[0,0,1],h=[L[0]+v[0],L[1]+v[1],L[2]+v[2]],k=Math.hypot(...h),n=h.map(x=>x/k);
   const y=n[1]*510,flatAt=C.faceGlare(P,v,light),curvedAt=C.faceGlare(P,v,light,R.sphereNormal(510,0,y));
   assert.ok(curvedAt>5*flatAt,'flat '+flatAt+', curved at '+y.toFixed(0)+' mm: '+curvedAt);
+ });
+});
+
+describe('Vector input (experimental): any SVG as exact shapes in four drive levels',async()=>{
+ const G=await import('../vector-lcd/vector/geometry.js');
+ const area=t=>{let a=0;for(let i=0;i<t.length;i+=6)a+=Math.abs((t[i+2]-t[i])*(t[i+5]-t[i+1])-(t[i+4]-t[i])*(t[i+3]-t[i+1]))/2;return a;};
+ test('the four drive greys are looked up exactly; every other colour is refused, never rounded',()=>{
+  assert.deepEqual([255,170,85,0].map(v=>G.driveIndex(v,v,v)),[0,1,2,3]);
+  for(const v of [254,171,169,86,84,1,128])assert.equal(G.driveIndex(v,v,v),null,String(v));
+  assert.equal(G.driveIndex(170,170,171),null);
+ });
+ test('path data: every command, relative and absolute, packed arc flags, implicit line-tos',()=>{
+  const s=G.parsePath('m10 10h5v5q2 2 4 0t4 0c1 1 2 2 3 0s2 2 3 0a2 2 0 011 1z M0 0 1 1 2 0');
+  assert.equal(s.length,2);assert.equal(s[0].closed,true);assert.deepEqual(s[0].segs.at(-1).p,[30,16]);
+  assert.deepEqual(s[1].segs.map(g=>g.p),[[1,1],[2,0]]);
+  assert.throws(()=>G.parsePath('M0 0L1'),SyntaxError);
+ });
+ test('arcs and curves stay within the tolerance at any scale',()=>{
+  for(const scale of [1,1e3,1e6]){
+   const c=G.flatten(G.transformSubpaths(G.parsePath(G.shapePath('circle',{cx:'0',cy:'0',r:'10'})),[scale,0,0,scale,0,0]),.2);
+   const worst=Math.max(...c[0].points.map(p=>Math.abs(Math.hypot(...p)-10*scale)));
+   assert.ok(worst<=.2+10*scale*1e-6,'scale '+scale+': '+worst);
+  }
+ });
+ test('basic shapes: rounded rect area, convex fast path, self-crossing stars are not convex',()=>{
+  const rr=G.flatten(G.parsePath(G.shapePath('rect',{x:'0',y:'0',width:'20',height:'10',rx:'2'})),1e-4);
+  near(area(G.convexTriangles(rr)),200-(4-Math.PI)*4,1e-3);
+  assert.equal(G.convexTriangles(G.flatten(G.parsePath('M0 -10L5.9 8.1L-9.5 -3.1H9.5L-5.9 8.1Z'),1)),null);
+  assert.equal(G.convexTriangles(G.flatten(G.parsePath('M0 0H10V10H0ZM2 2H8V8H2Z'),1)),null,'a hole needs the stencil');
+ });
+ test('strokes: a straight line covers width x length; miter joins respect the miter limit',()=>{
+  near(area(G.strokeTriangles(G.flatten(G.parsePath('M0 0H10'),.01),{width:2,cap:'butt'},.01)),20,1e-9);
+  near(area(G.strokeTriangles(G.flatten(G.parsePath('M0 0H10'),.01),{width:2,cap:'square'},.01)),24,1e-9);
+  const sharp=G.flatten(G.parsePath('M0 0L10 0L0 1'),.01);
+  const withMiter=area(G.strokeTriangles(sharp,{width:1,join:'miter',miterLimit:100},.01));
+  const limited=area(G.strokeTriangles(sharp,{width:1,join:'miter',miterLimit:4},.01));
+  assert.ok(withMiter>limited,'a very sharp corner falls back to a bevel under the default limit');
+ });
+ test('the test cards use only the four drive greys, and the off-palette card breaks the rule on purpose',()=>{
+  const greys=svg=>[...svg.matchAll(/(?:fill|stroke|stop-color)="(#[0-9a-f]{3,6})"/g)].map(m=>m[1]);
+  const ok=new Set(['#ffffff','#aaaaaa','#555555','#000000']);
+  for(const g of greys(read('content/test-card.svg')))assert.ok(ok.has(g),g);
+  assert.ok(greys(read('content/test-card-off-palette.svg')).includes('#777777'));
+  assert.match(read('content/test-card-off-palette.svg'),/url\(#fade\)/);
+ });
+ test('Tetris pieces each take one drive level that shows on the unlit panel',async()=>{
+  const {PIECE_LEVELS}=await import('../vector-lcd/content/scenes.js');
+  assert.deepEqual(Object.keys(PIECE_LEVELS).sort(),['I','J','L','O','S','T','Z']);
+  for(const v of Object.values(PIECE_LEVELS))assert.ok([1,2,3].includes(v));
  });
 });

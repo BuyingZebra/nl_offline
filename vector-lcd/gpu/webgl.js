@@ -205,7 +205,7 @@ export function createGPU(canvas, name) {
  * (at most MAX_DOTS_PER_PIXEL), and the content is drawn at the dot size. */
 export const MAX_DOTS_PER_PIXEL = 4;
 
-export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6, dotBudget = 0}) {
+export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6, dotBudget = 0, canvasContent = true}) {
  if (!(widthMm > 0) || !(heightMm > 0)) throw new TypeError('Panel size must be positive millimetres');
 
  const content = document.createElement('canvas');
@@ -249,8 +249,9 @@ export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6, dotBu
    size.dots = dots;
    canvas.width = pw;
    canvas.height = ph;
-   content.width = pw * dots;
-   content.height = ph * dots;
+   // A renderer that draws its content on the GPU keeps no 2D canvas of it.
+   content.width = canvasContent ? pw * dots : 1;
+   content.height = canvasContent ? ph * dots : 1;
    size.pxPerMm = pw / widthMm;
   }
   return {width: outW, height: outH, pxPerMm: size.pxPerMm, changed};

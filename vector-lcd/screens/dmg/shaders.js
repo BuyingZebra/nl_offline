@@ -48,7 +48,7 @@ float optical(float q){
 export const UPDATE_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uContent,uState;
-uniform int uSteps,uInit;uniform float uTscale,uCharge,uRelease,uSticking;
+uniform int uSteps,uInit;uniform bool uIndexInput;uniform float uTscale,uCharge,uRelease,uSticking;
 ${COMMON}
 out vec4 o;
 float canonical(float st){
@@ -64,7 +64,9 @@ float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-d
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  vec3 c=texelFetch(uContent,p,0).rgb;
- int s=int(floor(clamp(1.0-dot(c,vec3(0.2126,0.7152,0.0722)),0.0,1.0)*3.0+0.5));
+ // Vector input states each dot's drive level exactly (r = level / 3): a lookup.
+ // A picture is read by brightness, the source's rule for art not drawn in four levels.
+ int s=uIndexInput?int(c.r*3.0+0.5):int(floor(clamp(1.0-dot(c,vec3(0.2126,0.7152,0.0722)),0.0,1.0)*3.0+0.5));
  vec4 st=texelFetch(uState,p,0);
  // 1: settle to the current image (new textures); 2: blank panel (reset).
  if(uInit==1){float q=targetQ(s);o=vec4(q,0.0,float(s),optical(q));return;}

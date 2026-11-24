@@ -6,6 +6,7 @@
 
 import {KINDS, SCREENS} from '../vector-lcd/app/screens.js';
 import {missingMembers} from '../vector-lcd/screens/contract.js';
+import {parsePath} from '../vector-lcd/vector/geometry.js';
 
 const PANEL = {w: 48, h: 92};
 const CSS = [130, 250];
@@ -52,7 +53,7 @@ const PATCH = [10, 20, 28, 50];
 export async function contract() {
  const out = [];
  for (const screen of SCREENS) {
-  const {renderer, done} = mount(screen.kind, await profileOf(screen.id));
+  const {renderer, done} = mount(screen.kind, await profileOf(screen.profile ?? screen.id));
   const missing = missingMembers(renderer);
   out.push({name: 'contract ' + screen.id, ok: missing.length === 0 && Object.isFrozen(renderer), detail: missing.join(', ') || 'complete'});
   done();
@@ -198,6 +199,36 @@ export async function dmgOptics() {
  r.dispose();
  canvas.remove();
  return out;
+}
+
+
+// ===========================================================================
+// DMG-01 vector input: each dot gets the drive level of the shape at its centre
+// ===========================================================================
+
+export async function dmgVector() {
+ const P = await profileOf('dmg-01-stn');
+ const {renderer: r, done} = mount('dmgv', P);
+ const fill = (d, value, rule = 'nonzero') => ({fill: {subpaths: parsePath(d), rule, value}, stroke: null});
+ const ring = 'M24 30a12 12 0 1 0 0.001 0ZM24 36a6 6 0 1 0 0.001 0Z';     // centre (24, 42), hole radius 6
+ const scene = [
+  {shape: fill(ring, 2, 'evenodd'), matrix: [1, 0, 0, 1, 0, 0]},
+  {shape: fill('M30 50h10v10h-10Z', 3), matrix: [1, 0, 0, 1, 0, 0]},                 // over the ring's lower right
+  {shape: fill('M0 0h4v4h-4Z', 1), matrix: [1, 0, 0, 1, 10, 70]},                    // placed by its matrix
+  {shape: {fill: null, stroke: {subpaths: parsePath('M5 85H43'), width: .5, cap: 'butt', join: 'miter', miterLimit: 4, value: 3}},
+   matrix: [1, 0, 0, 1, 0, 0]}
+ ];
+ r.setScene(scene);
+ let t = T0;
+ for (let k = 0; k < 5; k++) r.frame(t += 50);
+ const probes = [
+  ['outside', 4, 4, 0], ['ring', 24, 33, 2], ['hole (evenodd)', 24, 42, 0], ['square over ring', 33, 52, 3],
+  ['square outside ring', 39, 59, 3], ['placed by matrix', 12, 72, 1], ['stroke', 20, 85, 3], ['beside stroke', 20, 86, 0]
+ ];
+ const wrong = probes.filter(([, x, y, want]) => r.sample(x, y).shade !== want).map(([name, x, y, want]) => name + ' ' + r.sample(x, y).shade + '≠' + want);
+ done();
+ return [{name: 'DMG-01 vector input: drive levels exactly where the shapes are', ok: wrong.length === 0,
+  detail: wrong.join(', ') || probes.length + ' probes: fills, an evenodd hole, overlap order, a matrix, a stroke'}];
 }
 
 
@@ -407,5 +438,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

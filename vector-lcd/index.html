@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="vector-lcd-version" content="0.24.0">
+<meta name="vector-lcd-version" content="0.25.0">
 <meta name="theme-color" content="#e8e3da">
 <meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
@@ -186,6 +186,14 @@ dd{margin:0;font-family:var(--sans);font-size:13.5px;line-height:1.45}
   </div>
   <div class="group">
    <span class="label">Simulation</span>
+   <div class="field" id="contentField" hidden>
+    <span class="label" id="contentLabel">Content</span>
+    <div class="seg" id="contentPicker" role="group" aria-labelledby="contentLabel">
+     <button type="button" data-content="tetris" aria-pressed="true">Tetris</button>
+     <button type="button" data-content="card" aria-pressed="false">Test card</button>
+     <button type="button" data-content="off-palette" aria-pressed="false">Off palette</button>
+    </div>
+   </div>
    <div class="controls-head">
     <button class="switch" id="pause" type="button" role="switch" aria-checked="true"><span class="track"></span><span>Running</span></button>
     <button class="btn" id="reset" type="button">Reset settings</button>

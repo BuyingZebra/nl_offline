@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.24.0';
+const VERSION = '0.25.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -43,6 +43,11 @@ const ASSETS = Object.freeze([
  './screens/dmg/shaders.js',
  './screens/dmg/renderer.js',
  './screens/dmg/definition.js',
+ './screens/dmgv/index.js',
+ './screens/dmgv/definition.js',
+ './vector/geometry.js',
+ './vector/svg.js',
+ './vector/draw.js',
  './screens/cgb/index.js',
  './screens/cgb/model.js',
  './screens/cgb/shaders.js',
@@ -73,6 +78,11 @@ const ASSETS = Object.freeze([
  './content/tiles.js',
  './content/four-tone.js',
  './content/colour.js',
+ './content/scenes.js',
+ './content/glyphs.js',
+ './content/test-card.svg',
+ './content/test-card-off-palette.svg',
+ './content/test-star.svg',
  // ---- The earlier hand-tuned concept model
  './concept/concept.html',
  './concept/demo.js',

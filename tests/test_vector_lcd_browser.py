@@ -56,6 +56,18 @@ def app_smoke(page, base):
             screen = page.evaluate("window.vectorLCD.screen.id")
             controls = page.locator("#device input").count()
             seen.append(f"{screen} ({controls} device controls)")
+    # The vector screen refuses an off-palette file, saying why, and takes the good one.
+    page.evaluate("window.vectorLCD.selectScreen('dmg-01-stn-vector')")
+    page.wait_for_timeout(600)
+    page.click("[data-content=off-palette]")
+    page.wait_for_timeout(300)
+    refused = page.evaluate("!document.getElementById('error').hidden && document.getElementById('error').textContent")
+    page.click("[data-content=card]")
+    page.wait_for_timeout(300)
+    accepted = page.evaluate("document.getElementById('error').hidden")
+    if not refused or "#777777" not in refused or not accepted:
+        errors.append("vector content switch: refused=%r accepted=%r" % (refused, accepted))
+    seen.append("vector card ok, off-palette refused")
     page.click("#tabInfo")
     facts = page.locator("#facts dt").count()
     page.click("#tabDemo")

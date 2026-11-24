@@ -6,6 +6,7 @@
 
 import * as tn from '../screens/tn/index.js';
 import * as dmg from '../screens/dmg/index.js';
+import * as dmgv from '../screens/dmgv/index.js';
 import * as crt from '../screens/crt/index.js';
 import * as cgb from '../screens/cgb/index.js';
 import * as vector from '../screens/vector/index.js';
@@ -17,6 +18,7 @@ import * as vector from '../screens/vector/index.js';
  * @property {string|((P:Object) => string)} tiles    which version of the tile art it shows: 'original', 'fourTone' or 'colour'
  * @property {(P:Object) => ({paper:string, ink:string}|null)} [paper]  what the game draws on, where not white paper and black ink
  * @property {boolean} [vectors]                     content as a display list of lines (renderer.setVectors), not a picture
+ * @property {boolean} [scene]                       content as shapes in drive levels (renderer.setScene), not a picture
  * @property {boolean} usesElectrodes                   whether the glass has an electrode map
  * @property {(renderer:Object) => void} prepare        reset settings that only some profiles change
  * @property {(P:Object) => DeviceControl[]} device     the real device's controls, and only those
@@ -36,15 +38,16 @@ import * as vector from '../screens/vector/index.js';
  * @property {(renderer:Object, v:number) => void} apply
  *
  * @typedef {Object} Screen
- * @property {string} id        the profile's id (profiles/<id>.json)
- * @property {'tn'|'dmg'|'cgb'|'crt'|'vector'} kind
+ * @property {string} id        the screen's id; also its profile's (profiles/<id>.json) unless profile says otherwise
+ * @property {string} [profile] the profile's id, where several screens share one
+ * @property {'tn'|'dmg'|'dmgv'|'cgb'|'crt'|'vector'} kind
  * @property {'lcd'|'crt'} family
  * @property {string} short     its button
  * @property {string[]} sub     the two lines beside the card title
  * @property {string} label     its full name
  */
 
-export const KINDS = Object.freeze({tn, dmg, cgb, crt, vector});
+export const KINDS = Object.freeze({tn, dmg, dmgv, cgb, crt, vector});
 
 export const FAMILIES = Object.freeze({
  lcd: Object.freeze({title: 'LCD', picker: 'Panel'}),
@@ -57,6 +60,8 @@ export const SCREENS = Object.freeze([
   label: 'Reflective TN · multiplexed 1/4 duty (Lumex)'},
  {id: 'dmg-01-stn', kind: 'dmg', family: 'lcd', short: 'DMG-01', sub: ['Reflective STN', '4 shades · DMG-01'],
   label: 'Reflective STN · Nintendo DMG-01, 4 shades (Retro Display Lab)'},
+ {id: 'dmg-01-stn-vector', profile: 'dmg-01-stn', kind: 'dmgv', family: 'lcd', short: 'DMG vector', sub: ['Reflective STN · experimental', 'vector input · DMG-01'],
+  label: 'Reflective STN · Nintendo DMG-01, vector input (experimental)'},
  {id: 'cgb-001-tft', kind: 'cgb', family: 'lcd', short: 'GB Color', sub: ['Reflective colour TFT', 'RGB555 · CGB-001'],
   label: 'Reflective HR-TFT · Nintendo Game Boy Color (Retro Display Lab)'},
  {id: 'crt-5151-p39', kind: 'crt', family: 'crt', short: 'P39 green', sub: ['Green phosphor', 'P39 · IBM 5151'],
@@ -78,6 +83,7 @@ export const SCREENS = Object.freeze([
 export const screenById = id => SCREENS.find(s => s.id === id) ?? SCREENS[0];
 export const screensIn = family => SCREENS.filter(s => s.family === family);
 export const kindOf = screen => KINDS[screen.kind];
+export const profileId = screen => screen.profile ?? screen.id;
 
 
 // ---------------------------------------------------------------------------
@@ -87,10 +93,11 @@ export const kindOf = screen => KINDS[screen.kind];
 const profiles = new Map();
 
 export async function loadProfile(screen) {
- if (!profiles.has(screen.id)) {
-  const response = await fetch(new URL('../profiles/' + screen.id + '.json', import.meta.url));
-  if (!response.ok) throw new Error('Could not load the screen profile ' + screen.id + ' (' + response.status + ')');
-  profiles.set(screen.id, kindOf(screen).checkProfile(await response.json()));
+ const id = profileId(screen);
+ if (!profiles.has(id)) {
+  const response = await fetch(new URL('../profiles/' + id + '.json', import.meta.url));
+  if (!response.ok) throw new Error('Could not load the screen profile ' + id + ' (' + response.status + ')');
+  profiles.set(id, kindOf(screen).checkProfile(await response.json()));
  }
- return profiles.get(screen.id);
+ return profiles.get(id);
 }

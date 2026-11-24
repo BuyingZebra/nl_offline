@@ -14,7 +14,7 @@ export const BOARD = Object.freeze({x: 4, y: 6, cols: Core.COLS, rows: Core.ROWS
 export const PANEL = Object.freeze({w: BOARD.x * 2 + BOARD.cols * CELL, h: BOARD.y + BOARD.rows * CELL + 6});
 
 export const COUNTER_FONT = '700 3.2px "Vector Mono",monospace';   // bundled: fonts/
-const COUNTER_BASELINE = PANEL.h - 2.2;
+export const COUNTER_BASELINE = PANEL.h - 2.2;
 const AUTOPLAY_STEP_MS = 70;
 const SEED = 20261118;
 const ELECTRODE_THRESHOLD = 188;   // darker than 50% luminance switches on (static drive)
@@ -43,6 +43,28 @@ function iSourceIndex(rotation, x, y) {
  if (rotation === 2) return y === 2 ? 3 - x : null;
  if (rotation === 3) return x === 1 ? 3 - y : null;
  return null;
+}
+
+
+// ===========================================================================
+// What is on the board
+// ===========================================================================
+
+/** Every occupied cell, the settled board first, then the falling piece:
+ * {col, row, kind, meta}, meta = {sourceIndex, rotation} for I fragments. */
+export function occupiedCells(game) {
+ const out = [];
+ for (let r = 0; r < BOARD.rows; r++) for (let c = 0; c < BOARD.cols; c++) {
+  const kind = game.board[r][c];
+  if (kind) out.push({col: c, row: r, kind, meta: game.boardMeta[r][c]});
+ }
+ const p = game.current;
+ if (p) for (let iy = 0; iy < p.matrix.length; iy++) for (let ix = 0; ix < p.matrix[iy].length; ix++) {
+  const kind = p.matrix[iy][ix], r = p.y + iy, c = p.x + ix;
+  if (!kind || r < 0 || r >= BOARD.rows || c < 0 || c >= BOARD.cols) continue;
+  out.push({col: c, row: r, kind, meta: kind === 'I' ? {sourceIndex: iSourceIndex(p.rotation, ix, iy), rotation: p.rotation} : null});
+ }
+ return out;
 }
 
 
@@ -95,19 +117,7 @@ export function createTetrisContent(tiles) {
   ctx.strokeStyle = ink;
   ctx.lineWidth = .35;
   strokeFrame(ctx);
-
-  for (let r = 0; r < BOARD.rows; r++) for (let c = 0; c < BOARD.cols; c++) {
-   const kind = game.board[r][c];
-   if (kind) drawCell(ctx, set, c, r, kind, game.boardMeta[r][c]);
-  }
-
-  const p = game.current;
-  if (p) for (let iy = 0; iy < p.matrix.length; iy++) for (let ix = 0; ix < p.matrix[iy].length; ix++) {
-   const kind = p.matrix[iy][ix], r = p.y + iy, c = p.x + ix;
-   if (!kind || r < 0 || r >= BOARD.rows || c < 0 || c >= BOARD.cols) continue;
-   drawCell(ctx, set, c, r, kind, kind === 'I' ? {sourceIndex: iSourceIndex(p.rotation, ix, iy), rotation: p.rotation} : null);
-  }
-
+  for (const {col, row, kind, meta} of occupiedCells(game)) drawCell(ctx, set, col, row, kind, meta);
   ctx.fillStyle = ink;
   fillCounters(ctx, String(game.lines).padStart(3, '0'), String(game.score).padStart(6, '0'));
  }

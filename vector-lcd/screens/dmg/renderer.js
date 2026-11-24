@@ -16,6 +16,7 @@ import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm, shadowKernel, entryOffsetMm} from '../../optics/room.js';
 import {checkProfile, contrastConditions, temperatureScale, stickingVolts, linearPalette} from './model.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
+import {createVectorPainter} from '../../vector/draw.js';
 
 export const VERSION = '0.4.0';
 
@@ -25,10 +26,15 @@ const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, 
 const DOT_BUDGET = 3e6;
 
 
-/** @returns {import('../contract.js').ScreenRenderer} */
-export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels, bezelLipMm = 1, dotBudget = DOT_BUDGET} = {}) {
+/**
+ * input: 'picture' (content drawn on a 2D canvas, read by brightness) or
+ * 'vector' (shapes in drive levels, drawn on the GPU at the dot size: setScene).
+ * @returns {import('../contract.js').ScreenRenderer}
+ */
+export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels, bezelLipMm = 1, dotBudget = DOT_BUDGET, input = 'picture'} = {}) {
  let profile = checkProfile(initialProfile);
- const surface = createSurface(canvas, {widthMm, heightMm, maxPixels, dotBudget});
+ const vectorInput = input === 'vector';
+ const surface = createSurface(canvas, {widthMm, heightMm, maxPixels, dotBudget, canvasContent: !vectorInput});
  const gpu = createGPU(canvas, 'LCD'), {gl} = gpu;
  const meter = createMeter();
 
@@ -46,6 +52,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
  let celsius = 25;
  let contrast = profile.contrast.value;
+ let scene = [];                   // vector input: [{shape, matrix}] in panel millimetres
 
 
  // ===========================================================================
@@ -78,7 +85,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    fmt: stateFormat(), fieldFmt: fieldFormat(),
    update: gpu.program(UPDATE_FS), entry: gpu.program(ENTRY_FS), blur: gpu.program(BLUR_FS), display: gpu.program(DISPLAY_FS),
    content: gpu.texture(), drift: gpu.texture(), optical: gpu.texture(),
-   states: [], fields: [], size: null
+   states: [], fields: [], size: null,
+   painter: vectorInput ? createVectorPainter(gl) : null, contentFb: null, stencil: null
   };
   uploadTables();
   if (surface.W && surface.H) allocate();
@@ -106,6 +114,19 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   }
   gl.bindTexture(gl.TEXTURE_2D, res.content);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, DW, DH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  if (vectorInput) {
+   // The shapes are drawn into the content texture, with a stencil for filling any outline.
+   if (res.contentFb) gl.deleteFramebuffer(res.contentFb);
+   if (res.stencil) gl.deleteRenderbuffer(res.stencil);
+   res.stencil = gl.createRenderbuffer();
+   gl.bindRenderbuffer(gl.RENDERBUFFER, res.stencil);
+   gl.renderbufferStorage(gl.RENDERBUFFER, gl.STENCIL_INDEX8, DW, DH);
+   res.contentFb = gl.createFramebuffer();
+   gl.bindFramebuffer(gl.FRAMEBUFFER, res.contentFb);
+   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, res.content, 0);
+   gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.STENCIL_ATTACHMENT, gl.RENDERBUFFER, res.stencil);
+   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
   if (old.length && oldSize) gpu.copy(old[current].tex, oldSize, res.states[current].tex, [DW, DH]);
   else { last = null; init = 1; }
   gpu.release(...old);
@@ -149,7 +170,11 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   phase += dt * profile.panel.refresh_hz / 1000;
   const steps = Math.min(MAX_STEPS_PER_FRAME, Math.floor(phase));
   phase = Math.min(phase - steps, 1);
-  gpu.upload(res.content, surface.content);
+  if (vectorInput) {
+   // Shapes in millimetres, drawn at the dot size: each dot gets its drive level exactly.
+   const k = dotsPerMm, toDots = m => [m[0] * k, m[1] * k, m[2] * k, m[3] * k, m[4] * k, m[5] * k];
+   res.painter.draw(res.contentFb, dotSize, scene.map(item => ({shape: item.shape, matrix: toDots(item.matrix)})));
+  } else gpu.upload(res.content, surface.content);
 
   // ---- 1. Director and ions, in whole DMG frames, at every dot
   if (steps > 0 || init) {
@@ -160,6 +185,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
     bindTables(p);
     gl.uniform1i(p.u('uSteps'), init === 1 ? 0 : steps);
     gl.uniform1i(p.u('uInit'), init);
+    gl.uniform1i(p.u('uIndexInput'), vectorInput ? 1 : 0);
     gl.uniform1f(p.u('uTscale'), temperatureScale(profile, celsius));
     gl.uniform1f(p.u('uCharge'), res.fmt.retention ? R.charge_per_frame : 0);
     gl.uniform1f(p.u('uRelease'), res.fmt.retention ? R.release_per_frame : 0);
@@ -256,6 +282,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    if (res && !gpu.lost) { uploadTables(); init = 1; }
   },
   setElectrodes() {},              // a dot matrix drives every point: no electrode map
+  /** Vector input: the shapes to show, [{shape, matrix}] with the matrix from the shape's units to panel mm. */
+  setScene(items) { scene = items; },
+  get input() { return input; },
 
   get lighting() { return {...lighting}; },
   setLighting(next) { lighting = {...lighting, ...next}; },
@@ -271,7 +300,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    const dots = surface.dotsPerPixel;
    return {version: VERSION, stateFormat: res?.fmt.name ?? 'none', fieldFormat: res?.fieldFmt.name ?? 'none',
     retention: Boolean(res?.fmt.retention), width: surface.W, height: surface.H, pxPerMm: surface.pxPerMm,
-    dotsPerPixel: dots, dotPitchUm: 1000 / (surface.pxPerMm * dots), fps: meter.fps};
+    dotsPerPixel: dots, dotPitchUm: 1000 / (surface.pxPerMm * dots), fps: meter.fps,
+    input, ...(res?.painter ? {vector: res.painter.stats} : {})};
   },
   dispose: gpu.dispose
  });

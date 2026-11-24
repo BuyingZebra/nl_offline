@@ -113,6 +113,15 @@ Assumed and labelled:
 
 Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, not a measured specimen, and its analogue drive levels and fill material are bounded reconstructions.
 
+## DMG-01 with vector input (experimental)
+
+The **DMG vector** button. The processor is the DMG-01's above: the same measured data, physics and controls. Only the input differs. The content is not a picture read by brightness: it is vector shapes whose paints are the four drive levels, and the processor takes them exactly as they are.
+
+- **Contract.** Any SVG in, behaviour and colour out. Every paint must be one of the greys 255, 170, 85 or 0 at full opacity; each is looked up to its drive level (white, light, dark, black), never rounded. A file with any other paint (another grey, a colour, a gradient, partial opacity) or anything not yet supported (text not converted to outlines, `<use>`, clipping, masks, dashes) is refused as a whole, with the reasons shown on the screen. The design decisions belong before the processor.
+- **Drawing** (`vector/`). `svg.js` lets the browser resolve styles, inheritance and transforms, and `geometry.js` turns every outline into exact geometry: path data with every command (arcs as cubics within 1e-7 of the radius), basic shapes, both fill rules, strokes with caps, joins and the miter limit. `draw.js` draws the shapes on the GPU straight into the processor's input at the dot size, with no smoothing: each dot takes the drive level of the shape at its centre, last shape on top. Convex outlines are drawn directly; any other outline by stencil-then-cover (windings counted in a stencil buffer), so holes, overlaps and self-crossing shapes are exact. Curves are flattened to within 0.2 dot at whatever size the panel is drawn, so the input scales with the panel. No 2D canvas is drawn or uploaded.
+- **Content** (`content/scenes.js`). Tetris as one solid square per cell, each piece in one drive level (`PIECE_LEVELS`: white is the unlit panel, so pieces use light, dark and black), with the counters as outlines of the bundled bold font (`content/glyphs.js`). Two test cards (`tools/vector_test_cards.py`): `test-card.svg`, deliberately awkward (curves, arcs, rings 0.1–0.8 mm wide, hairlines down to 0.05 mm, both fill rules, a hole, overlaps, 1.6 mm text, and a Siemens star the app turns to show the crystal's response), and `test-card-off-palette.svg`, the same card with a fifth grey and a gradient, which must be refused.
+- **Not yet:** memory that scales without a grid (the processor still keeps its state per panel dot); strokes under non-uniform transforms use the mean scale.
+
 ## Nintendo Game Boy Color (CGB-001)
 
 `profiles/cgb-001-tft.json`, copied by `tools/cgb001_profile.mjs` from Retro Display Lab's CGB-001 model (Apache-2.0; see `third_party/retro-display-lab/NOTICE`). No value is changed.
@@ -338,6 +347,7 @@ Every screen kind has the same five files:
 | `screens/vector/` | the Vectrex; `profiles/vectrex.json` (`tools/vectrex.py`); the game as lines in `content/vectors.js` |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
 | `fonts/` | the bundled fonts, so text looks the same on every device: DejaVu Sans Mono (Regular, Bold) for the page and the counters drawn on the screens, Inter (Regular) for notes; Latin subsets, licences beside them |
+| `vector/` | vector input (experimental): `geometry.js` (exact shapes, pure), `svg.js` (any SVG, four-level check), `draw.js` (GPU, no smoothing) |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
 Profiles are checked when they load: each kind lists the fields it reads (`PROFILE_FIELDS`) and refuses a profile that lacks one, naming it.
