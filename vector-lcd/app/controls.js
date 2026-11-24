@@ -22,6 +22,8 @@ const defaults = () => ({
  // 15 degrees wide (a typical lamp), at normal room brightness.
  lighting: {angleDeg: 20, azimuthDeg: 315, sourceDeg: 15, exposure: 1},
  celsius: 25,
+ /** reflector shadow on screens that offer the inspection switch; off is not physical */
+ shadow: true,
  /** room illuminance (lux); null until a screen that uses it sets its default */
  roomLux: null,
  /** knob positions per screen id: {screenId: {key: value}} */
@@ -68,6 +70,7 @@ export function applySettings(screen, profile, renderer) {
  castShadow(settings.lighting);
  const range = def.temperatureRange(profile);
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
+ if (def.shadowSwitch) renderer.setShadow(settings.shadow);
  const room = def.roomLight(profile);
  if (room) room.apply(renderer, settings.roomLux ??= room.initial);
  const knobs = knobsFor(screen, profile);
@@ -114,6 +117,21 @@ export function createControls(el, currentRenderer) {
    slider({label: 'Light from', min: 0, max: 359, step: 1, value: settings.lighting.azimuthDeg,
     format: describeDirection,
     onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); castShadow(settings.lighting); }}));
+
+  // Inspection only: the reflector shadow off (light leaves where it entered).
+  if (def.shadowSwitch) {
+   const button = Object.assign(document.createElement('button'), {type: 'button', className: 'switch'});
+   button.setAttribute('role', 'switch');
+   const label = Object.assign(document.createElement('span'), {});
+   button.append(Object.assign(document.createElement('span'), {className: 'track'}), label);
+   const showState = () => {
+    button.setAttribute('aria-checked', String(settings.shadow));
+    label.textContent = settings.shadow ? 'Reflector shadow' : 'Reflector shadow off · inspection, not physical';
+   };
+   button.addEventListener('click', () => { settings.shadow = !settings.shadow; currentRenderer().setShadow(settings.shadow); showState(); });
+   showState();
+   el.lighting.append(button);
+  }
 
   // ---- On the device
   el.device.replaceChildren(...def.device(profile).map(control => slider({

@@ -30,6 +30,8 @@ export const definition = Object.freeze({
 
  temperatureRange: P => P.temperature.range_C,
  temperatureNote: 'Cold crystal is slower and smears more; warm crystal is faster. Valid 10–30 °C, the range of the source model.',
+ /** An inspection switch for the reflector shadow (not a property of the device or the room). */
+ shadowSwitch: true,
  lightNote: 'Light at an angle crosses the crystal at one point on the way in and another on the way out, so each shape casts a shadow away from the light. '
   + 'The light also moves the bezel shadow and the glare.',
 

@@ -53,6 +53,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let celsius = 25;
  let contrast = profile.contrast.value;
  let scene = [];                   // vector input: [{shape, matrix}] in panel millimetres
+ let shadow = true;                // false: light leaves where it entered (for inspection; not physical)
 
 
  // ===========================================================================
@@ -217,14 +218,18 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform2f(p.u('uSize'), dotSize[0], dotSize[1]);
    gl.uniform1f(p.u('uSigma'), sigmaMm * dotsPerMm);
   });
-  blur(res.fields[0], res.fields[1], radial, k.sigmaRadialMm);
-  blur(res.fields[1], res.fields[0], across, k.sigmaTangentialMm);
+  if (shadow) {
+   blur(res.fields[0], res.fields[1], radial, k.sigmaRadialMm);
+   blur(res.fields[1], res.fields[0], across, k.sigmaTangentialMm);
+  }
 
   // ---- 4. Second pass at each dot, averaged per screen pixel, plus glare.
   // Light enters where it meets the crystal on the way in and leaves where the
   // eye's ray meets it: the shadow offset is the difference of the two.
   const toView = entryOffsetMm(profile, viewing.polarDeg, viewing.azimuthDeg);
-  const mean = {x: k.mean.x - toView.x, y: k.mean.y - toView.y};
+  // With the shadow off, light leaves where it entered: both passes cross the
+  // same state, so every point shows the measured palette (bezel and glare stay).
+  const mean = shadow ? {x: k.mean.x - toView.x, y: k.mean.y - toView.y} : {x: 0, y: 0};
   gpu.draw(res.display, null, size, p => {
    gpu.bind(p, 0, 'uState', state.tex);
    gpu.bind(p, 1, 'uField', res.fields[0].tex);
@@ -290,6 +295,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setLighting(next) { lighting = {...lighting, ...next}; },
   get viewing() { return {...viewing}; },
   setViewing(next) { viewing = {...viewing, ...next}; },
+  /** The reflector shadow; off is for inspecting the image, and is not physical. */
+  get shadow() { return shadow; },
+  setShadow(on) { shadow = Boolean(on); },
   get temperature() { return celsius; },
   setTemperature(c) { celsius = Number(c); },
   /** The DMG's contrast wheel: a drive-voltage multiplier within the source's range. */

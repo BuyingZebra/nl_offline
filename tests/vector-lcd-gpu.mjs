@@ -196,6 +196,14 @@ export async function dmgOptics() {
   detail: 'light upper left: left ' + leftUL.toFixed(3) + ', right ' + rightUL.toFixed(3)
    + '; lower right: left ' + leftLR.toFixed(3) + ', right ' + rightLR.toFixed(3)});
 
+ // Inspection: with the shadow off both sides show the flat palette, however the light falls.
+ r.setShadow(false);
+ const [leftOff, rightOff] = sides(315);
+ const flatLuma = luma(palette[0]);
+ out.push({name: 'DMG-01 shadow switched off: no shadow either side', ok: Math.abs(leftOff - flatLuma) < 1.5 / 255 && Math.abs(rightOff - flatLuma) < 1.5 / 255,
+  detail: 'left ' + leftOff.toFixed(3) + ', right ' + rightOff.toFixed(3) + ', flat ' + flatLuma.toFixed(3)});
+ r.setShadow(true);
+
  r.dispose();
  canvas.remove();
  return out;
