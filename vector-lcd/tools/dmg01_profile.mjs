@@ -91,7 +91,10 @@ const profile={
  temperature:{
   activation_K:scalar('DMG_VISCOSITY_ACTIVATION_K'),reference_C:20,
   range_C:[param(response,'PanelTemperatureCelsius').min,param(response,'PanelTemperatureCelsius').max],
-  law:'drift per frame scaled by exp(activation_K (1/293.15 - 1/T))'
+  // Not from the source: slows the crystal to the era's published STN response
+  // (see sources.response). The source's tables alone give about 91 ms per change.
+  response_scale:0.64,
+  law:'drift per frame scaled by response_scale × exp(activation_K (1/293.15 - 1/T))'
  },
  retention:{
   ionic_mobility:param(response,'IonicMobility').value,
@@ -109,7 +112,8 @@ const profile={
  // The bezel shadow needs the front stack. Nothing published gives the DMG's,
  // so the TN panel's measured 1.1 mm glass is used and labelled as assumed.
  sources:{geometry:{glass_mm:1.1,n_glass:1.5,rear_polarizer_mm:.18,n_polarizer:1.5,assumed:true,
-  note:'DMG glass thickness not published; same front stack as the TN profiles (assumed)'}},
+  note:"DMG glass thickness not published; 1.1 mm is the thickest of the common small-STN options (0.4/0.55/0.7/1.1 mm), the same front stack as the TN profiles (assumed)"},
+  response:{"scale": 0.64, "target_ms": 150, "measured": "mean 10–90% optical response over the 12 shade changes at 25 °C: 152 ms (117–201 ms per change); the source's own tables give 91 ms (67–117 ms)", "basis": "no DMG measurement exists; matched to the era's published STN figures, not to a DMG panel", "refs": ["Sharp, 1997 press release: conventional STN 300 ms (10–90% rise plus fall), i.e. about 150 ms per change", "Hitachi, 1996 (Nikkei): conventional STN 300 ms rise plus fall, 10–90%", "Sharp LM32019T STN module datasheet: rise 190 ms, fall 210 ms", "Period small STN modules: 100–200 ms (Japanese DMG-recreation notes, unmeasured)"]}},
  oblique:{front_index:1.5},
  limitations:JSON.parse(read('model.json')).limitations
 };

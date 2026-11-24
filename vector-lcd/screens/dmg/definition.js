@@ -47,14 +47,17 @@ export const definition = Object.freeze({
   const k = shadowKernel(P, renderer.lighting), offset = Math.hypot(k.mean.x, k.mean.y);
   return [
    ['Model', P.name],
-   ['Data', 'Retro Display Lab (' + A.license + ', ' + A.copyright + '); used without changing any value'],
+   ['Data', 'Retro Display Lab (' + A.license + ', ' + A.copyright + '); every value used as published except the response speed (below)'],
    ['Shades', '4 drive levels; art is quantized by brightness (white, light, dark, black)'],
    ['Panel dots (adapted)', i.dotsPerPixel + ' × ' + i.dotsPerPixel + ' per screen pixel, ' + Math.round(i.dotPitchUm) + ' µm apart, '
     + 'finer than the DMG\'s 160 × 144 so modern vector art stays clean. Every dot is driven at one of the four real levels; '
     + 'a screen pixel shows the average light of its dots'],
    ['Palette (measured)', 'BGB DMG reality samples: ' + P.palette.srgb8.shades.map(hex).join(', ')],
    ['Drive', '1/' + P.panel.dots[1] + ' duty passive matrix, ' + P.panel.refresh_hz + ' Hz frames; rms reconstruction (' + P.drive.nonselect_rms_V + ' V nonselect, nominal)'],
-   ['Response', 'STN director drift per frame from a Frank–Oseen/Ericksen–Leslie reduction; about ' + Math.round(P.stn.t90_s.darkening * 1000) + ' ms to 90% at 20 °C'],
+   ['Response (matched to the era)', 'STN director drift per frame from a Frank–Oseen/Ericksen–Leslie reduction, slowed ×'
+    + (1 / P.temperature.response_scale).toFixed(2) + ' to about ' + P.sources.response.target_ms + ' ms per change (10–90%, 25 °C), '
+    + 'the published STN figures of the time (Sharp and Hitachi: 300 ms rise plus fall; Sharp LM32019T: 190/210 ms). '
+    + 'No DMG panel has been measured; the source alone gives about 91 ms'],
    ['Contrast wheel', '×' + P.contrast.min.toFixed(2) + ' to ×' + P.contrast.max.toFixed(2) + ' drive, the range measured at the ends of a real '
     + 'DMG wheel (one board: −11 V and −14 V against −13 V for good contrast). Solved every 0.01 with the source\'s own solver '
     + '(tools/dmg01_wheel.mjs; the source tabulates 0.88, 1.00 and 1.08): the picture fades in from ×0.92 to ×1.00, and turning it up darkens '
@@ -69,7 +72,7 @@ export const definition = Object.freeze({
    ['Not used', 'the 160×144 dot grid, its row/column crosstalk and row-latch timing (they need the grid); '
     + 'the source\'s shadow strength and offset, which it fitted to an idealized drawing'],
    ['Glare', 'glossy front surface, Fresnel n = ' + P.oblique.front_index + ' (assumed)'],
-   ['Bezel (assumed)', renderer.bezelLipMm + ' mm lip; front glass ' + G.glass_mm + ' mm (DMG value not published)'],
+   ['Bezel (assumed)', renderer.bezelLipMm + ' mm lip; front glass ' + G.glass_mm + ' mm, the thickest common small-STN glass (0.4–1.1 mm; DMG value not published)'],
    ['Limits', P.limitations[0]]
   ];
  }

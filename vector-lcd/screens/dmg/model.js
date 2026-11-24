@@ -38,7 +38,7 @@ export const PROFILE_FIELDS = Object.freeze([
  'panel.refresh_hz', 'panel.active_mm', 'panel.dots',
  'retention.charge_per_frame', 'retention.release_per_frame', 'retention.sticking_volts_fit',
  'retention.ionic_mobility', 'retention.sticking_optical_gain',
- 'temperature.activation_K', 'temperature.reference_C',
+ 'temperature.activation_K', 'temperature.reference_C', 'temperature.response_scale', 'sources.response.target_ms',
  'palette.srgb8.disabled', 'palette.srgb8.shades', 'oblique.front_index'
 ]);
 
@@ -123,10 +123,13 @@ export function canonicalQ(profile, state) {
  return .5 * (lo + hi);
 }
 
-/** Arrhenius viscosity factor: how many reference frames of drift one frame is worth. */
+/** Arrhenius viscosity factor: how many reference frames of drift one frame is worth.
+ * temperature.response_scale (default 1) slows or speeds the whole crystal by
+ * scaling its viscosity; the DMG profile uses it to match the era's published STN
+ * response times (see the profile's sources.response). */
 export function temperatureScale(profile, celsius = 20) {
  const T = profile.temperature;
- return Math.exp(T.activation_K * (1 / (T.reference_C + 273.15) - 1 / (celsius + 273.15)));
+ return (T.response_scale ?? 1) * Math.exp(T.activation_K * (1 / (T.reference_C + 273.15) - 1 / (celsius + 273.15)));
 }
 
 

@@ -336,9 +336,22 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   const run=(from,to,celsius)=>{let st={q:M.targetQ(D,from),ionic:0,shade:from},n=0;
    while(Math.abs(M.opticalState(D,st.q)-.25*(to+1))>.1*.75&&n<600){st=M.stepFrame(D,st,to,{celsius});n++;}return n;};
   const warm=run(0,3,20),cold=run(0,3,10);
-  assert.ok(warm>=2&&warm<=10,'darkening frames at 20 C: '+warm);
+  assert.ok(warm>=2&&warm<=20,'darkening frames at 20 C: '+warm);
   assert.ok(cold>warm,'cold is slower: '+cold+' vs '+warm);
   assert.ok(run(3,0,20)>=2);
+ });
+ test('response matches the era\'s published STN figures: about 150 ms per change, 10–90%, at 25 °C',()=>{
+  const FR=1000/D.panel.refresh_hz,settle=s=>{let x={q:M.canonicalQ(D,.25*(s+1)),ionic:s/3,shade:s};for(let i=0;i<2000;i++)x=M.stepFrame(D,x,s,{celsius:25});return x;};
+  const times=[];
+  for(let a=0;a<4;a++)for(let b=0;b<4;b++){if(a===b)continue;
+   let x=settle(a);const y=settle(b),s0=M.displayedState(D,x.q,x.ionic,a),s1=M.displayedState(D,y.q,y.ionic,b);
+   let t10=null,t90=null;for(let i=0;i<300&&t90===null;i++){x=M.stepFrame(D,x,b,{celsius:25});const f=(x.exposure-s0)/(s1-s0);
+    if(t10===null&&f>=.1)t10=i;if(f>=.9)t90=i;}
+   times.push((t90-t10+1)*FR);}
+  const mean=times.reduce((s,t)=>s+t,0)/times.length;
+  near(mean,D.sources.response.target_ms,15,'mean 10–90% '+mean.toFixed(0)+' ms');
+  times.forEach(t=>assert.ok(t>=100&&t<=210,'every change within the period range: '+t.toFixed(0)+' ms'));
+  assert.ok(D.temperature.response_scale<1,'slowed from the source tables, labelled');
  });
  test('holding a dark image leaves a faint sticking ghost',()=>{
   let st={q:M.targetQ(D,3),ionic:0,shade:3};
@@ -383,11 +396,11 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
    }
   }
  });
- test('a fully relaxed pixel (left by a low wheel) switches within a second at ×1.00',()=>{
+ test('a fully relaxed pixel (left by a low wheel) switches within about a second at ×1.00 (scaled by the era response)',()=>{
   for(let s=0;s<4;s++){
    let x={q:0,ionic:0,shade:0},f=0;
    while(Math.abs(M.opticalState(D,x.q)-.25*(s+1))>.025&&f<600){x=M.stepFrame(D,x,s,{contrast:1,celsius:25});f++;}
-   assert.ok(f<60,'shade '+s+' took '+f+' frames');
+   assert.ok(f<60/D.temperature.response_scale,'shade '+s+' took '+f+' frames');
   }
  });
  test('two passes through one state give the measured palette exactly',()=>{
