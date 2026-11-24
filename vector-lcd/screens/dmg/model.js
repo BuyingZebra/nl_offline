@@ -33,7 +33,7 @@ const mix = (a, b, f) => a + (b - a) * f;
 export const PROFILE_FIELDS = Object.freeze([
  ...ROOM_FIELDS,
  'stn.director_bins', 'stn.drift_per_frame', 'stn.target_q', 'stn.optical_bins', 'stn.optical',
- 'stn.optical_anchor_q', 'stn.optical_correction',
+ 'stn.optical_anchor_q', 'stn.optical_correction', 'stn.nominal_luminance',
  'contrast.conditions', 'contrast.min', 'contrast.max', 'contrast.value',
  'panel.refresh_hz', 'panel.active_mm', 'panel.dots',
  'retention.charge_per_frame', 'retention.release_per_frame', 'retention.sticking_volts_fit',
@@ -58,12 +58,13 @@ export function shadeFromRGB(r, g, b) {
  return Math.floor(clamp(1 - luma, 0, 1) * 3 + .5);
 }
 
-/** The two tabulated contrast conditions around a wheel setting, and the mix between them. */
+/** The two tabulated wheel positions around a setting, and the mix between them
+ * (the profile solves the wheel every 0.01: tools/dmg01_wheel.mjs). */
 export function contrastConditions(profile, contrast) {
- const [c0, c1, c2] = profile.contrast.conditions, c = clamp(contrast, c0, c2);
- return c <= c1
-  ? {low: 0, high: 1, fraction: (c - c0) / (c1 - c0)}
-  : {low: 1, high: 2, fraction: (c - c1) / (c2 - c1)};
+ const C = profile.contrast.conditions, c = clamp(contrast, C[0], C[C.length - 1]);
+ let low = 0;
+ while (low < C.length - 2 && c > C[low + 1]) low++;
+ return {low, high: low + 1, fraction: (c - C[low]) / (C[low + 1] - C[low])};
 }
 
 /** Director coordinate a point settles at under a steady drive level. */
@@ -96,16 +97,23 @@ function opticalCorrection(profile, q) {
  return C[3] * (1 - x) / Math.max(1 - A[3], 1e-6);
 }
 
-/** Optical state 0.25 (lightest driven shade) .. 1 (darkest) for director coordinate q. */
+/** Most extreme optical state any table reaches, either way (a guard, not a clamp of the physics). */
+const OPTICAL_LIMIT = 4;
+
+/** Optical state for director coordinate q: .25, .5, .75 and 1 are the four
+ * nominal shades; below .25 is lighter than nominal white and above 1 darker than
+ * nominal black, which the contrast wheel reaches (linear in luminance). */
 export function opticalState(profile, q) {
  const n = profile.stn.optical_bins, o = profile.stn.optical;
  const x = clamp(q, 0, 1) * (n - 1), i = Math.min(n - 2, Math.floor(x));
- return clamp(mix(o[i], o[i + 1], x - i) + opticalCorrection(profile, q), .25, 1);
+ return clamp(mix(o[i], o[i + 1], x - i) + opticalCorrection(profile, q), -OPTICAL_LIMIT, OPTICAL_LIMIT);
 }
 
-/** Unique q on the nominal branch that shows a given optical state (bisection). */
+/** Unique q on the nominal branch that shows a given optical state (bisection),
+ * or null for a state outside the nominal shades, where the branch is not defined. */
 export function canonicalQ(profile, state) {
- const s = clamp(state, .25, 1), k = Math.min(Math.floor((s - .25) * 4), 2), A = profile.stn.optical_anchor_q;
+ if (!(state >= .25 && state <= 1)) return null;
+ const s = state, k = Math.min(Math.floor((s - .25) * 4), 2), A = profile.stn.optical_anchor_q;
  let lo = A[k], hi = A[k + 1];
  for (let i = 0; i < 10; i++) {
   const m = .5 * (lo + hi);
@@ -141,7 +149,7 @@ export function stickingVolts(profile) {
 /** Optical state the eye sees: the director plus any ionic sticking bias. */
 export function displayedState(profile, q, ionic, shade) {
  const bias = Math.max(ionic - shade / 3, 0) * stickingVolts(profile) * profile.retention.sticking_optical_gain;
- return clamp(opticalState(profile, q) + bias, .25, 1);
+ return clamp(opticalState(profile, q) + bias, -OPTICAL_LIMIT, OPTICAL_LIMIT);
 }
 
 
@@ -151,7 +159,7 @@ export function displayedState(profile, q, ionic, shade) {
 
 /** One DMG frame for one point: the new state and the light it showed (Simpson average). */
 export function stepFrame(profile, {q, ionic, shade: previous}, shade, {contrast = 1, celsius = 20} = {}) {
- if (previous !== shade) q = canonicalQ(profile, opticalState(profile, q));
+ if (previous !== shade) q = canonicalQ(profile, opticalState(profile, q)) ?? q;
  const ts = temperatureScale(profile, celsius), d = driftPerFrame(profile, shade, q, contrast);
  const qm = clamp(q + d * .5 * ts, 0, 1), qe = clamp(q + d * ts, 0, 1);
  const im = ionicStep(profile, ionic, shade, .5), ie = ionicStep(profile, ionic, shade, 1);
@@ -168,10 +176,16 @@ export function linearPalette(profile) {
  return [P.disabled, ...P.shades].map(rgb => rgb.map(decodeSRGB8));
 }
 
-/** Linear-sRGB colour of an optical state (0 = LCD disabled, .25..1 = shades 0..3). */
+/** Linear-sRGB colour of an optical state. Between .25 and 1, the measured
+ * palette (shades 0..3, linear light). Beyond it the panel is lighter than its
+ * nominal white or darker than its nominal black: the end shade's colour, with its
+ * brightness scaled by the solver's luminance (stn.nominal_luminance), continued
+ * linearly past the end. */
 export function opticalColor(profile, state) {
- const c = linearPalette(profile);
- const x = clamp(state, 0, 1) * 4, k = Math.min(3, Math.floor(x));
+ const c = linearPalette(profile), L = profile.stn.nominal_luminance;
+ if (state > 1) { const l = Math.max(L[3] - (state - 1) * 4 * (L[2] - L[3]), 0); return c[4].map(v => v * l / L[3]); }
+ if (state < .25) { const l = L[0] + (.25 - state) * 4 * (L[0] - L[1]); return c[1].map(v => v * l / L[0]); }
+ const x = state * 4, k = Math.min(3, Math.floor(x));
  return [0, 1, 2].map(i => mix(c[k][i], c[k + 1][i], x - k));
 }
 

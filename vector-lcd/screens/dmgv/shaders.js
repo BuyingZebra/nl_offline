@@ -51,16 +51,10 @@ layout(location=0) out vec4 oQ;
 layout(location=1) out vec4 oShown;
 layout(location=2) out vec4 oIon;
 layout(location=3) out uvec4 oLevels;
-float canonical(float st){
- float s=clamp(st,0.25,1.0);int k=min(int(floor((s-0.25)*4.0)),2);
- float lo=uAnchorQ[k],hi=uAnchorQ[k+1];
- for(int i=0;i<10;i++){float m=0.5*(lo+hi);if(optical(m)<s)lo=m;else hi=m;}
- return 0.5*(lo+hi);
-}
 float ionicStep(float ionic,float drive,float f){
  float r=drive>ionic?uCharge:uRelease;return ionic+(drive-ionic)*(1.0-pow(1.0-r,f));
 }
-float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-drive,0.0)*uSticking,0.25,1.0);}
+float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0);}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  // The drive level at each point of this pixel, as the shapes left it (r = level / 3).
@@ -84,7 +78,7 @@ void main(){
  // States move with their points. A point that changes level is first projected
  // onto the nominal optical branch, as a dot is when its drive changes (stepFrame).
  vec4 canon=q0;
- if(next!=prev)canon=vec4(canonical(optical(q0.x)),canonical(optical(q0.y)),canonical(optical(q0.z)),canonical(optical(q0.w)));
+ if(next!=prev)canon=vec4(canonical(q0.x,optical(q0.x)),canonical(q0.y,optical(q0.y)),canonical(q0.z,optical(q0.z)),canonical(q0.w,optical(q0.w)));
  vec4 sum=vec4(0.0),count=vec4(0.0);
  for(int k=0;k<${MAX_POINTS * MAX_POINTS};k++){
   if(k>=uN*uN)break;
@@ -150,7 +144,7 @@ ${PALETTE}
 ${LEVELS}
 ${FRESNEL}
 ${TO_SRGB}
-vec3 flat1(float s){return color(clamp(s,0.25,1.0));}
+vec3 flat1(float s){return color(s);}
 void main(){
  vec2 p=gl_FragCoord.xy;ivec2 ip=ivec2(p);
  vec4 c=coverage(texelFetch(uLevels,ip,0).r),s=texelFetch(uShown,ip,0);

@@ -58,7 +58,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  function setup() {
   res = {
    update: gpu.program(UPDATE_FS), entry: gpu.program(ENTRY_FS), blur: gpu.program(BLUR_FS), display: gpu.program(DISPLAY_FS),
-   drift: gpu.texture(), optical: gpu.texture(), painter: createVectorPainter(gl),
+   drift: gpu.texture(), optical: gpu.texture(), targetQ: gpu.texture(), painter: createVectorPainter(gl),
    content: null, contentFb: null, stencil: null, sets: [], fields: [], size: null
   };
   uploadTables();
@@ -71,6 +71,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, S.director_bins, profile.contrast.conditions.length * 4, 0, gl.RED, gl.FLOAT, new Float32Array(S.drift_per_frame));
   gl.bindTexture(gl.TEXTURE_2D, res.optical);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, S.optical_bins, 1, 0, gl.RED, gl.FLOAT, new Float32Array(S.optical));
+  // Target director for each shade at each solved wheel position: 4 wide, one row per position.
+  gl.bindTexture(gl.TEXTURE_2D, res.targetQ);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 4, profile.contrast.conditions.length, 0, gl.RED, gl.FLOAT, new Float32Array(S.target_q));
  }
 
  function storage(w, h, internal, format, type) {
@@ -145,7 +148,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   const S = profile.stn, c = contrastConditions(profile, contrast);
   gpu.bind(p, 4, 'uDrift', res.drift);
   gpu.bind(p, 5, 'uOptical', res.optical);
-  gl.uniform1fv(p.u('uTargetQ'), S.target_q);
+  gpu.bind(p, 7, 'uTargetQ', res.targetQ);
   gl.uniform1fv(p.u('uAnchorQ'), S.optical_anchor_q);
   gl.uniform1fv(p.u('uCorr'), S.optical_correction);
   gl.uniform1i(p.u('uLo'), c.low);
@@ -206,6 +209,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gpu.bind(p, 6, 'uLevels', state.tex[3]);
    gl.uniform1i(p.u('uN'), points);
    gl.uniform3fv(p.u('uPalette'), palette);
+   gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
    const shift = bezelShiftMm(profile, lighting, bezelLipMm);
    gl.uniform2f(p.u('uPanelMm'), W / pxPerMm, H / pxPerMm);
    gl.uniform2f(p.u('uBezelShift'), shift.x, shift.y);
@@ -240,6 +244,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1i(p.u('uN'), points);
    gl.uniform1i(p.u('uShadow'), shadow ? 1 : 0);
    gl.uniform3fv(p.u('uPalette'), palette);
+   gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
    gl.uniform2f(p.u('uSize'), W, H);
    gl.uniform2f(p.u('uMean'), mean.x * pxPerMm, -mean.y * pxPerMm);
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);

@@ -55,7 +55,10 @@ export const definition = Object.freeze({
    ['Palette (measured)', 'BGB DMG reality samples: ' + P.palette.srgb8.shades.map(hex).join(', ')],
    ['Drive', '1/' + P.panel.dots[1] + ' duty passive matrix, ' + P.panel.refresh_hz + ' Hz frames; rms reconstruction (' + P.drive.nonselect_rms_V + ' V nonselect, nominal)'],
    ['Response', 'STN director drift per frame from a Frank–Oseen/Ericksen–Leslie reduction; about ' + Math.round(P.stn.t90_s.darkening * 1000) + ' ms to 90% at 20 °C'],
-   ['Contrast wheel', '×' + P.contrast.min + ' to ×' + P.contrast.max + ' drive; the source tabulates ' + P.contrast.conditions.join(', ')],
+   ['Contrast wheel', '×' + P.contrast.min.toFixed(2) + ' to ×' + P.contrast.max.toFixed(2) + ' drive, the range measured at the ends of a real '
+    + 'DMG wheel (one board: −11 V and −14 V against −13 V for good contrast). Solved every 0.01 with the source\'s own solver '
+    + '(tools/dmg01_wheel.mjs; the source tabulates 0.88, 1.00 and 1.08): the picture fades in from ×0.92 to ×1.00, and turning it up darkens '
+    + 'every shade while they stay distinct, beyond the measured palette by the solver\'s luminance'],
    ['Temperature', P.temperature.range_C.join('–') + ' °C; viscosity activation ' + P.temperature.activation_K + ' K'],
    ['Sticking', 'ions charge under dark drive (~' + Math.round(1 / (R.charge_per_frame * P.panel.refresh_hz)) + ' s) and release slowly (~'
     + Math.round(1 / (R.release_per_frame * P.panel.refresh_hz) / 60) + ' min), leaving a faint image'

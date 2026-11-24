@@ -21,15 +21,16 @@ export {BLUR_FS};
 // ---------------------------------------------------------------------------
 
 export const COMMON = `
-uniform sampler2D uDrift,uOptical;
-uniform float uTargetQ[12],uAnchorQ[4],uCorr[4];
+uniform sampler2D uDrift,uOptical,uTargetQ;
+uniform float uAnchorQ[4],uCorr[4];
 uniform int uLo,uHi,uBins;uniform float uCondF;
 float rowDrift(int c,int s,float q){
  float x=clamp(q,0.0,1.0)*float(uBins-1);int i=min(uBins-2,int(floor(x)));
  return mix(texelFetch(uDrift,ivec2(i,c*4+s),0).r,texelFetch(uDrift,ivec2(i+1,c*4+s),0).r,x-float(i));
 }
 float drift(int s,float q){return mix(rowDrift(uLo,s,q),rowDrift(uHi,s,q),uCondF);}
-float targetQ(int s){return mix(uTargetQ[uLo*4+s],uTargetQ[uHi*4+s],uCondF);}
+// Target director per wheel position: texture (4 shades wide, one row per position).
+float targetQ(int s){return mix(texelFetch(uTargetQ,ivec2(s,uLo),0).r,texelFetch(uTargetQ,ivec2(s,uHi),0).r,uCondF);}
 float corr(float q){
  float x=clamp(q,0.0,1.0);
  if(x<=uAnchorQ[0])return uCorr[0]*x/max(uAnchorQ[0],1e-6);
@@ -38,7 +39,15 @@ float corr(float q){
 }
 float optical(float q){
  float x=clamp(q,0.0,1.0)*float(uBins-1);int i=min(uBins-2,int(floor(x)));
- return clamp(mix(texelFetch(uOptical,ivec2(i,0),0).r,texelFetch(uOptical,ivec2(i+1,0),0).r,x-float(i))+corr(q),0.25,1.0);
+ return clamp(mix(texelFetch(uOptical,ivec2(i,0),0).r,texelFetch(uOptical,ivec2(i+1,0),0).r,x-float(i))+corr(q),-4.0,4.0);
+}
+// The nominal branch is defined only between the nominal shades (model.js canonicalQ).
+float canonical(float q,float st){
+ if(st<0.25||st>1.0)return q;
+ int k=min(int(floor((st-0.25)*4.0)),2);
+ float lo=uAnchorQ[k],hi=uAnchorQ[k+1];
+ for(int i=0;i<10;i++){float m=0.5*(lo+hi);if(optical(m)<st)lo=m;else hi=m;}
+ return 0.5*(lo+hi);
 }`;
 
 
@@ -52,16 +61,10 @@ uniform sampler2D uContent,uState;
 uniform int uSteps,uInit;uniform bool uIndexInput;uniform float uTscale,uCharge,uRelease,uSticking;
 ${COMMON}
 out vec4 o;
-float canonical(float st){
- float s=clamp(st,0.25,1.0);int k=min(int(floor((s-0.25)*4.0)),2);
- float lo=uAnchorQ[k],hi=uAnchorQ[k+1];
- for(int i=0;i<10;i++){float m=0.5*(lo+hi);if(optical(m)<s)lo=m;else hi=m;}
- return 0.5*(lo+hi);
-}
 float ionicStep(float ionic,float drive,float f){
  float r=drive>ionic?uCharge:uRelease;return ionic+(drive-ionic)*(1.0-pow(1.0-r,f));
 }
-float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-drive,0.0)*uSticking,0.25,1.0);}
+float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0);}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  vec3 c=texelFetch(uContent,p,0).rgb;
@@ -73,7 +76,7 @@ void main(){
  if(uInit==1){float q=targetQ(s);o=vec4(q,0.0,float(s),optical(q));return;}
  if(uInit==2){float q=targetQ(0);st=vec4(q,0.0,0.0,optical(q));}
  float q=st.r,ionic=st.g,drive=float(s)/3.0;
- if(int(st.b+0.5)!=s)q=canonical(optical(q));
+ if(int(st.b+0.5)!=s)q=canonical(q,optical(q));
  float sum=0.0;
  for(int i=0;i<8;i++){
   if(i>=uSteps)break;
@@ -87,16 +90,20 @@ void main(){
 
 
 // ---------------------------------------------------------------------------
-// The measured palette in linear light: LCD disabled, then shades 0..3
-// (opticalColor). Needs: uniform vec3 uPalette[5].
+// The measured palette in linear light: LCD disabled, then shades 0..3, and the
+// solver's continuation beyond it (opticalColor). Needs: uniform vec3 uPalette[5].
 // ---------------------------------------------------------------------------
 
 export const PALETTE = `
+uniform vec4 uLum;
 vec3 color(float s){
- float x=clamp(s,0.0,1.0)*4.0;int k=min(3,int(floor(x)));
+ // Beyond the measured palette: the end shade's colour, scaled by the solver's luminance.
+ if(s>1.0)return uPalette[4]*max(uLum.w-(s-1.0)*4.0*(uLum.z-uLum.w),0.0)/uLum.w;
+ if(s<0.25)return uPalette[1]*(uLum.x+(0.25-s)*4.0*(uLum.x-uLum.y))/uLum.x;
+ float x=s*4.0;int k=min(3,int(floor(x)));
  return mix(uPalette[k],uPalette[k+1],x-float(k));
 }
-vec3 pass1(float s){return sqrt(color(clamp(s,0.25,1.0)));}`;
+vec3 pass1(float s){return sqrt(color(s));}`;
 
 
 // ---------------------------------------------------------------------------

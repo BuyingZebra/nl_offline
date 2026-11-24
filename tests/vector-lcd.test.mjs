@@ -315,8 +315,8 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
  });
  test('the measured BGB palette and table sizes',()=>{
   assert.deepEqual(D.palette.srgb8.shades,[[117,152,51],[88,143,81],[59,117,96],[46,97,90]]);
-  assert.equal(D.stn.drift_per_frame.length,3*4*D.stn.director_bins);
-  assert.equal(D.stn.target_q.length,12);
+  assert.equal(D.stn.drift_per_frame.length,D.contrast.conditions.length*4*D.stn.director_bins);
+  assert.equal(D.stn.target_q.length,D.contrast.conditions.length*4);
   assert.equal(D.panel.refresh_hz,59.7275);
  });
  test('art maps to four drive levels like the DMG source',()=>{
@@ -346,6 +346,28 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   for(let i=0;i<60;i++)st=M.stepFrame(D,st,0);
   const ghost=st.exposure-.25;
   assert.ok(ghost>0&&ghost<.25*.1,'ghost below a tenth of a shade: '+ghost);
+ });
+ test('the wheel is solved every 0.01 over the measured range, ×0.85 to ×1.08',()=>{
+  const C=D.contrast.conditions;
+  assert.equal(C[0],.85);assert.equal(C.at(-1),1.08);assert.equal(D.contrast.min,.85);assert.equal(D.contrast.max,1.08);
+  C.slice(1).forEach((c,i)=>near(c-C[i],.01,1e-9));
+ });
+ test('the wheel fades the picture in gradually and darkens it without flattening the shades',()=>{
+  const shades=c=>[0,1,2,3].map(s=>M.opticalState(D,M.targetQ(D,s,c)));
+  const spread=c=>{const s=shades(c);return s[3]-s[0];};
+  // Washed out at the low end: every shade lighter than nominal white, no picture.
+  assert.ok(shades(.85).every(v=>v<.25)&&spread(.85)<.02,'washed out at 0.85: '+shades(.85));
+  // A 1% turn keeps most of the picture (the old three-point tables blanked it).
+  assert.ok(spread(.99)>.75*spread(1),'0.99 keeps the picture: '+spread(.99));
+  // The picture grows steadily from 0.94 to its peak at 0.99: just under the nominal
+  // drive the white is lightest (the solver's brightening near threshold), so the
+  // contrast peaks a step below nominal.
+  for(let c=.94;c<.985;c+=.01)assert.ok(spread(c+.01)>spread(c)-1e-9,'fades in at '+c.toFixed(2));
+  assert.ok(spread(.99)>=spread(1),'contrast peaks at 0.99');
+  // Turning up darkens white past nominal black, but the shades stay apart.
+  const hi=shades(1.08);
+  assert.ok(hi[0]>.75&&hi.every((v,i)=>!i||v>hi[i-1]+.1),'1.08 dark but distinct: '+hi);
+  assert.ok(M.opticalColor(D,hi[3]).every((v,i)=>v<M.opticalColor(D,1)[i]),'darker than nominal black');
  });
  test('two passes through one state give the measured palette exactly',()=>{
   [0,.25,.5,.75,1,.4,.9].forEach(s=>{
