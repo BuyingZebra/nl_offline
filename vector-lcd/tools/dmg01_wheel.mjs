@@ -20,6 +20,9 @@
  *      the source's 1.08. The director coordinate spans the 0.85 and 1.08 bounds.
  *   2. luminance beyond the nominal white or black continues the calibration
  *      linearly (optical states below 0.25 or above 1) instead of clamping.
+ *   3. the drift is also sampled along real trajectories from the fully relaxed and
+ *      the fully switched states, which the source never simulates; without them a
+ *      pixel relaxed at a low wheel setting stays stuck when the wheel comes back.
  * The material, drive reduction, solver, time step, frame period and table
  * sizes are the source's, unchanged; equilibria near the threshold get longer to
  * converge (60 s, not 5 s). */
@@ -117,6 +120,20 @@ function transition(eq, from, to) {
  return {from, to, samples: [normalize(eq[from].state), ...result.samples.map(s => normalize(s.director))]};
 }
 
+/* The source samples only transitions between one wheel position's own four
+ * shades, so the drift far below or above them (where the panel rests after the
+ * wheel has been turned to an end) comes from the interpolated manifold alone,
+ * which leaves a false resting point near the bottom: a pixel relaxed at a low
+ * wheel setting never switches again. Real trajectories close the gap: from the
+ * fully relaxed state (the low bound's white) and the fully switched state (the
+ * high bound's black) to every shade, long enough to finish switching near the
+ * threshold. */
+const EXTREME_SECONDS = 4;
+function fromExtreme(state, eq, to) {
+ const result = R.integrateDirector(state, material, eq[to].rmsVolts, EXTREME_SECONDS, {timestepSeconds, sampleSeconds: frameSeconds});
+ return {from: -1, to, samples: [normalize(state), ...result.samples.map(s => normalize(s.director))]};
+}
+
 function driftTable(eq, transitions) {
  const deltas = [];
  for (let t = 0; t < 4; t++) for (let bin = 0; bin < driftBins; bin++) {
@@ -154,6 +171,7 @@ const targetQ = [], drift = [], report = [];
 for (const scale of SCALES) {
  const t0 = Date.now(), eq = solveEquilibria(scale), transitions = [];
  for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (a !== b) transitions.push(transition(eq, a, b));
+ for (let b = 0; b < 4; b++) transitions.push(fromExtreme(lowBound[0].state, eq, b), fromExtreme(highBound[3].state, eq, b));
  targetQ.push(...eq.map(e => round(normalize(e.state), 9)));
  drift.push(...driftTable(eq, transitions));
  const states = eq.map(e => round(calibration.stateForLuminance(e.optical.luminance), 4));

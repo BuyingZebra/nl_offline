@@ -369,6 +369,27 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   assert.ok(hi[0]>.75&&hi.every((v,i)=>!i||v>hi[i-1]+.1),'1.08 dark but distinct: '+hi);
   assert.ok(M.opticalColor(D,hi[3]).every((v,i)=>v<M.opticalColor(D,1)[i]),'darker than nominal black');
  });
+ test('after any wheel and picture history, ×1.00 brings every shade back within 2 s (no pixel stays stuck)',()=>{
+  let seed=1;const rand=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  for(let trial=0;trial<60;trial++){
+   let st={q:M.targetQ(D,0,1),ionic:0,shade:0},c=1;
+   for(let f=0;f<900;f++){
+    if(rand()<.05)c=.85+rand()*.23;
+    st=M.stepFrame(D,st,rand()<.1?Math.floor(rand()*4):st.shade,{contrast:c,celsius:10+rand()*20});
+   }
+   for(let s=0;s<4;s++){
+    let x={...st};for(let f=0;f<120;f++)x=M.stepFrame(D,x,s,{contrast:1,celsius:25});
+    near(M.opticalState(D,x.q),.25*(s+1),.01,'trial '+trial+' shade '+s);
+   }
+  }
+ });
+ test('a fully relaxed pixel (left by a low wheel) switches within a second at ×1.00',()=>{
+  for(let s=0;s<4;s++){
+   let x={q:0,ionic:0,shade:0},f=0;
+   while(Math.abs(M.opticalState(D,x.q)-.25*(s+1))>.025&&f<600){x=M.stepFrame(D,x,s,{contrast:1,celsius:25});f++;}
+   assert.ok(f<60,'shade '+s+' took '+f+' frames');
+  }
+ });
  test('two passes through one state give the measured palette exactly',()=>{
   [0,.25,.5,.75,1,.4,.9].forEach(s=>{
    const t=M.passTransmission(D,s),c=M.opticalColor(D,s);
