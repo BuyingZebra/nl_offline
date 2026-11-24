@@ -32,22 +32,24 @@ Modern, clean, high-resolution vector content (NOMAD Tetris style: no visible DM
 - Light: 19° from straight on, from 307°, source 15° (`app/controls.js`).
 - Reflector-shadow switch: keep it (off = inspection only, labelled not physical).
 - DMG glass: 1.1 mm (the thickest common small-STN glass; DMG value unpublished).
-- DMG response: about 150 ms per change (era STN figures), via `temperature.response_scale` 0.64.
+- DMG response: about 150 ms per change (era STN figures), via `temperature.response_scale` 0.52 (0.64 before v0.32's finer tables).
 
-## DMG-01 state of play (v0.31.0)
+## DMG-01 state of play (v0.32.0)
 
 The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at `../rdl` in the old session. Clone https://github.com/JohnnySun/retro-display-lab if you need it. Copied values are in `profiles/dmg-01-stn.json`. The attribution and NOTICE are in `third_party/retro-display-lab/`.
 
 - Two screens share the physics: **DMG-01** (`screens/dmg/`, a picture input on a fine dot panel) and **DMG vector** (`screens/dmgv/`, SVG shapes drawn on the GPU at up to 4×4 points per pixel; every point keeps its own 16-bit crystal state; one ion charge per pixel).
 - Contrast wheel ×0.85–×1.08, re-solved every 0.01 by `tools/dmg01_wheel.mjs` (about 9 minutes; run after `tools/dmg01_profile.mjs`, with the rdl path as argument). Extreme-state trajectories prevent the old stuck-pixel trap.
-- Colours: BGB's five measured states (unpowered #948a04 at state 0, then the four shades). Lighter than white blends toward unpowered; darker than black scales by the solver's luminance.
+- Colours (v0.32): from the solver's own reflected spectrum (Jones, 15 wavelengths) as CIE XYZ, through one 3×3 matrix fitted to BGB's five colours (unpowered + four shades, exact after a small residual). BGB's colours are whole pixels incl. the yellow gaps; gap = 1 − 0.875² (assumed). `stn.color` (1025 bins), `stn.color_fit`. Read https://bgb.bircd.org/reality/ (ColorChecker-corrected, true brightness; lens not stated). The old "lighter than white → unpowered colour" rule was an invention (orange ghost) and is gone.
+- Two resting states (v0.32): below ×1.00 some shades rest relaxed or part-switched; the solver's free energy picks the stable one (`stn.target_q`), the other is temporary (`stn.meta_q`) and fades per point, τ = 0.3 s assumed (0.1–1 s, US 6,867,836), via a hash shared by GPU and model (`settleTemporary`, `decayDraw`). At ×0.85 everything settles to the unpowered colour (BGB's description; owner's videos show no lasting ghost). The coordinate runs through 116 solved rests (0 = unpowered rest).
+- Tables are 257 bins (source: 65) so the closely spaced shades resolve; `temperature.response_scale` re-tuned to 0.52 for 150 ms in shown brightness.
 - Two-pass reflective optics (each pass carries the square root of the colour), the reflector shadow from refraction through the rear glass, and the screen lens (1.0 mm acrylic, 1.0 mm air gap assumed, frame printed underneath; glare from three surfaces, about 11% straight on).
 - LCD power switch: relaxes to the unpowered colour. Time constants are derived from the source's clearing/darkening times (assumed).
 - **Not added, deliberately:** passive-matrix crosstalk (the source's own model gives about 0.01 shade on a healthy panel, which is invisible), the 160×144 grid, and row-latch timing.
 
 ## Open items (agreed or suggested, not done)
 
-1. Owner to review v0.30 on a phone: is the lens glare too strong at the default light? Does the low wheel look right?
+1. Owner reviewed v0.30 on a phone: performance fine (60 fps); the low wheel's orange ghost was wrong (fixed in v0.32); real DMG video frames show a clipped white lens hotspot like ours. To review: v0.32's low and high wheel colours. Above ×1.03 the darkest shades extrapolate the colour fit and turn strongly blue (e.g. #000d66 at ×1.08): physics direction, magnitude unverified.
 2. Laptop performance. Done in v0.31: shapes are triangulated once and kept on the GPU (`vector/draw.js`), and the shadow blur visits only its 3-sigma taps (it used to loop 97 times). Not done, deliberately: half-resolution shadow blur (the blur is about 0.1 mm, only 1 to 2 screen pixels at laptop size, so half resolution would soften the shadow). Still to watch: GPU memory of per-point states, and one draw call per shape (Tetris draws about 200).
 3. Merge the DMG-01 picture screen onto the DMG vector processor once DMG vector is accepted.
 4. Ion charge per point instead of per pixel (the last averaging shortcut; effect invisible in practice).
@@ -57,7 +59,7 @@ The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at
 ## Testing
 
 ```
-node --test tests/vector-lcd.test.mjs          # physics, profiles vs datasheets, structure, packaging (106 tests)
+node --test tests/vector-lcd.test.mjs          # physics, profiles vs datasheets, structure, packaging (110 tests)
 python3 tests/test_vector_lcd_browser.py       # real browser: every screen, GPU = JS model (tests/vector-lcd-gpu.mjs), report button
 node --test tests/*.test.mjs                   # everything, Tetris included (8 known Tetris failures, see above)
 ```

@@ -108,7 +108,7 @@ export async function dmgParity() {
  // First frame settles to white (shade 0).
  paint(r);
  r.frame(T0);
- let st = {q: dmg.targetQ(P, 0, 1), ionic: 0, shade: 0}, shown = dmg.opticalState(P, st.q);
+ let st = {q: dmg.targetQ(P, 0, 1), ionic: 0, shade: 0}, shown = st.q;
  let phase = 0, t = T0, worst = 0;
  for (let k = 0; k < 90; k++) {
   const shade = k < 45 ? 3 : 0;
@@ -255,7 +255,7 @@ export async function dmgvParity() {
  const options = {contrast: 1, celsius: 25}, dt = 23, patch = rectShape(...PATCH, 3);
  r.setScene([]);
  r.frame(T0);
- let st = {q: dmg.targetQ(P, 0, 1), ionic: 0, shade: 0}, shown = dmg.opticalState(P, st.q);
+ let st = {q: dmg.targetQ(P, 0, 1), ionic: 0, shade: 0}, shown = st.q;
  let phase = 0, t = T0, worst = 0;
  for (let k = 0; k < 90; k++) {
   const shade = k < 45 ? 3 : 0;
@@ -304,6 +304,44 @@ export async function dmgvMovingEdge() {
  done();
  return [{...result('DMG vector moving edge: every point follows its own dot history (q)', worst, 2e-3),
   detail: 'worst q error ' + worst.toExponential(2) + ' over 80 frames; ' + n + ' × ' + n + ' points; edge inside the pixel for ' + mixedFrames + ' frames'}];
+}
+
+/** The wheel turned down to x0.85 under a black square: the part-switched rest is
+ * temporary, and every point gives way on the same frame as the model's
+ * (stepFrame, then settleTemporary with the same draw). */
+export async function dmgvFade() {
+ const P = await profileOf('dmg-01-stn');
+ const {renderer: r, done} = mount('dmgv', P);
+ r.setTemperature(25);
+ r.setContrast(1);
+ r.setScene([{shape: rectShape(CENTER[0] - 5, CENTER[1] - 5, 10, 10, 3), matrix: [1, 0, 0, 1, 0, 0]}]);
+ let t = T0, worst = 0, models = null, flipped = 0;
+ const dt = 23, options = {contrast: .85, celsius: 25};
+ for (let k = 0; k < 40; k++) r.frame(t += dt);
+ r.setContrast(.85);
+ const before = r.sample(...CENTER);
+ let frame = before.frame;
+ models = before.points.map(p => ({q: p.q, ionic: before.ionic, shade: p.level}));
+ for (let k = 0; k < 90; k++) {
+  r.frame(t += dt);
+  // The renderer's own DMG frame count says how many frames this update ran.
+  const g = r.sample(...CENTER), [x, y] = g.texel, f0 = frame, steps = (g.frame - frame) >>> 0;
+  frame = g.frame;
+  if (steps > 0) models = models.map((m, i) => {
+   let st = m;
+   for (let s = 0; s < steps; s++) st = dmg.stepFrame(P, st, g.points[i].level, options);
+   const q = dmg.settleTemporary(P, st.q, g.points[i].level, steps, dmg.decayDraw(x, y, i, f0), options);
+   if (q !== st.q) flipped++;
+   return {...st, q};
+  });
+  g.points.forEach((p, i) => { worst = Math.max(worst, Math.abs(p.q - models[i].q)); });
+ }
+ const after = r.sample(...CENTER);
+ done();
+ const n = after.points.length, settled = after.points.filter(p => Math.abs(p.q - dmg.targetQ(P, 3, .85)) < .01).length;
+ return [{...result('DMG vector wheel turned down: the temporary state fades point by point = model (q)', worst, 2e-3),
+  detail: 'worst q error ' + worst.toExponential(2) + '; ' + flipped + ' of ' + n + ' points gave way in the model; ' + settled + ' of ' + n + ' relaxed after 2 s'},
+  {name: 'DMG vector wheel turned down: no lasting ghost (every point relaxed within 2 s)', ok: settled === n, detail: settled + ' of ' + n}];
 }
 
 /** LCD power: both DMG renderers follow the model off and back on (shown light). */
@@ -578,5 +616,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgvFade(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

@@ -328,9 +328,46 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   // The equilibrium is a fixed point of the drift.
   [0,1,2,3].forEach(s=>assert.ok(Math.abs(M.driftPerFrame(D,s,M.targetQ(D,s,1),1))<1e-6));
  });
- test('palette colours are the measured ones at each shade',()=>{
+ test('colours: BGB\'s five measured colours exactly, at the unpowered rest and the four normal shades',()=>{
   const enc=v=>Math.round(255*(v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055));
-  D.palette.srgb8.shades.forEach((rgb,s)=>assert.deepEqual(M.opticalColor(D,.25*(s+1)).map(enc),rgb));
+  D.palette.srgb8.shades.forEach((rgb,s)=>assert.deepEqual(M.colorAt(D,M.targetQ(D,s,1)).map(enc),rgb));
+  assert.deepEqual(M.colorAt(D,0).map(enc),D.palette.srgb8.disabled);
+ });
+ test('colours come from the solver\'s spectrum: one fitted conversion, close at all five anchors before the residual',()=>{
+  const F=D.stn.color_fit;
+  assert.equal(F.matrix.length,3);assert.ok(F.method.includes('XYZ'));
+  // One 3 x 3 matrix explains all five measured colours to within a few percent of white.
+  const white=M.linearPalette(D)[1][1];
+  F.max_error_before_residual.forEach((e,i)=>assert.ok(e<.12*white,'anchor '+i+': '+e));
+  // BGB photographed whole pixels: the gaps (the unpowered colour) are part of each colour.
+  near(F.gap_fraction,1-.875*.875,1e-6);assert.ok(F.gap_basis.includes('assumed'));
+  assert.equal(D.stn.color.length,3*D.stn.color_bins);
+ });
+ test('a low wheel settles to the unpowered colour, as BGB describes ("the lightest shade is the LCD disabled color")',()=>{
+  const enc=v=>Math.round(255*(v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055)),off=D.palette.srgb8.disabled;
+  for(let s=0;s<4;s++){const c=M.colorAt(D,M.targetQ(D,s,.85)).map(enc);
+   c.forEach((v,i)=>assert.ok(Math.abs(v-off[i])<=10,'shade '+s+' at x0.85: '+c+' vs '+off));}
+ });
+ test('two resting states below the normal drive: the lower free energy is stable, the other fades',()=>{
+  const C=D.contrast.conditions,i85=C.indexOf(.85),i100=C.indexOf(1);
+  // Turned down to x0.85, black keeps a part-switched rest (from the normal drive) that is temporary.
+  assert.ok(D.stn.meta_q[i85*4+3]>.5,'part-switched black at x0.85 is temporary');
+  assert.ok(D.stn.target_q[i85*4+3]<.2,'the relaxed rest is stable');
+  // At the normal drive each shade has one resting state.
+  for(let s=0;s<4;s++)assert.equal(D.stn.meta_q[i100*4+s],-1);
+  // The fade: a constant rate 1/tau, scaled by the viscosity like the drift.
+  const tau=D.stn.metastable.tau_s,hz=D.panel.refresh_hz;
+  assert.ok(D.stn.metastable.basis.includes('assumed'));
+  near(M.metastableChance(D,25,hz*tau),1-Math.exp(-M.temperatureScale(D,25)),1e-12);
+  // A temporary point gives way when its draw is below the chance; a stable one never moves.
+  const meta=M.metaQ(D,3,.85),rest=M.targetQ(D,3,.85);
+  assert.equal(M.settleTemporary(D,meta,3,1,0,{contrast:.85,celsius:25}),rest);
+  assert.equal(M.settleTemporary(D,meta,3,1,.99,{contrast:.85,celsius:25}),meta);
+  assert.equal(M.settleTemporary(D,rest,3,1,0,{contrast:.85,celsius:25}),rest);
+  assert.equal(M.settleTemporary(D,meta,3,1,0,{contrast:.85,celsius:25,power:false}),meta);
+  // The draws are uniform: about half below one half.
+  let n=0;for(let k=0;k<4000;k++)if(M.decayDraw(k%63,k>>6,k%16,k*7)<.5)n++;
+  near(n/4000,.5,.03);
  });
  test('the crystal takes several frames to switch, slower when cold',()=>{
   const run=(from,to,celsius)=>{let st={q:M.targetQ(D,from),ionic:0,shade:from},n=0;
@@ -341,11 +378,12 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   assert.ok(run(3,0,20)>=2);
  });
  test('response matches the era\'s published STN figures: about 150 ms per change, 10–90%, at 25 °C',()=>{
-  const FR=1000/D.panel.refresh_hz,settle=s=>{let x={q:M.canonicalQ(D,.25*(s+1)),ionic:s/3,shade:s};for(let i=0;i<2000;i++)x=M.stepFrame(D,x,s,{celsius:25});return x;};
-  const times=[];
+  // Measured in the brightness shown (luminance of the colour), as the period datasheets measure light.
+  const FR=1000/D.panel.refresh_hz,settle=s=>{let x={q:M.targetQ(D,s,1),ionic:s/3,shade:s};for(let i=0;i<2000;i++)x=M.stepFrame(D,x,s,{celsius:25});return x;};
+  const Y=c=>.2126*c[0]+.7152*c[1]+.0722*c[2],times=[];
   for(let a=0;a<4;a++)for(let b=0;b<4;b++){if(a===b)continue;
-   let x=settle(a);const y=settle(b),s0=M.displayedState(D,x.q,x.ionic,a),s1=M.displayedState(D,y.q,y.ionic,b);
-   let t10=null,t90=null;for(let i=0;i<300&&t90===null;i++){x=M.stepFrame(D,x,b,{celsius:25});const f=(x.exposure-s0)/(s1-s0);
+   let x=settle(a);const y=settle(b),s0=Y(M.colorAt(D,M.shownCoordinate(D,x.q,x.ionic,a))),s1=Y(M.colorAt(D,M.shownCoordinate(D,y.q,y.ionic,b)));
+   let t10=null,t90=null;for(let i=0;i<300&&t90===null;i++){x=M.stepFrame(D,x,b,{celsius:25});const f=(Y(M.colorAt(D,x.exposure))-s0)/(s1-s0);
     if(t10===null&&f>=.1)t10=i;if(f>=.9)t90=i;}
    times.push((t90-t10+1)*FR);}
   const mean=times.reduce((s,t)=>s+t,0)/times.length;
@@ -357,12 +395,12 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   let st={q:M.targetQ(D,3),ionic:0,shade:3};
   for(let i=0;i<60;i++)st=M.stepFrame(D,st,3,{celsius:25,power:false});
   assert.ok(st.unpowered>.99,'relaxed after a second: '+st.unpowered);
-  assert.ok(Math.abs(st.exposure)<.01,'shows optical state 0: '+st.exposure);
+  assert.ok(Math.abs(st.exposure)<.002,'shows the unpowered rest: '+st.exposure);
   const enc=v=>Math.round(255*(v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055));
-  assert.deepEqual(M.opticalColor(D,0).map(enc),D.palette.srgb8.disabled);
+  assert.deepEqual(M.colorAt(D,0).map(enc),D.palette.srgb8.disabled);
   for(let i=0;i<120;i++)st=M.stepFrame(D,st,3,{celsius:25,power:true});
   assert.ok(st.unpowered<.01,'back on: '+st.unpowered);
-  near(st.exposure,1,.02,'black again');
+  near(M.opticalState(D,st.exposure),1,.02,'black again');
   assert.ok(M.powerTauS(D,10)>M.powerTauS(D,30),'slower when cold');
  });
  test('screen lens: three parallel surfaces mirror the light, about 11% straight on',()=>{
@@ -374,7 +412,7 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   let st={q:M.targetQ(D,3),ionic:0,shade:3};
   for(let i=0;i<180*60;i++)st=M.stepFrame(D,st,3);
   for(let i=0;i<60;i++)st=M.stepFrame(D,st,0);
-  const ghost=st.exposure-.25;
+  const ghost=M.opticalState(D,st.exposure)-.25;
   assert.ok(ghost>0&&ghost<.25*.1,'ghost below a tenth of a shade: '+ghost);
  });
  test('the wheel is solved every 0.01 over the measured range, ×0.85 to ×1.08',()=>{
@@ -389,15 +427,16 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   assert.ok(shades(.85).every(v=>v<.25)&&spread(.85)<.02,'washed out at 0.85: '+shades(.85));
   // A 1% turn keeps most of the picture (the old three-point tables blanked it).
   assert.ok(spread(.99)>.75*spread(1),'0.99 keeps the picture: '+spread(.99));
-  // The picture grows steadily from 0.94 to its peak at 0.99: just under the nominal
-  // drive the white is lightest (the solver's brightening near threshold), so the
-  // contrast peaks a step below nominal.
+  // The picture grows steadily from 0.94 to the top.
   for(let c=.94;c<.985;c+=.01)assert.ok(spread(c+.01)>spread(c)-1e-9,'fades in at '+c.toFixed(2));
-  assert.ok(spread(.99)>=spread(1),'contrast peaks at 0.99');
+  // Near the top the picture keeps nearly all its contrast (the peak sits at x0.99 to x1.00).
+  assert.ok(spread(.99)>.9*spread(1),'0.99 keeps nearly full contrast');
   // Turning up darkens white past nominal black, but the shades stay apart.
   const hi=shades(1.08);
   assert.ok(hi[0]>.75&&hi.every((v,i)=>!i||v>hi[i-1]+.1),'1.08 dark but distinct: '+hi);
-  assert.ok(M.opticalColor(D,hi[3]).every((v,i)=>v<M.opticalColor(D,1)[i]),'darker than nominal black');
+  // Darker than nominal black (BGB: "darker than the darkest shade with normal contrast"), by luminance: the spectrum also turns bluer.
+  const Y=c=>.2126*c[0]+.7152*c[1]+.0722*c[2];
+  assert.ok(Y(M.colorAt(D,M.targetQ(D,3,1.08)))<Y(M.colorAt(D,M.targetQ(D,3,1))),'darker than nominal black');
  });
  test('after any wheel and picture history, ×1.00 brings every shade back within 2 s (no pixel stays stuck)',()=>{
   let seed=1;const rand=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -420,21 +459,22 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
    assert.ok(f<60/D.temperature.response_scale,'shade '+s+' took '+f+' frames');
   }
  });
- test('two passes through one state give the measured palette exactly',()=>{
+ test('two passes through one state give its colour exactly',()=>{
   [0,.25,.5,.75,1,.4,.9].forEach(s=>{
-   const t=M.passTransmission(D,s),c=M.opticalColor(D,s);
+   const t=M.passTransmission(D,s),c=M.colorAt(D,s);
    t.forEach((v,i)=>near(v*v,c[i],1e-12));
    M.reflectedColor(D,s,t).forEach((v,i)=>near(v,c[i],1e-12));
   });
  });
  test('reflector shadow: light that entered through a darker dot leaves darker',()=>{
-  const light=M.reflectedColor(D,.25,M.passTransmission(D,.25));
-  const shaded=M.reflectedColor(D,.25,M.passTransmission(D,1));
+  const w=M.targetQ(D,0,1),b=M.targetQ(D,3,1);
+  const light=M.reflectedColor(D,w,M.passTransmission(D,w));
+  const shaded=M.reflectedColor(D,w,M.passTransmission(D,b));
   // By luminance: the palette's darker shades are bluer, so the shadow shifts hue too.
   const Y=c=>.2126*c[0]+.7152*c[1]+.0722*c[2];
   assert.ok(Y(shaded)<Y(light));
   // Between the two flat colours: a shadow, not a second copy of the shape.
-  assert.ok(Y(shaded)>Y(M.opticalColor(D,1)));
+  assert.ok(Y(shaded)>Y(M.colorAt(D,b)));
  });
  test('reflector shadow follows the light: none overhead, toward the light, longer when lower',()=>{
   // The same refraction geometry as the TN screens (optics/room.js).

@@ -54,7 +54,11 @@ export const definition = Object.freeze({
    ['Panel dots (adapted)', i.dotsPerPixel + ' × ' + i.dotsPerPixel + ' per screen pixel, ' + Math.round(i.dotPitchUm) + ' µm apart, '
     + 'finer than the DMG\'s 160 × 144 so modern vector art stays clean. Every dot is driven at one of the four real levels; '
     + 'a screen pixel shows the average light of its dots'],
-   ['Palette (measured)', 'BGB DMG reality samples: ' + P.palette.srgb8.shades.map(hex).join(', ')],
+   ['Palette (measured)', 'BGB DMG reality samples (colour-accurate light, ColorChecker-corrected to true colour and brightness, whole pixels with their gaps): '
+    + P.palette.srgb8.shades.map(hex).join(', ') + '; LCD disabled ' + hex(P.palette.srgb8.disabled)],
+   ['Colours (from the physics)', 'every crystal state is coloured by the source\'s own reflected spectrum (light through polarizers, crystal and reflector at 15 wavelengths), '
+    + 'converted by one 3 × 3 matrix fitted to BGB\'s five colours, which are shown exactly. The dots\' gaps show the unpowered colour and are part of BGB\'s photographs: '
+    + Math.round(P.stn.color_fit.gap_fraction * 100) + '% of the area (assumed, from BGB\'s idealized drawing). Polarizer spectra are not published (ideal ones assumed)'],
    ['Drive', '1/' + P.panel.dots[1] + ' duty passive matrix, ' + P.panel.refresh_hz + ' Hz frames; rms reconstruction (' + P.drive.nonselect_rms_V + ' V nonselect, nominal)'],
    ['Response (matched to the era)', 'STN director drift per frame from a Frank–Oseen/Ericksen–Leslie reduction, slowed ×'
     + (1 / P.temperature.response_scale).toFixed(2) + ' to about ' + P.sources.response.target_ms + ' ms per change (10–90%, 25 °C), '
@@ -63,7 +67,11 @@ export const definition = Object.freeze({
    ['Contrast wheel', '×' + P.contrast.min.toFixed(2) + ' to ×' + P.contrast.max.toFixed(2) + ' drive, the range measured at the ends of a real '
     + 'DMG wheel (one board: −11 V and −14 V against −13 V for good contrast). Solved every 0.01 with the source\'s own solver '
     + '(tools/dmg01_wheel.mjs; the source tabulates 0.88, 1.00 and 1.08): the picture fades in from ×0.92 to ×1.00, and turning it up darkens '
-    + 'every shade while they stay distinct (darker than black by the solver\'s luminance); turned down, shades fade toward the unpowered panel\'s colour'],
+    + 'every shade while they stay distinct; turned down, every shade settles to the unpowered colour, as BGB describes'],
+   ['Two resting states (fade assumed)', 'below the normal drive some shades can rest relaxed or part-switched; the solver\'s free energy says which is stable. '
+    + 'Turn the wheel down and dark areas first rest part-switched (lighter, yellower: a ghost), then give way point by point as the stable state spreads '
+    + 'from defects, in about ' + Math.round(P.stn.metastable.tau_s * 1000) + ' ms (assumed: the middle of the 0.1–1 s published for metastable twisted textures). '
+    + 'The solver alone, one column of crystal, would keep the ghost forever; BGB and videos of real DMGs show none lasting'],
    ['Temperature', P.temperature.range_C.join('–') + ' °C; viscosity activation ' + P.temperature.activation_K + ' K'],
    ['Sticking', 'ions charge under dark drive (~' + Math.round(1 / (R.charge_per_frame * P.panel.refresh_hz)) + ' s) and release slowly (~'
     + Math.round(1 / (R.release_per_frame * P.panel.refresh_hz) / 60) + ' min), leaving a faint image'

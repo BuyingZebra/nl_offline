@@ -7,7 +7,8 @@
  *            plus glare (reflectedColor)
  *
  * UPDATE, ENTRY and BLUR run per panel dot; DISPLAY runs per screen pixel.
- * State texel: r = director q, g = ionic charge, b = drive level, a = light shown. */
+ * State texel: r = director q, g = ionic charge, b = drive level, a = coordinate shown
+ * (its colour: COLOR, the solver's spectrum fitted to BGB's measured colours). */
 
 import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
 import {MAX_DOTS_PER_PIXEL} from '../../gpu/webgl.js';
@@ -35,8 +36,26 @@ float rowDrift(int c,int s,float q){
  return mix(texelFetch(uDrift,ivec2(i,c*4+s),0).r,texelFetch(uDrift,ivec2(i+1,c*4+s),0).r,x-float(i));
 }
 float drift(int s,float q){return mix(rowDrift(uLo,s,q),rowDrift(uHi,s,q),uCondF);}
+// The temporary resting state at the nearest solved wheel position, or -1 (model.js metaQ).
+uniform sampler2D uMetaQ;uniform float uMetaP;uniform uint uFrame;
+float metaQ(int s){return texelFetch(uMetaQ,ivec2(s,uCondF<0.5?uLo:uHi),0).r;}
+// Same integer hash as model.js decayDraw: a uniform number per point and DMG frame.
+float decayDraw(uint x,uint y,uint k,uint f){
+ uint h=(x*0x8da6b343u)^(y*0xd8163841u)^(k*0xcb1ab31fu)^(f*0x165667b1u);
+ h=(h^(h>>16u))*0x7feb352du;h=(h^(h>>15u))*0x846ca68bu;h^=h>>16u;
+ return float(h>>8u)/16777216.0;
+}
+// Ion sticking as a move along the normal shades (model.js branchSlope, shownCoordinate).
+float branchSlope(float q){int k=q<=uAnchorQ[1]?0:(q<=uAnchorQ[2]?1:2);return (uAnchorQ[k+1]-uAnchorQ[k])/0.25;}
 // Target director per wheel position: texture (4 shades wide, one row per position).
 float targetQ(int s){return mix(texelFetch(uTargetQ,ivec2(s,uLo),0).r,texelFetch(uTargetQ,ivec2(s,uHi),0).r,uCondF);}
+// After this update's DMG frames, a point resting nearer its temporary state than its
+// stable one gives way to the stable one with chance uMetaP (model.js settleTemporary;
+// uMetaP is 0 when no frame passed).
+float settle(float q,int s,float draw){
+ float m=metaQ(s),t=targetQ(s);
+ return (!uOff&&m>=0.0&&abs(q-m)<abs(q-t)&&draw<uMetaP)?t:q;
+}
 float corr(float q){
  float x=clamp(q,0.0,1.0);
  if(x<=uAnchorQ[0])return uCorr[0]*x/max(uAnchorQ[0],1e-6);
@@ -70,7 +89,7 @@ out vec4 o;
 float ionicStep(float ionic,float drive,float f){
  float r=drive>ionic?uCharge:uRelease;return ionic+(drive-ionic)*(1.0-pow(1.0-r,f));
 }
-float shown(float q,float ionic,float drive,float j){return mix(clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0),0.0,unpowered(j));}
+float shown(float q,float ionic,float drive,float j){return mix(clamp(q+max(ionic-drive,0.0)*uSticking*branchSlope(q),0.0,1.0),0.0,unpowered(j));}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  vec3 c=texelFetch(uContent,p,0).rgb;
@@ -80,7 +99,7 @@ void main(){
  vec4 st=texelFetch(uState,p,0);
  // 1: settle to the current image (new textures); 2: blank panel (reset).
  if(uInit==1){float q=uOff?0.0:targetQ(s);o=vec4(q,0.0,float(s),shown(q,0.0,0.0,0.0));return;}
- if(uInit==2){float q=targetQ(0);st=vec4(q,0.0,0.0,optical(q));}
+ if(uInit==2){float q=targetQ(0);st=vec4(q,0.0,0.0,q);}
  float q=st.r,ionic=st.g,drive=float(s)/3.0,ionDrive=uOff?0.0:drive;
  if(int(st.b+0.5)!=s&&!uOff)q=canonical(q,optical(q));
  float sum=0.0;
@@ -92,13 +111,14 @@ void main(){
   sum+=(shown(q,ionic,drive,j)+4.0*shown(qm,im,drive,j+0.5)+shown(qe,ie,drive,j+1.0))/6.0;
   q=qe;ionic=ie;
  }
+ q=settle(q,s,decayDraw(uint(p.x),uint(p.y),0u,uFrame));
  o=vec4(q,ionic,float(s),uSteps>0?sum/float(uSteps):st.a);
 }`;
 
 
 // ---------------------------------------------------------------------------
-// The measured palette in linear light: LCD disabled, then shades 0..3, and the
-// solver's continuation beyond it (opticalColor). Needs: uniform vec3 uPalette[5].
+// Colour of a shown coordinate: the solver's reflected spectrum per crystal state,
+// fitted to BGB's measured colours, in linear light (model.js colorAt).
 // ---------------------------------------------------------------------------
 
 // The screen lens: a clear plastic plate (index uLensN) in front of the LCD, with
@@ -119,15 +139,12 @@ float lensReflectance(float ci){
 }`;
 
 export const PALETTE = `
-uniform vec4 uLum;
-vec3 color(float s){
- // Darker than black: black's colour, scaled by the solver's luminance. Nothing is
- // lighter than the unpowered panel (state 0).
- if(s>1.0)return uPalette[4]*max(uLum.w-(s-1.0)*4.0*(uLum.z-uLum.w),0.0)/uLum.w;
- float x=max(s,0.0)*4.0;int k=min(3,int(floor(x)));
- return mix(uPalette[k],uPalette[k+1],x-float(k));
+uniform sampler2D uColor;uniform int uColorBins;
+vec3 color(float c){
+ float x=clamp(c,0.0,1.0)*float(uColorBins-1);int i=min(uColorBins-2,int(floor(x)));
+ return mix(texelFetch(uColor,ivec2(i,0),0).rgb,texelFetch(uColor,ivec2(i+1,0),0).rgb,x-float(i));
 }
-vec3 pass1(float s){return sqrt(color(s));}`;
+vec3 pass1(float c){return sqrt(color(c));}`;
 
 
 // ---------------------------------------------------------------------------
@@ -137,7 +154,7 @@ vec3 pass1(float s){return sqrt(color(s));}`;
 
 export const ENTRY_FS = `#version 300 es
 precision highp float;
-uniform sampler2D uState;uniform vec3 uPalette[5];
+uniform sampler2D uState;
 uniform vec2 uPanelMm,uBezelShift;uniform float uBezelSigma,uDotsPerMm,uHeightDots;
 out vec4 o;
 ${PALETTE}
@@ -158,7 +175,7 @@ void main(){
 
 export const DISPLAY_FS = `#version 300 es
 precision highp float;
-uniform sampler2D uState,uField;uniform vec3 uPalette[5];
+uniform sampler2D uState,uField;
 uniform int uDots;uniform vec2 uSize,uDotSize,uMean;
 uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront,uLensN;uniform vec3 uEye,uLight;
 out vec4 o;

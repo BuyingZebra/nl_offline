@@ -7,7 +7,8 @@
  * (steps of 1.5e-5), two to a 32-bit word. One ion charge per pixel.
  *
  *   UPDATE   points -> levels; whole DMG frames of drift and sticking per point
- *            (model.js stepFrame, per point); the pixel's mean first-pass
+ *            (model.js stepFrame, per point), then the fade of temporary resting
+ *            states (settleTemporary, per point); the pixel's mean first-pass
  *            transmission and, for inspection, its mean measured colour
  *   ENTRY    first pass of the light through the pixel, shaded by the frame
  *   BLUR     spread of entry points from a light of finite size (shared)
@@ -35,7 +36,7 @@ export const MAX_POINTS = 4;
 export const UPDATE_FS = `#version 300 es
 precision highp float;precision highp int;
 uniform sampler2D uContent;uniform highp usampler2D uQ0,uQ1,uMeta;
-uniform int uSteps,uInit,uN;uniform float uTscale,uCharge,uRelease,uSticking;uniform vec3 uPalette[5];
+uniform int uSteps,uInit,uN;uniform float uTscale,uCharge,uRelease,uSticking;
 ${COMMON}
 ${PALETTE}
 layout(location=0) out uvec4 oQ0;
@@ -45,7 +46,7 @@ layout(location=3) out uvec4 oMeta;
 float ionicStep(float ionic,float drive,float f){
  float r=drive>ionic?uCharge:uRelease;return ionic+(drive-ionic)*(1.0-pow(1.0-r,f));
 }
-float shown(float q,float ionic,float drive,float j){return mix(clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0),0.0,unpowered(j));}
+float shown(float q,float ionic,float drive,float j){return mix(clamp(q+max(ionic-drive,0.0)*uSticking*branchSlope(q),0.0,1.0),0.0,unpowered(j));}
 int levelAt(uint word,int k){return int((word>>uint(2*k))&3u);}
 uint wordOf(uvec4 a,uvec4 b,int k){int w=k>>1;return w<4?a[w]:b[w-4];}
 float qAt(uvec4 a,uvec4 b,int k){return float((wordOf(a,b,k)>>uint(16*(k&1)))&65535u)/65535.0;}
@@ -97,7 +98,10 @@ void main(){
    float light=uSteps>0?acc/float(uSteps):shown(q,ion,level,0.0);
    resBits=pack16(q);resT=pass1(light);resC=color(light);resL=light;
   }
-  int w=k>>1;uint v=resBits<<uint(16*(k&1));
+  // Each point on its own: one resting in a temporary state may give way (settle).
+  uint bitsOut=resBits;
+  if(uSteps>0){float qq=float(resBits)/65535.0,qs=settle(qq,s,decayDraw(uint(p.x),uint(p.y),uint(k),uFrame));if(qs!=qq)bitsOut=pack16(qs);}
+  int w=k>>1;uint v=bitsOut<<uint(16*(k&1));
   if(w<4)outA[w]|=v;else outB[w-4]|=v;
   trans+=resT;flatc+=resC;lightSum+=resL;
  }

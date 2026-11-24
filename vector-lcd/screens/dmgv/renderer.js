@@ -12,11 +12,11 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm, shadowKernel, entryOffsetMm} from '../../optics/room.js';
-import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickingVolts, linearPalette} from '../dmg/model.js';
+import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickingVolts, metastableChance} from '../dmg/model.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS, MAX_POINTS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.6.1';
+export const VERSION = '0.7.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 const POINT_PITCH_MM = .025;       // points no further apart than this on the panel (40 per mm)
@@ -45,6 +45,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let last = null;                  // time of the previous frame (ms)
  let init = 0;                     // next update: 1 = settle to the image, 2 = blank panel
  let phase = 0;                    // fraction of a DMG frame carried to the next display frame
+ let dmgFrame = 0;                 // DMG frames run so far: the fade's draws (model.js decayDraw)
  let lighting = {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1};
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
  let celsius = 25;
@@ -63,7 +64,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  function setup() {
   res = {
    update: gpu.program(UPDATE_FS), entry: gpu.program(ENTRY_FS), blur: gpu.program(BLUR_FS), display: gpu.program(DISPLAY_FS),
-   drift: gpu.texture(), optical: gpu.texture(), targetQ: gpu.texture(), painter: createVectorPainter(gl),
+   drift: gpu.texture(), optical: gpu.texture(), targetQ: gpu.texture(), metaQ: gpu.texture(), color: gpu.texture(), painter: createVectorPainter(gl),
    content: null, contentFb: null, stencil: null, sets: [], fields: [], size: null,
    none: gpu.texture()   // a 1 x 1 stand-in for Q1 when there are at most 8 points
   };
@@ -81,6 +82,25 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   // Target director for each shade at each solved wheel position: 4 wide, one row per position.
   gl.bindTexture(gl.TEXTURE_2D, res.targetQ);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 4, profile.contrast.conditions.length, 0, gl.RED, gl.FLOAT, new Float32Array(S.target_q));
+  // The temporary resting state, the same layout (-1 where a shade has one state).
+  gl.bindTexture(gl.TEXTURE_2D, res.metaQ);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 4, profile.contrast.conditions.length, 0, gl.RED, gl.FLOAT, new Float32Array(S.meta_q));
+  // Colour per director coordinate (linear RGB): the solver's spectrum, fitted to BGB.
+  gl.bindTexture(gl.TEXTURE_2D, res.color);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, S.color_bins, 1, 0, gl.RGB, gl.FLOAT, new Float32Array(S.color));
+ }
+
+ /** The fade of temporary resting states over this update's DMG frames (model.js
+  * settleTemporary): the table, the chance, and the frame number for the draws. */
+ function bindFade(p, frames) {
+  gpu.bind(p, 11, 'uMetaQ', res.metaQ);
+  gl.uniform1f(p.u('uMetaP'), frames > 0 && power ? metastableChance(profile, celsius, frames) : 0);
+  gl.uniform1ui(p.u('uFrame'), dmgFrame);
+ }
+
+ function bindColor(p) {
+  gpu.bind(p, 10, 'uColor', res.color);
+  gl.uniform1i(p.u('uColorBins'), profile.stn.color_bins);
  }
 
  function storage(w, h, internal, format, type) {
@@ -197,8 +217,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
     gpu.bind(p, 2, 'uQ1', from.tex[1] ?? res.none);
     gpu.bind(p, 3, 'uMeta', from.tex[3]);
     bindTables(p);
-    gl.uniform3fv(p.u('uPalette'), linearPalette(profile).flat());
-    gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
+    bindColor(p);
+    bindFade(p, init === 1 ? 0 : steps);
     gl.uniform1i(p.u('uN'), points);
     gl.uniform1i(p.u('uSteps'), init === 1 ? 0 : steps);
     gl.uniform1i(p.u('uInit'), init);
@@ -210,6 +230,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
     gl.uniform1f(p.u('uRelease'), R.release_per_frame);
     gl.uniform1f(p.u('uSticking'), stickingVolts(profile) * R.sticking_optical_gain);
    });
+   dmgFrame = (dmgFrame + (init === 1 ? 0 : steps)) >>> 0;
    const k = powerFactor(profile, celsius, power), n = init === 1 ? 0 : steps;
    if (init === 1) unpowered = power ? 0 : 1;
    else if (init === 2 && power) unpowered = 0;
@@ -308,7 +329,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   // shown: the optical state the pixel showed over the last DMG frame, averaged over its points.
   const shade = cover.indexOf(Math.max(...cover)), q = sum[shade] / cover[shade];
   const half = h => { const e = (h >> 10) & 31, m = h & 1023, v = e ? (1 + m / 1024) * 2 ** (e - 15) : m / 1024 * 2 ** -14; return h & 32768 ? -v : v; };
-  return {q, ionic: ion, shade, shown: half(meta[3] >>> 16), coverage: cover.map(c => c / N), points: states};
+  // texel and frame: what the fade's draws are keyed by (model.js decayDraw), for checks.
+  return {q, ionic: ion, shade, shown: half(meta[3] >>> 16), coverage: cover.map(c => c / N), points: states, texel: [x, y], frame: dmgFrame};
  }
 
 
