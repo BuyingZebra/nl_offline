@@ -10,6 +10,12 @@ import {tetrisVectors} from '../content/vectors.js';
 import {tetrisScene, cardScene} from '../content/scenes.js';
 
 const STAGE_MARGIN_PX = 24;
+const PINCH_SETTLE_MS = 200;       // redraw at the new resolution once a pinch has paused this long
+
+/** Screen pixels per CSS pixel, including a pinch zoom: a pinch (two fingers on a
+ * trackpad or a touch screen) enlarges the page as it was drawn, without changing
+ * devicePixelRatio, so the panel must be redrawn at the enlarged resolution itself. */
+const pixelRatio = () => (window.devicePixelRatio || 1) * Math.max(1, window.visualViewport?.scale ?? 1);
 
 
 /**
@@ -19,7 +25,7 @@ const STAGE_MARGIN_PX = 24;
  * @param {Object<string, {width, height, shapes, problems}>} cards  vector test cards (vector/svg.js), by name; 'star' turns on the cards
  */
 export function createStage({stage, bezel, canvas, error}, content, tiles, cards = {}) {
- let renderer = null, screen = null, fittedRatio = 0;
+ let renderer = null, screen = null, fittedRatio = 0, refit = null;
  let shown = 'tetris';             // vector screens: 'tetris' or the name of a test card
 
 
@@ -68,16 +74,25 @@ export function createStage({stage, bezel, canvas, error}, content, tiles, cards
 
  /** Fit the panel inside the stage. A hidden stage (Info tab) keeps its last size. */
  function fit() {
+  clearTimeout(refit);
+  refit = null;
   if (!renderer || !stage.clientWidth || !stage.clientHeight) return;
-  fittedRatio = window.devicePixelRatio || 1;
+  fittedRatio = pixelRatio();
   const s = getComputedStyle(bezel);
   const padX = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight);
   const padY = parseFloat(s.paddingTop) + parseFloat(s.paddingBottom);
   renderer.resize(
    Math.max(40, stage.clientWidth - STAGE_MARGIN_PX - padX),
    Math.max(40, stage.clientHeight - STAGE_MARGIN_PX - padY),
-   window.devicePixelRatio || 1);
+   fittedRatio);
  }
+
+ /** Refit once the zoom has settled: resizing during a pinch would redraw every frame. */
+ function fitSoon() {
+  clearTimeout(refit);
+  refit = setTimeout(fit, PINCH_SETTLE_MS);
+ }
+ window.visualViewport?.addEventListener('resize', fitSoon);
  new ResizeObserver(fit).observe(stage);
 
 
@@ -87,7 +102,7 @@ export function createStage({stage, bezel, canvas, error}, content, tiles, cards
  function draw(now) {
   // Browser zoom and moving to another monitor change the pixel density
   // without changing the layout: re-fit then too, so the panel stays sharp.
-  if ((window.devicePixelRatio || 1) !== fittedRatio) fit();
+  if (pixelRatio() !== fittedRatio && !refit) fitSoon();
   const def = kindOf(screen).definition, profile = renderer.profile;
   // A vector display draws lines, not a picture: hand it this round's display list.
   if (def.vectors) { renderer.setVectors(tetrisVectors(content.game)); renderer.frame(now); return; }
