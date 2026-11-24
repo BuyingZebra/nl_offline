@@ -16,10 +16,11 @@ export {BLUR_FS};
 
 
 // ---------------------------------------------------------------------------
-// Tables shared by both passes (driftPerFrame, targetQ, opticalState)
+// Tables shared by both passes (driftPerFrame, targetQ, opticalState);
+// also used by the vector-input processor (screens/dmgv/)
 // ---------------------------------------------------------------------------
 
-const COMMON = `
+export const COMMON = `
 uniform sampler2D uDrift,uOptical;
 uniform float uTargetQ[12],uAnchorQ[4],uCorr[4];
 uniform int uLo,uHi,uBins;uniform float uCondF;
@@ -90,7 +91,7 @@ void main(){
 // (opticalColor). Needs: uniform vec3 uPalette[5].
 // ---------------------------------------------------------------------------
 
-const PALETTE = `
+export const PALETTE = `
 vec3 color(float s){
  float x=clamp(s,0.0,1.0)*4.0;int k=min(3,int(floor(x)));
  return mix(uPalette[k],uPalette[k+1],x-float(k));

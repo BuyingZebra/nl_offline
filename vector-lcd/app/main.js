@@ -22,7 +22,7 @@ async function loadCards() {
  return Object.fromEntries(entries);
 }
 
-export const APP_VERSION = '0.25.2';
+export const APP_VERSION = '0.26.0';
 
 const $ = id => document.getElementById(id);
 const store = {

@@ -241,6 +241,78 @@ export async function dmgVector() {
 
 
 // ===========================================================================
+// DMG-01 vector input, memory per pixel: same physics, edges fine at any size
+// ===========================================================================
+
+const rectShape = (x, y, w, h, value) => ({fill: {subpaths: parsePath(`M${x} ${y}h${w}v${h}h${-w}Z`), rule: 'nonzero', value}, stroke: null});
+
+/** A flat pixel follows the DMG-01's stepFrame exactly (each level's state is a dot's). */
+export async function dmgvParity() {
+ const P = await profileOf('dmg-01-stn');
+ const {renderer: r, done} = mount('dmgv', P);
+ r.setTemperature(25);
+ r.setContrast(1);
+ const options = {contrast: 1, celsius: 25}, dt = 23, patch = rectShape(...PATCH, 3);
+ r.setScene([]);
+ r.frame(T0);
+ let st = {q: dmg.targetQ(P, 0, 1), ionic: 0, shade: 0}, shown = dmg.opticalState(P, st.q);
+ let phase = 0, t = T0, worst = 0;
+ for (let k = 0; k < 90; k++) {
+  const shade = k < 45 ? 3 : 0;
+  r.setScene(shade ? [{shape: patch, matrix: [1, 0, 0, 1, 0, 0]}] : []);
+  r.frame(t += dt);
+  phase += dt * P.panel.refresh_hz / 1000;
+  const steps = Math.min(8, Math.floor(phase));
+  phase = Math.min(phase - steps, 1);
+  if (steps > 0) {
+   let sum = 0;
+   for (let i = 0; i < steps; i++) { const next = dmg.stepFrame(P, st, shade, options); sum += next.exposure; st = next; }
+   shown = sum / steps;
+  }
+  const g = r.sample(...CENTER);
+  worst = Math.max(worst, Math.abs(g.q - st.q), Math.abs(g.ionic - st.ionic), Math.abs(g.shown - shown));
+ }
+ done();
+ return [result('DMG vector GPU = model, memory per pixel (q, ions, shown light)', worst, 2e-3)];
+}
+
+/** An edge across a screen pixel shows the two levels mixed by coverage, small or enlarged: no steps. */
+export async function dmgvEdges() {
+ const out = [];
+ const P = await profileOf('dmg-01-stn');
+ const palette = P.palette.srgb8.shades.map(c => c.map(v => v / 255));
+ const lin = v => v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+ const enc = v => v <= .0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - .055;
+ for (const css of [[130, 250], [700, 1342]]) {
+  const canvas = document.createElement('canvas');
+  document.body.append(canvas);
+  const r = KINDS.dmgv.createRenderer(canvas, {profile: P, widthMm: PANEL.w, heightMm: PANEL.h});
+  r.resize(...css, 1);
+  r.setShadow(false);
+  r.setLighting({angleDeg: 40, azimuthDeg: 0, sourceDeg: .5});
+  const {pxPerMm, pointsPerPixel: n} = r.info();
+  const edgeMm = (Math.floor(CENTER[0] * pxPerMm) + .5) / pxPerMm;
+  let t = T0;
+  for (let k = 0; k < 20; k++) { r.setScene([{shape: rectShape(edgeMm, 20, 10, 50, 3), matrix: [1, 0, 0, 1, 0, 0]}]); r.frame(t += 50); }
+  const edge = shownColour(r, canvas, edgeMm, CENTER[1]);
+  const flat = shownColour(r, canvas, edgeMm + 2, CENTER[1]);
+  // The mix the pixel's points call for: white and black in proportion to their coverage.
+  const cover = r.sample(edgeMm, CENTER[1]).coverage;
+  const want = palette[0].map((v, k) => enc(cover[0] * lin(v) + cover[3] * lin(palette[3][k])));
+  const worst = Math.max(...edge.map((v, k) => Math.abs(v - want[k])));
+  const flatErr = Math.max(...flat.map((v, k) => Math.abs(v - palette[3][k])));
+  const mixed = cover[0] > 0 && cover[3] > 0 && cover[0] + cover[3] > .999;
+  out.push({name: 'DMG vector edge pixel mixes by coverage at ' + css.join('×') + ' px', ok: mixed && worst <= 2 / 255 && flatErr <= 1.5 / 255,
+   detail: 'coverage white ' + cover[0].toFixed(3) + ' / black ' + cover[3].toFixed(3) + '; edge ' + (worst * 255).toFixed(1) + '/255 from that mix, inside '
+    + (flatErr * 255).toFixed(1) + '/255 from black; ' + n + ' × ' + n + ' points per pixel at ' + pxPerMm.toFixed(1) + ' px/mm'});
+  r.dispose();
+  canvas.remove();
+ }
+ return out;
+}
+
+
+// ===========================================================================
 // Game Boy Color: channel states and frame-average colour on the GPU = stepFrame
 // ===========================================================================
 
@@ -446,5 +518,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

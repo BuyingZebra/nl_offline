@@ -476,7 +476,7 @@ describe('Vector LCD structure: screen kinds, definitions and profiles',async()=
  const {SCREENS,KINDS,FAMILIES}=await import('../vector-lcd/app/screens.js');
  const profileOf=screen=>JSON.parse(read('profiles/'+(screen.profile??screen.id)+'.json'));
  // What a definition may ask of a renderer when building the Info tab.
- const fakeRenderer={bezelLipMm:1,lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15},info:()=>({retention:true,dotsPerPixel:2,dotPitchUm:48})};
+ const fakeRenderer={bezelLipMm:1,lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15},info:()=>({retention:true,dotsPerPixel:2,dotPitchUm:48,pointsPerPixel:2})};
 
  test('every kind has one public entry with a version, a renderer, a profile check and a definition',()=>{
   for(const [name,kind] of Object.entries(KINDS)){

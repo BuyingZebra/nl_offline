@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.25.2';
+const VERSION = '0.26.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -45,6 +45,8 @@ const ASSETS = Object.freeze([
  './screens/dmg/definition.js',
  './screens/dmgv/index.js',
  './screens/dmgv/definition.js',
+ './screens/dmgv/shaders.js',
+ './screens/dmgv/renderer.js',
  './vector/geometry.js',
  './vector/svg.js',
  './vector/draw.js',
