@@ -1,7 +1,7 @@
 /* WebGL2 plumbing shared by every screen renderer.
  *
  *   createGPU      context, programs, textures, render targets, drawing, readback,
- *                  context loss and recovery
+ *                  context loss and recovery, and a per-pass timer for diagnostics
  *   createSurface  the panel's content canvas and its size in device pixels
  *   createMeter    frames per second
  *
@@ -167,12 +167,75 @@ export function createGPU(canvas, name) {
  }
 
 
+ // ---- Pass timing, for the diagnostic report ------------------------------------
+ // A renderer marks its passes with section(name) and ends the frame with
+ // section(null). Each pass gets the CPU time of its calls (JavaScript and
+ // driver submission) and, where the browser offers EXT_disjoint_timer_query_webgl2,
+ // the GPU time the pass really took, read back a few frames later.
+
+ const timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+ let open = null, pending = [], spare = [], totals = new Map(), disjoint = 0;
+
+ function total(name) {
+  if (!totals.has(name)) totals.set(name, {count: 0, cpuMs: 0, gpuCount: 0, gpuMs: 0});
+  return totals.get(name);
+ }
+
+ function poll() {
+  if (!timerExt) return;
+  if (gl.getParameter(timerExt.GPU_DISJOINT_EXT)) {
+   // The GPU was interrupted (power state, another app): these timings are not trustworthy.
+   disjoint++;
+   for (const p of pending) spare.push(p.query);
+   pending = [];
+   return;
+  }
+  while (pending.length && gl.getQueryParameter(pending[0].query, gl.QUERY_RESULT_AVAILABLE)) {
+   const p = pending.shift(), t = total(p.name);
+   t.gpuCount++;
+   t.gpuMs += gl.getQueryParameter(p.query, gl.QUERY_RESULT) / 1e6;
+   spare.push(p.query);
+  }
+ }
+
+ /** End the open pass (if any) and start the named one; null ends the frame's passes. */
+ function section(name) {
+  const now = performance.now();
+  if (open) {
+   const t = total(open.name);
+   t.count++;
+   t.cpuMs += now - open.start;
+   if (open.query) { gl.endQuery(timerExt.TIME_ELAPSED_EXT); pending.push({name: open.name, query: open.query}); }
+   open = null;
+  }
+  if (name === null) { poll(); return; }
+  let query = null;
+  if (timerExt && !lost && pending.length < 64) {
+   query = spare.pop() ?? gl.createQuery();
+   gl.beginQuery(timerExt.TIME_ELAPSED_EXT, query);
+  }
+  open = {name, start: performance.now(), query};
+ }
+
+ /** Average CPU and GPU milliseconds per pass since the last call, then start again. */
+ function takeTimings() {
+  poll();
+  const out = {gpuTimer: Boolean(timerExt), disjoint, passes: {}};
+  for (const [name, t] of totals) out.passes[name] = {
+   count: t.count, cpuMs: t.count ? t.cpuMs / t.count : null, gpuMs: t.gpuCount ? t.gpuMs / t.gpuCount : null
+  };
+  totals = new Map();
+  disjoint = 0;
+  return out;
+ }
+
+
  // ---- Context loss -----------------------------------------------------------
  // The browser may drop the GPU context (backgrounding, driver reset). Every
  // GPU object is then gone; the renderer rebuilds them when it comes back.
 
  const handleLost = event => { event.preventDefault(); lost = true; };
- const handleRestored = () => { lost = false; vao = null; onRestored(); };
+ const handleRestored = () => { lost = false; vao = null; open = null; pending = []; spare = []; onRestored(); };
  canvas.addEventListener('webglcontextlost', handleLost);
  canvas.addEventListener('webglcontextrestored', handleRestored);
 
@@ -183,7 +246,7 @@ export function createGPU(canvas, name) {
  }
 
  return Object.freeze({
-  gl, program, texture, target, release, firstRenderable, upload, copy, bind, draw, readTexel, dispose,
+  gl, program, texture, target, release, firstRenderable, upload, copy, bind, draw, readTexel, dispose, section, takeTimings,
   get lost() { return lost; },
   /** Called after the context comes back; rebuild every GPU resource. */
   set onRestored(fn) { onRestored = fn; },

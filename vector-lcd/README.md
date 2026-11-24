@@ -363,6 +363,8 @@ A resize carries the panel's state to the new size, so scrolling, rotating or re
 
 **Zoom.** Browser zoom and a pinch (two fingers on a trackpad or touch screen) both redraw the panel at the enlarged resolution, a moment after the zoom pauses; a pinch otherwise only stretches the picture already drawn.
 
+**Diagnostic report.** The Info tab's *Copy report* button copies a plain-text receipt: device, browser and graphics card, the screen and its settings, panel size and GPU memory, and the last eight 2-second samples (frame rate, frame intervals and stutters, JavaScript time). On the DMG-01 screens each sample also lists every pass with its CPU time and, where the browser offers a GPU timer (`EXT_disjoint_timer_query_webgl2`, most desktop browsers), the time the graphics card took (`app/diagnostics.js`; the timer is `section()` in `gpu/webgl.js`).
+
 One screen at a time. The **LCD / CRT** switch picks the technology; the buttons under the screen pick the panel (TN 1/4 mux, DMG-01, Game Boy Color) or the monitor (P39 green, P3 amber, Colour, Vector). **Info** shows where every number comes from, and the screen stops drawing while it is open. Each switch remembers the last screen chosen under it.
 
 To add a phosphor: build its profile into `profiles/`, add an entry to `SCREENS` in `app/screens.js` with `kind: 'crt'` and `family: 'crt'` (with `short` for its button and `sub` for the two lines beside the title), and list the profile in `sw.js`. Its button appears on its own; the CRT definition reads every number from the profile.

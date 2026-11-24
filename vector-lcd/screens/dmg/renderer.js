@@ -171,6 +171,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   phase += dt * profile.panel.refresh_hz / 1000;
   const steps = Math.min(MAX_STEPS_PER_FRAME, Math.floor(phase));
   phase = Math.min(phase - steps, 1);
+  gpu.section(vectorInput ? 'shapes' : 'picture upload');
   if (vectorInput) {
    // Shapes in millimetres, drawn at the dot size: each dot gets its drive level exactly.
    const k = dotsPerMm, toDots = m => [m[0] * k, m[1] * k, m[2] * k, m[3] * k, m[4] * k, m[5] * k];
@@ -178,6 +179,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   } else gpu.upload(res.content, surface.content);
 
   // ---- 1. Director and ions, in whole DMG frames, at every dot
+  gpu.section('crystal');
   if (steps > 0 || init) {
    const from = res.states[current], to = res.states[1 - current], R = profile.retention;
    gpu.draw(res.update, to.fb, dotSize, p => {
@@ -198,6 +200,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   const state = res.states[current], palette = linearPalette(profile).flat();
 
   // ---- 2. First pass: light entering the crystal, shaded by the bezel
+  gpu.section('first pass');
   gpu.draw(res.entry, res.fields[0].fb, dotSize, p => {
    gpu.bind(p, 0, 'uState', state.tex);
    gl.uniform3fv(p.u('uPalette'), palette);
@@ -210,6 +213,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   });
 
   // ---- 3. Spread of entry points: along, then across the light (screen y runs down, rows up)
+  gpu.section('shadow blur');
   const k = shadowKernel(profile, lighting);
   const radial = [k.radial.x, -k.radial.y], across = [-radial[1], radial[0]];
   const blur = (src, dst, dir, sigmaMm) => gpu.draw(res.blur, dst.fb, dotSize, p => {
@@ -226,6 +230,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   // ---- 4. Second pass at each dot, averaged per screen pixel, plus glare.
   // Light enters where it meets the crystal on the way in and leaves where the
   // eye's ray meets it: the shadow offset is the difference of the two.
+  gpu.section('second pass + glare');
   const toView = entryOffsetMm(profile, viewing.polarDeg, viewing.azimuthDeg);
   // With the shadow off, light leaves where it entered: both passes cross the
   // same state, so every point shows the measured palette (bezel and glare stay).
@@ -247,7 +252,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uGlareSigma'), sigma);
    gl.uniform1f(p.u('uGlareNorm'), glareNorm(sigma, lighting.angleDeg));
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
-  });
+  });  gpu.section(null);
  }
 
 
@@ -287,6 +292,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    if (res && !gpu.lost) { uploadTables(); init = 1; }
   },
   setElectrodes() {},              // a dot matrix drives every point: no electrode map
+  /** Average CPU and GPU time per pass since the last call (diagnostic report). */
+  timings: gpu.takeTimings,
   /** Vector input: the shapes to show, [{shape, matrix}] with the matrix from the shape's units to panel mm. */
   setScene(items) { scene = items; },
   get input() { return input; },
@@ -309,6 +316,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    return {version: VERSION, stateFormat: res?.fmt.name ?? 'none', fieldFormat: res?.fieldFmt.name ?? 'none',
     retention: Boolean(res?.fmt.retention), width: surface.W, height: surface.H, pxPerMm: surface.pxPerMm,
     dotsPerPixel: dots, dotPitchUm: 1000 / (surface.pxPerMm * dots), fps: meter.fps,
+    // Per dot: two states (16 bytes, or 8 at half float), two light fields (8 or 4), content (4) and a stencil (1) for vector input.
+    gpuMemoryMB: surface.W * surface.H * dots * dots * ((res?.fmt.retention ? 32 : 16) + (res?.fieldFmt.name === '8-bit' ? 8 : 16) + 4 + (vectorInput ? 1 : 0)) / 1048576,
     input, ...(res?.painter ? {vector: res.painter.stats} : {})};
   },
   dispose: gpu.dispose

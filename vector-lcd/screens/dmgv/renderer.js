@@ -171,10 +171,12 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   phase = Math.min(phase - steps, 1);
 
   // ---- 0. The shapes, at every point of every pixel
+  gpu.section('shapes');
   const k = pxPerMm * points, toPoints = m => [m[0] * k, m[1] * k, m[2] * k, m[3] * k, m[4] * k, m[5] * k];
   res.painter.draw(res.contentFb, [W * points, H * points], scene.map(item => ({shape: item.shape, matrix: toPoints(item.matrix)})));
 
   // ---- 1. Levels, moving states, and whole DMG frames of physics per level
+  gpu.section('crystal');
   if (steps > 0 || init) {
    const from = res.sets[current], to = res.sets[1 - current], R = profile.retention;
    gpu.draw(res.update, to.fb, size, p => {
@@ -198,6 +200,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   const state = res.sets[current], palette = linearPalette(profile).flat();
 
   // ---- 2. First pass through the pixel, shaded by the bezel
+  gpu.section('first pass');
   gpu.draw(res.entry, res.fields[0].fb, size, p => {
    gpu.bind(p, 0, 'uShown', state.tex[1]);
    gpu.bind(p, 6, 'uLevels', state.tex[3]);
@@ -212,6 +215,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   });
 
   // ---- 3. Spread of entry points (only with the shadow on)
+  gpu.section('shadow blur');
   const kernel = shadowKernel(profile, lighting);
   if (shadow) {
    const radial = [kernel.radial.x, -kernel.radial.y], across = [-radial[1], radial[0]];
@@ -226,6 +230,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   }
 
   // ---- 4. Second pass, weighted by coverage, plus glare
+  gpu.section('second pass + glare');
   const toView = entryOffsetMm(profile, viewing.polarDeg, viewing.azimuthDeg);
   const mean = {x: kernel.mean.x - toView.x, y: kernel.mean.y - toView.y};
   gpu.draw(res.display, null, size, p => {
@@ -246,7 +251,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uGlareSigma'), sigma);
    gl.uniform1f(p.u('uGlareNorm'), glareNorm(sigma, lighting.angleDeg));
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
-  });
+  });  gpu.section(null);
  }
 
 
@@ -298,6 +303,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    if (res && !gpu.lost) { uploadTables(); init = 1; }
   },
   setElectrodes() {},
+  /** Average CPU and GPU time per pass since the last call (diagnostic report). */
+  timings: gpu.takeTimings,
   /** The shapes to show, [{shape, matrix}] with the matrix from the shape's units to panel mm. */
   setScene(items) { scene = items; },
   get input() { return 'vector'; },
@@ -317,6 +324,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    return {version: VERSION, stateFormat: 'per pixel: 4 levels × 32-bit float', retention: true,
     width: surface.W, height: surface.H, pxPerMm: surface.pxPerMm, fps: meter.fps, input: 'vector',
     dotsPerPixel: points, dotPitchUm: 1000 / (surface.pxPerMm * points), pointsPerPixel: points,
+    // Per pixel: two state sets (16 + 8 + 4 + 4 bytes), two light fields (8), points (1 byte + 1 stencil each).
+    gpuMemoryMB: surface.W * surface.H * (2 * 32 + 2 * 8 + points * points * 2) / 1048576,
     vector: res?.painter.stats};
   },
   dispose: gpu.dispose

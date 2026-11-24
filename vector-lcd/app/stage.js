@@ -105,23 +105,30 @@ export function createStage({stage, bezel, canvas, error}, content, tiles, cards
   if (pixelRatio() !== fittedRatio && !refit) fitSoon();
   const def = kindOf(screen).definition, profile = renderer.profile;
   // A vector display draws lines, not a picture: hand it this round's display list.
-  if (def.vectors) { renderer.setVectors(tetrisVectors(content.game)); renderer.frame(now); return; }
+  if (def.vectors) { renderer.setVectors(tetrisVectors(content.game)); return timed(now); }
   // Shapes in drive levels: the processor takes them as they are, or not at all.
   if (def.scene) {
    renderer.setScene(shown === 'tetris' ? tetrisScene(content.game) : refusal(shown) ? [] : cardScene(cards[shown], cards.star, now));
-   renderer.frame(now);
-   return;
+   return timed(now);
   }
   const set = typeof def.tiles === 'function' ? def.tiles(profile) : def.tiles;
   const paper = def.paper?.(profile);
   const ctx = renderer.beginContent();
   if (paper) { ctx.fillStyle = paper.paper; ctx.fillRect(0, 0, PANEL.w, PANEL.h); }
   content.draw(ctx, tiles[set], paper?.ink);
+  return timed(now);
+ }
+
+ /** Run the renderer's frame; returns how long its calls took (ms), for the diagnostic report. */
+ function timed(now) {
+  const t = performance.now();
   renderer.frame(now);
+  return performance.now() - t;
  }
 
  return Object.freeze({
   show, fit, draw, showContent,
+  get pixelRatio() { return fittedRatio; },
   get content() { return shown; },
   get renderer() { return renderer; },
   get screen() { return screen; },

@@ -7,7 +7,8 @@
 
 import {FAMILIES, SCREENS, screenById, loadProfile, kindOf} from './screens.js';
 import {createStage} from './stage.js';
-import {createControls, applySettings, resetSettings} from './controls.js';
+import {createControls, applySettings, resetSettings, currentSettings} from './controls.js';
+import {createPerfMonitor, describeGPU, formatReport, copyText} from './diagnostics.js';
 import {createInfo} from './info.js';
 import {createView} from './view.js';
 import {loadTiles} from '../content/tiles.js';
@@ -22,7 +23,7 @@ async function loadCards() {
  return Object.fromEntries(entries);
 }
 
-export const APP_VERSION = '0.26.1';
+export const APP_VERSION = '0.27.0';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -109,13 +110,21 @@ function selectFamily(family) {
 let running = false, paused = false, infoOpen = false;
 let lastNow = null;
 
+const perf = createPerfMonitor();
+
 function tick(now) {
  if (!running) return;
  const dt = lastNow === null ? 16 : Math.min(100, now - lastNow);
  lastNow = now;
  // Paused stops the game, not the screen: the panel keeps showing the still picture.
+ const t0 = performance.now();
  if (!paused) content.update(dt);
- stage.draw(now);
+ const t1 = performance.now();
+ const rendererMs = stage.draw(now) ?? 0;
+ const t2 = performance.now();
+ const r = stage.renderer, i = r.info();
+ perf.frame(now, {updateMs: t1 - t0, drawMs: t2 - t1, rendererMs}, r.timings,
+  {screen: stage.screen.id, content: kindOf(stage.screen).definition.scene ? stage.content : 'tetris', width: i.width, height: i.height});
  requestAnimationFrame(tick);
 }
 
@@ -129,11 +138,12 @@ function start() {
 /** The screen stops drawing while Info covers it. */
 function setInfoOpen(open) {
  infoOpen = open;
+ perf.pause();
  if (open) running = false;
  else { stage.fit(); start(); }
 }
 
-document.addEventListener('visibilitychange', () => { if (document.hidden) running = false; else start(); });
+document.addEventListener('visibilitychange', () => { perf.pause(); if (document.hidden) running = false; else start(); });
 
 
 // ===========================================================================
@@ -157,6 +167,26 @@ for (const button of document.querySelectorAll('[data-content]')) button.addEven
  for (const other of document.querySelectorAll('[data-content]')) other.setAttribute('aria-pressed', String(other === button));
 });
 
+/** Copy report: everything needed to diagnose performance, as plain text. */
+function report() {
+ const r = stage.renderer, i = r.info();
+ return formatReport({
+  appVersion: APP_VERSION, captured: new Date().toISOString(), userAgent: navigator.userAgent,
+  viewport: {width: innerWidth, height: innerHeight, dpr: devicePixelRatio || 1, pinch: window.visualViewport?.scale ?? 1, renderRatio: stage.pixelRatio},
+  gpu: describeGPU(stage.canvas), screen: {...stage.screen, content: kindOf(stage.screen).definition.scene ? stage.content : 'tetris'},
+  settings: currentSettings(stage.screen), renderer: {...i, kind: stage.screen.kind}, samples: perf.samples, paused
+ });
+}
+$('copyReport').addEventListener('click', () => {
+ const text = report(), status = $('reportStatus'), box = $('reportText');
+ // The clipboard call must start inside the click.
+ copyText(text).then(ok => {
+  status.textContent = ok ? 'Copied ' + text.split('\n').length + ' lines. Paste it into the chat.' : 'Could not copy: select the text below and copy it.';
+  box.hidden = ok;
+  if (!ok) { box.value = text; box.focus(); box.select(); }
+ });
+});
+
 $('version').textContent = 'v' + APP_VERSION;
 setInterval(() => info.status(stage.screen, stage.renderer), 1000);
 
@@ -167,7 +197,7 @@ window.vectorLCD = Object.freeze({
  get renderer() { return stage.renderer; },
  get canvas() { return stage.canvas; },
  get screen() { return stage.screen; },
- get content() { return stage.content; }, showContent: name => stage.showContent(name),
+ get content() { return stage.content; }, showContent: name => stage.showContent(name), report,
  game: content.game, PANEL, BOARD, CELL, FAMILIES, selectScreen
 });
 

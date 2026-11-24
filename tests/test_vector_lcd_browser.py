@@ -68,6 +68,14 @@ def app_smoke(page, base):
     if not refused or "#777777" not in refused or not accepted:
         errors.append("vector content switch: refused=%r accepted=%r" % (refused, accepted))
     seen.append("vector card ok, off-palette refused")
+    # The diagnostic report: samples with pass timings after a few seconds on a DMG screen.
+    page.wait_for_timeout(4500)
+    text = page.evaluate("window.vectorLCD.report()")
+    for needle in ["VECTOR LCD / DIAGNOSTIC REPORT", "GPU: ", "Sample 1:", "PASSES (avg ms per frame, CPU/GPU): shapes"]:
+        if needle not in text:
+            errors.append("report is missing " + repr(needle))
+    seen.append("report " + str(len(text.splitlines())) + " lines")
+    print(text)
     page.click("#tabInfo")
     facts = page.locator("#facts dt").count()
     page.click("#tabDemo")

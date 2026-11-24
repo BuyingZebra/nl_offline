@@ -33,6 +33,11 @@ const defaults = () => ({
 
 const settings = defaults();
 
+/** The settings in use for a screen, for the diagnostic report. */
+export function currentSettings(screen) {
+ return {lighting: {...settings.lighting}, celsius: settings.celsius, shadow: settings.shadow, knobs: {...settings.knobs[screen.id]}};
+}
+
 /** Every control back to its default: the room and this device's knobs. */
 export function resetSettings(screen) {
  const {knobs, ...room} = defaults();
