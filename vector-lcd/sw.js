@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.23.1';
+const VERSION = '0.24.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -16,6 +16,10 @@ const ASSETS = Object.freeze([
  './icon-192.png',
  './icon-512.png',
  './apple-touch-icon.png',
+ // ---- Fonts (licences in fonts/)
+ './fonts/DejaVuSansMono.woff',
+ './fonts/DejaVuSansMono-Bold.woff',
+ './fonts/Inter-Regular.woff',
  // ---- App
  './app/main.js',
  './app/screens.js',

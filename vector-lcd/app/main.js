@@ -11,9 +11,9 @@ import {createControls, applySettings, resetSettings} from './controls.js';
 import {createInfo} from './info.js';
 import {createView} from './view.js';
 import {loadTiles} from '../content/tiles.js';
-import {createTetrisContent, PANEL, BOARD, CELL} from '../content/tetris.js';
+import {createTetrisContent, PANEL, BOARD, CELL, COUNTER_FONT} from '../content/tetris.js';
 
-export const APP_VERSION = '0.23.1';
+export const APP_VERSION = '0.24.0';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -31,7 +31,8 @@ let stage, controls, info, view, content;
 let shown = null;              // the screen on show and its profile
 try {
  const first = screenById(store.get('screen'));
- const [tiles, profile] = await Promise.all([loadTiles(), loadProfile(first)]);
+ // The counters are drawn on the panel with the bundled font: load it before the first frame.
+ const [tiles, profile] = await Promise.all([loadTiles(), loadProfile(first), document.fonts.load(COUNTER_FONT, '0123456789LINES')]);
  content = createTetrisContent(tiles);
  stage = createStage({stage: $('stage'), bezel: $('bezel'), canvas: $('panel')}, content, tiles);
  controls = createControls({

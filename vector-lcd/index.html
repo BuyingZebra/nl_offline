@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="vector-lcd-version" content="0.23.1">
+<meta name="vector-lcd-version" content="0.24.0">
 <meta name="theme-color" content="#e8e3da">
 <meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,12 +16,17 @@
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <title>Vector LCD</title>
 <style>
+/* Bundled fonts, so the page and the screens look the same on every device (fonts/, licences beside them). */
+@font-face{font-family:"Vector Mono";src:url(./fonts/DejaVuSansMono.woff) format("woff");font-weight:100 600;font-display:block}
+@font-face{font-family:"Vector Mono";src:url(./fonts/DejaVuSansMono-Bold.woff) format("woff");font-weight:700 900;font-display:block}
+@font-face{font-family:"Vector Sans";src:url(./fonts/Inter-Regular.woff) format("woff");font-display:block}
 :root{
  --bg:#e8e3da;--card:#efebe4;--card-edge:#d5cfc4;--well:#e2ddd3;
  --ink:#2a2927;--muted:#6f6b64;--line:#c9c2b6;
  --dark:#3a3936;--dark-ink:#f3efe8;
  --red:#cf4a2c;--orange:#e5892b;--stone:#b5aea2;
- --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,"Roboto Mono","Cascadia Mono",Consolas,"Liberation Mono",monospace;
+ --mono:"Vector Mono",monospace;
+ --sans:"Vector Sans",sans-serif;
  color-scheme:light
 }
 *{box-sizing:border-box}
@@ -102,13 +107,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
 input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#cfc8bc}
 input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--dark)}
 input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fbf9f5;border:1.5px solid #a9a296;box-shadow:0 1px 3px #0003}
-.note{color:var(--muted);line-height:1.5;margin:6px 0 0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:12.5px}
+.note{color:var(--muted);line-height:1.5;margin:6px 0 0;font-family:var(--sans);font-size:12.5px}
 
 /* ---------- Info ---------- */
 #infoView h2{margin:0 0 4px;font-size:15px;letter-spacing:.08em;text-transform:uppercase}
 dl{display:grid;grid-template-columns:1fr;gap:2px;margin:12px 0 0}
 dt{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:10px}
-dd{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13.5px;line-height:1.45}
+dd{margin:0;font-family:var(--sans);font-size:13.5px;line-height:1.45}
 #status{color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:12px;overflow-wrap:anywhere}
 
 /* ---------- Wide screens: screen and controls side by side ---------- */

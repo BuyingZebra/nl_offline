@@ -1,24 +1,34 @@
 /* DMG-01 STN renderer: runs the passes in shaders.js every frame.
  *
- * The reflector shadow uses Retro Display Lab's measured strength and offset.
- * A gridless panel has no gaps between dots, so the shadow darkens a point
- * wherever the shifted image is darker than the point itself; flat areas keep
- * the measured palette exactly. */
+ * The panel is finer than the screen showing it. Each screen pixel covers
+ * dotsPerPixel x dotsPerPixel panel dots (gpu/webgl.js createSurface), and
+ * every dot is driven at one of the DMG's four real levels. The crystal, the
+ * ions and both passes of the light run per dot; a screen pixel shows the
+ * average light of its dots, as the eye averages dots too small to resolve.
+ * So edges are as clean as the content, with no level the DMG cannot drive.
+ *
+ * The reflector shadow is the light's two passes through the crystal at two
+ * places (model.js reflectedColor), with the entry offset and its spread from
+ * refraction through the rear glass (optics/room.js shadowKernel): it moves
+ * with the light and the eye, as on the TN screens. */
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
-import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm} from '../../optics/room.js';
-import {checkProfile, contrastConditions, temperatureScale, stickingVolts, linearPalette, shadowOffsetMm} from './model.js';
-import {UPDATE_FS, DISPLAY_FS} from './shaders.js';
+import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm, shadowKernel, entryOffsetMm} from '../../optics/room.js';
+import {checkProfile, contrastConditions, temperatureScale, stickingVolts, linearPalette} from './model.js';
+import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
+/** Panel dots in all. The same as the most device pixels a screen draws, so the
+ * finer panel costs no more memory than a high-density display already does. */
+const DOT_BUDGET = 3e6;
 
 
 /** @returns {import('../contract.js').ScreenRenderer} */
-export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels, bezelLipMm = 1} = {}) {
+export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels, bezelLipMm = 1, dotBudget = DOT_BUDGET} = {}) {
  let profile = checkProfile(initialProfile);
- const surface = createSurface(canvas, {widthMm, heightMm, maxPixels});
+ const surface = createSurface(canvas, {widthMm, heightMm, maxPixels, dotBudget});
  const gpu = createGPU(canvas, 'LCD'), {gl} = gpu;
  const meter = createMeter();
 
@@ -54,12 +64,21 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   return gpu.firstRenderable(list, 'This screen model needs floating-point render targets, which this browser does not provide.');
  }
 
+ /** The entry light must filter (it is sampled between dots); half floats filter in WebGL2. */
+ function fieldFormat() {
+  const list = [];
+  if (gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float'))
+   list.push({internal: gl.RGBA16F, type: gl.HALF_FLOAT, name: '16-bit float'});
+  list.push({internal: gl.RGBA8, type: gl.UNSIGNED_BYTE, name: '8-bit'});
+  return gpu.firstRenderable(list, 'No field format available');
+ }
+
  function setup() {
   res = {
-   fmt: stateFormat(),
-   update: gpu.program(UPDATE_FS), display: gpu.program(DISPLAY_FS),
+   fmt: stateFormat(), fieldFmt: fieldFormat(),
+   update: gpu.program(UPDATE_FS), entry: gpu.program(ENTRY_FS), blur: gpu.program(BLUR_FS), display: gpu.program(DISPLAY_FS),
    content: gpu.texture(), drift: gpu.texture(), optical: gpu.texture(),
-   states: [], size: null
+   states: [], fields: [], size: null
   };
   uploadTables();
   if (surface.W && surface.H) allocate();
@@ -73,17 +92,24 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, S.optical_bins, 1, 0, gl.RED, gl.FLOAT, new Float32Array(S.optical));
  }
 
- /** Size-dependent targets. The panel's state carries over from the old size
-  * when there is one; a new panel settles straight to the current image. */
+ /** Size-dependent targets, all at the dot size. The panel's state carries over
+  * from the old size when there is one; a new panel settles straight to the image. */
  function allocate() {
-  const {W, H} = surface, old = res.states, oldSize = res.size;
-  res.states = [gpu.target(W, H, res.fmt), gpu.target(W, H, res.fmt)];
+  const [DW, DH] = surface.dotSize, old = res.states, oldSize = res.size;
+  res.states = [gpu.target(DW, DH, res.fmt), gpu.target(DW, DH, res.fmt)];
+  gpu.release(...res.fields);
+  res.fields = [gpu.target(DW, DH, res.fieldFmt), gpu.target(DW, DH, res.fieldFmt)];
+  for (const f of res.fields) {
+   gl.bindTexture(gl.TEXTURE_2D, f.tex);
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  }
   gl.bindTexture(gl.TEXTURE_2D, res.content);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  if (old.length && oldSize) gpu.copy(old[current].tex, oldSize, res.states[current].tex, [W, H]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, DW, DH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  if (old.length && oldSize) gpu.copy(old[current].tex, oldSize, res.states[current].tex, [DW, DH]);
   else { last = null; init = 1; }
   gpu.release(...old);
-  res.size = [W, H];
+  res.size = [DW, DH];
  }
 
  /** Blank panel. */
@@ -112,7 +138,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
 
  function frame(now = performance.now()) {
   if (gpu.lost || !res || !surface.W) return;
-  const {W, H, pxPerMm} = surface, size = [W, H];
+  const {W, H, pxPerMm} = surface, size = [W, H], dotSize = surface.dotSize;
+  const dots = surface.dotsPerPixel, dotsPerMm = pxPerMm * dots;
   const dt = last === null ? 0 : clamp(now - last, 0, 100);
   last = now;
   meter.tick(dt);
@@ -124,10 +151,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   phase = Math.min(phase - steps, 1);
   gpu.upload(res.content, surface.content);
 
-  // ---- 1. Director and ions, in whole DMG frames
+  // ---- 1. Director and ions, in whole DMG frames, at every dot
   if (steps > 0 || init) {
    const from = res.states[current], to = res.states[1 - current], R = profile.retention;
-   gpu.draw(res.update, to.fb, size, p => {
+   gpu.draw(res.update, to.fb, dotSize, p => {
     gpu.bind(p, 0, 'uContent', res.content);
     gpu.bind(p, 1, 'uState', from.tex);
     bindTables(p);
@@ -141,21 +168,45 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    current = 1 - current;
    init = 0;
   }
+  const state = res.states[current], palette = linearPalette(profile).flat();
 
-  // ---- 2. Palette, reflector shadow, bezel and glare
-  const palette = linearPalette(profile).flat();
-  const off = shadowOffsetMm(profile);
-  gpu.draw(res.display, null, size, p => {
-   gpu.bind(p, 0, 'uState', res.states[current].tex);
+  // ---- 2. First pass: light entering the crystal, shaded by the bezel
+  gpu.draw(res.entry, res.fields[0].fb, dotSize, p => {
+   gpu.bind(p, 0, 'uState', state.tex);
    gl.uniform3fv(p.u('uPalette'), palette);
-   gl.uniform2f(p.u('uSize'), W, H);
-   // Screen y runs down; texture rows run up.
-   gl.uniform2f(p.u('uShadowPx'), off.x * pxPerMm, -off.y * pxPerMm);
-   gl.uniform1f(p.u('uStrength'), profile.shadow.strength);
    const shift = bezelShiftMm(profile, lighting, bezelLipMm);
    gl.uniform2f(p.u('uPanelMm'), W / pxPerMm, H / pxPerMm);
    gl.uniform2f(p.u('uBezelShift'), shift.x, shift.y);
    gl.uniform1f(p.u('uBezelSigma'), Math.max(1e-3, bezelPenumbraMm(profile, lighting, bezelLipMm)));
+   gl.uniform1f(p.u('uDotsPerMm'), dotsPerMm);
+   gl.uniform1f(p.u('uHeightDots'), dotSize[1]);
+  });
+
+  // ---- 3. Spread of entry points: along, then across the light (screen y runs down, rows up)
+  const k = shadowKernel(profile, lighting);
+  const radial = [k.radial.x, -k.radial.y], across = [-radial[1], radial[0]];
+  const blur = (src, dst, dir, sigmaMm) => gpu.draw(res.blur, dst.fb, dotSize, p => {
+   gpu.bind(p, 0, 'uSrc', src.tex);
+   gl.uniform2f(p.u('uDir'), dir[0], dir[1]);
+   gl.uniform2f(p.u('uSize'), dotSize[0], dotSize[1]);
+   gl.uniform1f(p.u('uSigma'), sigmaMm * dotsPerMm);
+  });
+  blur(res.fields[0], res.fields[1], radial, k.sigmaRadialMm);
+  blur(res.fields[1], res.fields[0], across, k.sigmaTangentialMm);
+
+  // ---- 4. Second pass at each dot, averaged per screen pixel, plus glare.
+  // Light enters where it meets the crystal on the way in and leaves where the
+  // eye's ray meets it: the shadow offset is the difference of the two.
+  const toView = entryOffsetMm(profile, viewing.polarDeg, viewing.azimuthDeg);
+  const mean = {x: k.mean.x - toView.x, y: k.mean.y - toView.y};
+  gpu.draw(res.display, null, size, p => {
+   gpu.bind(p, 0, 'uState', state.tex);
+   gpu.bind(p, 1, 'uField', res.fields[0].tex);
+   gl.uniform3fv(p.u('uPalette'), palette);
+   gl.uniform1i(p.u('uDots'), dots);
+   gl.uniform2f(p.u('uSize'), W, H);
+   gl.uniform2f(p.u('uDotSize'), dotSize[0], dotSize[1]);
+   gl.uniform2f(p.u('uMean'), mean.x * dotsPerMm, -mean.y * dotsPerMm);
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
    gl.uniform1f(p.u('uExposure'), lighting.exposure);
    const e = directionVector(viewing.polarDeg, viewing.azimuthDeg), D = viewing.distanceMm;
@@ -179,10 +230,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   return {width: fit.width, height: fit.height, pxPerMm: fit.pxPerMm};
  }
 
- /** State at a point (panel mm): {q, ionic, shade, shown}. */
+ /** State of the panel dot at a point (panel mm): {q, ionic, shade, shown}. */
  function sample(xMm, yMm) {
   if (!res || gpu.lost) return null;
-  const [x, y] = surface.texelAt(xMm, yMm);
+  const [x, y] = surface.dotAt(xMm, yMm);
   const t = gpu.readTexel(res.states[current].fb, x, y);
   return {q: t[0], ionic: t[1], shade: Math.round(t[2]), shown: t[3]};
  }
@@ -217,8 +268,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setContrast(c) { contrast = clamp(Number(c), profile.contrast.min, profile.contrast.max); },
 
   info() {
-   return {version: VERSION, stateFormat: res?.fmt.name ?? 'none', retention: Boolean(res?.fmt.retention),
-    width: surface.W, height: surface.H, pxPerMm: surface.pxPerMm, fps: meter.fps};
+   const dots = surface.dotsPerPixel;
+   return {version: VERSION, stateFormat: res?.fmt.name ?? 'none', fieldFormat: res?.fieldFmt.name ?? 'none',
+    retention: Boolean(res?.fmt.retention), width: surface.W, height: surface.H, pxPerMm: surface.pxPerMm,
+    dotsPerPixel: dots, dotPitchUm: 1000 / (surface.pxPerMm * dots), fps: meter.fps};
   },
   dispose: gpu.dispose
  });

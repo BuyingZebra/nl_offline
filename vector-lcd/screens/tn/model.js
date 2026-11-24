@@ -11,8 +11,11 @@
  * Jones matrices), so contrast fades and inverts off-axis as on a real panel.
  * Temperature scales the crystal's speed and threshold from measured data. */
 
-import {clamp, rad, fwhmToSigmaRad, refractionOffsetMm} from '../../optics/room.js';
+import {clamp, entryOffsetMm, shadowKernel} from '../../optics/room.js';
 import {requireFields, ROOM_FIELDS} from '../contract.js';
+
+// The reflector-shadow geometry is shared with the DMG-01; it lives in optics/room.js.
+export {entryOffsetMm, shadowKernel};
 
 
 // ===========================================================================
@@ -83,40 +86,6 @@ export function stepState(profile, a, volts, dtMs, celsius = 25) {
  const target = equilibriumState(profile, volts, f.voltageScale);
  const tau = timeConstantMs(profile, volts, target, a, f);
  return target + (a - target) * Math.exp(-dtMs / tau);
-}
-
-
-// ===========================================================================
-// Reflector shadow: where light enters the crystal
-// ===========================================================================
-
-/** Entry-point offset (mm) for light arriving at lightAngleDeg from the normal.
- * Light from the top enters further up than where it exits. */
-export function entryOffsetMm(profile, lightAngleDeg, azimuthDeg) {
- const d = refractionOffsetMm(profile.sources.geometry, lightAngleDeg);
- const az = rad(azimuthDeg);
- return {x: Math.sin(az) * d, y: -Math.cos(az) * d};
-}
-
-/** Where the light entering the glass comes from, for a room light of full
- * width sourceDeg: the mean entry offset and the spread along (radial) and
- * across (tangential) the light's direction, in millimetres. */
-export function shadowKernel(profile, {angleDeg, azimuthDeg, sourceDeg}) {
- const g = profile.sources.geometry;
- const mean = entryOffsetMm(profile, angleDeg, azimuthDeg);
- const sigma = fwhmToSigmaRad(sourceDeg);
- const h = .01, theta = rad(angleDeg);
- // mm per radian, along the light's direction and across it
- const slope = (refractionOffsetMm(g, angleDeg + h) - refractionOffsetMm(g, Math.max(0, angleDeg - h)))
-  / rad(angleDeg + h - Math.max(0, angleDeg - h));
- const across = theta > 1e-3 ? refractionOffsetMm(g, angleDeg) / Math.sin(theta) : slope;
- const az = rad(azimuthDeg);
- return {
-  mean,
-  radial: {x: Math.sin(az), y: -Math.cos(az)},
-  sigmaRadialMm: slope * sigma,
-  sigmaTangentialMm: across * sigma
- };
 }
 
 

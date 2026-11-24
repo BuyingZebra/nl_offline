@@ -13,7 +13,7 @@ export const CELL = 4;                                               // mm per b
 export const BOARD = Object.freeze({x: 4, y: 6, cols: Core.COLS, rows: Core.ROWS});
 export const PANEL = Object.freeze({w: BOARD.x * 2 + BOARD.cols * CELL, h: BOARD.y + BOARD.rows * CELL + 6});
 
-const COUNTER_FONT = '700 3.2px ui-monospace,Menlo,Consolas,monospace';
+export const COUNTER_FONT = '700 3.2px "Vector Mono",monospace';   // bundled: fonts/
 const COUNTER_BASELINE = PANEL.h - 2.2;
 const AUTOPLAY_STEP_MS = 70;
 const SEED = 20261118;

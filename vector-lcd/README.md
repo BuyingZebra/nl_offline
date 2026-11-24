@@ -4,7 +4,7 @@ Physically computed LCD screens for digital content. The content is free: any ar
 
 Open it at **https://buyingzebra.github.io/nl_offline/vector-lcd/** and use **Add to Home Screen** to install it. After the first visit it works offline.
 
-The screen types are a **reflective twisted-nematic (TN) LCD**, the calculator and watch kind, the **Nintendo DMG-01's reflective STN** with its four shades, built from Retro Display Lab's measurements but without the dot grid, and an **IBM 5151 green phosphor CRT** (P39) with a real raster. The test content is the real NOMAD Tetris game (`tetris/game.js`) with its actual tile SVGs (`tetris/assets/tiles/vector/`, and I-piece fragments from the game's own `smooth-geometry.mjs`).
+The screen types are a **reflective twisted-nematic (TN) LCD**, the calculator and watch kind, the **Nintendo DMG-01's reflective STN** with its four shades, built from Retro Display Lab's measurements on a panel finer than the DMG's own dot grid, and an **IBM 5151 green phosphor CRT** (P39) with a real raster. The test content is the real NOMAD Tetris game (`tetris/game.js`) with its actual tile SVGs (`tetris/assets/tiles/vector/`, and I-piece fragments from the game's own `smooth-geometry.mjs`).
 
 ## How an image forms
 
@@ -88,9 +88,9 @@ The app's **Screen** menu switches between computed profiles:
 
 Ghost segments need electrodes, so the app gives the renderer an **electrode map** (`setElectrodes`). For the Tetris test, the map is the union of every tile design's switchable area in every cell, plus the frame and every digit the counters can show. Points outside the map get no voltage.
 
-## Nintendo DMG-01 STN without the dot grid
+## Nintendo DMG-01 STN on a fine panel
 
-`dmg-stn.js` with `profiles/dmg-01-stn.json`. Every number comes from [Retro Display Lab](https://github.com/JohnnySun/retro-display-lab) (Apache-2.0, copyright 2026 JohnnySun; see `third_party/retro-display-lab/NOTICE`). `tools/dmg01_profile.mjs` copies the values from a checkout without changing them and records each source file's SHA-256.
+`screens/dmg/` with `profiles/dmg-01-stn.json`. Every number comes from [Retro Display Lab](https://github.com/JohnnySun/retro-display-lab) (Apache-2.0, copyright 2026 JohnnySun; see `third_party/retro-display-lab/NOTICE`). `tools/dmg01_profile.mjs` copies the values from a checkout without changing them and records each source file's SHA-256.
 
 What carries over:
 - **Four shades.** Art is quantized to the DMG's four drive levels by brightness, using Retro Display Lab's rule: white, light, dark, black.
@@ -100,14 +100,15 @@ What carries over:
 - **Contrast wheel** (×0.88 to ×1.08 drive), interpolated between the source's three tabulated conditions. At the extremes the panel washes out or blacks out, like turning the real wheel.
 - **Temperature.** 10–30 °C (the source's range), with an Arrhenius viscosity factor (3800 K).
 - **Sticking.** Under a dark drive, ions charge (time constant about 2 minutes) and release slowly (about 40 minutes), leaving a faint image after the stack clears: about 4% of one shade after 3 minutes. It needs 32-bit float render targets and is switched off without them.
-- **Reflector shadow (measured).** 18% strength, offset 0.11 × 0.13 dot: 32 × 39 µm on the DMG's 47 × 43 mm, 160 × 144 panel. This is small, as on the real screen.
-  - Retro Display Lab draws the shadow only in the gaps between pixels. A gridless panel has no gaps, so here it darkens a point wherever the shifted image is darker than the point itself. Flat areas keep the measured palette exactly.
-  - The offset stays as measured (light from the upper left); the light controls move only the bezel shadow and the glare.
+- **Fine panel (adapted).** The DMG's 160 × 144 grid is too coarse for modern vector art, so the panel is finer: each screen pixel covers up to 4 × 4 panel dots (about 40 µm apart on a desktop screen), within a budget of 3 million dots, the most screen pixels any screen here already draws. Every dot is driven at one of the four real levels, and a screen pixel shows the average light of its dots, as the eye averages dots too small to see. Edges come out as clean as the art, and the result no longer depends on the viewer's pixel density. On a high-density phone each screen pixel is already about 40 µm, so it gets one dot.
+- **Reflector shadow (physical).** Room light crosses the crystal twice: in at one point, off the reflector behind the rear glass, and out at another. Under angled light the two points differ, so a shape shades the area beside it, away from the light. The offset comes from refraction through the rear glass and polarizer (the same geometry as the TN screens, `optics/room.js shadowKernel`), and it moves with the light and the eye. A light of finite size softens it. The measured palette is the colour of a flat area, where both passes cross the same state, so each pass carries the square root of that colour; flat areas keep the measured palette exactly.
+  - Retro Display Lab's shadow strength (18%) and offset (0.11 × 0.13 dot) are not used. Its own notes classify them as matched to BGB's idealized close-up drawing, not measured.
+  - The shadow's size rests on the rear glass thickness, which is not published for the DMG: 1.1 mm is assumed, as on the TN panels. At the default 45° light that puts the shadow about 0.7 mm from its shape.
 
 What does not carry over, because it needs the 160 × 144 grid: the pixel aperture, row and column crosstalk, and the row-latch scan-out timing.
 
 Assumed and labelled:
-- **Bezel front stack.** 1.1 mm glass, as on the TN panels; the DMG's glass thickness is not published.
+- **Glass.** 1.1 mm, with a 0.18 mm polarizer, as on the TN panels; the DMG's glass thickness is not published. It sets the size of the reflector shadow and the bezel shadow.
 - **Glare.** Fresnel reflection with n = 1.5.
 
 Retro Display Lab's own limits apply too. It reconstructs a healthy period DMG, not a measured specimen, and its analogue drive levels and fill material are bounded reconstructions.
@@ -336,6 +337,7 @@ Every screen kind has the same five files:
 | `screens/crt/` | the IBM 5151; `profiles/crt-5151-p39.json` (`tools/crt_p39.py`),, `profiles/crt-5151-p3.json` (`tools/crt_p3.py`) and the Commodore 1084S `profiles/crt-1084s-p22.json` (`tools/crt_1084s.py`) |
 | `screens/vector/` | the Vectrex; `profiles/vectrex.json` (`tools/vectrex.py`); the game as lines in `content/vectors.js` |
 | `content/` | `tetris.js` (game, autoplay, electrode map), `tiles.js`, `four-tone.js` |
+| `fonts/` | the bundled fonts, so text looks the same on every device: DejaVu Sans Mono (Regular, Bold) for the page and the counters drawn on the screens, Inter (Regular) for notes; Latin subsets, licences beside them |
 | `concept/` | the earlier hand-tuned concept model; its values were chosen by hand rather than measured |
 
 Profiles are checked when they load: each kind lists the fields it reads (`PROFILE_FIELDS`) and refuses a profile that lacks one, naming it.

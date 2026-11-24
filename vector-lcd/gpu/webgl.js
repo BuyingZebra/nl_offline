@@ -197,13 +197,20 @@ export function createGPU(canvas, name) {
 // ===========================================================================
 
 /** The panel is widthMm x heightMm; content is drawn in millimetres onto a 2D
- * canvas of the panel's device-pixel size, then uploaded each frame. */
-export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6}) {
+ * canvas, then uploaded each frame.
+ *
+ * By default the content has one point per device pixel. A screen can ask for
+ * a finer panel (dotBudget): each device pixel then covers dotsPerPixel ×
+ * dotsPerPixel panel dots, the most that fit within dotBudget dots in all
+ * (at most MAX_DOTS_PER_PIXEL), and the content is drawn at the dot size. */
+export const MAX_DOTS_PER_PIXEL = 4;
+
+export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6, dotBudget = 0}) {
  if (!(widthMm > 0) || !(heightMm > 0)) throw new TypeError('Panel size must be positive millimetres');
 
  const content = document.createElement('canvas');
  const ctx = content.getContext('2d');
- const size = {W: 0, H: 0, pxPerMm: 1};
+ const size = {W: 0, H: 0, pxPerMm: 1, dots: 1};
 
  /** Clears the content to unlit (white) and returns it, scaled to millimetres. */
  function beginContent() {
@@ -211,28 +218,39 @@ export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6}) {
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, size.W, size.H);
-  ctx.setTransform(size.pxPerMm, 0, 0, size.pxPerMm, 0, 0);
+  ctx.fillRect(0, 0, content.width, content.height);
+  const k = size.pxPerMm * size.dots;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
   return ctx;
  }
 
+ /** Dots per device pixel (each way) for a pw x ph panel. */
+ function dotsFor(pw, ph, maxTextureSize) {
+  if (!(dotBudget > 0)) return 1;
+  const fit = Math.floor(Math.sqrt(dotBudget / (pw * ph)));
+  return clamp(Math.min(fit, Math.floor(maxTextureSize / pw), Math.floor(maxTextureSize / ph)), 1, MAX_DOTS_PER_PIXEL);
+ }
+
  /** Fit the panel inside cssWidth x cssHeight. Returns the CSS size and
-  * whether the device-pixel size changed (the renderer then reallocates). */
+  * whether the device-pixel or dot size changed (the renderer then reallocates). */
  function fit(cssWidth, cssHeight, dpr, maxTextureSize) {
   const scale = Math.max(1e-6, Math.min(cssWidth / widthMm, cssHeight / heightMm));
   const outW = Math.max(1, Math.floor(widthMm * scale)), outH = Math.max(1, Math.floor(heightMm * scale));
   // The display's full pixel density (zooming in spends the same screen area on
   // fewer page pixels), within a pixel budget and the texture limit.
   const ratio = Math.max(1, Math.min(dpr || 1, Math.sqrt(maxPixels / (outW * outH)), maxTextureSize / outW, maxTextureSize / outH));
-  const pw = Math.round(outW * ratio), ph = Math.round(outH * ratio);
+  const pw = Math.round(outW * ratio), ph = Math.round(outH * ratio), dots = dotsFor(pw, ph, maxTextureSize);
   canvas.style.width = outW + 'px';
   canvas.style.height = outH + 'px';
-  const changed = pw !== size.W || ph !== size.H;
+  const changed = pw !== size.W || ph !== size.H || dots !== size.dots;
   if (changed) {
    size.W = pw;
    size.H = ph;
-   canvas.width = content.width = pw;
-   canvas.height = content.height = ph;
+   size.dots = dots;
+   canvas.width = pw;
+   canvas.height = ph;
+   content.width = pw * dots;
+   content.height = ph * dots;
    size.pxPerMm = pw / widthMm;
   }
   return {width: outW, height: outH, pxPerMm: size.pxPerMm, changed};
@@ -246,11 +264,21 @@ export function createSurface(canvas, {widthMm, heightMm, maxPixels = 3e6}) {
   ];
  }
 
+ /** Panel dot (GL rows, bottom up) for a point in panel millimetres. */
+ function dotAt(xMm, yMm) {
+  const k = size.pxPerMm * size.dots, w = size.W * size.dots, h = size.H * size.dots;
+  return [clamp(Math.floor(xMm * k), 0, w - 1), clamp(h - 1 - Math.floor(yMm * k), 0, h - 1)];
+ }
+
  return Object.freeze({
-  content, beginContent, fit, texelAt, widthMm, heightMm,
+  content, beginContent, fit, texelAt, dotAt, widthMm, heightMm,
   get W() { return size.W; },
   get H() { return size.H; },
   get pxPerMm() { return size.pxPerMm; },
+  /** Panel dots per device pixel, each way (1 unless the screen asked for a finer panel). */
+  get dotsPerPixel() { return size.dots; },
+  /** The content and panel-state size in dots. */
+  get dotSize() { return [size.W * size.dots, size.H * size.dots]; },
   /** Panel size in millimetres at the current pixel scale. */
   get panelMm() { return [size.W / size.pxPerMm, size.H / size.pxPerMm]; }
  });

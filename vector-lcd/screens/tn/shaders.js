@@ -5,7 +5,7 @@
  *   BLUR     spread of entry points from a light of finite size (shadowKernel)
  *   DISPLAY  exit state + blurred entry light -> colour, + glare (reflectanceFromEntry, glare) */
 
-import {BEZEL_STEP, FRESNEL, TO_SRGB} from '../../gpu/glsl.js';
+import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
 
 
 // ---------------------------------------------------------------------------
@@ -60,25 +60,11 @@ void main(){
 
 
 // ---------------------------------------------------------------------------
-// BLUR: one-dimensional Gaussian along any direction (two passes = elliptical)
+// BLUR: one-dimensional Gaussian along any direction (two passes = elliptical),
+// shared with the DMG-01 in gpu/glsl.js
 // ---------------------------------------------------------------------------
 
-export const BLUR_FS = `#version 300 es
-precision highp float;
-uniform sampler2D uSrc;uniform vec2 uDir,uSize;uniform float uSigma;
-out vec4 o;
-void main(){
- vec2 p=gl_FragCoord.xy;
- if(uSigma<0.3){o=texture(uSrc,p/uSize);return;}
- int r=min(48,int(ceil(uSigma*3.0)));
- vec4 sum=vec4(0.0);float w=0.0;
- for(int i=-48;i<=48;i++){
-  if(i<-r||i>r)continue;
-  float k=exp(-0.5*float(i*i)/(uSigma*uSigma));
-  sum+=k*texture(uSrc,(p+uDir*float(i))/uSize);w+=k;
- }
- o=sum/w;
-}`;
+export {BLUR_FS};
 
 
 // ---------------------------------------------------------------------------

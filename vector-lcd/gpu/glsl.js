@@ -42,3 +42,26 @@ float fresnel(float ci){
 
 export const TO_SRGB = `
 vec3 toSRGB(vec3 c){c=clamp(c,0.0,1.0);return mix(c*12.92,1.055*pow(c,vec3(1.0/2.4))-0.055,step(vec3(0.0031308),c));}`;
+
+
+// ---------------------------------------------------------------------------
+// One-dimensional Gaussian blur along any direction (two passes = elliptical).
+// A whole fragment shader: uSrc, uDir (unit, in texels), uSize, uSigma (texels).
+// ---------------------------------------------------------------------------
+
+export const BLUR_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uSrc;uniform vec2 uDir,uSize;uniform float uSigma;
+out vec4 o;
+void main(){
+ vec2 p=gl_FragCoord.xy;
+ if(uSigma<0.3){o=texture(uSrc,p/uSize);return;}
+ int r=min(48,int(ceil(uSigma*3.0)));
+ vec4 sum=vec4(0.0);float w=0.0;
+ for(int i=-48;i<=48;i++){
+  if(i<-r||i>r)continue;
+  float k=exp(-0.5*float(i*i)/(uSigma*uSigma));
+  sum+=k*texture(uSrc,(p+uDir*float(i))/uSize);w+=k;
+ }
+ o=sum/w;
+}`;

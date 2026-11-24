@@ -11,7 +11,14 @@
  *  - on a drive change q is projected onto the nominal optical branch;
  *  - ions slowly charge under a dark drive and release afterwards (sticking);
  *  - what the eye sees over a frame is the Simpson average of the optical
- *    state across it, mapped to the measured palette in linear light. */
+ *    state across it, mapped to the measured palette in linear light.
+ *
+ * The reflector shadow is not Retro Display Lab's: it follows from the light
+ * crossing the crystal twice, as on the TN screens. Room light enters the
+ * crystal at one point, reaches the reflector behind the rear glass, and
+ * leaves at another; under angled light the two points differ. The measured
+ * palette is the colour of a flat area, where both passes cross the same
+ * state, so each pass is taken to carry the square root of that colour. */
 
 import {requireFields, ROOM_FIELDS} from '../contract.js';
 
@@ -32,7 +39,7 @@ export const PROFILE_FIELDS = Object.freeze([
  'retention.charge_per_frame', 'retention.release_per_frame', 'retention.sticking_volts_fit',
  'retention.ionic_mobility', 'retention.sticking_optical_gain',
  'temperature.activation_K', 'temperature.reference_C',
- 'palette.srgb8.disabled', 'palette.srgb8.shades', 'shadow.offset_dots', 'shadow.strength', 'oblique.front_index'
+ 'palette.srgb8.disabled', 'palette.srgb8.shades', 'oblique.front_index'
 ]);
 
 export function checkProfile(profile) {
@@ -168,8 +175,21 @@ export function opticalColor(profile, state) {
  return [0, 1, 2].map(i => mix(c[k][i], c[k + 1][i], x - k));
 }
 
-/** Reflector-shadow offset in panel millimetres (x right, y down). */
-export function shadowOffsetMm(profile) {
- const [w, h] = profile.panel.active_mm, [cols, rows] = profile.panel.dots, [ox, oy] = profile.shadow.offset_dots;
- return {x: ox * w / cols, y: oy * h / rows};
+
+// ===========================================================================
+// Two passes through the crystal: the reflector shadow
+// ===========================================================================
+
+/** Linear-light transmission of one pass through a point in an optical state:
+ * the square root of its measured colour, so two passes through the same
+ * state give the palette exactly. */
+export function passTransmission(profile, state) {
+ return opticalColor(profile, state).map(Math.sqrt);
+}
+
+/** Colour leaving a point in exitState, for the light that entered the
+ * crystal elsewhere and arrived with entryLight (linear RGB: the room light
+ * reaching the crystal, times its first pass; blurred over the light's size). */
+export function reflectedColor(profile, exitState, entryLight) {
+ return passTransmission(profile, exitState).map((t, i) => t * entryLight[i]);
 }

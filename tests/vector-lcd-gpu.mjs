@@ -131,6 +131,77 @@ export async function dmgParity() {
 
 
 // ===========================================================================
+// DMG-01 optics: flat areas keep the measured palette, edges average the
+// panel's dots, and the reflector shadow falls away from the light
+// ===========================================================================
+
+/** Displayed sRGB (0..1) at a point (mm), read straight after a frame. */
+function shownColour(renderer, canvas, xMm, yMm) {
+ const gl = canvas.getContext('webgl2'), i = renderer.info(), px = new Uint8Array(4);
+ gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+ gl.readPixels(Math.floor(xMm * i.pxPerMm), i.height - 1 - Math.floor(yMm * i.pxPerMm), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+ return [px[0] / 255, px[1] / 255, px[2] / 255];
+}
+const luma = c => .2126 * c[0] + .7152 * c[1] + .0722 * c[2];
+
+/** Hold one picture until the crystal has settled (a second of DMG frames). */
+function settle(renderer, t, rect) {
+ for (let k = 0; k < 20; k++) { paint(renderer, rect); renderer.frame(t += 50); }
+ return t;
+}
+
+export async function dmgOptics() {
+ const out = [];
+ const P = await profileOf('dmg-01-stn');
+ const canvas = document.createElement('canvas');
+ document.body.append(canvas);
+ const r = dmg.createRenderer(canvas, {profile: P, widthMm: PANEL.w, heightMm: PANEL.h});
+ r.resize(...CSS, 1);
+ const dots = r.info().dotsPerPixel, pxPerMm = r.info().pxPerMm;
+ const palette = P.palette.srgb8.shades.map(c => c.map(v => v / 255));
+
+ // A flat white area shows the measured lightest shade (both passes through the same state).
+ paint(r);
+ r.frame(T0);
+ const flat = shownColour(r, canvas, ...CENTER);
+ const worstFlat = Math.max(...flat.map((v, k) => Math.abs(v - palette[0][k])));
+ out.push(result('DMG-01 flat area = measured palette', worstFlat, 1.5 / 255, ' (' + dots + ' × ' + dots + ' dots per pixel)'));
+
+ // An edge half-way across a screen pixel shows the average of its dots: a
+ // colour between the shades, not a step to one of them. A small light from the
+ // top shifts the entry point along the edge only, so both passes stay on the
+ // same side of it (angled light across an edge lights it too: the shadow's twin).
+ r.setLighting({angleDeg: 40, azimuthDeg: 0, sourceDeg: .5});
+ const edgeMm = (Math.floor(CENTER[0] * pxPerMm) + .5) / pxPerMm;
+ let t = settle(r, T0, [edgeMm, 20, 10, 50]);
+ const edge = shownColour(r, canvas, edgeMm, CENTER[1]);
+ // Half the dots white, half black: the linear-light mean of the two palette colours.
+ const lin = v => v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+ const enc = v => v <= .0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - .055;
+ const mix = palette[0].map((v, k) => enc((lin(v) + lin(palette[3][k])) / 2));
+ const worstEdge = Math.max(...edge.map((v, k) => Math.abs(v - mix[k])));
+ out.push({name: 'DMG-01 edge pixel averages its dots', ok: dots > 1 && worstEdge <= 2.5 / 255,
+  detail: 'worst ' + (worstEdge * 255).toFixed(1) + '/255 from the half-white, half-black mix, ' + dots + ' × ' + dots + ' dots'});
+
+ // The shadow falls away from the light, and follows it round.
+ const [x, y, w, h] = PATCH, gap = .3;
+ const sides = azimuthDeg => {
+  r.setLighting({angleDeg: 45, azimuthDeg, sourceDeg: 15});
+  t = settle(r, t, PATCH);
+  return [luma(shownColour(r, canvas, x - gap, y + h / 2)), luma(shownColour(r, canvas, x + w + gap, y + h / 2))];
+ };
+ const [leftUL, rightUL] = sides(315), [leftLR, rightLR] = sides(135);
+ out.push({name: 'DMG-01 reflector shadow falls away from the light', ok: rightUL < leftUL - 2 / 255 && leftLR < rightLR - 2 / 255,
+  detail: 'light upper left: left ' + leftUL.toFixed(3) + ', right ' + rightUL.toFixed(3)
+   + '; lower right: left ' + leftLR.toFixed(3) + ', right ' + rightLR.toFixed(3)});
+
+ r.dispose();
+ canvas.remove();
+ return out;
+}
+
+
+// ===========================================================================
 // Game Boy Color: channel states and frame-average colour on the GPU = stepFrame
 // ===========================================================================
 
@@ -336,5 +407,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

@@ -1,11 +1,18 @@
 /* DMG-01 STN on the GPU. Each pass mirrors model.js:
  *
  *   UPDATE   content -> drive level -> whole DMG frames of drift and sticking (stepFrame)
- *   DISPLAY  shown state -> measured palette, reflector shadow, bezel, glare (opticalColor)
+ *   ENTRY    first pass: room light through each dot, shaded by the bezel (passTransmission)
+ *   BLUR     spread of entry points from a light of finite size (shadowKernel)
+ *   DISPLAY  second pass at each dot, averaged over the dots under a screen pixel,
+ *            plus glare (reflectedColor)
  *
+ * UPDATE, ENTRY and BLUR run per panel dot; DISPLAY runs per screen pixel.
  * State texel: r = director q, g = ionic charge, b = drive level, a = light shown. */
 
-import {BEZEL_STEP, FRESNEL, TO_SRGB} from '../../gpu/glsl.js';
+import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
+import {MAX_DOTS_PER_PIXEL} from '../../gpu/webgl.js';
+
+export {BLUR_FS};
 
 
 // ---------------------------------------------------------------------------
@@ -77,42 +84,67 @@ void main(){
 
 
 // ---------------------------------------------------------------------------
-// DISPLAY: palette colour, reflector shadow where the shifted image is darker,
-// bezel shadow and front-surface glare
+// The measured palette in linear light: LCD disabled, then shades 0..3
+// (opticalColor). Needs: uniform vec3 uPalette[5].
 // ---------------------------------------------------------------------------
 
-export const DISPLAY_FS = `#version 300 es
-precision highp float;
-uniform sampler2D uState;
-uniform vec3 uPalette[5];uniform vec2 uSize,uShadowPx,uPanelMm,uBezelShift;
-uniform float uStrength,uPxPerMm,uBezelSigma,uExposure,uGlareSigma,uGlareNorm,uFront;uniform vec3 uEye,uLight;
-out vec4 o;
+const PALETTE = `
 vec3 color(float s){
  float x=clamp(s,0.0,1.0)*4.0;int k=min(3,int(floor(x)));
  return mix(uPalette[k],uPalette[k+1],x-float(k));
 }
-// State textures are 32-bit float, which WebGL2 does not filter: bilinear by hand.
-float shownAt(vec2 p){
- vec2 q=clamp(p-0.5,vec2(0.0),uSize-1.0);ivec2 i=ivec2(floor(q));vec2 f=q-vec2(i);ivec2 m=ivec2(uSize)-1;
- float a=texelFetch(uState,i,0).a,b=texelFetch(uState,min(i+ivec2(1,0),m),0).a;
- float c=texelFetch(uState,min(i+ivec2(0,1),m),0).a,d=texelFetch(uState,min(i+1,m),0).a;
- return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
-}
+vec3 pass1(float s){return sqrt(color(clamp(s,0.25,1.0)));}`;
+
+
+// ---------------------------------------------------------------------------
+// ENTRY: the first pass. Room light reaching the crystal at each dot (the
+// bezel frame shades the edges facing the light), through that dot's state
+// ---------------------------------------------------------------------------
+
+export const ENTRY_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uState;uniform vec3 uPalette[5];
+uniform vec2 uPanelMm,uBezelShift;uniform float uBezelSigma,uDotsPerMm,uHeightDots;
+out vec4 o;
+${PALETTE}
 ${BEZEL_STEP}
+void main(){
+ float s=texelFetch(uState,ivec2(gl_FragCoord.xy),0).a;
+ // Light reaching the crystal here crossed the bezel plane at q; the frame blocks it outside the window.
+ vec2 q=vec2(gl_FragCoord.x,uHeightDots-gl_FragCoord.y)/uDotsPerMm+uBezelShift;
+ float lit=step1(q.x)*step1(uPanelMm.x-q.x)*step1(q.y)*step1(uPanelMm.y-q.y);
+ o=vec4(pass1(s)*lit,1.0);
+}`;
+
+
+// ---------------------------------------------------------------------------
+// DISPLAY: the second pass. Light leaving a dot entered around the dot plus
+// the mean entry offset; each screen pixel shows the average of its dots.
+// ---------------------------------------------------------------------------
+
+export const DISPLAY_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uState,uField;uniform vec3 uPalette[5];
+uniform int uDots;uniform vec2 uSize,uDotSize,uMean;
+uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront;uniform vec3 uEye,uLight;
+out vec4 o;
+${PALETTE}
 ${FRESNEL}
 ${TO_SRGB}
 void main(){
- vec2 p=gl_FragCoord.xy;
- float s=clamp(texelFetch(uState,ivec2(p),0).a,0.25,1.0);
- float sh=clamp(shownAt(p-uShadowPx),0.25,1.0);
- vec3 r=max(color(s)-uPalette[0]*uStrength*max(sh-s,0.0),vec3(0.0));
- // The bezel frame above the glass shades the edges that face the light.
- vec2 b=vec2(p.x,uSize.y-p.y)/uPxPerMm+uBezelShift;
- r*=step1(b.x)*step1(uPanelMm.x-b.x)*step1(b.y)*step1(uPanelMm.y-b.y);
+ vec2 p=gl_FragCoord.xy;ivec2 first=ivec2(floor(p))*uDots;
+ vec3 sum=vec3(0.0);
+ for(int y=0;y<${MAX_DOTS_PER_PIXEL};y++)for(int x=0;x<${MAX_DOTS_PER_PIXEL};x++){
+  if(x>=uDots||y>=uDots)continue;
+  ivec2 d=first+ivec2(x,y);
+  vec3 entry=texture(uField,(vec2(d)+0.5+uMean)/uDotSize).rgb;
+  sum+=pass1(texelFetch(uState,d,0).a)*entry;
+ }
+ vec3 r=sum/float(uDots*uDots);
+ // Front-surface glare: the room light mirrored toward this point's eye ray.
  vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0);
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));
  float g=fresnel(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
- vec3 c=(r+vec3(g))*uExposure;
- o=vec4(toSRGB(c),1.0);
+ o=vec4(toSRGB((r+vec3(g))*uExposure),1.0);
 }`;

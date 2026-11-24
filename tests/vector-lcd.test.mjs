@@ -304,7 +304,7 @@ describe('Reflective TN, multiplexed 1/4 duty',()=>{
  });
 });
 
-describe('DMG-01 STN (Retro Display Lab data, no dot grid)',async()=>{
+describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',async()=>{
  const D=JSON.parse(read('profiles/dmg-01-stn.json'));
  const M=await import('../vector-lcd/screens/dmg/index.js');
  test('carries the source, licence and notice',()=>{
@@ -347,9 +347,29 @@ describe('DMG-01 STN (Retro Display Lab data, no dot grid)',async()=>{
   const ghost=st.exposure-.25;
   assert.ok(ghost>0&&ghost<.25*.1,'ghost below a tenth of a shade: '+ghost);
  });
- test('reflector shadow: measured strength and offset in DMG dot units',()=>{
-  assert.equal(D.shadow.strength,.18);assert.deepEqual(D.shadow.offset_dots,[.11,.13]);
-  const o=M.shadowOffsetMm(D);near(o.x,.11*47/160,1e-12);near(o.y,.13*43/144,1e-12);
+ test('two passes through one state give the measured palette exactly',()=>{
+  [0,.25,.5,.75,1,.4,.9].forEach(s=>{
+   const t=M.passTransmission(D,s),c=M.opticalColor(D,s);
+   t.forEach((v,i)=>near(v*v,c[i],1e-12));
+   M.reflectedColor(D,s,t).forEach((v,i)=>near(v,c[i],1e-12));
+  });
+ });
+ test('reflector shadow: light that entered through a darker dot leaves darker',()=>{
+  const light=M.reflectedColor(D,.25,M.passTransmission(D,.25));
+  const shaded=M.reflectedColor(D,.25,M.passTransmission(D,1));
+  // By luminance: the palette's darker shades are bluer, so the shadow shifts hue too.
+  const Y=c=>.2126*c[0]+.7152*c[1]+.0722*c[2];
+  assert.ok(Y(shaded)<Y(light));
+  // Between the two flat colours: a shadow, not a second copy of the shape.
+  assert.ok(Y(shaded)>Y(M.opticalColor(D,1)));
+ });
+ test('reflector shadow follows the light: none overhead, toward the light, longer when lower',()=>{
+  // The same refraction geometry as the TN screens (optics/room.js).
+  const at=(angleDeg,azimuthDeg)=>shadowKernel(D,{angleDeg,azimuthDeg,sourceDeg:15}).mean;
+  const o=at(0,315);near(Math.hypot(o.x,o.y),0,1e-12);
+  const ul=at(45,315);assert.ok(ul.x<0&&ul.y<0,'light from the upper left enters up and left of where it leaves');
+  const br=at(45,135);near(br.x,-ul.x,1e-12);near(br.y,-ul.y,1e-12);
+  assert.ok(Math.hypot(...Object.values(at(60,315)))>Math.hypot(ul.x,ul.y));
  });
 });
 
@@ -422,8 +442,18 @@ describe('Vector LCD app packaging',()=>{
   const walk=dir=>fs.readdirSync(appDir+dir,{withFileTypes:true})
    .flatMap(e=>e.isDirectory()?walk(dir+e.name+'/'):['./'+dir+e.name]);
   const shipped=fs.readdirSync(appDir,{withFileTypes:true}).filter(e=>e.isFile()&&!/^(sw\.js|README\.md)$/.test(e.name)).map(e=>'./'+e.name)
-   .concat(...['app/','gpu/','optics/','screens/','content/','concept/','profiles/'].map(walk),['./third_party/retro-display-lab/NOTICE']);
+   .concat(...['app/','gpu/','optics/','screens/','content/','concept/','profiles/'].map(walk),['./third_party/retro-display-lab/NOTICE'],
+    walk('fonts/').filter(f=>f.endsWith('.woff')));
   for(const file of shipped)assert.ok(assets.includes(file),file+' is not precached');
+ });
+ test('text uses only the bundled fonts, each with its licence',()=>{
+  const html=read('index.html');
+  assert.match(html,/--mono:"Vector Mono",monospace;/);
+  assert.doesNotMatch(html,/system-ui|ui-monospace|Menlo|Consolas/);
+  assert.match(read('content/tetris.js'),/COUNTER_FONT = '700 3\.2px "Vector Mono",monospace'/);
+  for(const f of ['DejaVuSansMono.woff','DejaVuSansMono-Bold.woff','Inter-Regular.woff'])assert.ok(fs.existsSync(appDir+'fonts/'+f),f);
+  assert.match(read('fonts/Inter-LICENSE.txt'),/SIL Open Font License, Version 1\.1/);
+  assert.match(read('fonts/DejaVu-LICENSE.txt'),/Bitstream/);
  });
  test('the screen test uses the real game and the real tile files',()=>{
   const tetris=read('content/tetris.js'),tiles=read('content/tiles.js');
@@ -446,7 +476,7 @@ describe('Vector LCD structure: screen kinds, definitions and profiles',async()=
  const {SCREENS,KINDS,FAMILIES}=await import('../vector-lcd/app/screens.js');
  const profileOf=screen=>JSON.parse(read('profiles/'+screen.id+'.json'));
  // What a definition may ask of a renderer when building the Info tab.
- const fakeRenderer={bezelLipMm:1,info:()=>({retention:true})};
+ const fakeRenderer={bezelLipMm:1,lighting:{angleDeg:45,azimuthDeg:315,sourceDeg:15},info:()=>({retention:true,dotsPerPixel:2,dotPitchUm:48})};
 
  test('every kind has one public entry with a version, a renderer, a profile check and a definition',()=>{
   for(const [name,kind] of Object.entries(KINDS)){

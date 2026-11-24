@@ -41,6 +41,40 @@ export function refractionOffsetMm(geometry, angleDeg) {
 
 
 // ---------------------------------------------------------------------------
+// Reflector shadow: where light enters the crystal (TN and DMG-01)
+// ---------------------------------------------------------------------------
+
+/** Entry-point offset (mm) for light arriving at lightAngleDeg from the normal.
+ * Light from the top enters further up than where it exits. */
+export function entryOffsetMm(profile, lightAngleDeg, azimuthDeg) {
+ const d = refractionOffsetMm(profile.sources.geometry, lightAngleDeg);
+ const az = rad(azimuthDeg);
+ return {x: Math.sin(az) * d, y: -Math.cos(az) * d};
+}
+
+/** Where the light entering the glass comes from, for a room light of full
+ * width sourceDeg: the mean entry offset and the spread along (radial) and
+ * across (tangential) the light's direction, in millimetres. */
+export function shadowKernel(profile, {angleDeg, azimuthDeg, sourceDeg}) {
+ const g = profile.sources.geometry;
+ const mean = entryOffsetMm(profile, angleDeg, azimuthDeg);
+ const sigma = fwhmToSigmaRad(sourceDeg);
+ const h = .01, theta = rad(angleDeg);
+ // mm per radian, along the light's direction and across it
+ const slope = (refractionOffsetMm(g, angleDeg + h) - refractionOffsetMm(g, Math.max(0, angleDeg - h)))
+  / rad(angleDeg + h - Math.max(0, angleDeg - h));
+ const across = theta > 1e-3 ? refractionOffsetMm(g, angleDeg) / Math.sin(theta) : slope;
+ const az = rad(azimuthDeg);
+ return {
+  mean,
+  radial: {x: Math.sin(az), y: -Math.cos(az)},
+  sigmaRadialMm: slope * sigma,
+  sigmaTangentialMm: across * sigma
+ };
+}
+
+
+// ---------------------------------------------------------------------------
 // Front-surface glare
 // ---------------------------------------------------------------------------
 
