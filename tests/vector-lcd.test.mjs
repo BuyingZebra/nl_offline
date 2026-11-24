@@ -833,6 +833,26 @@ describe('Curved face of the 5151 tube (Philips M31-336: 510 mm radius)',async()
 describe('Vector input (experimental): any SVG as exact shapes in four drive levels',async()=>{
  const G=await import('../vector-lcd/vector/geometry.js');
  const area=t=>{let a=0;for(let i=0;i<t.length;i+=6)a+=Math.abs((t[i+2]-t[i])*(t[i+5]-t[i+1])-(t[i+4]-t[i])*(t[i+3]-t[i+1]))/2;return a;};
+ test('shapes kept on the GPU in their own units: moved by the matrix, the same triangles as built in panel dots',async()=>{
+  const {shapeTriangles}=await import('../vector-lcd/vector/draw.js');
+  const shape={fill:{subpaths:G.parsePath('M0 0H10V10H0Z M3 3V7H7V3Z'),rule:'evenodd',value:2},
+   stroke:{subpaths:G.parsePath('M0 0C5 -4 10 4 15 0'),width:1.5,cap:'round',join:'round',miterLimit:4,value:3}};
+  // Rotation and even scaling (every scene uses these): stroke width scales with the shape.
+  const a=.7,k=37,m=[k*Math.cos(a),k*Math.sin(a),-k*Math.sin(a),k*Math.cos(a),120.5,80.25],t=.2/k;
+  const local=shapeTriangles(shape,t),move=l=>l.map((v,i)=>i%2?m[1]*l[i-1]+m[3]*v+m[5]:m[0]*v+m[2]*l[i+1]+m[4]);
+  const toDots=polys=>polys.map(p=>({closed:p.closed,points:p.points.map(q=>G.apply(m,...q))}));
+  const fan=G.fanTriangles(toDots(G.flatten(shape.fill.subpaths,t)));
+  const stroke=G.strokeTriangles(toDots(G.flatten(shape.stroke.subpaths,t)),{...shape.stroke,width:shape.stroke.width*k},.2);
+  assert.equal(local.stencil,true);
+  const close=(x,y)=>{assert.equal(x.length,y.length);x.forEach((v,i)=>assert.ok(Math.abs(v-y[i])<1e-9,`${i}: ${v} vs ${y[i]}`));};
+  close(move(local.fill),fan);
+  close(move(local.stroke),stroke);
+  // The cover is the outline's bounding box, so it holds every fan triangle.
+  assert.deepEqual(local.cover,[0,0,10,0,10,10,0,0,10,10,0,10]);
+  // A convex outline needs no stencil and no cover.
+  const square=shapeTriangles({fill:{subpaths:G.parsePath('M0 0H1V1H0Z'),rule:'nonzero',value:1},stroke:null},.1);
+  assert.equal(square.stencil,false);assert.equal(square.cover.length,0);assert.equal(area(square.fill),1);
+ });
  test('the four drive greys are looked up exactly; every other colour is refused, never rounded',()=>{
   assert.deepEqual([255,170,85,0].map(v=>G.driveIndex(v,v,v)),[0,1,2,3]);
   for(const v of [254,171,169,86,84,1,128])assert.equal(G.driveIndex(v,v,v),null,String(v));

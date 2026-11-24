@@ -18,7 +18,7 @@ import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickin
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.5.0';
+export const VERSION = '0.5.1';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 /** Panel dots in all. The same as the most device pixels a screen draws, so the

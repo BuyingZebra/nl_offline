@@ -11,7 +11,7 @@ import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glare
 import {checkProfile, temperatureFactors, shadowKernel, entryOffsetMm, obliqueOptics} from './model.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '0.9.1';
 
 
 /** @returns {import('../contract.js').ScreenRenderer} */

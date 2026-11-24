@@ -57,10 +57,10 @@ void main(){
  vec2 p=gl_FragCoord.xy;
  if(uSigma<0.3){o=texture(uSrc,p/uSize);return;}
  int r=min(48,int(ceil(uSigma*3.0)));
- vec4 sum=vec4(0.0);float w=0.0;
- for(int i=-48;i<=48;i++){
-  if(i<-r||i>r)continue;
-  float k=exp(-0.5*float(i*i)/(uSigma*uSigma));
+ vec4 sum=vec4(0.0);float w=0.0,c=-0.5/(uSigma*uSigma);
+ // Only the taps within three sigma are visited (the loop bound is per draw).
+ for(int i=-r;i<=r;i++){
+  float k=exp(c*float(i*i));
   sum+=k*texture(uSrc,(p+uDir*float(i))/uSize);w+=k;
  }
  o=sum/w;

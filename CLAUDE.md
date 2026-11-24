@@ -34,7 +34,7 @@ Modern, clean, high-resolution vector content (NOMAD Tetris style: no visible DM
 - DMG glass: 1.1 mm (the thickest common small-STN glass; DMG value unpublished).
 - DMG response: about 150 ms per change (era STN figures), via `temperature.response_scale` 0.64.
 
-## DMG-01 state of play (v0.30.0)
+## DMG-01 state of play (v0.31.0)
 
 The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at `../rdl` in the old session. Clone https://github.com/JohnnySun/retro-display-lab if you need it. Copied values are in `profiles/dmg-01-stn.json`. The attribution and NOTICE are in `third_party/retro-display-lab/`.
 
@@ -48,7 +48,7 @@ The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at
 ## Open items (agreed or suggested, not done)
 
 1. Owner to review v0.30 on a phone: is the lens glare too strong at the default light? Does the low wheel look right?
-2. Laptop performance: cache vector shape triangulation on the GPU (about 6 ms/frame rebuilding shapes now), half-resolution shadow blur (about 2 ms), and watch the GPU memory of per-point states.
+2. Laptop performance. Done in v0.31: shapes are triangulated once and kept on the GPU (`vector/draw.js`), and the shadow blur visits only its 3-sigma taps (it used to loop 97 times). Not done, deliberately: half-resolution shadow blur (the blur is about 0.1 mm, only 1 to 2 screen pixels at laptop size, so half resolution would soften the shadow). Still to watch: GPU memory of per-point states, and one draw call per shape (Tetris draws about 200).
 3. Merge the DMG-01 picture screen onto the DMG vector processor once DMG vector is accepted.
 4. Ion charge per point instead of per pixel (the last averaging shortcut; effect invisible in practice).
 5. Unknowns that a real DMG with calipers would settle: lens air gap, glass thickness. Also unknown: how BGB photographed the palette (through the lens?).
