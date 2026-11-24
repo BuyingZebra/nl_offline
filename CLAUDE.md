@@ -11,7 +11,7 @@ GitHub Pages site (`BuyingZebra/nl_offline`, served from `main`):
 
 - Explain things plainly, without jargon. Analogies help. Avoid binary/"0s and 1s" framing unless it is genuinely useful.
 - They have no display hardware to measure. Research (datasheets, restoration forums, Japanese and Chinese repair blogs, period press) stands in for measurement.
-- **Accuracy over invention.** When a choice is "logical or accurate to the hardware of its time", pick accuracy. For example, the DMG contrast wheel keeps its physical two-state (hysteresis) behaviour. Label every assumed value as assumed, in the profile, the Info tab and the README. Never present an estimate as a measurement.
+- **Accuracy over invention.** When a choice is "logical or accurate to the hardware of its time", pick accuracy: whichever option is closest to the real hardware is the answer. Decide by evidence (data, physics, photos and videos of real units), not by what earlier notes kept; the owner set this principle, not specific mechanisms. (Example: v0.32 keeps the solver's two resting states but lets the temporary one fade, because BGB and real DMG videos show no lasting ghost.) Label every assumed value as assumed, in the profile, the Info tab and the README. Never present an estimate as a measurement.
 - Viewing-angle effects are an artistic option, not a requirement.
 - Be honest when a proposed effect turns out to be negligible or wrong (for example, crosstalk streaking was not added; see below), and correct earlier claims.
 - They review on a phone and on a laptop (AMD Radeon). The Info tab's **Copy report** button produces the diagnostic report they paste back.
