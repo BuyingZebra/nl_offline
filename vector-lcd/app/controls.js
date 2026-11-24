@@ -17,10 +17,11 @@ const describeDirection = v => DIRECTIONS[Math.round(v / 45) % 8] + ' (' + Math.
 // ===========================================================================
 
 const defaults = () => ({
- // Room light: 20 degrees from straight on (a lamp above and a little behind the
- // viewer; at 45 degrees the DMG-01's reflector shadow doubled thin lines), from the top-left corner,
- // 15 degrees wide (a typical lamp), at normal room brightness.
- lighting: {angleDeg: 20, azimuthDeg: 315, sourceDeg: 15, exposure: 1},
+ // Room light: 19 degrees from straight on (a lamp above and a little behind the
+ // viewer; at 45 degrees the DMG-01's reflector shadow doubled thin lines), from
+ // 307 degrees (top left, a little toward the left), 15 degrees wide (a typical
+ // lamp), at normal room brightness.
+ lighting: {angleDeg: 19, azimuthDeg: 307, sourceDeg: 15, exposure: 1},
  celsius: 25,
  /** reflector shadow on screens that offer the inspection switch; off is not physical */
  shadow: true,

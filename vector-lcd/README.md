@@ -104,7 +104,7 @@ What carries over:
 - **Reflector shadow (physical).** Room light crosses the crystal twice: in at one point, off the reflector behind the rear glass, and out at another. Under angled light the two points differ, so a shape shades the area beside it, away from the light. The offset comes from refraction through the rear glass and polarizer (the same geometry as the TN screens, `optics/room.js shadowKernel`), and it moves with the light and the eye. A light of finite size softens it. The measured palette is the colour of a flat area, where both passes cross the same state, so each pass carries the square root of that colour; flat areas keep the measured palette exactly.
   - **Inspection switch.** *Reflector shadow* under Surroundings turns it off: light then leaves where it entered, so every point shows the measured palette (the bezel shadow and glare stay). It is for inspecting the image and is labelled as not physical.
   - Retro Display Lab's shadow strength (18%) and offset (0.11 × 0.13 dot) are not used. Its own notes classify them as matched to BGB's idealized close-up drawing, not measured.
-  - The shadow's size rests on the rear glass thickness, which is not published for the DMG: 1.1 mm is assumed, as on the TN panels. At the default 20° light that puts the shadow about 0.3 mm from its shape; at 45° it is about 0.7 mm, which doubles thin lines.
+  - The shadow's size rests on the rear glass thickness, which is not published for the DMG: 1.1 mm is assumed, as on the TN panels. At the default 19° light that puts the shadow about 0.3 mm from its shape; at 45° it is about 0.7 mm, which doubles thin lines.
 
 What does not carry over, because it needs the 160 × 144 grid: the pixel aperture, row and column crosstalk, and the row-latch scan-out timing.
 
@@ -305,7 +305,7 @@ The controls come in two groups, and the first holds only controls the real devi
   - Game Boy Color: none. The handheld has no picture control.
   - IBM 5151 and Commodore 1084S: **Brightness and Contrast knobs.**
   - Vectrex: **Brightness knob** (the beam current).
-- **Surroundings:** light angle and direction (default 20° from the top-left corner; the device's shadow on the page falls away from it), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs and the Vectrex only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
+- **Surroundings:** light angle and direction (default 19° from straight on, from 307°: top left, a little toward the left; the device's shadow on the page falls away from it), panel temperature (default 25 °C; LCDs only) and **room brightness** (CRTs and the Vectrex only, 0 to 500 lx, default 300 lx). A CRT makes its own light, so the room only adds its reflection off the glass (scaled by lux ÷ the profile's 300 lx; the phosphor's light is unchanged), and a dark room shows the afterglow a lit room drowns. A reflective LCD shows only the room's own light, so a brighter or dimmer room changes nothing an adapting eye sees, and it has no room control.
 - **Simulation:** run/pause (stops the game; the screen keeps showing the still picture) and **Reset settings** (every control back to its default: the room and this screen's knobs).
 
 Fixed at realistic defaults:
