@@ -160,14 +160,51 @@ export function displayedState(profile, q, ionic, shade) {
 // One frame, and the colours it shows
 // ===========================================================================
 
-/** One DMG frame for one point: the new state and the light it showed (Simpson average). */
-export function stepFrame(profile, {q, ionic, shade: previous}, shade, {contrast = 1, celsius = 20} = {}) {
- if (previous !== shade) q = canonicalQ(profile, opticalState(profile, q)) ?? q;
+/** Time constant (s) of the panel relaxing to its unpowered rest when the LCD
+ * is switched off (or back, on), from the source's clearing (darkening) t90 as a
+ * single exponential, at the profile's response speed and the temperature.
+ * Assumed: no published relaxation for a fully unpowered DMG. */
+export function powerTauS(profile, celsius = 20, on = false) {
+ const t90 = profile.stn.t90_s[on ? 'darkening' : 'clearing'];
+ return t90 / Math.LN10 / temperatureScale(profile, celsius);
+}
+
+/** Per-DMG-frame factor of the power relaxation (see powerTauS). */
+export function powerFactor(profile, celsius = 20, on = false) {
+ return Math.exp(-1 / (profile.panel.refresh_hz * powerTauS(profile, celsius, on)));
+}
+
+/** One DMG frame for one point: the new state and the light it showed (Simpson
+ * average). power: false switches the LCD off (no drive; the crystal relaxes to
+ * its unpowered rest, optical state 0); unpowered is how far it has (0 to 1). */
+export function stepFrame(profile, {q, ionic, shade: previous, unpowered = 0}, shade, {contrast = 1, celsius = 20, power = true} = {}) {
+ const off = !power, k = powerFactor(profile, celsius, power);
+ const u = j => off ? 1 - (1 - unpowered) * k ** j : unpowered * k ** j;
+ const show = (qq, ii, j) => mix(displayedState(profile, qq, ii, shade), 0, u(j));
+ if (previous !== shade && !off) q = canonicalQ(profile, opticalState(profile, q)) ?? q;
  const ts = temperatureScale(profile, celsius), d = driftPerFrame(profile, shade, q, contrast);
- const qm = clamp(q + d * .5 * ts, 0, 1), qe = clamp(q + d * ts, 0, 1);
- const im = ionicStep(profile, ionic, shade, .5), ie = ionicStep(profile, ionic, shade, 1);
- const light = (displayedState(profile, q, ionic, shade) + 4 * displayedState(profile, qm, im, shade) + displayedState(profile, qe, ie, shade)) / 6;
- return {q: qe, ionic: ie, shade, exposure: light};
+ const qm = off ? q * Math.sqrt(k) : clamp(q + d * .5 * ts, 0, 1), qe = off ? q * k : clamp(q + d * ts, 0, 1);
+ const ionDrive = off ? 0 : shade;
+ const im = ionicStep(profile, ionic, ionDrive, .5), ie = ionicStep(profile, ionic, ionDrive, 1);
+ const light = (show(q, ionic, 0) + 4 * show(qm, im, .5) + show(qe, ie, 1)) / 6;
+ return {q: qe, ionic: ie, shade, exposure: light, unpowered: u(1)};
+}
+
+/** Fresnel reflectance, unpolarized, from air into index n at incidence cosine ci. */
+function fresnelN(ci, n) {
+ const st = Math.sqrt(Math.max(0, 1 - ci * ci)) / n, ct = Math.sqrt(Math.max(0, 1 - st * st));
+ const rs = (ci - n * ct) / (ci + n * ct), rp = (n * ci - ct) / (n * ci + ct);
+ return .5 * (rs * rs + rp * rp);
+}
+
+/** Mirror reflectance of the screen front: the lens (two surfaces) over the LCD's
+ * own front, with the light bouncing between them (incoherent). Without a lens,
+ * the LCD's front alone. Twin of the shaders' lensReflectance. */
+export function lensReflectance(profile, ci) {
+ const Rc = fresnelN(ci, profile.oblique.front_index), n = profile.lens?.n;
+ if (!(n > 1)) return Rc;
+ const r = fresnelN(ci, n), Rl = 2 * r / (1 + r), Tl = (1 - r) / (1 + r);
+ return Rl + Tl * Tl * Rc / (1 - Rl * Rc);
 }
 
 /** 8-bit sRGB component to linear light. */
@@ -179,16 +216,16 @@ export function linearPalette(profile) {
  return [P.disabled, ...P.shades].map(rgb => rgb.map(decodeSRGB8));
 }
 
-/** Linear-sRGB colour of an optical state. Between .25 and 1, the measured
- * palette (shades 0..3, linear light). Beyond it the panel is lighter than its
- * nominal white or darker than its nominal black: the end shade's colour, with its
- * brightness scaled by the solver's luminance (stn.nominal_luminance), continued
- * linearly past the end. */
+/** Linear-sRGB colour of an optical state. From 0 to 1, the measured palette
+ * (BGB's five states: the unpowered panel at 0, shades 0..3 at .25..1, linear
+ * light between), as the source interpolates it. Nothing is lighter than the
+ * unpowered panel. Darker than nominal black (the wheel turned up): black's
+ * colour, its brightness scaled by the solver's luminance (stn.nominal_luminance),
+ * continued linearly past the end. */
 export function opticalColor(profile, state) {
  const c = linearPalette(profile), L = profile.stn.nominal_luminance;
  if (state > 1) { const l = Math.max(L[3] - (state - 1) * 4 * (L[2] - L[3]), 0); return c[4].map(v => v * l / L[3]); }
- if (state < .25) { const l = L[0] + (.25 - state) * 4 * (L[0] - L[1]); return c[1].map(v => v * l / L[0]); }
- const x = state * 4, k = Math.min(3, Math.floor(x));
+ const x = Math.max(state, 0) * 4, k = Math.min(3, Math.floor(x));
  return [0, 1, 2].map(i => mix(c[k][i], c[k + 1][i], x - k));
 }
 

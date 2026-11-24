@@ -1,40 +1,31 @@
-/* DMG-01 with vector input on the GPU: memory per screen pixel, not per dot.
+/* DMG-01 with vector input on the GPU: every point keeps its own crystal.
  *
  * Each screen pixel is read at n x n points inside it (the shapes are drawn
- * there, vector/draw.js), so it knows how much of it each drive level covers.
- * It keeps one crystal state for each drive level, the average state of the
- * part of the pixel at that level, plus the ion charge and the level at each
- * point. When a point changes level, its state moves with it into its new
- * level's average. So edges are as fine as the points, at any size, while the
- * memory stays a few numbers per screen pixel.
+ * there, vector/draw.js). Every point keeps its own crystal state, as a dot of
+ * the panel does, so a moving edge leaves each point its own history: nothing
+ * is averaged. The states are stored as 16-bit fractions of the director range
+ * (steps of 1.5e-5), two to a 32-bit word. One ion charge per pixel.
  *
- *   UPDATE   points -> levels; states move with their points; whole DMG frames
- *            of drift and sticking per level (model.js stepFrame, per level)
- *   ENTRY    first pass of the light through the pixel, shaded by the bezel
+ *   UPDATE   points -> levels; whole DMG frames of drift and sticking per point
+ *            (model.js stepFrame, per point); the pixel's mean first-pass
+ *            transmission and, for inspection, its mean measured colour
+ *   ENTRY    first pass of the light through the pixel, shaded by the frame
  *   BLUR     spread of entry points from a light of finite size (shared)
- *   DISPLAY  second pass, or with the shadow off each level's measured colour,
- *            weighted by how much of the pixel it covers; plus glare
+ *   DISPLAY  second pass, or with the shadow off the mean measured colour; plus glare
  *
- * Targets: Q (RGBA32F) crystal state per level; SHOWN (RGBA16F) light shown
- * per level over the last frame; ION (R32F) ion charge; LEVELS (R32UI) the
- * level at each point, 2 bits per point (up to 4 x 4 points). */
+ * Targets: Q0, Q1 (RGBA32UI) the states of points 0-7 and 8-15; MEAN (RGBA16F)
+ * mean first-pass transmission; META (RGBA32UI) the level at each point (2 bits
+ * per point), the ion charge (float bits), the mean measured colour and the mean
+ * shown optical state (halves). */
 
 import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
-import {COMMON, PALETTE} from '../dmg/shaders.js';
+import {COMMON, PALETTE, LENS} from '../dmg/shaders.js';
 
 export {BLUR_FS};
 
 /** Points per screen pixel, each way, at most: 16 points of 2 bits fill one 32-bit word. */
 export const MAX_POINTS = 4;
 
-const LEVELS = `
-uniform highp usampler2D uLevels;uniform int uN;
-int levelAt(uint word,int k){return int((word>>uint(2*k))&3u);}
-vec4 coverage(uint word){
- vec4 c=vec4(0.0);
- for(int k=0;k<${MAX_POINTS * MAX_POINTS};k++){if(k>=uN*uN)break;c[levelAt(word,k)]+=1.0;}
- return c/float(uN*uN);
-}`;
 
 
 // ---------------------------------------------------------------------------
@@ -43,20 +34,25 @@ vec4 coverage(uint word){
 
 export const UPDATE_FS = `#version 300 es
 precision highp float;precision highp int;
-uniform sampler2D uContent,uQ,uShown,uIon;
-uniform int uSteps,uInit;uniform float uTscale,uCharge,uRelease,uSticking;
+uniform sampler2D uContent;uniform highp usampler2D uQ0,uQ1,uMeta;
+uniform int uSteps,uInit,uN;uniform float uTscale,uCharge,uRelease,uSticking;uniform vec3 uPalette[5];
 ${COMMON}
-${LEVELS}
-layout(location=0) out vec4 oQ;
-layout(location=1) out vec4 oShown;
-layout(location=2) out vec4 oIon;
-layout(location=3) out uvec4 oLevels;
+${PALETTE}
+layout(location=0) out uvec4 oQ0;
+layout(location=1) out uvec4 oQ1;
+layout(location=2) out vec4 oMean;
+layout(location=3) out uvec4 oMeta;
 float ionicStep(float ionic,float drive,float f){
  float r=drive>ionic?uCharge:uRelease;return ionic+(drive-ionic)*(1.0-pow(1.0-r,f));
 }
-float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0);}
+float shown(float q,float ionic,float drive,float j){return mix(clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0),0.0,unpowered(j));}
+int levelAt(uint word,int k){return int((word>>uint(2*k))&3u);}
+uint wordOf(uvec4 a,uvec4 b,int k){int w=k>>1;return w<4?a[w]:b[w-4];}
+float qAt(uvec4 a,uvec4 b,int k){return float((wordOf(a,b,k)>>uint(16*(k&1)))&65535u)/65535.0;}
+uint pack16(float q){return uint(clamp(q,0.0,1.0)*65535.0+0.5);}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
+ int N=uN*uN;
  // The drive level at each point of this pixel, as the shapes left it (r = level / 3).
  uint next=0u;
  for(int j=0;j<${MAX_POINTS};j++)for(int i=0;i<${MAX_POINTS};i++){
@@ -64,46 +60,51 @@ void main(){
   int level=int(texelFetch(uContent,p*uN+ivec2(i,j),0).r*3.0+0.5);
   next|=uint(level)<<uint(2*(j*uN+i));
  }
- vec4 q0=texelFetch(uQ,p,0);
- float ion=texelFetch(uIon,p,0).r;
- uint prev=texelFetch(uLevels,p,0).r;
- // 1: settle to the current image (new targets); 2: blank panel (reset).
- if(uInit==1){
-  vec4 q=vec4(targetQ(0),targetQ(1),targetQ(2),targetQ(3));
-  oQ=q;oShown=vec4(optical(q.x),optical(q.y),optical(q.z),optical(q.w));oIon=vec4(0.0);oLevels=uvec4(next,0u,0u,0u);
-  return;
- }
- if(uInit==2){q0=vec4(targetQ(0));ion=0.0;prev=0u;}
-
- // States move with their points. A point that changes level is first projected
- // onto the nominal optical branch, as a dot is when its drive changes (stepFrame).
- vec4 canon=q0;
- if(next!=prev)canon=vec4(canonical(q0.x,optical(q0.x)),canonical(q0.y,optical(q0.y)),canonical(q0.z,optical(q0.z)),canonical(q0.w,optical(q0.w)));
- vec4 sum=vec4(0.0),count=vec4(0.0);
- for(int k=0;k<${MAX_POINTS * MAX_POINTS};k++){
-  if(k>=uN*uN)break;
-  int a=levelAt(prev,k),b=levelAt(next,k);
-  sum[b]+=a==b?q0[a]:canon[a];
-  count[b]+=1.0;
- }
+ uvec4 a=texelFetch(uQ0,p,0),b=texelFetch(uQ1,p,0),meta=texelFetch(uMeta,p,0);
+ uint prev=meta.r;float ion=uintBitsToFloat(meta.g);
+ if(uInit==2){prev=0u;ion=0.0;}
  // The pixel's average drive charges the ions (one charge per pixel).
- float drive=dot(count,vec4(0.0,1.0,2.0,3.0))/3.0/float(uN*uN);
+ float drive=0.0;
+ for(int k=0;k<${MAX_POINTS * MAX_POINTS};k++){if(k>=N)break;drive+=float(levelAt(next,k));}
+ drive/=3.0*float(N);
+ float ionDrive=uOff?0.0:drive;
 
- vec4 qOut=vec4(0.0),light=vec4(0.0);
- for(int s=0;s<4;s++){
-  float q=count[s]>0.0?sum[s]/count[s]:targetQ(s),level=float(s)/3.0,ionic=ion,acc=0.0;
-  for(int i=0;i<8;i++){
-   if(i>=uSteps)break;
-   float d=drift(s,q),qm=clamp(q+d*0.5*uTscale,0.0,1.0),qe=clamp(q+d*uTscale,0.0,1.0);
-   float im=ionicStep(ionic,drive,0.5),ie=ionicStep(ionic,drive,1.0);
-   acc+=(shown(q,ionic,level)+4.0*shown(qm,im,level)+shown(qe,ie,level))/6.0;
-   q=qe;ionic=ie;
+ uvec4 outA=uvec4(0u),outB=uvec4(0u);vec3 trans=vec3(0.0),flatc=vec3(0.0);
+ // Points with the same level and state give the same result: compute each once.
+ int lastLevel=-1;uint lastBits=0xFFFFFFFFu;bool lastChanged=false;
+ uint resBits=0u;vec3 resT=vec3(0.0),resC=vec3(0.0);float resL=0.0,lightSum=0.0;
+ for(int k=0;k<${MAX_POINTS * MAX_POINTS};k++){
+  if(k>=N)break;
+  int s=levelAt(next,k),was=levelAt(prev,k);
+  uint bits=(wordOf(a,b,k)>>uint(16*(k&1)))&65535u;
+  bool changed=s!=was;
+  if(uInit==1){bits=pack16(uOff?0.0:targetQ(s));changed=false;}
+  else if(uInit==2){bits=pack16(targetQ(0));changed=s!=0;}
+  if(s!=lastLevel||bits!=lastBits||changed!=lastChanged){
+   lastLevel=s;lastBits=bits;lastChanged=changed;
+   float q=float(bits)/65535.0,level=float(s)/3.0,ionic=ion,acc=0.0;
+   // A point whose drive changed is first projected onto the nominal optical
+   // branch, as a dot is when its drive changes (stepFrame).
+   if(changed&&!uOff)q=canonical(q,optical(q));
+   for(int i=0;i<8;i++){
+    if(i>=uSteps)break;
+    float d=drift(s,q),qm=clamp(q+d*0.5*uTscale,0.0,1.0),qe=clamp(q+d*uTscale,0.0,1.0);
+    if(uOff){qm=q*sqrt(uUk);qe=q*uUk;}   // no drive: relaxing toward rest
+    float im=ionicStep(ionic,ionDrive,0.5),ie=ionicStep(ionic,ionDrive,1.0),j=float(i);
+    acc+=(shown(q,ionic,level,j)+4.0*shown(qm,im,level,j+0.5)+shown(qe,ie,level,j+1.0))/6.0;
+    q=qe;ionic=ie;
+   }
+   float light=uSteps>0?acc/float(uSteps):shown(q,ion,level,0.0);
+   resBits=pack16(q);resT=pass1(light);resC=color(light);resL=light;
   }
-  qOut[s]=q;
-  light[s]=uSteps>0?acc/float(uSteps):shown(q,ion,level);
+  int w=k>>1;uint v=resBits<<uint(16*(k&1));
+  if(w<4)outA[w]|=v;else outB[w-4]|=v;
+  trans+=resT;flatc+=resC;lightSum+=resL;
  }
- for(int i=0;i<8;i++){if(i>=uSteps)break;ion=ionicStep(ion,drive,1.0);}
- oQ=qOut;oShown=light;oIon=vec4(ion,0.0,0.0,1.0);oLevels=uvec4(next,0u,0u,0u);
+ for(int i=0;i<8;i++){if(i>=uSteps)break;ion=ionicStep(ion,ionDrive,1.0);}
+ trans/=float(N);flatc/=float(N);
+ oQ0=outA;oQ1=outB;oMean=vec4(trans,1.0);
+ oMeta=uvec4(next,floatBitsToUint(ion),packHalf2x16(flatc.rg),packHalf2x16(vec2(flatc.b,lightSum/float(N))));
 }`;
 
 
@@ -114,16 +115,13 @@ void main(){
 
 export const ENTRY_FS = `#version 300 es
 precision highp float;precision highp int;
-uniform sampler2D uShown;uniform vec3 uPalette[5];
+uniform sampler2D uMean;
 uniform vec2 uPanelMm,uBezelShift;uniform float uBezelSigma,uPxPerMm,uHeightPx;
 out vec4 o;
-${PALETTE}
-${LEVELS}
 ${BEZEL_STEP}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
- vec4 c=coverage(texelFetch(uLevels,p,0).r),s=texelFetch(uShown,p,0);
- vec3 t=c.x*pass1(s.x)+c.y*pass1(s.y)+c.z*pass1(s.z)+c.w*pass1(s.w);
+ vec3 t=texelFetch(uMean,p,0).rgb;
  vec2 q=vec2(gl_FragCoord.x,uHeightPx-gl_FragCoord.y)/uPxPerMm+uBezelShift;
  float lit=step1(q.x)*step1(uPanelMm.x-q.x)*step1(q.y)*step1(uPanelMm.y-q.y);
  o=vec4(t*lit,lit);
@@ -136,30 +134,27 @@ void main(){
 
 export const DISPLAY_FS = `#version 300 es
 precision highp float;precision highp int;
-uniform sampler2D uShown,uField;uniform vec3 uPalette[5];
-uniform bool uShadow;uniform vec2 uSize,uMean;
-uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront;uniform vec3 uEye,uLight;
+uniform sampler2D uMean,uField;uniform highp usampler2D uMeta;
+uniform bool uShadow;uniform vec2 uSize,uMean2;
+uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront,uLensN;uniform vec3 uEye,uLight;
 out vec4 o;
-${PALETTE}
-${LEVELS}
 ${FRESNEL}
+${LENS}
 ${TO_SRGB}
-vec3 flat1(float s){return color(s);}
 void main(){
  vec2 p=gl_FragCoord.xy;ivec2 ip=ivec2(p);
- vec4 c=coverage(texelFetch(uLevels,ip,0).r),s=texelFetch(uShown,ip,0);
  vec3 r;
  if(uShadow){
   // Light leaving this pixel entered around it plus the mean offset (the shadow).
-  vec3 t=c.x*pass1(s.x)+c.y*pass1(s.y)+c.z*pass1(s.z)+c.w*pass1(s.w);
-  r=t*texture(uField,(p+uMean)/uSize).rgb;
+  r=texelFetch(uMean,ip,0).rgb*texture(uField,(p+uMean2)/uSize).rgb;
  } else {
-  // Inspection: light leaves where it entered, so each level shows its measured colour.
-  r=(c.x*flat1(s.x)+c.y*flat1(s.y)+c.z*flat1(s.z)+c.w*flat1(s.w))*texelFetch(uField,ip,0).a;
+  // Inspection: light leaves where it entered, so each point shows its measured colour.
+  uvec4 m=texelFetch(uMeta,ip,0);
+  r=vec3(unpackHalf2x16(m.b),unpackHalf2x16(m.a).x)*texelFetch(uField,ip,0).a;
  }
  vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0);
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));
- float g=fresnel(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
+ float g=lensReflectance(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
  o=vec4(toSRGB((r+vec3(g))*uExposure),1.0);
 }`;

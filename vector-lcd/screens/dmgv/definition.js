@@ -18,10 +18,9 @@ export const definition = Object.freeze({
    + 'and a file with any other paint is refused. Curves are flattened to within 0.2 dot at whatever size the panel is drawn'];
   const content = ['Content', 'Tetris: one solid square per cell, each piece in one drive level (content/scenes.js PIECE_LEVELS); '
    + 'counters as outlines of the bundled bold font. Test cards: content/test-card.svg (tools/vector_test_cards.py)'];
-  const memory = ['Memory (experimental)', 'per screen pixel, not per dot: a crystal state for each drive level (the average of the part of the pixel '
-   + 'at that level), the ion charge, and the level at ' + i.pointsPerPixel + ' × ' + i.pointsPerPixel + ' points inside the pixel (' + Math.round(i.dotPitchUm) + ' µm apart). '
-   + 'When a point changes level its state moves with it. The cost is the same at any size, so edges stay fine however far the panel is enlarged. '
-   + 'Where moving edges cross a pixel, points that share a level share one average state: the approximation, at moving edges only'];
+  const memory = ['Memory (experimental)', 'per point, not per screen pixel: ' + i.pointsPerPixel + ' × ' + i.pointsPerPixel + ' points inside each pixel ('
+   + Math.round(i.dotPitchUm) + ' µm apart), each with its own crystal state (16 bits) and drive level, like a dot of the panel; one ion charge per pixel. '
+   + 'A moving edge leaves every point its own history, so nothing is averaged. The cost grows with the points, not with the panel\'s size'];
   const shades = rows.findIndex(r => r[0] === 'Shades');
   rows.splice(shades, 1, input, content);
   const dots = rows.findIndex(r => r[0] === 'Panel dots (adapted)');

@@ -21,6 +21,12 @@ export {BLUR_FS};
 // ---------------------------------------------------------------------------
 
 export const COMMON = `
+// Power: with the LCD switched off there is no drive at all; the crystal relaxes
+// toward its unpowered rest, which shows optical state 0 (the measured disabled
+// colour), and back when it is switched on. u = how far the panel has relaxed,
+// after j DMG frames of this update: off, 1 - (1 - u0) k^j; on, u0 k^j.
+uniform float uU0,uUk;uniform bool uOff;
+float unpowered(float j){if(!uOff&&uU0<=0.0)return 0.0;return uOff?1.0-(1.0-uU0)*pow(uUk,j):uU0*pow(uUk,j);}
 uniform sampler2D uDrift,uOptical,uTargetQ;
 uniform float uAnchorQ[4],uCorr[4];
 uniform int uLo,uHi,uBins;uniform float uCondF;
@@ -64,7 +70,7 @@ out vec4 o;
 float ionicStep(float ionic,float drive,float f){
  float r=drive>ionic?uCharge:uRelease;return ionic+(drive-ionic)*(1.0-pow(1.0-r,f));
 }
-float shown(float q,float ionic,float drive){return clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0);}
+float shown(float q,float ionic,float drive,float j){return mix(clamp(optical(q)+max(ionic-drive,0.0)*uSticking,-4.0,4.0),0.0,unpowered(j));}
 void main(){
  ivec2 p=ivec2(gl_FragCoord.xy);
  vec3 c=texelFetch(uContent,p,0).rgb;
@@ -73,16 +79,17 @@ void main(){
  int s=uIndexInput?int(c.r*3.0+0.5):int(floor(clamp(1.0-dot(c,vec3(0.2126,0.7152,0.0722)),0.0,1.0)*3.0+0.5));
  vec4 st=texelFetch(uState,p,0);
  // 1: settle to the current image (new textures); 2: blank panel (reset).
- if(uInit==1){float q=targetQ(s);o=vec4(q,0.0,float(s),optical(q));return;}
+ if(uInit==1){float q=uOff?0.0:targetQ(s);o=vec4(q,0.0,float(s),shown(q,0.0,0.0,0.0));return;}
  if(uInit==2){float q=targetQ(0);st=vec4(q,0.0,0.0,optical(q));}
- float q=st.r,ionic=st.g,drive=float(s)/3.0;
- if(int(st.b+0.5)!=s)q=canonical(q,optical(q));
+ float q=st.r,ionic=st.g,drive=float(s)/3.0,ionDrive=uOff?0.0:drive;
+ if(int(st.b+0.5)!=s&&!uOff)q=canonical(q,optical(q));
  float sum=0.0;
  for(int i=0;i<8;i++){
   if(i>=uSteps)break;
   float d=drift(s,q),qm=clamp(q+d*0.5*uTscale,0.0,1.0),qe=clamp(q+d*uTscale,0.0,1.0);
-  float im=ionicStep(ionic,drive,0.5),ie=ionicStep(ionic,drive,1.0);
-  sum+=(shown(q,ionic,drive)+4.0*shown(qm,im,drive)+shown(qe,ie,drive))/6.0;
+  if(uOff){qm=q*sqrt(uUk);qe=q*uUk;}   // no drive: relaxing toward rest
+  float im=ionicStep(ionic,ionDrive,0.5),ie=ionicStep(ionic,ionDrive,1.0),j=float(i);
+  sum+=(shown(q,ionic,drive,j)+4.0*shown(qm,im,drive,j+0.5)+shown(qe,ie,drive,j+1.0))/6.0;
   q=qe;ionic=ie;
  }
  o=vec4(q,ionic,float(s),uSteps>0?sum/float(uSteps):st.a);
@@ -94,13 +101,30 @@ void main(){
 // solver's continuation beyond it (opticalColor). Needs: uniform vec3 uPalette[5].
 // ---------------------------------------------------------------------------
 
+// The screen lens: a clear plastic plate (index uLensN) in front of the LCD, with
+// an air gap. The room light mirrors off its front, its back and the LCD's front
+// surface; all three are parallel, so for a distant light they mirror the same
+// direction and add up (incoherently, with the light bouncing between them).
+// JS twin: model.js lensReflectance.
+export const LENS = `
+float fresnelN(float ci,float n){
+ float st=sqrt(max(0.0,1.0-ci*ci))/n,ct=sqrt(max(0.0,1.0-st*st));
+ float rs=(ci-n*ct)/(ci+n*ct),rp=(n*ci-ct)/(n*ci+ct);
+ return 0.5*(rs*rs+rp*rp);
+}
+float lensReflectance(float ci){
+ if(uLensN<=1.0)return fresnel(ci);
+ float r=fresnelN(ci,uLensN),Rl=2.0*r/(1.0+r),Tl=(1.0-r)/(1.0+r),Rc=fresnel(ci);
+ return Rl+Tl*Tl*Rc/(1.0-Rl*Rc);
+}`;
+
 export const PALETTE = `
 uniform vec4 uLum;
 vec3 color(float s){
- // Beyond the measured palette: the end shade's colour, scaled by the solver's luminance.
+ // Darker than black: black's colour, scaled by the solver's luminance. Nothing is
+ // lighter than the unpowered panel (state 0).
  if(s>1.0)return uPalette[4]*max(uLum.w-(s-1.0)*4.0*(uLum.z-uLum.w),0.0)/uLum.w;
- if(s<0.25)return uPalette[1]*(uLum.x+(0.25-s)*4.0*(uLum.x-uLum.y))/uLum.x;
- float x=s*4.0;int k=min(3,int(floor(x)));
+ float x=max(s,0.0)*4.0;int k=min(3,int(floor(x)));
  return mix(uPalette[k],uPalette[k+1],x-float(k));
 }
 vec3 pass1(float s){return sqrt(color(s));}`;
@@ -136,10 +160,11 @@ export const DISPLAY_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uState,uField;uniform vec3 uPalette[5];
 uniform int uDots;uniform vec2 uSize,uDotSize,uMean;
-uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront;uniform vec3 uEye,uLight;
+uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront,uLensN;uniform vec3 uEye,uLight;
 out vec4 o;
 ${PALETTE}
 ${FRESNEL}
+${LENS}
 ${TO_SRGB}
 void main(){
  vec2 p=gl_FragCoord.xy;ivec2 first=ivec2(floor(p))*uDots;
@@ -155,6 +180,6 @@ void main(){
  vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0);
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));
- float g=fresnel(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
+ float g=lensReflectance(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
  o=vec4(toSRGB((r+vec3(g))*uExposure),1.0);
 }`;

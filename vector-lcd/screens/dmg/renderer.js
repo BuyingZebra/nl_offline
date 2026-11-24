@@ -14,11 +14,11 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm, shadowKernel, entryOffsetMm} from '../../optics/room.js';
-import {checkProfile, contrastConditions, temperatureScale, stickingVolts, linearPalette} from './model.js';
+import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickingVolts, linearPalette} from './model.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 /** Panel dots in all. The same as the most device pixels a screen draws, so the
@@ -32,6 +32,8 @@ const DOT_BUDGET = 3e6;
  * @returns {import('../contract.js').ScreenRenderer}
  */
 export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels, bezelLipMm = 1, dotBudget = DOT_BUDGET, input = 'picture'} = {}) {
+ // The frame printed on the lens's underside sits an air gap above the LCD.
+ const frameHeightMm = () => profile.lens?.gap_mm ?? bezelLipMm;
  let profile = checkProfile(initialProfile);
  const vectorInput = input === 'vector';
  const surface = createSurface(canvas, {widthMm, heightMm, maxPixels, dotBudget, canvasContent: !vectorInput});
@@ -51,6 +53,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let lighting = {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1};
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
  let celsius = 25;
+ let power = true;                 // the LCD switched on
+ let unpowered = 0;                // how far the panel has relaxed toward its unpowered rest (0 to 1)
  let contrast = profile.contrast.value;
  let scene = [];                   // vector input: [{shape, matrix}] in panel millimetres
  let shadow = true;                // false: light leaves where it entered (for inspection; not physical)
@@ -193,10 +197,17 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
     gl.uniform1i(p.u('uInit'), init);
     gl.uniform1i(p.u('uIndexInput'), vectorInput ? 1 : 0);
     gl.uniform1f(p.u('uTscale'), temperatureScale(profile, celsius));
+    gl.uniform1i(p.u('uOff'), power ? 0 : 1);
+    gl.uniform1f(p.u('uU0'), init === 1 ? (power ? 0 : 1) : unpowered);
+    gl.uniform1f(p.u('uUk'), powerFactor(profile, celsius, power));
     gl.uniform1f(p.u('uCharge'), res.fmt.retention ? R.charge_per_frame : 0);
     gl.uniform1f(p.u('uRelease'), res.fmt.retention ? R.release_per_frame : 0);
     gl.uniform1f(p.u('uSticking'), stickingVolts(profile) * R.sticking_optical_gain);
    });
+   const k = powerFactor(profile, celsius, power), n = init === 1 ? 0 : steps;
+   if (init === 1) unpowered = power ? 0 : 1;
+   else if (init === 2 && power) unpowered = 0;
+   unpowered = power ? unpowered * k ** n : 1 - (1 - unpowered) * k ** n;
    current = 1 - current;
    init = 0;
   }
@@ -208,10 +219,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gpu.bind(p, 0, 'uState', state.tex);
    gl.uniform3fv(p.u('uPalette'), palette);
    gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
-   const shift = bezelShiftMm(profile, lighting, bezelLipMm);
+   const shift = bezelShiftMm(profile, lighting, frameHeightMm());
    gl.uniform2f(p.u('uPanelMm'), W / pxPerMm, H / pxPerMm);
    gl.uniform2f(p.u('uBezelShift'), shift.x, shift.y);
-   gl.uniform1f(p.u('uBezelSigma'), Math.max(1e-3, bezelPenumbraMm(profile, lighting, bezelLipMm)));
+   gl.uniform1f(p.u('uBezelSigma'), Math.max(1e-3, bezelPenumbraMm(profile, lighting, frameHeightMm())));
    gl.uniform1f(p.u('uDotsPerMm'), dotsPerMm);
    gl.uniform1f(p.u('uHeightDots'), dotSize[1]);
   });
@@ -257,6 +268,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uGlareSigma'), sigma);
    gl.uniform1f(p.u('uGlareNorm'), glareNorm(sigma, lighting.angleDeg));
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
+   gl.uniform1f(p.u('uLensN'), profile.lens?.n ?? 0);
   });  gpu.section(null);
  }
 
@@ -289,7 +301,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
 
  return Object.freeze({
   get profile() { return profile; },
-  beginContent: surface.beginContent, frame, resize, reset, sample, bezelLipMm,
+  beginContent: surface.beginContent, frame, resize, reset, sample, get bezelLipMm() { return frameHeightMm(); },
 
   /** Switch to another DMG profile; the panel settles into it. */
   setProfile(next) {
@@ -310,6 +322,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   /** The reflector shadow; off is for inspecting the image, and is not physical. */
   get shadow() { return shadow; },
   setShadow(on) { shadow = Boolean(on); },
+  /** The LCD switched on or off (the DMG's LCD enable; with no drive the panel relaxes to its unpowered rest). */
+  get power() { return power; },
+  setPower(on) { power = Boolean(on); },
   get temperature() { return celsius; },
   setTemperature(c) { celsius = Number(c); },
   /** The DMG's contrast wheel: a drive-voltage multiplier within the source's range. */

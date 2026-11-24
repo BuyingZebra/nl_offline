@@ -2,6 +2,7 @@
  * control, the notes, and where every number on the Info tab comes from. */
 
 import {shadowKernel} from '../../optics/room.js';
+import {lensReflectance, powerTauS} from './model.js';
 
 /** @type {import('../../app/screens.js').ScreenDefinition} */
 export const definition = Object.freeze({
@@ -32,6 +33,7 @@ export const definition = Object.freeze({
  temperatureNote: 'Cold crystal is slower and smears more; warm crystal is faster. Valid 10–30 °C, the range of the source model.',
  /** An inspection switch for the reflector shadow (not a property of the device or the room). */
  shadowSwitch: true,
+ powerSwitch: true,               // the LCD on/off (a real device state: the DMG's LCD enable)
  lightNote: 'Light at an angle crosses the crystal at one point on the way in and another on the way out, so each shape casts a shadow away from the light. '
   + 'The light also moves the bezel shadow and the glare.',
 
@@ -61,7 +63,7 @@ export const definition = Object.freeze({
    ['Contrast wheel', '×' + P.contrast.min.toFixed(2) + ' to ×' + P.contrast.max.toFixed(2) + ' drive, the range measured at the ends of a real '
     + 'DMG wheel (one board: −11 V and −14 V against −13 V for good contrast). Solved every 0.01 with the source\'s own solver '
     + '(tools/dmg01_wheel.mjs; the source tabulates 0.88, 1.00 and 1.08): the picture fades in from ×0.92 to ×1.00, and turning it up darkens '
-    + 'every shade while they stay distinct, beyond the measured palette by the solver\'s luminance'],
+    + 'every shade while they stay distinct (darker than black by the solver\'s luminance); turned down, shades fade toward the unpowered panel\'s colour'],
    ['Temperature', P.temperature.range_C.join('–') + ' °C; viscosity activation ' + P.temperature.activation_K + ' K'],
    ['Sticking', 'ions charge under dark drive (~' + Math.round(1 / (R.charge_per_frame * P.panel.refresh_hz)) + ' s) and release slowly (~'
     + Math.round(1 / (R.release_per_frame * P.panel.refresh_hz) / 60) + ' min), leaving a faint image'
@@ -69,10 +71,16 @@ export const definition = Object.freeze({
    ['Reflector shadow', 'light crosses the crystal twice, entering ' + (offset * 1000).toFixed(0) + ' µm from where it leaves at this light angle '
     + '(refraction through ' + G.glass_mm + ' mm glass and a ' + G.rear_polarizer_mm + ' mm polarizer, assumed), softened by the light\'s size; '
     + 'each pass carries the square root of the measured colour'],
+   ['LCD power (relaxation assumed)', 'switched off, the panel has no drive and relaxes to its unpowered rest, the measured disabled colour ('
+    + hex(P.palette.srgb8.disabled) + '), with a time constant of about ' + Math.round(powerTauS(P, renderer.temperature, false) * 1000) + ' ms at this temperature; switched on, it returns in about '
+    + Math.round(powerTauS(P, renderer.temperature, true) * 1000) + ' ms. Both are the source\'s clearing and darkening times at the era\'s response speed; '
+    + 'no relaxation of an unpowered DMG has been published'],
    ['Not used', 'the 160×144 dot grid, its row/column crosstalk and row-latch timing (they need the grid); '
     + 'the source\'s shadow strength and offset, which it fitted to an idealized drawing'],
-   ['Glare', 'glossy front surface, Fresnel n = ' + P.oblique.front_index + ' (assumed)'],
-   ['Bezel (assumed)', renderer.bezelLipMm + ' mm lip; front glass ' + G.glass_mm + ' mm, the thickest common small-STN glass (0.4–1.1 mm; DMG value not published)'],
+   ['Screen lens (assumed)', P.lens.thickness_mm + ' mm clear plastic (n = ' + P.lens.n + ') ' + P.lens.gap_mm + ' mm above the LCD, its frame printed on the underside. '
+    + 'The room light mirrors off the lens front, the lens back and the LCD (n = ' + P.oblique.front_index + '): ' + Math.round(100 * lensReflectance(P, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10
+    + '% at this light angle, against ' + Math.round(100 * lensReflectance({...P, lens: null}, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10 + '% for the bare LCD'],
+   ['Printed frame', 'shades the edges facing the light across the ' + renderer.bezelLipMm + ' mm gap; front glass ' + G.glass_mm + ' mm, the thickest common small-STN glass (0.4–1.1 mm; DMG value not published)'],
    ['Limits', P.limitations[0]]
   ];
  }

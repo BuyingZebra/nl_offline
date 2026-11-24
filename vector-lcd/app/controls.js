@@ -25,6 +25,8 @@ const defaults = () => ({
  celsius: 25,
  /** reflector shadow on screens that offer the inspection switch; off is not physical */
  shadow: true,
+ /** the LCD switched on, on screens that have a power switch */
+ power: true,
  /** room illuminance (lux); null until a screen that uses it sets its default */
  roomLux: null,
  /** knob positions per screen id: {screenId: {key: value}} */
@@ -35,7 +37,7 @@ const settings = defaults();
 
 /** The settings in use for a screen, for the diagnostic report. */
 export function currentSettings(screen) {
- return {lighting: {...settings.lighting}, celsius: settings.celsius, shadow: settings.shadow, knobs: {...settings.knobs[screen.id]}};
+ return {lighting: {...settings.lighting}, celsius: settings.celsius, shadow: settings.shadow, power: settings.power, knobs: {...settings.knobs[screen.id]}};
 }
 
 /** Every control back to its default: the room and this device's knobs. */
@@ -77,6 +79,7 @@ export function applySettings(screen, profile, renderer) {
  const range = def.temperatureRange(profile);
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
  if (def.shadowSwitch) renderer.setShadow(settings.shadow);
+ if (def.powerSwitch) renderer.setPower(settings.power);
  const room = def.roomLight(profile);
  if (room) room.apply(renderer, settings.roomLux ??= room.initial);
  const knobs = knobsFor(screen, profile);
@@ -105,6 +108,18 @@ function slider({label, min, max, step, value, format, onInput}) {
  return row;
 }
 
+/** An on/off switch: its state, its label for that state, and what a click does. */
+function toggle(get, text, flip) {
+ const button = Object.assign(document.createElement('button'), {type: 'button', className: 'switch'});
+ button.setAttribute('role', 'switch');
+ const label = document.createElement('span');
+ button.append(Object.assign(document.createElement('span'), {className: 'track'}), label);
+ const showState = () => { button.setAttribute('aria-checked', String(get())); label.textContent = text(get()); };
+ button.addEventListener('click', () => { flip(); showState(); });
+ showState();
+ return button;
+}
+
 /**
  * @param {Object<string, HTMLElement>} el  device, deviceNote, lighting, lightNote, room, roomNote, environment, envNote
  * @param {() => Object} currentRenderer   the stage's renderer at the time of the input
@@ -125,25 +140,17 @@ export function createControls(el, currentRenderer) {
     onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); castShadow(settings.lighting); }}));
 
   // Inspection only: the reflector shadow off (light leaves where it entered).
-  if (def.shadowSwitch) {
-   const button = Object.assign(document.createElement('button'), {type: 'button', className: 'switch'});
-   button.setAttribute('role', 'switch');
-   const label = Object.assign(document.createElement('span'), {});
-   button.append(Object.assign(document.createElement('span'), {className: 'track'}), label);
-   const showState = () => {
-    button.setAttribute('aria-checked', String(settings.shadow));
-    label.textContent = settings.shadow ? 'Reflector shadow' : 'Reflector shadow off · inspection, not physical';
-   };
-   button.addEventListener('click', () => { settings.shadow = !settings.shadow; currentRenderer().setShadow(settings.shadow); showState(); });
-   showState();
-   el.lighting.append(button);
-  }
+  if (def.shadowSwitch) el.lighting.append(toggle(() => settings.shadow,
+   on => on ? 'Reflector shadow' : 'Reflector shadow off · inspection, not physical',
+   () => { settings.shadow = !settings.shadow; currentRenderer().setShadow(settings.shadow); }));
 
   // ---- On the device
   el.device.replaceChildren(...def.device(profile).map(control => slider({
    ...control, value: knobs[control.key],
    onInput: v => { knobs[control.key] = v; control.apply(currentRenderer(), v); }
   })));
+  if (def.powerSwitch) el.device.append(toggle(() => settings.power, on => on ? 'LCD on' : 'LCD off · relaxing to the unpowered panel',
+   () => { settings.power = !settings.power; currentRenderer().setPower(settings.power); }));
   el.deviceNote.textContent = def.deviceNote(profile);
 
   // ---- Surroundings

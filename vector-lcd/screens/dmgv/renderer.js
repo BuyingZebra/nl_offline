@@ -1,9 +1,10 @@
 /* DMG-01 with vector input: runs the passes in shaders.js every frame.
  *
- * The panel's memory is per screen pixel (a state for each drive level, the
- * ion charge, and the level at n x n points inside the pixel), so it costs the
- * same at any size, and edges stay as fine as the points however far the panel
- * is enlarged. The shapes are drawn at the points each frame (vector/draw.js).
+ * The panel's memory is per point: n x n points inside each screen pixel, each
+ * with its own crystal state (16 bits) and drive level (2 bits), plus one ion
+ * charge per pixel. Edges stay as fine as the points however far the panel is
+ * enlarged, and a moving edge keeps every point's own history. The shapes are
+ * drawn at the points each frame (vector/draw.js).
  *
  * Points per pixel: enough that they sit no further apart than POINT_PITCH_MM
  * on the panel, at most 4 x 4, within the GPU's texture limit and a budget.
@@ -11,11 +12,11 @@
 
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm, shadowKernel, entryOffsetMm} from '../../optics/room.js';
-import {checkProfile, contrastConditions, temperatureScale, stickingVolts, linearPalette} from '../dmg/model.js';
+import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickingVolts, linearPalette} from '../dmg/model.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS, MAX_POINTS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 const POINT_PITCH_MM = .025;       // points no further apart than this on the panel (40 per mm)
@@ -24,6 +25,8 @@ const POINT_BUDGET = 2.4e7;        // points in all (one byte each, plus a stenc
 
 /** @returns {import('../contract.js').ScreenRenderer} */
 export function createRenderer(canvas, {profile: initialProfile, widthMm, heightMm, maxPixels = 6e6, bezelLipMm = 1} = {}) {
+ // The frame printed on the lens's underside sits an air gap above the LCD.
+ const frameHeightMm = () => profile.lens?.gap_mm ?? bezelLipMm;
  let profile = checkProfile(initialProfile);
  // The pixel cap only guards against absurd sizes: memory per pixel is small.
  const surface = createSurface(canvas, {widthMm, heightMm, maxPixels, canvasContent: false});
@@ -45,6 +48,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let lighting = {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1};
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
  let celsius = 25;
+ let power = true;                 // the LCD switched on
+ let unpowered = 0;                // how far the panel has relaxed toward its unpowered rest (0 to 1)
  let contrast = profile.contrast.value;
  let scene = [];                   // [{shape, matrix}] in panel millimetres
  let shadow = true;                // false: light leaves where it entered (for inspection; not physical)
@@ -59,8 +64,10 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   res = {
    update: gpu.program(UPDATE_FS), entry: gpu.program(ENTRY_FS), blur: gpu.program(BLUR_FS), display: gpu.program(DISPLAY_FS),
    drift: gpu.texture(), optical: gpu.texture(), targetQ: gpu.texture(), painter: createVectorPainter(gl),
-   content: null, contentFb: null, stencil: null, sets: [], fields: [], size: null
+   content: null, contentFb: null, stencil: null, sets: [], fields: [], size: null,
+   none: gpu.texture()   // a 1 x 1 stand-in for Q1 when there are at most 8 points
   };
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32UI, 1, 1, 0, gl.RGBA_INTEGER, gl.UNSIGNED_INT, new Uint32Array(4));
   uploadTables();
   if (surface.W && surface.H) allocate();
  }
@@ -82,18 +89,20 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   return tex;
  }
 
- /** One set of state targets, drawn together (multiple render targets). */
- function stateSet(w, h) {
+ /** One set of state targets, drawn together (multiple render targets). Points
+  * 8-15 get storage only when there are more than 8 points per pixel. */
+ function stateSet(w, h, n) {
+  const big = n * n > 8;
   const tex = [
-   storage(w, h, gl.RGBA32F, gl.RGBA, gl.FLOAT),               // Q: state per level
-   storage(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT),          // SHOWN: light per level
-   storage(w, h, gl.R32F, gl.RED, gl.FLOAT),                   // ION
-   storage(w, h, gl.R32UI, gl.RED_INTEGER, gl.UNSIGNED_INT)    // LEVELS: 2 bits per point
+   storage(w, h, gl.RGBA32UI, gl.RGBA_INTEGER, gl.UNSIGNED_INT),               // Q0: points 0-7, 16 bits each
+   big ? storage(w, h, gl.RGBA32UI, gl.RGBA_INTEGER, gl.UNSIGNED_INT) : null,  // Q1: points 8-15
+   storage(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT),                          // MEAN: first-pass transmission
+   storage(w, h, gl.RGBA32UI, gl.RGBA_INTEGER, gl.UNSIGNED_INT)                // META: levels, ion, mean colour
   ];
   const fb = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-  tex.forEach((t, i) => gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0));
-  gl.drawBuffers(tex.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+  tex.forEach((t, i) => t && gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0));
+  gl.drawBuffers(tex.map((t, i) => t ? gl.COLOR_ATTACHMENT0 + i : gl.NONE));
   if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('The vector-input DMG-01 state targets are not supported here.');
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return {tex, fb};
@@ -109,14 +118,14 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  /** Size-dependent targets. A new size settles straight to the current image. */
  function allocate() {
   const {W, H} = surface;
-  for (const set of res.sets) { gl.deleteFramebuffer(set.fb); set.tex.forEach(t => gl.deleteTexture(t)); }
+  for (const set of res.sets) { gl.deleteFramebuffer(set.fb); set.tex.forEach(t => t && gl.deleteTexture(t)); }
   gpu.release(...res.fields);
   if (res.content) gl.deleteTexture(res.content);
   if (res.contentFb) gl.deleteFramebuffer(res.contentFb);
   if (res.stencil) gl.deleteRenderbuffer(res.stencil);
 
   points = pointsFor(W, H);
-  res.sets = [stateSet(W, H), stateSet(W, H)];
+  res.sets = [stateSet(W, H, points), stateSet(W, H, points)];
   const fieldFmt = {internal: gl.RGBA16F, type: gl.HALF_FLOAT, name: '16-bit float'};
   res.fields = [gpu.target(W, H, fieldFmt), gpu.target(W, H, fieldFmt)];
   for (const f of res.fields) {
@@ -184,36 +193,40 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    const from = res.sets[current], to = res.sets[1 - current], R = profile.retention;
    gpu.draw(res.update, to.fb, size, p => {
     gpu.bind(p, 0, 'uContent', res.content);
-    gpu.bind(p, 1, 'uQ', from.tex[0]);
-    gpu.bind(p, 2, 'uShown', from.tex[1]);
-    gpu.bind(p, 3, 'uIon', from.tex[2]);
-    gpu.bind(p, 6, 'uLevels', from.tex[3]);
+    gpu.bind(p, 1, 'uQ0', from.tex[0]);
+    gpu.bind(p, 2, 'uQ1', from.tex[1] ?? res.none);
+    gpu.bind(p, 3, 'uMeta', from.tex[3]);
     bindTables(p);
+    gl.uniform3fv(p.u('uPalette'), linearPalette(profile).flat());
+    gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
     gl.uniform1i(p.u('uN'), points);
     gl.uniform1i(p.u('uSteps'), init === 1 ? 0 : steps);
     gl.uniform1i(p.u('uInit'), init);
     gl.uniform1f(p.u('uTscale'), temperatureScale(profile, celsius));
+    gl.uniform1i(p.u('uOff'), power ? 0 : 1);
+    gl.uniform1f(p.u('uU0'), init === 1 ? (power ? 0 : 1) : unpowered);
+    gl.uniform1f(p.u('uUk'), powerFactor(profile, celsius, power));
     gl.uniform1f(p.u('uCharge'), R.charge_per_frame);
     gl.uniform1f(p.u('uRelease'), R.release_per_frame);
     gl.uniform1f(p.u('uSticking'), stickingVolts(profile) * R.sticking_optical_gain);
    });
+   const k = powerFactor(profile, celsius, power), n = init === 1 ? 0 : steps;
+   if (init === 1) unpowered = power ? 0 : 1;
+   else if (init === 2 && power) unpowered = 0;
+   unpowered = power ? unpowered * k ** n : 1 - (1 - unpowered) * k ** n;
    current = 1 - current;
    init = 0;
   }
-  const state = res.sets[current], palette = linearPalette(profile).flat();
+  const state = res.sets[current];
 
   // ---- 2. First pass through the pixel, shaded by the bezel
   gpu.section('first pass');
   gpu.draw(res.entry, res.fields[0].fb, size, p => {
-   gpu.bind(p, 0, 'uShown', state.tex[1]);
-   gpu.bind(p, 6, 'uLevels', state.tex[3]);
-   gl.uniform1i(p.u('uN'), points);
-   gl.uniform3fv(p.u('uPalette'), palette);
-   gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
-   const shift = bezelShiftMm(profile, lighting, bezelLipMm);
+   gpu.bind(p, 0, 'uMean', state.tex[2]);
+   const shift = bezelShiftMm(profile, lighting, frameHeightMm());
    gl.uniform2f(p.u('uPanelMm'), W / pxPerMm, H / pxPerMm);
    gl.uniform2f(p.u('uBezelShift'), shift.x, shift.y);
-   gl.uniform1f(p.u('uBezelSigma'), Math.max(1e-3, bezelPenumbraMm(profile, lighting, bezelLipMm)));
+   gl.uniform1f(p.u('uBezelSigma'), Math.max(1e-3, bezelPenumbraMm(profile, lighting, frameHeightMm())));
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
    gl.uniform1f(p.u('uHeightPx'), H);
   });
@@ -238,15 +251,12 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   const toView = entryOffsetMm(profile, viewing.polarDeg, viewing.azimuthDeg);
   const mean = {x: kernel.mean.x - toView.x, y: kernel.mean.y - toView.y};
   gpu.draw(res.display, null, size, p => {
-   gpu.bind(p, 0, 'uShown', state.tex[1]);
+   gpu.bind(p, 0, 'uMean', state.tex[2]);
    gpu.bind(p, 1, 'uField', res.fields[0].tex);
-   gpu.bind(p, 6, 'uLevels', state.tex[3]);
-   gl.uniform1i(p.u('uN'), points);
+   gpu.bind(p, 6, 'uMeta', state.tex[3]);
    gl.uniform1i(p.u('uShadow'), shadow ? 1 : 0);
-   gl.uniform3fv(p.u('uPalette'), palette);
-   gl.uniform4fv(p.u('uLum'), profile.stn.nominal_luminance);
    gl.uniform2f(p.u('uSize'), W, H);
-   gl.uniform2f(p.u('uMean'), mean.x * pxPerMm, -mean.y * pxPerMm);
+   gl.uniform2f(p.u('uMean2'), mean.x * pxPerMm, -mean.y * pxPerMm);
    gl.uniform1f(p.u('uPxPerMm'), pxPerMm);
    gl.uniform1f(p.u('uExposure'), lighting.exposure);
    const e = directionVector(viewing.polarDeg, viewing.azimuthDeg), D = viewing.distanceMm;
@@ -256,6 +266,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gl.uniform1f(p.u('uGlareSigma'), sigma);
    gl.uniform1f(p.u('uGlareNorm'), glareNorm(sigma, lighting.angleDeg));
    gl.uniform1f(p.u('uFront'), profile.oblique.front_index);
+   gl.uniform1f(p.u('uLensN'), profile.lens?.n ?? 0);
   });  gpu.section(null);
  }
 
@@ -280,16 +291,24 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   return out;
  }
 
- /** The pixel at a point (panel mm): its main drive level and that level's state,
-  * {q, ionic, shade, shown}, and how much of the pixel each level covers. */
+ /** The pixel at a point (panel mm): its main drive level, the mean state of
+  * the points at that level, {q, ionic, shade, shown}, how much of the pixel
+  * each level covers, and every point's own level and state (points). */
  function sample(xMm, yMm) {
   if (!res || gpu.lost) return null;
-  const [x, y] = surface.texelAt(xMm, yMm);
-  const q = read(0, x, y), light = read(1, x, y), ion = read(2, x, y)[0], word = read(3, x, y, true)[0];
-  const cover = [0, 0, 0, 0];
-  for (let k = 0; k < points * points; k++) cover[(word >>> (2 * k)) & 3]++;
-  const shade = cover.indexOf(Math.max(...cover));
-  return {q: q[shade], ionic: ion, shade, shown: light[shade], coverage: cover.map(c => c / (points * points))};
+  const [x, y] = surface.texelAt(xMm, yMm), N = points * points;
+  const set = res.sets[current], a = read(0, x, y, true), b = set.tex[1] ? read(1, x, y, true) : new Uint32Array(4);
+  const meta = read(3, x, y, true), word = meta[0], ion = new Float32Array(new Uint32Array([meta[1]]).buffer)[0];
+  const cover = [0, 0, 0, 0], sum = [0, 0, 0, 0], states = [];
+  for (let k = 0; k < N; k++) {
+   const level = (word >>> (2 * k)) & 3, w = k >> 1, bits = ((w < 4 ? a[w] : b[w - 4]) >>> (16 * (k & 1))) & 65535;
+   states.push({level, q: bits / 65535});
+   cover[level]++; sum[level] += bits / 65535;
+  }
+  // shown: the optical state the pixel showed over the last DMG frame, averaged over its points.
+  const shade = cover.indexOf(Math.max(...cover)), q = sum[shade] / cover[shade];
+  const half = h => { const e = (h >> 10) & 31, m = h & 1023, v = e ? (1 + m / 1024) * 2 ** (e - 15) : m / 1024 * 2 ** -14; return h & 32768 ? -v : v; };
+  return {q, ionic: ion, shade, shown: half(meta[3] >>> 16), coverage: cover.map(c => c / N), points: states};
  }
 
 
@@ -302,7 +321,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
 
  return Object.freeze({
   get profile() { return profile; },
-  beginContent: surface.beginContent, frame, resize, reset, sample, bezelLipMm,
+  beginContent: surface.beginContent, frame, resize, reset, sample, get bezelLipMm() { return frameHeightMm(); },
   setProfile(next) {
    profile = checkProfile(next);
    if (res && !gpu.lost) { uploadTables(); init = 1; }
@@ -320,17 +339,20 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   setViewing(next) { viewing = {...viewing, ...next}; },
   get shadow() { return shadow; },
   setShadow(on) { shadow = Boolean(on); },
+  /** The LCD switched on or off (the DMG's LCD enable; with no drive the panel relaxes to its unpowered rest). */
+  get power() { return power; },
+  setPower(on) { power = Boolean(on); },
   get temperature() { return celsius; },
   setTemperature(c) { celsius = Number(c); },
   get contrast() { return contrast; },
   setContrast(c) { contrast = clamp(Number(c), profile.contrast.min, profile.contrast.max); },
 
   info() {
-   return {version: VERSION, stateFormat: 'per pixel: 4 levels × 32-bit float', retention: true,
+   return {version: VERSION, stateFormat: 'per point: 16-bit state, 2-bit level; per pixel: ion charge', retention: true,
     width: surface.W, height: surface.H, pxPerMm: surface.pxPerMm, fps: meter.fps, input: 'vector',
     dotsPerPixel: points, dotPitchUm: 1000 / (surface.pxPerMm * points), pointsPerPixel: points,
-    // Per pixel: two state sets (16 + 8 + 4 + 4 bytes), two light fields (8), points (1 byte + 1 stencil each).
-    gpuMemoryMB: surface.W * surface.H * (2 * 32 + 2 * 8 + points * points * 2) / 1048576,
+    // Per pixel: two state sets ((16 or 32) + 8 + 16 bytes), two light fields (8), points (1 byte + 1 stencil each).
+    gpuMemoryMB: surface.W * surface.H * (2 * ((points * points > 8 ? 32 : 16) + 24) + 2 * 8 + points * points * 2) / 1048576,
     vector: res?.painter.stats};
   },
   dispose: gpu.dispose

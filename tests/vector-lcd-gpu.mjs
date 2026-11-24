@@ -276,6 +276,66 @@ export async function dmgvParity() {
  return [result('DMG vector GPU = model, memory per pixel (q, ions, shown light)', worst, 2e-3)];
 }
 
+/** A moving edge: every point keeps its own history, as a dot of the panel does
+ * (stepFrame per point, driven by the level the GPU drew at that point). */
+export async function dmgvMovingEdge() {
+ const P = await profileOf('dmg-01-stn');
+ const {renderer: r, done} = mount('dmgv', P);
+ r.setTemperature(25);
+ r.setContrast(1);
+ const {pxPerMm, pointsPerPixel: n} = r.info(), px = 1 / pxPerMm, options = {contrast: 1, celsius: 25}, dt = 23;
+ const x0 = (Math.floor(CENTER[0] * pxPerMm)) / pxPerMm, scene = x => [{shape: rectShape(x, CENTER[1] - 5, 10, 10, 3), matrix: [1, 0, 0, 1, 0, 0]}];
+ let t = T0, phase = 0, worst = 0, models = null, mixedFrames = 0;
+ r.setScene(scene(x0 + 1.2 * px));
+ r.frame(t);
+ for (let k = 0; k < 80; k++) {
+  // The edge sweeps left across the pixel, then holds.
+  r.setScene(scene(x0 + Math.max(-.2, 1.2 - k * .03) * px));
+  r.frame(t += dt);
+  phase += dt * P.panel.refresh_hz / 1000;
+  const steps = Math.min(8, Math.floor(phase));
+  phase = Math.min(phase - steps, 1);
+  const g = r.sample(x0 + .5 * px, CENTER[1]);
+  if (!models) { models = g.points.map(p => ({q: p.q, ionic: 0, shade: p.level})); continue; }
+  if (steps > 0) models = models.map((m, i) => { let st = m; for (let s = 0; s < steps; s++) st = dmg.stepFrame(P, st, g.points[i].level, options); return st; });
+  if (new Set(g.points.map(p => p.level)).size > 1) mixedFrames++;
+  g.points.forEach((p, i) => { worst = Math.max(worst, Math.abs(p.q - models[i].q)); });
+ }
+ done();
+ return [{...result('DMG vector moving edge: every point follows its own dot history (q)', worst, 2e-3),
+  detail: 'worst q error ' + worst.toExponential(2) + ' over 80 frames; ' + n + ' × ' + n + ' points; edge inside the pixel for ' + mixedFrames + ' frames'}];
+}
+
+/** LCD power: both DMG renderers follow the model off and back on (shown light). */
+export async function dmgPower() {
+ const P = await profileOf('dmg-01-stn'), out = [];
+ for (const kind of ['dmg', 'dmgv']) {
+  const {renderer: r, done} = mount(kind, P);
+  r.setTemperature(25);
+  r.setContrast(1);
+  const options = {contrast: 1, celsius: 25}, dt = 23;
+  const content = kind === 'dmgv' ? () => r.setScene([{shape: rectShape(...PATCH, 3), matrix: [1, 0, 0, 1, 0, 0]}]) : () => paint(r, PATCH);
+  let t = T0;
+  content();
+  r.frame(t);   // settles to the patch (black)
+  let st = {q: dmg.targetQ(P, 3, 1), ionic: 0, shade: 3}, phase = 0, worst = 0, shown = 0;
+  for (let k = 0; k < 160; k++) {
+   const power = k < 20 || k >= 90;
+   r.setPower(power);
+   content();
+   r.frame(t += dt);
+   phase += dt * P.panel.refresh_hz / 1000;
+   const steps = Math.min(8, Math.floor(phase));
+   phase = Math.min(phase - steps, 1);
+   if (steps > 0) { let sum = 0; for (let i = 0; i < steps; i++) { st = dmg.stepFrame(P, st, st.shade, {...options, power}); sum += st.exposure; } shown = sum / steps; }
+   if (k > 0) worst = Math.max(worst, Math.abs(r.sample(...CENTER).shown - shown));
+  }
+  done();
+  out.push({...result((kind === 'dmg' ? 'DMG-01' : 'DMG vector') + ' LCD off and on = model (shown light)', worst, 3e-3), detail: 'worst ' + worst.toExponential(2) + ' through 1.6 s off and 1.6 s back on'});
+ }
+ return out;
+}
+
 /** An edge across a screen pixel shows the two levels mixed by coverage, small or enlarged: no steps. */
 export async function dmgvEdges() {
  const out = [];
@@ -518,5 +578,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

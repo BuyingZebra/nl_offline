@@ -96,11 +96,11 @@ export function formatReport({appVersion, captured, userAgent, viewport, gpu, sc
   'SCREEN',
   'Screen: ' + v(screen?.id) + ' (' + v(screen?.label) + ') / content ' + v(screen?.content) + (paused ? ' / simulation paused' : ''),
   'Panel: ' + v(renderer?.width) + 'x' + v(renderer?.height) + ' px / ' + v(renderer?.pxPerMm, ' px per mm') + ' / '
-   + (renderer?.pointsPerPixel ? v(renderer.pointsPerPixel) + 'x' + v(renderer.pointsPerPixel) + ' points per pixel (memory per pixel)'
+   + (renderer?.pointsPerPixel ? v(renderer.pointsPerPixel) + 'x' + v(renderer.pointsPerPixel) + ' points per pixel (memory per point)'
     : renderer?.dotsPerPixel ? v(renderer.dotsPerPixel) + 'x' + v(renderer.dotsPerPixel) + ' dots per pixel' : 'one point per pixel')
    + ' / state ' + v(renderer?.stateFormat) + ' / GPU memory about ' + v(renderer?.gpuMemoryMB, ' MB', 0),
   'Settings: light ' + v(settings?.lighting?.angleDeg, '°', 0) + ' from ' + v(settings?.lighting?.azimuthDeg, '°', 0)
-   + ' / reflector shadow ' + (settings?.shadow === false ? 'off (inspection)' : 'on') + ' / temperature ' + v(settings?.celsius, ' °C', 0)
+   + ' / reflector shadow ' + (settings?.shadow === false ? 'off (inspection)' : 'on') + ' / LCD ' + (settings?.power === false ? 'off' : 'on') + ' / temperature ' + v(settings?.celsius, ' °C', 0)
    + ' / device ' + (Object.entries(settings?.knobs ?? {}).map(([k, x]) => k + ' ' + v(x, '', 2)).join(', ') || 'none'),
   'Shapes (vector input, last frame): ' + (renderer?.vector ? v(renderer.vector.shapes) + ' shapes / ' + v(renderer.vector.stencilled)
    + ' through the stencil / ' + v(renderer.vector.triangles) + ' triangles' : 'n/a'),

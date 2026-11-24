@@ -115,6 +115,8 @@ const profile={
   note:"DMG glass thickness not published; 1.1 mm is the thickest of the common small-STN options (0.4/0.55/0.7/1.1 mm), the same front stack as the TN profiles (assumed)"},
   response:{"scale": 0.64, "target_ms": 150, "measured": "mean 10–90% optical response over the 12 shade changes at 25 °C: 152 ms (117–201 ms per change); the source's own tables give 91 ms (67–117 ms)", "basis": "no DMG measurement exists; matched to the era's published STN figures, not to a DMG panel", "refs": ["Sharp, 1997 press release: conventional STN 300 ms (10–90% rise plus fall), i.e. about 150 ms per change", "Hitachi, 1996 (Nikkei): conventional STN 300 ms rise plus fall, 10–90%", "Sharp LM32019T STN module datasheet: rise 190 ms, fall 210 ms", "Period small STN modules: 100–200 ms (Japanese DMG-recreation notes, unmeasured)"]}},
  oblique:{front_index:1.5},
+ // The screen lens: not in the source. See README (DMG-01, Screen lens).
+ lens:{"n": 1.49, "thickness_mm": 1.0, "gap_mm": 1.0, "assumed": true, "note": "Clear plastic window in the front shell, its frame printed on the underside. Index of acrylic (PMMA, assumed); 1.0 mm thick as replacement DMG lenses are sold (Hand Held Legend); the 1.0 mm air gap to the LCD is not published (assumed). The measured palette is taken as seen through the lens, so the lens does not dim it again.", "effect": "glare from three parallel surfaces (lens front, lens back, LCD front); the printed frame's shadow falls across the air gap"},
  limitations:JSON.parse(read('model.json')).limitations
 };
 const here=dirname(fileURLToPath(import.meta.url));

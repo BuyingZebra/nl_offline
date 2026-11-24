@@ -353,6 +353,23 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   times.forEach(t=>assert.ok(t>=100&&t<=210,'every change within the period range: '+t.toFixed(0)+' ms'));
   assert.ok(D.temperature.response_scale<1,'slowed from the source tables, labelled');
  });
+ test('LCD off: the panel relaxes to the measured disabled colour, and back when switched on',()=>{
+  let st={q:M.targetQ(D,3),ionic:0,shade:3};
+  for(let i=0;i<60;i++)st=M.stepFrame(D,st,3,{celsius:25,power:false});
+  assert.ok(st.unpowered>.99,'relaxed after a second: '+st.unpowered);
+  assert.ok(Math.abs(st.exposure)<.01,'shows optical state 0: '+st.exposure);
+  const enc=v=>Math.round(255*(v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055));
+  assert.deepEqual(M.opticalColor(D,0).map(enc),D.palette.srgb8.disabled);
+  for(let i=0;i<120;i++)st=M.stepFrame(D,st,3,{celsius:25,power:true});
+  assert.ok(st.unpowered<.01,'back on: '+st.unpowered);
+  near(st.exposure,1,.02,'black again');
+  assert.ok(M.powerTauS(D,10)>M.powerTauS(D,30),'slower when cold');
+ });
+ test('screen lens: three parallel surfaces mirror the light, about 11% straight on',()=>{
+  near(M.lensReflectance(D,1),.109,.002);
+  near(M.lensReflectance({...D,lens:null},1),.04,.001);
+  assert.ok(M.lensReflectance(D,Math.cos(Math.PI/4))>M.lensReflectance(D,1));
+ });
  test('holding a dark image leaves a faint sticking ghost',()=>{
   let st={q:M.targetQ(D,3),ionic:0,shade:3};
   for(let i=0;i<180*60;i++)st=M.stepFrame(D,st,3);
