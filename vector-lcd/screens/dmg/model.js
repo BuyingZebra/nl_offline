@@ -227,6 +227,21 @@ export function decayDraw(x, y, k, frame) {
  return (h >>> 8) / 16777216;
 }
 
+/** The reflector's fixed grain: a factor on the light it reflects at a point of
+ * the panel (mm), around 1. Value noise on a square lattice of reflector.grain_mm,
+ * smoothstep-blended between hashed corners in [-1, 1], times reflector.grain_amplitude.
+ * A screen pixel wider than the grain averages it out (as the eye does): the
+ * amplitude falls with grain_mm / pixelMm. Twin of the shaders' GRAIN. */
+export function reflectorGrain(profile, xMm, yMm, pixelMm = 0) {
+ const G = profile.reflector;
+ if (!G) return 1;
+ const u = xMm / G.grain_mm, v = yMm / G.grain_mm, i = Math.floor(u), j = Math.floor(v);
+ const s = t => t * t * (3 - 2 * t), fu = s(u - i), fv = s(v - j);
+ const h = (a, b) => decayDraw(a | 0, b | 0, 7, 0x5eed) * 2 - 1;
+ const n = mix(mix(h(i, j), h(i + 1, j), fu), mix(h(i, j + 1), h(i + 1, j + 1), fu), fv);
+ return 1 + G.grain_amplitude * Math.min(1, G.grain_mm / Math.max(pixelMm, 1e-9)) * n;
+}
+
 /** One DMG frame for one point: the new state and the light it showed (Simpson
  * average of the shown coordinate: colorAt turns it into colour). power: false
  * switches the LCD off (no drive; the crystal relaxes to its unpowered rest,

@@ -20,7 +20,7 @@
  * shown optical state (halves). */
 
 import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
-import {COMMON, PALETTE, LENS} from '../dmg/shaders.js';
+import {COMMON, PALETTE, LENS, GRAIN} from '../dmg/shaders.js';
 
 export {BLUR_FS};
 
@@ -144,6 +144,7 @@ uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront,uLensN;uniform ve
 out vec4 o;
 ${FRESNEL}
 ${LENS}
+${GRAIN}
 ${TO_SRGB}
 void main(){
  vec2 p=gl_FragCoord.xy;ivec2 ip=ivec2(p);
@@ -156,6 +157,10 @@ void main(){
   uvec4 m=texelFetch(uMeta,ip,0);
   r=vec3(unpackHalf2x16(m.b),unpackHalf2x16(m.a).x)*texelFetch(uField,ip,0).a;
  }
+ // The reflector's grain, where the light bounced: halfway between entry and exit.
+ // (With the shadow off, light leaves where it entered: the bounce is under the pixel.)
+ vec2 bounce=uShadow?0.5*uMean2:vec2(0.0);
+ r*=grain(vec2(p.x+bounce.x,uSize.y-p.y-bounce.y)/uPxPerMm,1.0/uPxPerMm);
  vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0);
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));

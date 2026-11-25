@@ -23,7 +23,7 @@ async function loadCards() {
  return Object.fromEntries(entries);
 }
 
-export const APP_VERSION = '0.32.1';
+export const APP_VERSION = '0.33.0';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -50,7 +50,7 @@ try {
   room: $('room'), roomNote: $('roomNote'),
   environment: $('environment'), envNote: $('envNote')
  }, () => stage.renderer);
- info = createInfo({title: $('infoTitle'), driveNote: $('driveNote'), facts: $('facts'), status: $('status')});
+ info = createInfo({title: $('infoTitle'), driveNote: $('driveNote'), figures: $('figures'), facts: $('facts'), status: $('status')});
  view = createView({
   tabDemo: $('tabDemo'), tabInfo: $('tabInfo'), demoView: $('demoView'), infoView: $('infoView'),
   familyButtons: [...document.querySelectorAll('[data-family]')],

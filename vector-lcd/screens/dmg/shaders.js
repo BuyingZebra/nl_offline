@@ -126,6 +126,24 @@ void main(){
 // surface; all three are parallel, so for a distant light they mirror the same
 // direction and add up (incoherently, with the light bouncing between them).
 // JS twin: model.js lensReflectance.
+// The reflector's fixed grain (model.js reflectorGrain): value noise on a lattice of
+// uGrainMm, hashed like decayDraw, times uGrainAmp, faded where a pixel (uPixelMm) is
+// wider than the grain. uGrainAmp 0 switches it off.
+export const GRAIN = `
+uniform float uGrainMm,uGrainAmp;
+float grainHash(int a,int b){
+ uint h=(uint(a)*0x8da6b343u)^(uint(b)*0xd8163841u)^(7u*0xcb1ab31fu)^(0x5eedu*0x165667b1u);
+ h=(h^(h>>16u))*0x7feb352du;h=(h^(h>>15u))*0x846ca68bu;h^=h>>16u;
+ return float(h>>8u)/16777216.0*2.0-1.0;
+}
+float grain(vec2 mm,float pixelMm){
+ if(uGrainAmp<=0.0)return 1.0;
+ vec2 g=mm/uGrainMm,c=floor(g),f=g-c;f=f*f*(3.0-2.0*f);
+ int i=int(c.x),j=int(c.y);
+ float n=mix(mix(grainHash(i,j),grainHash(i+1,j),f.x),mix(grainHash(i,j+1),grainHash(i+1,j+1),f.x),f.y);
+ return 1.0+uGrainAmp*min(1.0,uGrainMm/max(pixelMm,1e-9))*n;
+}`;
+
 export const LENS = `
 float fresnelN(float ci,float n){
  float st=sqrt(max(0.0,1.0-ci*ci))/n,ct=sqrt(max(0.0,1.0-st*st));
@@ -182,6 +200,7 @@ out vec4 o;
 ${PALETTE}
 ${FRESNEL}
 ${LENS}
+${GRAIN}
 ${TO_SRGB}
 void main(){
  vec2 p=gl_FragCoord.xy;ivec2 first=ivec2(floor(p))*uDots;
@@ -193,6 +212,9 @@ void main(){
   sum+=pass1(texelFetch(uState,d,0).a)*entry;
  }
  vec3 r=sum/float(uDots*uDots);
+ // The reflector's grain, where the light bounced: halfway between entry and exit.
+ float dotsPerMm=uPxPerMm*float(uDots);
+ r*=grain(vec2(p.x/uPxPerMm+0.5*uMean.x/dotsPerMm,(uSize.y-p.y)/uPxPerMm-0.5*uMean.y/dotsPerMm),1.0/uPxPerMm);
  // Front-surface glare: the room light mirrored toward this point's eye ray.
  vec3 pos=vec3(p.x/uPxPerMm,(uSize.y-p.y)/uPxPerMm,0.0);
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);

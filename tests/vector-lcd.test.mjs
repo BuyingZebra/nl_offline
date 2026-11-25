@@ -405,6 +405,20 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   near(M.opticalState(D,st.exposure),1,.02,'black again');
   assert.ok(M.powerTauS(D,10)>M.powerTauS(D,30),'slower when cold');
  });
+ test('reflector grain: the measured paper-like texture, fixed to the panel, faded where a pixel is wider than a grain',()=>{
+  const G=D.reflector;
+  // Brick Boy's measurement: grains 0.3-0.5 dot, amplitude ±3.9% (pitch 47 mm / 160 dots).
+  const pitch=D.panel.active_mm[0]/D.panel.dots[0];
+  assert.ok(G.grain_mm>=.3*pitch&&G.grain_mm<=.5*pitch);near(G.grain_amplitude,.039,1e-9);
+  assert.ok(G.source.includes('Brick Boy')&&G.basis.includes('assumed'));
+  let lo=1,hi=1,sum=0,n=0;
+  for(let x=0;x<20;x+=.013)for(let y=0;y<2;y+=.017){const g=M.reflectorGrain(D,x,y,0);lo=Math.min(lo,g);hi=Math.max(hi,g);sum+=g;n++;}
+  assert.ok(lo>=1-.039-1e-9&&hi<=1+.039+1e-9,'within ±3.9%');assert.ok(hi-lo>.03,'visible: '+(hi-lo));near(sum/n,1,.005,'averages to 1');
+  // Fixed to the panel: the same point gives the same factor.
+  assert.equal(M.reflectorGrain(D,3.21,7.65,0),M.reflectorGrain(D,3.21,7.65,0));
+  // A pixel four grains wide shows a quarter of it.
+  near(M.reflectorGrain(D,3.21,7.65,4*G.grain_mm)-1,(M.reflectorGrain(D,3.21,7.65,0)-1)/4,1e-12);
+ });
  test('screen lens: three parallel surfaces mirror the light, about 11% straight on',()=>{
   near(M.lensReflectance(D,1),.109,.002);
   near(M.lensReflectance({...D,lens:null},1),.04,.001);

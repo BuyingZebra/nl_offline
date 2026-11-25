@@ -3,7 +3,7 @@
 import {kindOf} from './screens.js';
 
 
-/** @param {Object<string, HTMLElement>} el  title, driveNote, facts, status */
+/** @param {Object<string, HTMLElement>} el  title, driveNote, figures, facts, status */
 export function createInfo(el) {
 
  /** Fill the tab for a screen. */
@@ -11,6 +11,18 @@ export function createInfo(el) {
   const def = kindOf(screen).definition;
   el.title.textContent = screen.label;
   el.driveNote.textContent = def.driveNote(profile);
+  // Figures, where the screen has them: markup built from the profile's numbers (no outside content).
+  el.figures.replaceChildren(...(def.figures?.(profile, renderer) ?? []).map(f => {
+   const fig = document.createElement('figure');
+   fig.className = 'fig';
+   fig.append(Object.assign(document.createElement('h3'), {textContent: f.title}));
+   const art = document.createElement('div');
+   art.className = 'fig-art';
+   art.innerHTML = f.svg;
+   fig.append(art, Object.assign(document.createElement('figcaption'), {textContent: f.caption}));
+   return fig;
+  }));
+  el.figures.hidden = !el.figures.children.length;
   el.facts.replaceChildren(...def.facts(profile, renderer).flatMap(([label, value]) => [
    Object.assign(document.createElement('dt'), {textContent: label}),
    Object.assign(document.createElement('dd'), {textContent: value})

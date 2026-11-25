@@ -18,7 +18,7 @@ import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickin
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.6.1';
+export const VERSION = '0.7.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 /** Panel dots in all. The same as the most device pixels a screen draws, so the
@@ -50,6 +50,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let last = null;                  // time of the previous frame (ms)
  let init = 0;                     // next update: 1 = settle to the image, 2 = blank panel
  let phase = 0;                    // fraction of a DMG frame carried to the next display frame
+ let grainOn = true;                // the reflector's grain (reflector.grain_*)
  let dmgFrame = 0;                 // DMG frames run so far: the fade's draws (model.js decayDraw)
  let lighting = {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1};
  let viewing = {polarDeg: 0, azimuthDeg: 0, distanceMm: 300};
@@ -276,6 +277,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    gpu.bind(p, 1, 'uField', res.fields[0].tex);
    bindColor(p);
    gl.uniform1i(p.u('uDots'), dots);
+   // The reflector's fixed grain (model.js reflectorGrain); off for inspection or checks.
+   gl.uniform1f(p.u('uGrainMm'), profile.reflector?.grain_mm ?? 1);
+   gl.uniform1f(p.u('uGrainAmp'), grainOn ? profile.reflector?.grain_amplitude ?? 0 : 0);
    gl.uniform2f(p.u('uSize'), W, H);
    gl.uniform2f(p.u('uDotSize'), dotSize[0], dotSize[1]);
    gl.uniform2f(p.u('uMean'), mean.x * dotsPerMm, -mean.y * dotsPerMm);
@@ -342,6 +346,9 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   /** The reflector shadow; off is for inspecting the image, and is not physical. */
   get shadow() { return shadow; },
   setShadow(on) { shadow = Boolean(on); },
+  /** The reflector's grain (on by default); the checks switch it off to compare flat colours. */
+  get grain() { return grainOn; },
+  setGrain(on) { grainOn = Boolean(on); },
   /** The LCD switched on or off (the DMG's LCD enable; with no drive the panel relaxes to its unpowered rest). */
   get power() { return power; },
   setPower(on) { power = Boolean(on); },

@@ -281,8 +281,7 @@ const P = P0();
 P.contrast = {
  value: 1, min: LOW, max: HIGH, conditions: SCALES,
  note: P.contrast.note,
- range: 'x0.85 to x1.08: a repairer measured -11 V and -14 V at the ends of a real DMG wheel against -13 V for good contrast '
-  + '(chipmusic.org, "DMG screen stuck on max contrast?", 2015): one board. The source supports 0.88 to 1.08.',
+ range: 'x0.85 to x1.08: a rough reading, not a calibration: -11 V and -14 V at the ends of the wheel on a faulty unit with an old needle meter, the measuring point not stated; -13 V for good contrast on another unit (chipmusic.org, \"DMG screen stuck on max contrast?\", 2015). The best available; the source supports 0.88 to 1.08.',
  solved: 'every 0.01 by tools/dmg01_wheel.mjs with the source\'s solver; the source tabulates 0.88, 1.00 and 1.08 only'
 };
 Object.assign(P.stn, {

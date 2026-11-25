@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="vector-lcd-version" content="0.32.1">
+<meta name="vector-lcd-version" content="0.33.0">
 <meta name="theme-color" content="#e8e3da">
 <meta name="color-scheme" content="light">
 <meta name="mobile-web-app-capable" content="yes">
@@ -115,6 +115,30 @@ dl{display:grid;grid-template-columns:1fr;gap:2px;margin:12px 0 0}
 dt{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:10px}
 dd{margin:0;font-family:var(--sans);font-size:13.5px;line-height:1.45}
 #status{color:var(--muted);font-size:11px;letter-spacing:.04em;margin-top:12px;overflow-wrap:anywhere}
+/* ---------- Info figures (screens/<kind>/figures.js) ---------- */
+.figs{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0 4px}
+.figs[hidden]{display:none}
+.fig{margin:0;padding:12px;border:1.5px solid var(--line);border-radius:14px;background:var(--well);min-width:0}
+.fig h3{margin:0 0 8px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:normal}
+.fig-art svg{display:block;width:100%;height:auto;max-height:340px;font-family:var(--mono)}
+.fig figcaption{margin-top:8px;font-family:var(--sans);font-size:12.5px;line-height:1.45;color:var(--muted)}
+.fig-label{font-size:10px;fill:var(--ink)}
+.fig-note{font-size:8.5px;fill:var(--muted)}
+.fig-mark{stroke:var(--ink);stroke-width:1.5}
+.fig-grid{stroke:var(--line);stroke-width:1}
+.fig-dash{stroke-dasharray:3 3}
+.fig-line-a,.fig-line-b{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.fig-line-a{stroke:var(--ink)}
+.fig-line-b{stroke:var(--red)}
+.fig-hit{fill:transparent}
+.fig-hit:hover{fill:var(--ink);fill-opacity:.25}
+.fig-lens{fill:#d9e4e8;stroke:#a9b6ba}
+.fig-air{fill:var(--card)}
+.fig-pol{fill:#6f6b64}
+.fig-glass{fill:#cfe0dc;stroke:#a8bab5}
+.fig-lc{fill:#759833}
+.fig-refl{fill:#b9b4aa;stroke:#8d887e}
+.fig-ray{fill:none;stroke:var(--orange);stroke-width:2;stroke-linejoin:round}
 
 /* ---------- Wide screens: screen and controls side by side ---------- */
 @media (min-width:900px){
@@ -127,6 +151,7 @@ dd{margin:0;font-family:var(--sans);font-size:13.5px;line-height:1.45}
  #infoView{max-width:760px;margin:0 auto}
  dl{grid-template-columns:minmax(160px,34%) 1fr;gap:6px 16px}
  dt{margin-top:0;padding-top:2px}
+ .figs{grid-template-columns:1fr 1fr}
 }
 </style>
 </head>
@@ -207,6 +232,7 @@ dd{margin:0;font-family:var(--sans);font-size:13.5px;line-height:1.45}
   <h2 id="infoTitle"></h2>
   <p class="note" id="driveNote"></p>
   <p class="note">Where every number in this screen comes from:</p>
+  <div id="figures" class="figs" hidden></div>
   <dl id="facts"></dl>
  </section>
  <section class="card">

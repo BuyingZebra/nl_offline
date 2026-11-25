@@ -3,6 +3,7 @@
 
 import {shadowKernel} from '../../optics/room.js';
 import {lensReflectance, powerTauS} from './model.js';
+import {figures} from './figures.js';
 
 /** @type {import('../../app/screens.js').ScreenDefinition} */
 export const definition = Object.freeze({
@@ -10,6 +11,9 @@ export const definition = Object.freeze({
  usesElectrodes: false,           // a dot matrix drives every point
 
  prepare() {},
+
+ /** Figures for the Info tab, drawn from the profile and the model (figures.js). */
+ figures,
 
 
  // ---- On the device --------------------------------------------------------
@@ -64,8 +68,8 @@ export const definition = Object.freeze({
     + (1 / P.temperature.response_scale).toFixed(2) + ' to about ' + P.sources.response.target_ms + ' ms per change (10–90%, 25 °C), '
     + 'the published STN figures of the time (Sharp and Hitachi: 300 ms rise plus fall; Sharp LM32019T: 190/210 ms). '
     + 'No DMG panel has been measured; the source alone gives about 91 ms'],
-   ['Contrast wheel', '×' + P.contrast.min.toFixed(2) + ' to ×' + P.contrast.max.toFixed(2) + ' drive, the range measured at the ends of a real '
-    + 'DMG wheel (one board: −11 V and −14 V against −13 V for good contrast). Solved every 0.01 with the source\'s own solver '
+   ['Contrast wheel', '×' + P.contrast.min.toFixed(2) + ' to ×' + P.contrast.max.toFixed(2) + ' drive, from a rough reading at the ends of a real '
+    + 'DMG wheel (−11 V and −14 V on a faulty unit with a needle meter, against −13 V for good contrast on another): the best available. Solved every 0.01 with the source\'s own solver '
     + '(tools/dmg01_wheel.mjs; the source tabulates 0.88, 1.00 and 1.08): the picture fades in from ×0.92 to ×1.00, and turning it up darkens '
     + 'every shade while they stay distinct; turned down, every shade settles to the unpowered colour, as BGB describes'],
    ['Two resting states (fade assumed)', 'below the normal drive some shades can rest relaxed or part-switched; the solver\'s free energy says which is stable. '
@@ -85,7 +89,10 @@ export const definition = Object.freeze({
     + 'no relaxation of an unpowered DMG has been published'],
    ['Not used', 'the 160×144 dot grid, its row/column crosstalk and row-latch timing (they need the grid); '
     + 'the source\'s shadow strength and offset, which it fitted to an idealized drawing'],
-   ['Screen lens (assumed)', P.lens.thickness_mm + ' mm clear plastic (n = ' + P.lens.n + ') ' + P.lens.gap_mm + ' mm above the LCD, its frame printed on the underside. '
+   ['Reflector grain (measured from photos)', 'a fixed paper-like texture in the reflector: grains about ' + Math.round(P.reflector.grain_mm * 1000) + ' µm (0.3–0.5 dot), ±'
+    + (P.reflector.grain_amplitude * 100).toFixed(1) + '% (Brick Boy\'s developer, from close-up photos of LCD modules; ± read as the peak, assumed). '
+    + 'It shows in light areas only, and fades where a screen pixel is wider than a grain'],
+   ['Screen lens (assumed)', P.lens.thickness_mm + ' mm (an upper estimate) "high-impact plastic" (n = ' + P.lens.n + ', acrylic assumed) ' + P.lens.gap_mm + ' mm above the LCD, its frame printed on the underside. '
     + 'The room light mirrors off the lens front, the lens back and the LCD (n = ' + P.oblique.front_index + '): ' + Math.round(100 * lensReflectance(P, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10
     + '% at this light angle, against ' + Math.round(100 * lensReflectance({...P, lens: null}, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10 + '% for the bare LCD'],
    ['Printed frame', 'shades the edges facing the light across the ' + renderer.bezelLipMm + ' mm gap; front glass ' + G.glass_mm + ' mm, the thickest common small-STN glass (0.4–1.1 mm; DMG value not published)'],

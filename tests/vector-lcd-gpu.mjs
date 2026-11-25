@@ -30,7 +30,10 @@ function mount(kind, profile, [w, h] = CSS) {
  document.body.append(canvas);
  const renderer = KINDS[kind].createRenderer(canvas, {profile, widthMm: PANEL.w, heightMm: PANEL.h});
  renderer.resize(w, h, 1);
- return {renderer, done: () => { renderer.dispose(); canvas.remove(); }};
+ // The reflector's grain is a fixed texture; the checks compare flat colours without it
+ // (dmgGrain checks the grain itself).
+ renderer.setGrain?.(false);
+ return {renderer, canvas, done: () => { renderer.dispose(); canvas.remove(); }};
 }
 
 /** Content: white, or white with one black rectangle (mm). */
@@ -158,6 +161,7 @@ export async function dmgOptics() {
  document.body.append(canvas);
  const r = dmg.createRenderer(canvas, {profile: P, widthMm: PANEL.w, heightMm: PANEL.h});
  r.resize(...CSS, 1);
+ r.setGrain(false);
  const dots = r.info().dotsPerPixel, pxPerMm = r.info().pxPerMm;
  const palette = P.palette.srgb8.shades.map(c => c.map(v => v / 255));
 
@@ -344,6 +348,39 @@ export async function dmgvFade() {
   {name: 'DMG vector wheel turned down: no lasting ghost (every point relaxed within 2 s)', ok: settled === n, detail: settled + ' of ' + n}];
 }
 
+/** The reflector's grain on a flat white area = model.js reflectorGrain at each
+ * pixel (the ratio of the colour with and without it), for both DMG screens. */
+export async function dmgGrain() {
+ const P = await profileOf('dmg-01-stn'), out = [];
+ const linear = v => v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+ for (const kind of ['dmg', 'dmgv']) {
+  const {renderer: r, canvas, done} = mount(kind, P);
+  r.setTemperature(25);
+  r.setShadow(false);
+  let t = T0;
+  const show = () => { if (kind === 'dmgv') r.setScene([]); else paint(r); r.frame(t += 23); };
+  for (let k = 0; k < 6; k++) show();
+  const {pxPerMm} = r.info(), y = CENTER[1], xs = Array.from({length: 40}, (_, i) => CENTER[0] - 4 + i * .2);
+  // Pixel centres, in panel mm, where the shader evaluates the grain.
+  const at = x => (Math.floor(x * pxPerMm) + .5) / pxPerMm, yc = (Math.floor(y * pxPerMm) + .5) / pxPerMm;
+  show();
+  const plain = xs.map(x => shownColour(r, canvas, x, y));
+  r.setGrain(true);
+  show();
+  const grained = xs.map(x => shownColour(r, canvas, x, y));
+  done();
+  let worst = 0, spread = 0;
+  xs.forEach((x, i) => {
+   const ratio = linear(grained[i][1]) / linear(plain[i][1]), model = dmg.reflectorGrain(P, at(x), yc, 1 / pxPerMm);
+   worst = Math.max(worst, Math.abs(ratio - model));
+   spread = Math.max(spread, Math.abs(model - 1));
+  });
+  out.push({...result((kind === 'dmg' ? 'DMG-01' : 'DMG vector') + ' reflector grain = model (ratio on flat white)', worst, .012),
+   detail: 'worst ' + worst.toExponential(2) + ' (8-bit output); grain up to ±' + (100 * spread).toFixed(1) + '% at ' + pxPerMm.toFixed(1) + ' px/mm'});
+ }
+ return out;
+}
+
 /** LCD power: both DMG renderers follow the model off and back on (shown light). */
 export async function dmgPower() {
  const P = await profileOf('dmg-01-stn'), out = [];
@@ -386,6 +423,7 @@ export async function dmgvEdges() {
   document.body.append(canvas);
   const r = KINDS.dmgv.createRenderer(canvas, {profile: P, widthMm: PANEL.w, heightMm: PANEL.h});
   r.resize(...css, 1);
+  r.setGrain(false);
   r.setShadow(false);
   r.setLighting({angleDeg: 40, azimuthDeg: 0, sourceDeg: .5});
   const {pxPerMm, pointsPerPixel: n} = r.info();
@@ -616,5 +654,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgvFade(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgvFade(), ...await dmgGrain(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }
