@@ -14,6 +14,7 @@ GitHub Pages site (`BuyingZebra/nl_offline`, served from `main`):
 - **Accuracy over invention.** When a choice is "logical or accurate to the hardware of its time", pick accuracy: whichever option is closest to the real hardware is the answer. Decide by evidence (data, physics, photos and videos of real units), not by what earlier notes kept; the owner set this principle, not specific mechanisms. (Example: v0.32 keeps the solver's two resting states but lets the temporary one fade, because BGB and real DMG videos show no lasting ghost.) Label every assumed value as assumed, in the profile, the Info tab and the README. Never present an estimate as a measurement.
 - Viewing-angle effects are an artistic option, not a requirement.
 - Be honest when a proposed effect turns out to be negligible or wrong (for example, crosstalk streaking was not added; see below), and correct earlier claims.
+- **Flag risks before shipping, not after.** Before a visible change goes live, tell the owner what it will look like at each setting (a table of predicted colours/behaviour) and which parts are physics, which measured, which fitted or assumed, and where it might disagree with the references. v0.32.0 went live with an unflagged colour fit that invented hues.
 - They review on a phone and on a laptop (AMD Radeon). The Info tab's **Copy report** button produces the diagnostic report they paste back.
 
 ## The Vector LCD idea (the processor, not a renderer)
@@ -34,7 +35,7 @@ Modern, clean, high-resolution vector content (NOMAD Tetris style: no visible DM
 - DMG glass: 1.1 mm (the thickest common small-STN glass; DMG value unpublished).
 - DMG response: about 150 ms per change (era STN figures), via `temperature.response_scale` 0.52 (0.64 before v0.32's finer tables).
 
-## DMG-01 state of play (v0.32.0)
+## DMG-01 state of play (v0.32.1)
 
 The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at `../rdl` in the old session. Clone https://github.com/JohnnySun/retro-display-lab if you need it. Copied values are in `profiles/dmg-01-stn.json`. The attribution and NOTICE are in `third_party/retro-display-lab/`.
 
