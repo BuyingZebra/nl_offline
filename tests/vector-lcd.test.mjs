@@ -333,20 +333,22 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   D.palette.srgb8.shades.forEach((rgb,s)=>assert.deepEqual(M.colorAt(D,M.targetQ(D,s,1)).map(enc),rgb));
   assert.deepEqual(M.colorAt(D,0).map(enc),D.palette.srgb8.disabled);
  });
- test('colours come from the solver\'s spectrum: one fitted conversion, close at all five anchors before the residual',()=>{
-  const F=D.stn.color_fit;
-  assert.equal(F.matrix.length,3);assert.ok(F.method.includes('XYZ'));
-  // One 3 x 3 matrix explains all five measured colours to within a few percent of white.
-  const white=M.linearPalette(D)[1][1];
-  F.max_error_before_residual.forEach((e,i)=>assert.ok(e<.12*white,'anchor '+i+': '+e));
-  // BGB photographed whole pixels: the gaps (the unpowered colour) are part of each colour.
-  near(F.gap_fraction,1-.875*.875,1e-6);assert.ok(F.gap_basis.includes('assumed'));
-  assert.equal(D.stn.color.length,3*D.stn.color_bins);
+ test('colours: BGB\'s measured path at the solver\'s brightness, never a hue no photo shows',()=>{
+  const B=D.stn.color_basis,pal=M.linearPalette(D),off=pal[0],black=pal[4];
+  assert.ok(B.method.includes('luminance')&&B.ref.includes('BGB'));
+  // Nothing is lighter than the LCD-disabled colour (BGB: "the lightest shade is the LCD disabled color").
+  assert.ok(B.luminance_relative_to_white.unpowered>1);
+  // Darker than black keeps black's hue (BGB: darker than the darkest normal shade): no navy.
+  const c=M.colorAt(D,M.targetQ(D,3,1.08)),r=c.map((v,i)=>v/black[i]);
+  assert.ok(r.every(v=>v<1),'darker');r.forEach(v=>near(v,r[0],1e-6,'same hue'));
+  // Every colour in the table lies on the path between BGB's colours (each channel within their range or dimmed black).
+  for(let i=0;i<D.stn.color_bins;i++){const k=D.stn.color.slice(3*i,3*i+3);
+   k.forEach((v,ch)=>assert.ok(v<=Math.max(...pal.map(p=>p[ch]))+1e-9,'bin '+i));}
  });
- test('a low wheel settles to the unpowered colour, as BGB describes ("the lightest shade is the LCD disabled color")',()=>{
+ test('a low wheel is blank in the unpowered colour (BGB; Reddit, a real DMG: "the first two turns the screen is still completely white")',()=>{
   const enc=v=>Math.round(255*(v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055)),off=D.palette.srgb8.disabled;
-  for(let s=0;s<4;s++){const c=M.colorAt(D,M.targetQ(D,s,.85)).map(enc);
-   c.forEach((v,i)=>assert.ok(Math.abs(v-off[i])<=10,'shade '+s+' at x0.85: '+c+' vs '+off));}
+  for(const w of [.85,.88,.9])for(let s=0;s<4;s++){const c=M.colorAt(D,M.targetQ(D,s,w)).map(enc);
+   c.forEach((v,i)=>assert.ok(Math.abs(v-off[i])<=10,'shade '+s+' at x'+w+': '+c+' vs '+off));}
  });
  test('two resting states below the normal drive: the lower free energy is stable, the other fades',()=>{
   const C=D.contrast.conditions,i85=C.indexOf(.85),i100=C.indexOf(1);

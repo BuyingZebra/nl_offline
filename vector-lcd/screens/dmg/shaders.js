@@ -8,7 +8,7 @@
  *
  * UPDATE, ENTRY and BLUR run per panel dot; DISPLAY runs per screen pixel.
  * State texel: r = director q, g = ionic charge, b = drive level, a = coordinate shown
- * (its colour: COLOR, the solver's spectrum fitted to BGB's measured colours). */
+ * (its colour: PALETTE, BGB's measured colours at the solver's brightness). */
 
 import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
 import {MAX_DOTS_PER_PIXEL} from '../../gpu/webgl.js';
@@ -117,8 +117,8 @@ void main(){
 
 
 // ---------------------------------------------------------------------------
-// Colour of a shown coordinate: the solver's reflected spectrum per crystal state,
-// fitted to BGB's measured colours, in linear light (model.js colorAt).
+// Colour of a shown coordinate: BGB's measured colours at the solver's brightness
+// for that crystal state, in linear light (model.js colorAt).
 // ---------------------------------------------------------------------------
 
 // The screen lens: a clear plastic plate (index uLensN) in front of the LCD, with

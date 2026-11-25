@@ -16,7 +16,7 @@ import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickin
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS, MAX_POINTS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.7.0';
+export const VERSION = '0.7.1';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 const POINT_PITCH_MM = .025;       // points no further apart than this on the panel (40 per mm)
@@ -85,7 +85,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   // The temporary resting state, the same layout (-1 where a shade has one state).
   gl.bindTexture(gl.TEXTURE_2D, res.metaQ);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, 4, profile.contrast.conditions.length, 0, gl.RED, gl.FLOAT, new Float32Array(S.meta_q));
-  // Colour per director coordinate (linear RGB): the solver's spectrum, fitted to BGB.
+  // Colour per director coordinate (linear RGB): BGB's colours at the solver's brightness.
   gl.bindTexture(gl.TEXTURE_2D, res.color);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, S.color_bins, 1, 0, gl.RGB, gl.FLOAT, new Float32Array(S.color));
  }

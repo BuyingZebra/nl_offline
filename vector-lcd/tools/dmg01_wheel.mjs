@@ -31,13 +31,9 @@
  *      state). The director coordinate runs through solved states only: the
  *      unpowered rest (0), every resting state on both branches, and the source's
  *      high-bound black (1). Only between the two branches is it a blend.
- *   5. colour from the solver's spectrum. The source computes the reflected
- *      spectrum (Jones matrices at 15 wavelengths) but keeps only its luminance.
- *      Here its CIE XYZ at every coordinate becomes the colour, through one 3 x 3
- *      matrix fitted (least squares) to BGB's five measured colours, with the
- *      dot gaps (which show the unpowered colour) taken out of BGB's averages;
- *      the small residual at the five anchors is spread linearly between them
- *      so the measured colours come out exactly (stn.color).
+ *   5. colour per coordinate (stn.color): BGB's measured colours, chosen by the
+ *      solver's luminance of that crystal state, including the unpowered rest and
+ *      the states beyond the four shades (see the colour section).
  * The material, drive reduction, solver, time step and frame period are the
  * source's, unchanged; the tables are four times finer (257 bins, not 65); equilibria near the threshold get longer to
  * converge (60 s, not 5 s). */
@@ -249,47 +245,34 @@ const METASTABLE = {
 };
 
 
-// ---- Colour from the solver's spectrum ----------------------------------------------
+// ---- Colour: BGB's measured colours, chosen by the solver's brightness ---------------
 
-/* BGB's colours are photographs of whole pixels, gaps included, and the gaps show the
- * unpowered colour (BGB: "the edge is yellow"). The solver's spectrum is the dot's own.
- * So the fit is to the dots' colour: (average - gap * unpowered) / (1 - gap). The gap
- * is 1 - 0.875^2 of the area: the source's aperture fill, from BGB's drawing, which
- * BGB calls idealized (assumed). Shown, a flat area is again the average of dots and
- * gaps, so the screens show what BGB photographed, without drawing a grid. */
-const FILL = .875, GAP = 1 - FILL * FILL;
+/* The solver gives every crystal state a brightness (luminance of its reflected
+ * spectrum). Its hue is not used: BGB's five colours lie almost on one line (olive to
+ * green to teal), so a colour conversion fitted to them is only pinned along that line,
+ * and states outside it came out lime or navy (v0.32.0), which no photo of a real DMG
+ * shows. So the colour of a state is BGB's measured path at the solver's brightness:
+ * between two shades, linear light between their colours; lighter than white, toward the
+ * LCD-disabled colour and never past it (BGB: "the lightest shade is the 'LCD disabled'
+ * color"); darker than black, black's colour dimmed by the luminance ratio (BGB: "darker
+ * than the darkest shade with normal contrast"). BGB's colours are whole pixels with
+ * their gaps, as the screens show a flat area. */
 const decode = v => { v /= 255; return v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); };
 const measured = [P0().palette.srgb8.disabled, ...P0().palette.srgb8.shades].map(c => c.map(decode));
-const off = measured[0];
-const dotTarget = measured.map((c, i) => i ? c.map((v, k) => (v - GAP * off[k]) / (1 - GAP)) : c);
-const anchorStates = [unpowered, ...nominal].map(e => e.optical.xyz);
-// Least squares: linear RGB = M * XYZ over the five anchors (normal equations).
-const XtX = [0, 1, 2].map(i => [0, 1, 2].map(j => anchorStates.reduce((a, x) => a + x[i] * x[j], 0)));
-const inv3 = m => {
- const [[a, b, c], [d, e, f], [g, h, i]] = m, A = e * i - f * h, B = f * g - d * i, C = d * h - e * g, det = a * A + b * B + c * C;
- return [[A, c * h - b * i, b * f - c * e], [B, a * i - c * g, c * d - a * f], [C, b * g - a * h, a * e - b * d]].map(r => r.map(v => v / det));
-};
-const XtXi = inv3(XtX);
-const M = [0, 1, 2].map(ch => {
- const Xty = [0, 1, 2].map(i => anchorStates.reduce((a, x, n) => a + x[i] * dotTarget[n][ch], 0));
- return [0, 1, 2].map(j => XtXi[j][0] * Xty[0] + XtXi[j][1] * Xty[1] + XtXi[j][2] * Xty[2]);
-});
-const toRGB = xyz => M.map(r => r[0] * xyz[0] + r[1] * xyz[1] + r[2] * xyz[2]);
-const anchorQ = [0, ...anchors];
-const residual = anchorStates.map((x, n) => toRGB(x).map((v, k) => dotTarget[n][k] - v));
-const residualAt = q => {
- if (q >= anchorQ.at(-1)) return residual.at(-1);
- let k = 0;
- while (k < anchorQ.length - 2 && q > anchorQ[k + 1]) k++;
- const f = clampUnit((q - anchorQ[k]) / Math.max(anchorQ[k + 1] - anchorQ[k], 1e-12));
- return residual[k].map((v, c) => v + (residual[k + 1][c] - v) * f);
-};
+const Yu = unpowered.optical.luminance;
+if (!(Yu > L[0])) throw new Error('the unpowered rest is not lighter than nominal white');
+const mixc = (a, b, f) => a.map((v, k) => v + (b[k] - v) * f);
+function colorForLuminance(Y) {
+ if (Y >= Yu) return measured[0];
+ if (Y >= L[0]) return mixc(measured[1], measured[0], (Y - L[0]) / (Yu - L[0]));
+ for (let k = 0; k < 3; k++) if (Y >= L[k + 1]) return mixc(measured[k + 1], measured[k + 2], (L[k] - Y) / (L[k] - L[k + 1]));
+ return measured[4].map(v => v * Math.max(Y, 0) / L[3]);
+}
 const colorBins = 1025, color = [];          // fine: the four normal shades lie within 0.06 of the coordinate
 for (let i = 0; i < colorBins; i++) {
- const q = i / (colorBins - 1), dot = toRGB(R.opticalObservation(manifoldState(q), material).xyz), r = residualAt(q);
- color.push(...dot.map((v, k) => round(Math.max(0, (1 - GAP) * (v + r[k]) + GAP * off[k]), 9)));
+ const q = i / (colorBins - 1);
+ color.push(...colorForLuminance(R.opticalObservation(manifoldState(q), material).luminance).map(v => round(v, 9)));
 }
-const fitError = anchorStates.map((x, n) => Math.max(...toRGB(x).map((v, k) => Math.abs(v - dotTarget[n][k]))));
 
 
 // ---- Patch the profile -------------------------------------------------------------
@@ -314,17 +297,16 @@ Object.assign(P.stn, {
  coordinate: 'q = mean sin^2(tilt) through the cell, 0 at the unpowered rest, 1 at the source\'s high-bound black (x1.08, shade 3); '
   + manifold.length + ' solved resting states along it (both branches at every wheel position), blended only between them',
  color_bins: colorBins, color,
- color_fit: {
-  method: 'CIE XYZ of the reflected spectrum (source: Jones matrices, 15 wavelengths, ideal polarizers) to linear sRGB by one 3 x 3 matrix, '
-   + 'least squares over the unpowered rest and the four normal shades; the residual at those five is spread linearly between them',
-  matrix: M.map(r => r.map(v => round(v, 9))),
-  max_error_before_residual: fitError.map(v => round(v, 6)),
-  gap_fraction: round(GAP, 6),
-  gap_basis: 'BGB\'s colours are whole pixels, gaps included, and the gaps show the unpowered colour; gap = 1 - 0.875^2 (the source\'s aperture fill, '
-   + 'from BGB\'s idealized drawing): assumed',
-  ref: 'BGB, The reality of DMG colors: colour-accurate light, ColorChecker-corrected to true colour and brightness in sRGB, 1/60 s, defocused, averaged'
+ color_basis: {
+  method: 'BGB\'s five measured colours, chosen by the solver\'s luminance of each crystal state: linear light between shades; lighter than white, '
+   + 'toward the LCD-disabled colour and clamped there; darker than black, black dimmed by the luminance ratio',
+  luminance_relative_to_white: {unpowered: round(Yu / L[0], 6), shades: L.map(v => round(v / L[0], 6))},
+  why_not_the_spectrum_hue: 'the five colours lie nearly on one line, so a colour conversion fitted to them extrapolates hue (lime, navy) that no photo of a real DMG shows (v0.32.0)',
+  ref: 'BGB, The reality of DMG colors: colour-accurate light, ColorChecker-corrected to true colour and brightness in sRGB, 1/60 s, defocused, averaged; '
+   + 'contrast wheel: the lightest shade is the LCD disabled color, darker than normal is darker than the darkest normal shade'
  }
 });
+delete P.stn.color_fit;               // v0.32.0's fitted conversion, replaced by color_basis
 P.attribution.changes = 'Values copied into one JSON profile. The contrast tables (stn.target_q, drift_per_frame, optical, anchors, corrections) are '
  + 'recomputed by tools/dmg01_wheel.mjs with the source\'s own solver at every 0.01 of the wheel from 0.85 to 1.08, with the optical calibration '
  + 'continued beyond the nominal shades. Used without the pixel aperture, the passive-matrix crosstalk and the row-latch scan-out, which belong to the 160x144 dot grid.';

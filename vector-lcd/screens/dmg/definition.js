@@ -56,9 +56,9 @@ export const definition = Object.freeze({
     + 'a screen pixel shows the average light of its dots'],
    ['Palette (measured)', 'BGB DMG reality samples (colour-accurate light, ColorChecker-corrected to true colour and brightness, whole pixels with their gaps): '
     + P.palette.srgb8.shades.map(hex).join(', ') + '; LCD disabled ' + hex(P.palette.srgb8.disabled)],
-   ['Colours (from the physics)', 'every crystal state is coloured by the source\'s own reflected spectrum (light through polarizers, crystal and reflector at 15 wavelengths), '
-    + 'converted by one 3 × 3 matrix fitted to BGB\'s five colours, which are shown exactly. The dots\' gaps show the unpowered colour and are part of BGB\'s photographs: '
-    + Math.round(P.stn.color_fit.gap_fraction * 100) + '% of the area (assumed, from BGB\'s idealized drawing). Polarizer spectra are not published (ideal ones assumed)'],
+   ['Colours', 'the solver decides each dot\'s crystal state and how bright it is; the colour is BGB\'s measured path at that brightness: '
+    + 'lighter than white tends to the LCD-disabled colour and stops there, darker than black is black dimmed (BGB\'s description of the real wheel). '
+    + 'The solver\'s own hue is not used: fitted to BGB\'s five colours it invents lime and navy that no photo of a real DMG shows'],
    ['Drive', '1/' + P.panel.dots[1] + ' duty passive matrix, ' + P.panel.refresh_hz + ' Hz frames; rms reconstruction (' + P.drive.nonselect_rms_V + ' V nonselect, nominal)'],
    ['Response (matched to the era)', 'STN director drift per frame from a Frank–Oseen/Ericksen–Leslie reduction, slowed ×'
     + (1 / P.temperature.response_scale).toFixed(2) + ' to about ' + P.sources.response.target_ms + ' ms per change (10–90%, 25 °C), '

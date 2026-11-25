@@ -11,8 +11,8 @@
  *  - on a drive change q is projected onto the nominal optical branch;
  *  - ions slowly charge under a dark drive and release afterwards (sticking);
  *  - what the eye sees over a frame is the Simpson average of the director
- *    coordinate across it (shifted by ion sticking), coloured by the solver's
- *    own reflected spectrum, fitted to BGB's measured colours (stn.color);
+ *    coordinate across it (shifted by ion sticking), coloured by BGB's
+ *    measured colours at the solver's brightness for that state (stn.color);
  *  - below the normal drive some shades have two resting states; the one with
  *    the higher free energy is temporary and gives way to the stable one, as
  *    defects nucleate and spread (assumed rate: stn.metastable).
@@ -271,10 +271,10 @@ export function linearPalette(profile) {
 }
 
 /** Linear-sRGB colour of a flat area whose points show director coordinate c:
- * the solver's reflected spectrum at that crystal state, through the colour
- * conversion fitted to BGB's five measured colours (stn.color, from
- * tools/dmg01_wheel.mjs; dot gaps included, as BGB photographed them). The
- * unpowered rest (0) and the four normal shades are BGB's colours exactly. */
+ * BGB's measured colours at the solver's luminance for that crystal state
+ * (stn.color, from tools/dmg01_wheel.mjs): linear light between shades,
+ * lighter than white toward the LCD-disabled colour and never past it, darker
+ * than black as black dimmed. The four normal shades are BGB's exactly. */
 export function colorAt(profile, c) {
  const n = profile.stn.color_bins, t = profile.stn.color;
  const x = clamp(c, 0, 1) * (n - 1), i = Math.min(n - 2, Math.floor(x)), f = x - i;
