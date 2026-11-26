@@ -17,7 +17,7 @@ import {lensScratches, uploadScratches, MAX_PER_CELL} from '../../optics/scratch
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS, MAX_POINTS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.10.0';
+export const VERSION = '0.11.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 const POINT_PITCH_MM = .025;       // points no further apart than this on the panel (40 per mm)
@@ -293,6 +293,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
     gpu.bind(p, 13, 'uScratchGrid', res.scratchTex.grid);
     gpu.bind(p, 14, 'uScratchIndex', res.scratchTex.index);
     gl.uniform1f(p.u('uScratchCell'), scratches.cellMm);
+    gl.uniform1f(p.u('uScratchRough'), scratches.rough);
     gl.uniform2f(p.u('uScratchOrigin'), scratches.origin[0], scratches.origin[1]);
    } else {
     // Unused, but every sampler must name a texture of its kind.

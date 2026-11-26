@@ -441,8 +441,16 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   // The grid finds the same scratches as a search of all of them.
   const pack=S.lensScratches(D,'used',[48,92]);
   for(let k=0;k<200;k++){const x=(k*7.31)%48,y=(k*13.7)%92,all=pack.list.reduce((g,sc)=>g+S.scratchGlint(sc,x-pack.origin[0],y-pack.origin[1],.08,v,l,sig,norm,1.49),0);
-   near(S.scratchesGlint(pack,x,y,.08,v,l,sig,norm,1.49),all,1e-12);}
+   near(S.scratchesGlint(pack,x,y,.08,v,l,sig,norm,1.49),pack.list.reduce((g,sc)=>g+S.scratchGlint(sc,x-pack.origin[0],y-pack.origin[1],.08,v,l,sig,norm,1.49,pack.rough),0),1e-12);}
   assert.ok(pack.maxPerCell<=S.MAX_PER_CELL);
+  // Rough walls (rough_deg): a glint spreads over more angles and dims at its peak, keeping its energy.
+  const r6=6*Math.PI/180,sm=S.scratchGlint(across,0,0,.002,v,l,sig,norm,1.49,0),ro=S.scratchGlint(across,0,0,.002,v,l,sig,norm,1.49,r6);
+  assert.ok(ro<sm&&ro>.3*sm,'rough peak lower: '+ro+' vs '+sm);
+  const tilt=30*Math.PI/180,l2=[Math.sin(ang)*Math.cos(tilt),Math.sin(ang)*Math.sin(tilt),Math.cos(ang)];
+  assert.ok(S.scratchGlint(across,0,0,.002,v,l2,sig,norm,1.49,r6)>S.scratchGlint(across,0,0,.002,v,l2,sig,norm,1.49,0),'and wider');
+  assert.equal(pack.rough,spec.rough_deg*Math.PI/180);
+  // Dense micro-scratches, matched by eye to a photo of a used lens.
+  assert.ok(spec.micro.per_cm2>=10&&a.filter(m=>m.type===0&&m.width<=.01&&Math.hypot(m.x1-m.x0,m.y1-m.y0)<=3.0001).length>200);
   // All four kinds: swirls and pocket scratches, careless scratches (wider, deeper), digs, one scuff.
   const kinds=a.reduce((k,m)=>(k[m.type]=(k[m.type]||0)+1,k),{});
   assert.ok(kinds[0]>0&&kinds[1]>0&&kinds[2]>0&&kinds[3]===1,JSON.stringify(kinds));

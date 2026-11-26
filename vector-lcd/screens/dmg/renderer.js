@@ -19,7 +19,7 @@ import {lensScratches, uploadScratches, MAX_PER_CELL} from '../../optics/scratch
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '0.10.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 /** Panel dots in all. The same as the most device pixels a screen draws, so the
@@ -293,6 +293,7 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
     gpu.bind(p, 13, 'uScratchGrid', res.scratchTex.grid);
     gpu.bind(p, 14, 'uScratchIndex', res.scratchTex.index);
     gl.uniform1f(p.u('uScratchCell'), scratches.cellMm);
+    gl.uniform1f(p.u('uScratchRough'), scratches.rough);
     gl.uniform2f(p.u('uScratchOrigin'), scratches.origin[0], scratches.origin[1]);
    } else {
     // Unused, but every sampler must name a texture of its kind.

@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.35.0';
+const VERSION = '0.36.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 

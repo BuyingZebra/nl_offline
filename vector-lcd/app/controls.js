@@ -140,7 +140,12 @@ export function createControls(el, currentRenderer) {
     onInput: v => { settings.lighting.angleDeg = v; currentRenderer().setLighting({angleDeg: v}); castShadow(settings.lighting); }}),
    slider({label: 'Light from', min: 0, max: 359, step: 1, value: settings.lighting.azimuthDeg,
     format: describeDirection,
-    onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); castShadow(settings.lighting); }}));
+    onInput: v => { settings.lighting.azimuthDeg = v; currentRenderer().setLighting({azimuthDeg: v}); castShadow(settings.lighting); }}),
+   // How big the lamp looks from the screen: a bare bulb is small and sharp (crisp glare,
+   // bright glinting scratches), a shade or a ceiling panel large and soft.
+   slider({label: 'Lamp size', min: 2, max: 30, step: 1, value: settings.lighting.sourceDeg,
+    format: v => v + '° across · ' + (v <= 5 ? 'bare bulb' : v <= 12 ? 'small lamp' : v <= 20 ? 'lamp with shade' : 'large soft light'),
+    onInput: v => { settings.lighting.sourceDeg = v; currentRenderer().setLighting({sourceDeg: v}); }}));
 
   // Inspection only: the reflector shadow off (light leaves where it entered).
   if (def.shadowSwitch) el.lighting.append(toggle(() => settings.shadow,

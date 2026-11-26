@@ -27,6 +27,10 @@
  * A pixel takes each mark by how much of it the mark covers (clean at any zoom),
  * and loses that share of the flat front surface's own mirror glare.
  *
+ * Rough walls (spec.rough_deg): real scratch walls are torn, not polished, so each facet's
+ * reflection spreads by a further angle; the lobes add (se^2 = sn^2 + rough^2) and the
+ * energy is kept (the peak falls as sn / se), and the walls' range softens by an erf.
+ *
  * scratchGlint / scratchesGlint are the JS twins of SCRATCH_GLSL. */
 
 // ---------------------------------------------------------------------------
@@ -77,6 +81,12 @@ export function generateScratches(spec, [w, h]) {
    angle: rnd() * Math.PI, spread: S.spread_deg * Math.PI / 180, density: S.density,
    width: S.width_um / 1000, depth: S.depth_um / 1000, streak: S.streak_mm, seed: Math.floor(rnd() * 65536)});
  }
+ // Use: dense, short micro-scratches all over (sleeves, pockets, fingers).
+ for (let i = 0, n = spec.micro ? count(spec.micro.per_cm2) : 0; i < n; i++) {
+  const len = range(spec.micro.length_mm), a = rnd() * Math.PI, x = rnd() * w, y = rnd() * h;
+  const dx = Math.cos(a) * len / 2, dy = Math.sin(a) * len / 2;
+  out.push({type: 0, x0: x - dx, y0: y - dy, x1: x + dx, y1: y + dy, width: range(spec.micro.width_um) / 1000, depth: range(spec.micro.depth_um) / 1000});
+ }
  return out;
 }
 
@@ -120,7 +130,7 @@ export function packScratches(list, [w, h], cellMm = 2, origin = [0, 0]) {
  cells.forEach((c, i) => { grid[i * 4] = index.length; grid[i * 4 + 1] = c.length; index.push(...c); });
  const data = new Float32Array(Math.max(1, list.length) * 12);
  list.forEach((s, k) => data.set(packed(s), k * 12));
- return {cols, rows, cellMm, origin, list, grid, index: Float32Array.from(index.length ? index : [0]), data, count: list.length,
+ return {cols, rows, cellMm, origin, list, grid, rough: 0, index: Float32Array.from(index.length ? index : [0]), data, count: list.length,
   maxPerCell: Math.max(0, ...cells.map(c => c.length))};
 }
 
@@ -176,20 +186,39 @@ function coverage(dist, width, pixelMm) {
  return Math.max(0, hi - lo) / pixelMm;
 }
 
+/** Share of a groove's width per radian of wall slope at phiH: R cos(phi) / width inside
+ * the walls' range, its edges softened by a rough spread (an erf ramp). */
+function wallShare(phiH, phiMax, Rg, w, rough) {
+ const base = Rg * Math.cos(Math.min(Math.abs(phiH), phiMax)) / w;
+ if (rough <= 0) return Math.abs(phiH) < phiMax ? base : 0;
+ const k = 1 / (Math.SQRT2 * rough);
+ return base * .5 * (erf((phiMax - phiH) * k) + erf((phiMax + phiH) * k));
+}
+
+/** Error function (Abramowitz-Stegun 7.1.26; the shader's twin). */
+function erf(x) {
+ const s = Math.sign(x), a = Math.abs(x), t = 1 / (1 + .3275911 * a);
+ return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - .284496736) * t + .254829592) * t * Math.exp(-a * a));
+}
+
 /** Radiance a groove's walls send to the eye, per unit of its area (see the header). */
-function grooveFacet(tx, ty, w, dep, h, v, sn, norm, n) {
+function grooveFacet(tx, ty, w, dep, h, v, sn, norm, n, rough = 0) {
+ // Rough walls spread each facet's reflection by a further angle: the lobes add.
+ const se = Math.sqrt(sn * sn + rough * rough);
  const px = -ty, py = tx;
  const delta = Math.asin(Math.max(-1, Math.min(1, h[0] * tx + h[1] * ty)));
  const phiH = Math.atan2(h[0] * px + h[1] * py, h[2]);
  const Rg = (w * w / 4 + dep * dep) / (2 * dep), phiMax = Math.asin(Math.min(1, w / (2 * Rg)));
- const rho = Math.abs(phiH) < phiMax ? Rg * Math.cos(phiH) / w : 0;
- return fresnelN(Math.max(0, v[0] * h[0] + v[1] * h[1] + v[2] * h[2]), n) * norm * Math.exp(-delta * delta / (2 * sn * sn)) * rho * Math.sqrt(2 * Math.PI) * sn;
+ // Across the groove: the share of walls tilted near phiH, smoothed by the rough spread.
+ const rho = wallShare(phiH, phiMax, Rg, w, rough);
+ // A lamp of spread sn seen in facets spread by rough: the peak falls as sn / se (the energy is kept).
+ return fresnelN(Math.max(0, v[0] * h[0] + v[1] * h[1] + v[2] * h[2]), n) * norm * Math.exp(-delta * delta / (2 * se * se)) * (sn / se) * rho * Math.sqrt(2 * Math.PI) * sn;
 }
 
 /** Glare added by one mark at a lens point, relative to the flat lens there
  * (linear, the glare's units). v: unit vector to the eye; l: unit vector to the
  * light (both x right, y down, z out of the screen); sigma, norm: the glare's. */
-export function scratchGlint(s, x, y, pixelMm, v, l, sigma, norm, n) {
+export function scratchGlint(s, x, y, pixelMm, v, l, sigma, norm, n, rough = 0) {
  let hx = v[0] + l[0], hy = v[1] + l[1], hz = v[2] + l[2];
  const hl = Math.hypot(hx, hy, hz), h = [hx / hl, hy / hl, hz / hl], sn = sigma / 2;
  // The flat front surface a mark replaces: its mirror glare toward the eye.
@@ -201,7 +230,7 @@ export function scratchGlint(s, x, y, pixelMm, v, l, sigma, norm, n) {
   const cov = 2 * r <= pixelMm ? Math.PI * r * r / (pixelMm * pixelMm) * Math.min(1, Math.max(0, (pixelMm / 2 - dist) / (2 * r) + .5)) : Math.min(1, Math.max(0, (r - dist) / pixelMm + .5));
   if (cov <= 0) return 0;
   const Rc = (r * r + s.depth * s.depth) / (2 * s.depth), thetaMax = Math.asin(Math.min(1, r / Rc)), theta = Math.acos(Math.min(1, h[2]));
-  const rhoO = theta < thetaMax ? Rc * Rc * Math.cos(theta) / (Math.PI * r * r) : 0;
+  const rhoO = Rc * Rc * Math.cos(Math.min(theta, thetaMax)) / (Math.PI * r * r) * (rough > 0 ? .5 * (1 + erf((thetaMax - theta) / (Math.SQRT2 * rough))) : theta < thetaMax ? 1 : 0);
   const facet = fresnelN(Math.max(0, v[0] * h[0] + v[1] * h[1] + v[2] * h[2]), n) * norm * rhoO * 2 * Math.PI * sn * sn;
   return cov * (facet - flat);
  }
@@ -214,11 +243,11 @@ export function scratchGlint(s, x, y, pixelMm, v, l, sigma, norm, n) {
   const streak = 1 + .8 * Math.min(1, s.streak / pixelMm) * noise(w / s.streak, s.seed);
   const ang = s.angle + s.spread * noise(u / 1.5, s.seed + 1), tx = Math.cos(ang), ty = Math.sin(ang);
   const cov = s.density * env * streak;
-  return cov * (grooveFacet(tx, ty, s.width, s.depth, h, v, sn, norm, n) - flat);
+  return cov * (grooveFacet(tx, ty, s.width, s.depth, h, v, sn, norm, n, rough) - flat);
  }
  const {dist, tx, ty} = nearest(s, x, y), cov = coverage(dist, s.width, pixelMm);
  if (cov <= 0) return 0;
- return cov * (grooveFacet(tx, ty, s.width, s.depth, h, v, sn, norm, n) - flat);
+ return cov * (grooveFacet(tx, ty, s.width, s.depth, h, v, sn, norm, n, rough) - flat);
 }
 
 /** Every mark at a lens point (the twin of the shader's loop over the point's cell). */
@@ -228,7 +257,7 @@ export function scratchesGlint(pack, x, y, pixelMm, v, l, sigma, norm, n) {
  if (i < 0 || j < 0 || i >= pack.cols || j >= pack.rows) return 0;
  const c = (j * pack.cols + i) * 4, start = pack.grid[c], count = pack.grid[c + 1];
  let g = 0;
- for (let k = 0; k < count; k++) g += scratchGlint(list[pack.index[start + k]], x, y, pixelMm, v, l, sigma, norm, n);
+ for (let k = 0; k < count; k++) g += scratchGlint(list[pack.index[start + k]], x, y, pixelMm, v, l, sigma, norm, n, pack.rough);
  return g;
 }
 
@@ -244,7 +273,8 @@ export const MAX_PER_CELL = 48;
  * three texels per mark, 1024 wide), uScratchGrid (RGBA32F, cols x rows),
  * uScratchIndex (R32F, 1024 wide), uScratchCell, uScratchOrigin, uScratchOn. */
 export const SCRATCH_GLSL = `
-uniform sampler2D uScratchData,uScratchGrid,uScratchIndex;uniform float uScratchCell;uniform vec2 uScratchOrigin;uniform bool uScratchOn;
+uniform sampler2D uScratchData,uScratchGrid,uScratchIndex;uniform float uScratchCell,uScratchRough;uniform vec2 uScratchOrigin;uniform bool uScratchOn;
+float scratchErf(float x){float s=sign(x),a=abs(x),t=1.0/(1.0+0.3275911*a);return s*(1.0-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*exp(-a*a));}
 vec4 scratchTexel(int k){return texelFetch(uScratchData,ivec2(k%1024,k/1024),0);}
 float scratchCover(float dist,float w,float pix){float lo=max(dist-0.5*w,-0.5*pix),hi=min(dist+0.5*w,0.5*pix);return max(0.0,hi-lo)/pix;}
 float scratchHash(int a,int b){
@@ -254,11 +284,12 @@ float scratchHash(int a,int b){
 }
 float scratchNoise(float x,int seed){float c=floor(x),f=x-c,s=f*f*(3.0-2.0*f);int i=int(c);return scratchHash(i,seed)+(scratchHash(i+1,seed)-scratchHash(i,seed))*s;}
 float grooveFacet(vec2 t,float w,float dep,vec3 h,vec3 v,float sn,float norm,float n){
- vec2 p=vec2(-t.y,t.x);
+ vec2 p=vec2(-t.y,t.x);float ro=uScratchRough,se=sqrt(sn*sn+ro*ro);
  float delta=asin(clamp(dot(h.xy,t),-1.0,1.0)),phiH=atan(dot(h.xy,p),h.z);
  float Rg=(w*w*0.25+dep*dep)/(2.0*dep),phiMax=asin(min(1.0,w/(2.0*Rg)));
- float rho=abs(phiH)<phiMax?Rg*cos(phiH)/w:0.0;
- return fresnelN(max(0.0,dot(v,h)),n)*norm*exp(-delta*delta/(2.0*sn*sn))*rho*2.50662827463*sn;
+ float base=Rg*cos(min(abs(phiH),phiMax))/w;
+ float rho=ro<=0.0?(abs(phiH)<phiMax?base:0.0):base*0.5*(scratchErf((phiMax-phiH)/(1.41421356237*ro))+scratchErf((phiMax+phiH)/(1.41421356237*ro)));
+ return fresnelN(max(0.0,dot(v,h)),n)*norm*exp(-delta*delta/(2.0*se*se))*(sn/se)*rho*2.50662827463*sn;
 }
 float scratchesGlint(vec2 at,float pix,vec3 v,vec3 l,float sigma,float norm,float n){
  if(!uScratchOn)return 0.0;
@@ -279,7 +310,7 @@ float scratchesGlint(vec2 at,float pix,vec3 v,vec3 l,float sigma,float norm,floa
    float cov=2.0*r<=pix?3.14159265359*r*r/(pix*pix)*clamp((0.5*pix-dist)/(2.0*r)+0.5,0.0,1.0):clamp((r-dist)/pix+0.5,0.0,1.0);
    if(cov<=0.0)continue;
    float Rc=(r*r+b.w*b.w)/(2.0*b.w),thetaMax=asin(min(1.0,r/Rc)),theta=acos(min(1.0,h.z));
-   float rhoO=theta<thetaMax?Rc*Rc*cos(theta)/(3.14159265359*r*r):0.0;
+   float ro=uScratchRough,rhoO=Rc*Rc*cos(min(theta,thetaMax))/(3.14159265359*r*r)*(ro>0.0?0.5*(1.0+scratchErf((thetaMax-theta)/(1.41421356237*ro))):(theta<thetaMax?1.0:0.0));
    g+=cov*(fresnelN(max(0.0,dot(v,h)),n)*norm*rhoO*6.28318530718*sn*sn-flat0);
    continue;
   }
@@ -348,5 +379,7 @@ export function lensScratches(profile, condition, [w, h], margin = 3) {
  const spec = profile.lens?.scratches?.[condition];
  if (!spec) return null;
  const list = generateScratches(spec, [w + 2 * margin, h + 2 * margin]).map(s => shift(s, [margin, margin]));
- return packScratches(list, [w + 2 * margin, h + 2 * margin], 2, [-margin, -margin]);
+ const pack = packScratches(list, [w + 2 * margin, h + 2 * margin], 2, [-margin, -margin]);
+ pack.rough = (spec.rough_deg ?? 0) * Math.PI / 180;
+ return pack;
 }
