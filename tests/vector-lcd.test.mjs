@@ -443,6 +443,19 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   for(let k=0;k<200;k++){const x=(k*7.31)%48,y=(k*13.7)%92,all=pack.list.reduce((g,sc)=>g+S.scratchGlint(sc,x-pack.origin[0],y-pack.origin[1],.08,v,l,sig,norm,1.49),0);
    near(S.scratchesGlint(pack,x,y,.08,v,l,sig,norm,1.49),all,1e-12);}
   assert.ok(pack.maxPerCell<=S.MAX_PER_CELL);
+  // All four kinds: swirls and pocket scratches, careless scratches (wider, deeper), digs, one scuff.
+  const kinds=a.reduce((k,m)=>(k[m.type]=(k[m.type]||0)+1,k),{});
+  assert.ok(kinds[0]>0&&kinds[1]>0&&kinds[2]>0&&kinds[3]===1,JSON.stringify(kinds));
+  const careless=a.filter(m=>m.type===1&&m.width>=.03);assert.equal(careless.length,spec.careless.count);
+  // A dig sparkles whatever the light's direction, while its slopes reach the half-way tilt (15° here).
+  const dig={type:2,cx:0,cy:0,r:.01,depth:.003};
+  for(const az of [0,1,2,3])assert.ok(S.scratchGlint(dig,0,0,.002,v,[Math.sin(ang)*Math.cos(az),Math.sin(ang)*Math.sin(az),Math.cos(ang)],sig,norm,1.49)>.02,'dig at azimuth '+az);
+  assert.ok(S.scratchGlint({...dig,depth:.0002},0,0,.002,v,l,sig,norm,1.49)<1e-6,'too shallow for the tilt');
+  // A scuff glows inside its patch when its grooves run across the half-way direction, not outside it.
+  const scuff={type:3,cx:0,cy:0,a:4,b:2,angle:Math.PI/2,spread:0,density:.25,width:.0015,depth:.0003,streak:.04,seed:3};
+  assert.ok(S.scratchGlint(scuff,.1,.1,.08,v,l,sig,norm,1.49)>.005,'inside, lined up');
+  assert.ok(S.scratchGlint({...scuff,angle:0},.1,.1,.08,v,l,sig,norm,1.49)<1e-4,'inside, crosswise');
+  assert.equal(S.scratchGlint(scuff,3,0,.08,v,l,sig,norm,1.49),0,'outside (across its width)');
  });
  test('screen lens: three parallel surfaces mirror the light, about 11% straight on',()=>{
   near(M.lensReflectance(D,1),.109,.002);

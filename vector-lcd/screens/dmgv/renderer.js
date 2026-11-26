@@ -17,7 +17,7 @@ import {lensScratches, uploadScratches, MAX_PER_CELL} from '../../optics/scratch
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS, MAX_POINTS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.9.0';
+export const VERSION = '0.10.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 const POINT_PITCH_MM = .025;       // points no further apart than this on the panel (40 per mm)

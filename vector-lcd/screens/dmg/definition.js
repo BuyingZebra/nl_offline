@@ -94,8 +94,9 @@ export const definition = Object.freeze({
     + (P.reflector.grain_amplitude * 100).toFixed(1) + '% (Brick Boy\'s developer, from close-up photos of LCD modules; ± read as the peak, assumed). '
     + 'It shows in light areas only, and fades where a screen pixel is wider than a grain'],
    ['Lens condition', renderer.condition === 'used'
-    ? 'Used: fine wiping swirls (2–5 µm wide) and pocket scratches (8–30 µm) on the lens front, sizes from published measurements of scratched clear plastics, '
-     + 'numbers and lengths assumed (no DMG lens has been measured; wear differs on every unit). A scratch glints where it runs across the line between the lamp and your eye'
+    ? 'Used: cleaning swirls (2–5 µm wide), pocket scratches (8–30 µm), three careless scratches (30–80 µm), surface imperfections (tiny dimples) and one light scuff, '
+     + 'on the lens front. Sizes from published measurements of scratched clear plastics; numbers, lengths and the scuff assumed (no DMG lens has been measured; wear differs on every unit). '
+     + 'A scratch glints where it runs across the line between the lamp and your eye; a dimple sparkles from any direction; the scuff glows when its direction lines up'
     : 'In the box: the lens as it left the factory. Switch to Used (Surroundings) for typical wear: scratches that catch the lamp'],
    ['Screen lens (assumed)', P.lens.thickness_mm + ' mm (an upper estimate) "high-impact plastic" (n = ' + P.lens.n + ', acrylic assumed) ' + P.lens.gap_mm + ' mm above the LCD, its frame printed on the underside. '
     + 'The room light mirrors off the lens front, the lens back and the LCD (n = ' + P.oblique.front_index + '): ' + Math.round(100 * lensReflectance(P, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10
