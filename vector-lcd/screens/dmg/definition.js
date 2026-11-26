@@ -37,6 +37,7 @@ export const definition = Object.freeze({
  temperatureNote: 'Cold crystal is slower and smears more; warm crystal is faster. Valid 10–30 °C, the range of the source model.',
  /** An inspection switch for the reflector shadow (not a property of the device or the room). */
  shadowSwitch: true,
+ conditionSwitch: true,           // the lens: in the box, or used (scratches)
  powerSwitch: true,               // the LCD on/off (a real device state: the DMG's LCD enable)
  lightNote: 'Light at an angle crosses the crystal at one point on the way in and another on the way out, so each shape casts a shadow away from the light. '
   + 'The light also moves the bezel shadow and the glare.',
@@ -92,6 +93,10 @@ export const definition = Object.freeze({
    ['Reflector grain (measured from photos)', 'a fixed paper-like texture in the reflector: grains about ' + Math.round(P.reflector.grain_mm * 1000) + ' µm (0.3–0.5 dot), ±'
     + (P.reflector.grain_amplitude * 100).toFixed(1) + '% (Brick Boy\'s developer, from close-up photos of LCD modules; ± read as the peak, assumed). '
     + 'It shows in light areas only, and fades where a screen pixel is wider than a grain'],
+   ['Lens condition', renderer.condition === 'used'
+    ? 'Used: fine wiping swirls (2–5 µm wide) and pocket scratches (8–30 µm) on the lens front, sizes from published measurements of scratched clear plastics, '
+     + 'numbers and lengths assumed (no DMG lens has been measured; wear differs on every unit). A scratch glints where it runs across the line between the lamp and your eye'
+    : 'In the box: the lens as it left the factory. Switch to Used (Surroundings) for typical wear: scratches that catch the lamp'],
    ['Screen lens (assumed)', P.lens.thickness_mm + ' mm (an upper estimate) "high-impact plastic" (n = ' + P.lens.n + ', acrylic assumed) ' + P.lens.gap_mm + ' mm above the LCD, its frame printed on the underside. '
     + 'The room light mirrors off the lens front, the lens back and the LCD (n = ' + P.oblique.front_index + '): ' + Math.round(100 * lensReflectance(P, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10
     + '% at this light angle, against ' + Math.round(100 * lensReflectance({...P, lens: null}, Math.cos(renderer.lighting.angleDeg * Math.PI / 180)) * 10) / 10 + '% for the bare LCD'],

@@ -3,7 +3,7 @@
  * every shipped file in ASSETS (a test checks that too). */
 'use strict';
 
-const VERSION = '0.33.0';
+const VERSION = '0.34.0';
 const CACHE_PREFIX = 'vector-lcd-';
 const CACHE_NAME = CACHE_PREFIX + VERSION;
 
@@ -32,6 +32,7 @@ const ASSETS = Object.freeze([
  './gpu/webgl.js',
  './gpu/glsl.js',
  './optics/room.js',
+ './optics/scratches.js',
  './optics/aperture.js',
  './screens/contract.js',
  './screens/tn/index.js',

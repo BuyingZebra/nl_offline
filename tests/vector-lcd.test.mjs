@@ -419,6 +419,31 @@ describe('DMG-01 STN (Retro Display Lab data, fine panel without the DMG grid)',
   // A pixel four grains wide shows a quarter of it.
   near(M.reflectorGrain(D,3.21,7.65,4*G.grain_mm)-1,(M.reflectorGrain(D,3.21,7.65,0)-1)/4,1e-12);
  });
+ test('lens scratches (condition Used): the same lens every time, glints only where a scratch runs across the light-to-eye direction',async()=>{
+  const S=await import('../vector-lcd/optics/scratches.js'),R=await import('../vector-lcd/optics/room.js');
+  const spec=D.lens.scratches.used;
+  assert.ok(D.lens.scratches.assumed&&D.lens.scratches.basis.includes('no DMG lens has been measured'));
+  // Sizes within the sourced ranges: wiping marks a few µm, deeper pocket scratches tens of µm.
+  assert.ok(spec.swirl.width_um[1]<=5&&spec.pocket.width_um[1]<=30);
+  const a=S.generateScratches(spec,[48,92]),b=S.generateScratches(spec,[48,92]);
+  assert.deepEqual(a,b,'same seed, same lens');assert.ok(a.length>40);
+  // A pixel takes a groove by its width, at any pixel size: summed over pixels across it, the full width.
+  const line={type:0,x0:0,y0:-5,x1:0,y1:5,width:.004,depth:.001};
+  for(const pix of [.001,.077,.3]){let sum=0;for(let x=-1;x<=1;x+=pix){const cov=S.nearest(line,x,0).dist<1?Math.max(0,Math.min(x+pix/2,.002)-Math.max(x-pix/2,-.002))/pix:0;sum+=cov*pix;}near(sum,.004,1e-6,'pixel '+pix);}
+  // Glints: light and eye mirrored about a vertical plane through x (h along x).
+  const sig=R.glareSigma(15),norm=R.glareNorm(sig,30),v=[0,0,1],ang=30*Math.PI/180,l=[Math.sin(ang),0,Math.cos(ang)];
+  const across={...line},along={type:0,x0:-5,y0:0,x1:5,y1:0,width:.004,depth:.001};
+  const gA=S.scratchGlint(across,0,0,.002,v,l,sig,norm,1.49),gB=S.scratchGlint(along,0,0,.002,v,l,sig,norm,1.49);
+  assert.ok(gA>.05,'a scratch across the half-way direction glints: '+gA);
+  assert.ok(Math.abs(gB)<1e-4,'one along it does not (it only replaces a sliver of the flat lens): '+gB);
+  // Grooves too shallow for the half-way tilt (15°) stay dark.
+  assert.ok(S.scratchGlint({...across,depth:.0001},0,0,.002,v,l,sig,norm,1.49)<1e-6);
+  // The grid finds the same scratches as a search of all of them.
+  const pack=S.lensScratches(D,'used',[48,92]);
+  for(let k=0;k<200;k++){const x=(k*7.31)%48,y=(k*13.7)%92,all=pack.list.reduce((g,sc)=>g+S.scratchGlint(sc,x-pack.origin[0],y-pack.origin[1],.08,v,l,sig,norm,1.49),0);
+   near(S.scratchesGlint(pack,x,y,.08,v,l,sig,norm,1.49),all,1e-12);}
+  assert.ok(pack.maxPerCell<=S.MAX_PER_CELL);
+ });
  test('screen lens: three parallel surfaces mirror the light, about 11% straight on',()=>{
   near(M.lensReflectance(D,1),.109,.002);
   near(M.lensReflectance({...D,lens:null},1),.04,.001);

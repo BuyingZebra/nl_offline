@@ -25,6 +25,8 @@ const defaults = () => ({
  celsius: 25,
  /** reflector shadow on screens that offer the inspection switch; off is not physical */
  shadow: true,
+ /** the lens's condition on screens that offer it: false = in the box, true = used (scratches) */
+ used: false,
  /** the LCD switched on, on screens that have a power switch */
  power: true,
  /** room illuminance (lux); null until a screen that uses it sets its default */
@@ -37,7 +39,7 @@ const settings = defaults();
 
 /** The settings in use for a screen, for the diagnostic report. */
 export function currentSettings(screen) {
- return {lighting: {...settings.lighting}, celsius: settings.celsius, shadow: settings.shadow, power: settings.power, knobs: {...settings.knobs[screen.id]}};
+ return {lighting: {...settings.lighting}, celsius: settings.celsius, shadow: settings.shadow, used: settings.used, power: settings.power, knobs: {...settings.knobs[screen.id]}};
 }
 
 /** Every control back to its default: the room and this device's knobs. */
@@ -80,6 +82,7 @@ export function applySettings(screen, profile, renderer) {
  if (range) renderer.setTemperature(clampTo(range, settings.celsius));
  if (def.shadowSwitch) renderer.setShadow(settings.shadow);
  if (def.powerSwitch) renderer.setPower(settings.power);
+ if (def.conditionSwitch) renderer.setCondition(settings.used ? 'used' : 'box');
  const room = def.roomLight(profile);
  if (room) room.apply(renderer, settings.roomLux ??= room.initial);
  const knobs = knobsFor(screen, profile);
@@ -143,6 +146,11 @@ export function createControls(el, currentRenderer) {
   if (def.shadowSwitch) el.lighting.append(toggle(() => settings.shadow,
    on => on ? 'Reflector shadow' : 'Reflector shadow off · inspection, not physical',
    () => { settings.shadow = !settings.shadow; currentRenderer().setShadow(settings.shadow); }));
+
+  // The lens's condition: in the box (as new), or used (procedural scratches; wear varies by unit).
+  if (def.conditionSwitch) el.lighting.append(toggle(() => settings.used,
+   on => on ? 'Used · scratches on the lens (typical, not measured)' : 'In the box · lens as new',
+   () => { settings.used = !settings.used; currentRenderer().setCondition(settings.used ? 'used' : 'box'); }));
 
   // ---- On the device
   el.device.replaceChildren(...def.device(profile).map(control => slider({

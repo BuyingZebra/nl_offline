@@ -35,7 +35,7 @@ Modern, clean, high-resolution vector content (NOMAD Tetris style: no visible DM
 - DMG glass: 1.1 mm (the thickest common small-STN glass; DMG value unpublished).
 - DMG response: about 150 ms per change (era STN figures), via `temperature.response_scale` 0.52 (0.64 before v0.32's finer tables).
 
-## DMG-01 state of play (v0.33.0)
+## DMG-01 state of play (v0.34.0)
 
 The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at `../rdl` in the old session. Clone https://github.com/JohnnySun/retro-display-lab if you need it. Copied values are in `profiles/dmg-01-stn.json`. The attribution and NOTICE are in `third_party/retro-display-lab/`.
 
@@ -46,6 +46,7 @@ The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at
 - Tables are 257 bins (source: 65) so the closely spaced shades resolve; `temperature.response_scale` re-tuned to 0.52 for 150 ms in shown brightness.
 - Two-pass reflective optics (each pass carries the square root of the colour), the reflector shadow from refraction through the rear glass, and the screen lens (1.0 mm acrylic, 1.0 mm air gap assumed, frame printed underneath; glare from three surfaces, about 11% straight on).
 - Reflector grain (v0.33): value noise fixed to the panel, 0.118 mm lattice, peak ±3.9% (Brick Boy developer's photo measurement; ± read as peak, assumed), at the reflector point (halfway entry/exit), faded where a pixel is wider than a grain (`reflectorGrain`, `GRAIN`; `setGrain(false)` in flat-colour checks).
+- Lens condition (v0.34): Surroundings switch 'In the box' (default, no scratches) / 'Used' (`optics/scratches.js`): seeded vector scratches on the lens front (swirl arcs 2–5 µm, pocket lines 8–30 µm; sizes from published plastic-scratch measurements, counts assumed), circular-groove facets glint via the glare's lamp model, pixel coverage keeps them clean at any zoom, parallax from lens height. `setCondition`, `dmgScratches` GPU check.
 - Info tab figures (v0.33): `screens/dmg/figures.js` draws measured colours, dots and gaps (idealised), the wheel grid, the layer stack and a shade-change curve from the profile and model; `app/info.js` renders `definition.figures`.
 - Research (v0.33): `reports/DMG01 screen physical data.md` and `research_notes/` hold every sourced value and reliability; labels corrected from it (wheel range rough, −18 V nominal, panel probably Sharp, drivers LH5076/LH5077 per Nintendo's patent US 5,184,830, lens 1.0 mm upper estimate, "high-impact plastic").
 - LCD power switch: relaxes to the unpowered colour. Time constants are derived from the source's clearing/darkening times (assumed).
@@ -63,7 +64,7 @@ The physics comes from Retro Display Lab (Apache-2.0, JohnnySun), checked out at
 ## Testing
 
 ```
-node --test tests/vector-lcd.test.mjs          # physics, profiles vs datasheets, structure, packaging (111 tests)
+node --test tests/vector-lcd.test.mjs          # physics, profiles vs datasheets, structure, packaging (112 tests)
 python3 tests/test_vector_lcd_browser.py       # real browser: every screen, GPU = JS model (tests/vector-lcd-gpu.mjs), report button
 node --test tests/*.test.mjs                   # everything, Tetris included (8 known Tetris failures, see above)
 ```

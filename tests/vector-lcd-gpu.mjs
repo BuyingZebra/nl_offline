@@ -381,6 +381,55 @@ export async function dmgGrain() {
  return out;
 }
 
+/** Lens scratches (condition 'used'): the light they add = optics/scratches.js
+ * at every pixel of a band, on both DMG screens (shadow and grain off, blank panel). */
+export async function dmgScratches() {
+ const P = await profileOf('dmg-01-stn'), out = [];
+ const S = await import('../vector-lcd/optics/scratches.js'), R = await import('../vector-lcd/optics/room.js');
+ const linear = v => v <= .04045 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+ for (const kind of ['dmg', 'dmgv']) {
+  const {renderer: r, canvas, done} = mount(kind, P, [400, 760]);
+  r.setTemperature(25);
+  r.setShadow(false);
+  const light = {angleDeg: 35, azimuthDeg: 300, sourceDeg: 15};
+  r.setLighting(light);
+  let t = T0;
+  const show = () => { if (kind === 'dmgv') r.setScene([]); else paint(r); r.frame(t += 23); };
+  const grab = () => {
+   show();
+   const gl = canvas.getContext('webgl2'), i = r.info(), px = new Uint8Array(i.width * i.height * 4);
+   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+   gl.readPixels(0, 0, i.width, i.height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+   return px;
+  };
+  for (let k = 0; k < 6; k++) show();
+  const plain = grab();
+  r.setCondition('used');
+  const used = grab();
+  const i = r.info(), pxPerMm = i.pxPerMm, W = i.width, H = i.height, pack = S.lensScratches(P, 'used', [PANEL.w, PANEL.h]);
+  const view = r.viewing, lit = r.lighting, e = R.directionVector(view.polarDeg, view.azimuthDeg), D = view.distanceMm;
+  const eye = [W / pxPerMm / 2 + e[0] * D, H / pxPerMm / 2 + e[1] * D, e[2] * D], l = R.directionVector(lit.angleDeg, lit.azimuthDeg);
+  const sigma = R.glareSigma(lit.sourceDeg), norm = R.glareNorm(sigma, lit.angleDeg), lensH = P.lens.gap_mm + P.lens.thickness_mm;
+  let worst = 0, glints = 0, compared = 0;
+  done();
+  for (let row = 0; row < H; row++) for (let col = 0; col < W; col++) {
+   const o = (row * W + col) * 4, a = linear(plain[o + 1] / 255), b = linear(used[o + 1] / 255);
+   if (a > .8 || b > .8) continue;                    // clipped near the lamp's reflection
+   const x = (col + .5) / pxPerMm, y = (H - row - .5) / pxPerMm;
+   let v = [eye[0] - x, eye[1] - y, eye[2]];
+   const vl = Math.hypot(...v); v = v.map(c => c / vl);
+   const want = lit.exposure * S.scratchesGlint(pack, x + lensH * v[0] / v[2], y + lensH * v[1] / v[2], 1 / pxPerMm, v, l, sigma, norm, P.lens.n);
+   worst = Math.max(worst, Math.abs((b - a) - want));
+   if (want > .005) glints++;
+   compared++;
+  }
+  out.push({...result((kind === 'dmg' ? 'DMG-01' : 'DMG vector') + ' lens scratches = model (light added per pixel)', worst, .02),
+   detail: 'worst ' + worst.toExponential(2) + ' over ' + compared + ' pixels, ' + glints + ' of them glinting'},
+   {name: (kind === 'dmg' ? 'DMG-01' : 'DMG vector') + ' lens scratches: some glint at this light', ok: glints > 0, detail: glints + ' pixels'});
+ }
+ return out;
+}
+
 /** LCD power: both DMG renderers follow the model off and back on (shown light). */
 export async function dmgPower() {
  const P = await profileOf('dmg-01-stn'), out = [];
@@ -654,5 +703,5 @@ export async function spotBloom() {
 
 
 export async function runAll() {
- return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgvFade(), ...await dmgGrain(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
+ return [...await contract(), ...await tnParity(), ...await dmgParity(), ...await dmgOptics(), ...await dmgVector(), ...await dmgvParity(), ...await dmgvMovingEdge(), ...await dmgvFade(), ...await dmgGrain(), ...await dmgScratches(), ...await dmgPower(), ...await dmgvEdges(), ...await cgbParity(), ...await vectorParity(), ...await crtParity(), ...await spotBloom(), ...await resizeCarry()];
 }

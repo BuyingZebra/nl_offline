@@ -21,6 +21,7 @@
 
 import {BEZEL_STEP, FRESNEL, TO_SRGB, BLUR_FS} from '../../gpu/glsl.js';
 import {COMMON, PALETTE, LENS, GRAIN} from '../dmg/shaders.js';
+import {SCRATCH_GLSL} from '../../optics/scratches.js';
 
 export {BLUR_FS};
 
@@ -140,11 +141,12 @@ export const DISPLAY_FS = `#version 300 es
 precision highp float;precision highp int;
 uniform sampler2D uMean,uField;uniform highp usampler2D uMeta;
 uniform bool uShadow;uniform vec2 uSize,uMean2;
-uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront,uLensN;uniform vec3 uEye,uLight;
+uniform float uPxPerMm,uExposure,uGlareSigma,uGlareNorm,uFront,uLensN,uLensHeight;uniform vec3 uEye,uLight;
 out vec4 o;
 ${FRESNEL}
 ${LENS}
 ${GRAIN}
+${SCRATCH_GLSL}
 ${TO_SRGB}
 void main(){
  vec2 p=gl_FragCoord.xy;ivec2 ip=ivec2(p);
@@ -165,5 +167,7 @@ void main(){
  vec3 v=normalize(uEye-pos),m=vec3(-v.x,-v.y,v.z);
  float d=acos(clamp(dot(m,uLight),-1.0,1.0));
  float g=lensReflectance(v.z)*exp(-d*d/(2.0*uGlareSigma*uGlareSigma))*uGlareNorm;
+ // Scratches on the lens front (the condition 'Used'): seen where the eye's ray crosses the lens.
+ if(uLensN>1.0)g+=scratchesGlint(pos.xy+uLensHeight*v.xy/max(v.z,1e-3),1.0/uPxPerMm,v,uLight,uGlareSigma,uGlareNorm,uLensN);
  o=vec4(toSRGB((r+vec3(g))*uExposure),1.0);
 }`;

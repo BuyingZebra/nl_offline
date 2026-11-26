@@ -20,6 +20,7 @@ import * as vector from '../screens/vector/index.js';
  * @property {boolean} [vectors]                     content as a display list of lines (renderer.setVectors), not a picture
  * @property {boolean} [scene]                       content as shapes in drive levels (renderer.setScene), not a picture
  * @property {boolean} usesElectrodes                   whether the glass has an electrode map
+ * @property {boolean} [conditionSwitch]             a lens condition switch (renderer.setCondition: in the box / used)
  * @property {(renderer:Object) => void} prepare        reset settings that only some profiles change
  * @property {(P:Object) => DeviceControl[]} device     the real device's controls, and only those
  * @property {(P:Object) => string} deviceNote

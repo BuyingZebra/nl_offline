@@ -15,10 +15,11 @@
 import {createGPU, createSurface, createMeter} from '../../gpu/webgl.js';
 import {clamp, directionVector, bezelShiftMm, bezelPenumbraMm, glareSigma, glareNorm, shadowKernel, entryOffsetMm} from '../../optics/room.js';
 import {checkProfile, contrastConditions, temperatureScale, powerFactor, stickingVolts, metastableChance} from './model.js';
+import {lensScratches, uploadScratches, MAX_PER_CELL} from '../../optics/scratches.js';
 import {UPDATE_FS, ENTRY_FS, BLUR_FS, DISPLAY_FS} from './shaders.js';
 import {createVectorPainter} from '../../vector/draw.js';
 
-export const VERSION = '0.7.0';
+export const VERSION = '0.8.0';
 
 const MAX_STEPS_PER_FRAME = 8;     // DMG frames advanced in one display frame, at most
 /** Panel dots in all. The same as the most device pixels a screen draws, so the
@@ -50,6 +51,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
  let last = null;                  // time of the previous frame (ms)
  let init = 0;                     // next update: 1 = settle to the image, 2 = blank panel
  let phase = 0;                    // fraction of a DMG frame carried to the next display frame
+ let condition = 'box';             // the lens: 'box' (as new) or 'used' (scratches, lens.scratches.used)
+ let scratches = null;              // the lens's scratch tables for the condition (optics/scratches.js)
  let grainOn = true;                // the reflector's grain (reflector.grain_*)
  let dmgFrame = 0;                 // DMG frames run so far: the fade's draws (model.js decayDraw)
  let lighting = {angleDeg: 45, azimuthDeg: 315, sourceDeg: 15, exposure: 1};
@@ -96,6 +99,8 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    painter: vectorInput ? createVectorPainter(gl) : null, contentFb: null, stencil: null
   };
   uploadTables();
+  res.scratchTex = null;
+  if (scratches) res.scratchTex = uploadScratches(gl, scratches);
   if (surface.W && surface.H) allocate();
  }
 
@@ -280,6 +285,19 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
    // The reflector's fixed grain (model.js reflectorGrain); off for inspection or checks.
    gl.uniform1f(p.u('uGrainMm'), profile.reflector?.grain_mm ?? 1);
    gl.uniform1f(p.u('uGrainAmp'), grainOn ? profile.reflector?.grain_amplitude ?? 0 : 0);
+   // Scratches on the lens front (condition 'used'); the lens front sits gap + thickness above the image.
+   gl.uniform1f(p.u('uLensHeight'), (profile.lens?.gap_mm ?? 0) + (profile.lens?.thickness_mm ?? 0));
+   gl.uniform1i(p.u('uScratchOn'), scratches && res.scratchTex ? 1 : 0);
+   if (scratches && res.scratchTex) {
+    gpu.bind(p, 12, 'uScratchData', res.scratchTex.data);
+    gpu.bind(p, 13, 'uScratchGrid', res.scratchTex.grid);
+    gpu.bind(p, 14, 'uScratchIndex', res.scratchTex.index);
+    gl.uniform1f(p.u('uScratchCell'), scratches.cellMm);
+    gl.uniform2f(p.u('uScratchOrigin'), scratches.origin[0], scratches.origin[1]);
+   } else {
+    // Unused, but every sampler must name a texture of its kind.
+    for (const [u, name] of [[12, 'uScratchData'], [13, 'uScratchGrid'], [14, 'uScratchIndex']]) gpu.bind(p, u, name, res.drift);
+   }
    gl.uniform2f(p.u('uSize'), W, H);
    gl.uniform2f(p.u('uDotSize'), dotSize[0], dotSize[1]);
    gl.uniform2f(p.u('uMean'), mean.x * dotsPerMm, -mean.y * dotsPerMm);
@@ -349,6 +367,14 @@ export function createRenderer(canvas, {profile: initialProfile, widthMm, height
   /** The reflector's grain (on by default); the checks switch it off to compare flat colours. */
   get grain() { return grainOn; },
   setGrain(on) { grainOn = Boolean(on); },
+  /** The lens's condition: 'box' (as it left the factory) or 'used' (procedural scratches; wear varies by unit). */
+  get condition() { return condition; },
+  setCondition(c) {
+   condition = c === 'used' ? 'used' : 'box';
+   scratches = condition === 'box' ? null : lensScratches(profile, condition, [widthMm, heightMm]);
+   if (scratches && scratches.maxPerCell > MAX_PER_CELL) throw new Error('Too many scratches in one lens cell: ' + scratches.maxPerCell);
+   if (res && !gpu.lost) res.scratchTex = scratches ? uploadScratches(gl, scratches, res.scratchTex ?? {}) : res.scratchTex;
+  },
   /** The LCD switched on or off (the DMG's LCD enable; with no drive the panel relaxes to its unpowered rest). */
   get power() { return power; },
   setPower(on) { power = Boolean(on); },
